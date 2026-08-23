@@ -125,22 +125,6 @@ pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), 
   Ok(())
 }
 
-#[tauri::command]
-pub async fn open_file_dialog(app: AppHandle) -> Result<Option<String>, String> {
-  use tauri_plugin_dialog::DialogExt;
-  use tauri::async_runtime::channel;
-  let (tx, mut rx) = channel::<Option<String>>(1);
-  app
-    .dialog()
-    .file()
-    .add_filter("Markdown", &["md", "markdown", "txt"])
-    .pick_file(move |picked| {
-      let path = picked.and_then(|f| f.into_path().ok()).map(|p| p.to_string_lossy().into_owned());
-      let _ = tx.send(path);
-    });
-  Ok(rx.recv().await.unwrap_or(None))
-}
-
 /// 打开一篇文档：去重（已开则聚焦），否则新建窗口并 emit lector:open。
 pub fn open_path(app: &AppHandle, path: &str) {
   let canon = canonical(path).unwrap_or_else(|| PathBuf::from(path));

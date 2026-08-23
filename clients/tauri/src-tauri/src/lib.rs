@@ -43,7 +43,11 @@ pub fn run() {
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
+            .level(log::LevelFilter::Debug)
+            .targets([
+              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+            ])
             .build(),
         )?;
       }
@@ -64,7 +68,6 @@ pub fn run() {
       io::write_file,
       io::dir_for,
       io::watch,
-      io::open_file_dialog,
       io::load_settings,
       io::save_settings,
     ])
