@@ -1,8 +1,15 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
-import { keymap, EditorView } from '@codemirror/view'
+import { keymap, EditorView, highlightWhitespace } from '@codemirror/view'
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import type { Extension } from '@codemirror/state'
+
+export interface EditorialConfig {
+  autoCharacterPairs: boolean
+  showWhitespace: boolean
+}
 
 export interface CmHandle {
   view: EditorView
@@ -29,34 +36,42 @@ const syntaxHigh = syntaxHighlighting(
  * 挂一个「裸 CodeMirror 6」到容器，文档 = 该块 raw。
  * 禁止任何 Decoration.replace widget——只编源码。语法高亮走 markdown() + token 色，安全。
  */
-export function mountEditor(host: HTMLElement, doc: string, onChange: (text: string) => void): CmHandle {
-  const view = new EditorView({
-    parent: host,
-    doc,
-    extensions: [
-      markdown(),
-      history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
-      EditorView.lineWrapping,
-      syntaxHigh,
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          onChange(update.state.doc.toString())
-        }
-      }),
-      EditorView.theme({
-        '&': { fontSize: '14px', backgroundColor: 'transparent', color: 'rgb(var(--foreground))' },
-        '.cm-content': { padding: '2px 4px', caretColor: 'rgb(var(--foreground))' },
-        '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'rgb(var(--foreground))' },
-        '.cm-selectionBackground, ::selection': { backgroundColor: 'var(--selection)' },
-        '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection)' },
-        '.cm-gutters': { display: 'none' },
-        '.cm-activeLine': { backgroundColor: 'rgb(var(--muted) / 0.5)' },
-        '&.cm-focused': { outline: 'none' },
-        '.cm-selectionMatch': { backgroundColor: 'rgb(var(--primary) / 0.12)' },
-      }),
-    ],
-  })
+export function mountEditor(
+  host: HTMLElement,
+  doc: string,
+  onChange: (text: string) => void,
+  config: EditorialConfig,
+): CmHandle {
+  const extensions: Extension[] = [
+    markdown(),
+    history(),
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    EditorView.lineWrapping,
+    syntaxHigh,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        onChange(update.state.doc.toString())
+      }
+    }),
+    EditorView.theme({
+      '&': { fontSize: '14px', backgroundColor: 'transparent', color: 'rgb(var(--foreground))' },
+      '.cm-content': { padding: '2px 4px', caretColor: 'rgb(var(--foreground))' },
+      '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'rgb(var(--foreground))' },
+      '.cm-selectionBackground, ::selection': { backgroundColor: 'var(--selection)' },
+      '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection)' },
+      '.cm-gutters': { display: 'none' },
+      '.cm-activeLine': { backgroundColor: 'rgb(var(--muted) / 0.5)' },
+      '&.cm-focused': { outline: 'none' },
+      '.cm-selectionMatch': { backgroundColor: 'rgb(var(--primary) / 0.12)' },
+    }),
+  ]
+  if (config.autoCharacterPairs) {
+    extensions.push(closeBrackets(), keymap.of(closeBracketsKeymap))
+  }
+  if (config.showWhitespace) {
+    extensions.push(highlightWhitespace())
+  }
+  const view = new EditorView({ parent: host, doc, extensions })
   return {
     view,
     destroy: () => view.destroy(),

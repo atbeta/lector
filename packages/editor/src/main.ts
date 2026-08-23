@@ -20,6 +20,11 @@ import {
 import { mountEditor, type CmHandle } from './cm.ts'
 import { renderBlockHtml } from './mdastHtml.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
+import { initSettings, toggleTheme, getSettings } from './settings.ts'
+import { openSettingsModal } from './settingsModal.ts'
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
+import '@fontsource-variable/source-serif-4'
 import './styles/app.css'
 
 interface Session {
@@ -45,6 +50,7 @@ const fileNameEl = document.getElementById('file-name')!
 const openBtn = document.getElementById('open-btn')!
 const saveBtn = document.getElementById('save-btn')!
 const themeBtn = document.getElementById('theme-btn')!
+const settingsBtn = document.getElementById('settings-btn')!
 
 const blocksEl = new Map<string, HTMLElement>()
 let cm: CmHandle | null = null
@@ -118,7 +124,11 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
     const host = document.createElement('div')
     host.className = 'cm-host'
     el.appendChild(host)
-    cm = mountEditor(host, block.raw, (text) => liveText.set(block.id, text))
+    const config = {
+      autoCharacterPairs: getSettings().autoCharacterPairs,
+      showWhitespace: getSettings().showWhitespace,
+    }
+    cm = mountEditor(host, block.raw, (text) => liveText.set(block.id, text), config)
   } else {
     const preview = document.createElement('div')
     preview.className = 'preview reading-prose'
@@ -181,16 +191,8 @@ window.addEventListener('keydown', (e) => {
 
 openBtn.addEventListener('click', () => void openFromShellOrDialog())
 
-themeBtn.addEventListener('click', () => {
-  const cur = document.documentElement.getAttribute('data-theme') ?? 'light'
-  const next = cur === 'dark' ? 'light' : 'dark'
-  document.documentElement.setAttribute('data-theme', next)
-  try {
-    localStorage.setItem('lector-theme', next)
-  } catch {
-    /* 忽略持久化失败 */
-  }
-})
+themeBtn.addEventListener('click', () => toggleTheme())
+settingsBtn.addEventListener('click', () => openSettingsModal())
 
 saveBtn.addEventListener('click', async () => {
   if (!session.source) return
@@ -255,6 +257,36 @@ if (detectEnv() === 'shell') {
 }
 bindShellEvents()
 
+// 关闭脏文档前的浏览器级守卫（原生窗口关闭确认属壳侧后续项）
+window.addEventListener('beforeunload', (e) => {
+  if (getSettings().closeAlwaysConfirmsChanges && session.dirty && session.source) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+})
+
+function renderEmptyState() {
+  contentEl.innerHTML = ''
+  const wrap = document.createElement('div')
+  wrap.className = 'empty-state'
+  const icon = document.createElement('div')
+  icon.className = 'empty-icon'
+  icon.textContent = '☰'
+  const title = document.createElement('h2')
+  title.textContent = 'Lector'
+  const p = document.createElement('p')
+  p.textContent = '打开一个 Markdown 文件开始阅读。'
+  const btn = document.createElement('button')
+  btn.className = 'btn btn-primary'
+  btn.textContent = '打开文件'
+  btn.addEventListener('click', () => void openFromShellOrDialog())
+  wrap.append(icon, title, p, btn)
+  contentEl.appendChild(wrap)
+  fileNameEl.textContent = ''
+  blocksEl.clear()
+  markDirty()
+}
+
 const sample = `# 欢迎使用 Lector
 
 > 阅读优先的纯 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。
@@ -269,4 +301,12 @@ const sample = `# 欢迎使用 Lector
 
 第二段，用于测试「只改这一块」的切片保真。
 `
-loadSession('sample.md', sample)
+
+void (async () => {
+  await initSettings()
+  if (detectEnv() === 'shell') {
+    renderEmptyState()
+  } else {
+    loadSession('sample.md', sample)
+  }
+})()
