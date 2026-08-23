@@ -102,6 +102,29 @@ pub fn watch(path: String, app: AppHandle) -> Result<bool, String> {
   Ok(true)
 }
 
+/// 读取设置 JSON（app 配置目录 lector-settings.json）。无则 None。
+#[tauri::command]
+pub fn load_settings(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
+  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  let path = dir.join("lector-settings.json");
+  if !path.exists() {
+    return Ok(None);
+  }
+  let s = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+  Ok(Some(serde_json::from_str(&s).map_err(|e| e.to_string())?))
+}
+
+/// 写设置 JSON。前端已用 core normalizeSettings 校验，壳只负责落盘。
+#[tauri::command]
+pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
+  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+  let path = dir.join("lector-settings.json");
+  let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+  fs::write(&path, text).map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 #[tauri::command]
 pub async fn open_file_dialog(app: AppHandle) -> Result<Option<String>, String> {
   use tauri_plugin_dialog::DialogExt;

@@ -108,6 +108,34 @@ export async function watch(path: string): Promise<void> {
   await invoke('lector:watch', { path })
 }
 
+const SETTINGS_LS_KEY = 'lector-settings'
+
+export async function loadSettings(): Promise<unknown> {
+  if (detectEnv() !== 'shell') {
+    try {
+      const raw = localStorage.getItem(SETTINGS_LS_KEY)
+      return raw ? (JSON.parse(raw) as unknown) : null
+    } catch {
+      return null
+    }
+  }
+  const { invoke } = await tauriApi()
+  return invoke<unknown>('lector:load_settings')
+}
+
+export async function saveSettings(settings: unknown): Promise<void> {
+  if (detectEnv() !== 'shell') {
+    try {
+      localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(settings))
+    } catch {
+      /* 忽略持久化失败 */
+    }
+    return
+  }
+  const { invoke } = await tauriApi()
+  await invoke('lector:save_settings', { settings })
+}
+
 export async function onOpen(handler: (p: OpenPayload) => void): Promise<() => void> {
   if (detectEnv() !== 'shell') return () => {}
   const { listen } = await tauriApi()
