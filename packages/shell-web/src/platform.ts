@@ -54,9 +54,11 @@ async function tauriApi(): Promise<TauriApi> {
 export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
   if (detectEnv() === 'shell') {
     const { invoke } = await tauriApi()
-    const picked = await invoke<string | null>('lector:open_file_dialog')
+    const picked = await invoke<string | null>('lector:open_file_dialog').catch(() => null)
     if (!picked) return null
-    const res = await invoke<ReadResult>('lector:read_file', { path: picked })
+    const res = await invoke<ReadResult>('lector:read_file', { path: picked }).catch(() => {
+      throw new Error('无法读取文件')
+    })
     return { path: res.path, content: res.content, mtime_ms: res.mtime_ms }
   }
   // browser 后退：input file
@@ -154,6 +156,13 @@ export async function onFileChanged(
   if (detectEnv() !== 'shell') return () => {}
   const { listen } = await tauriApi()
   return listen<{ path: string; mtime_ms: number }>('lector:file-changed', (p) => handler(p))
+}
+
+/** 原生菜单事件（File/Edit/View → web）。 */
+export async function onMenu(handler: (action: string) => void): Promise<() => void> {
+  if (detectEnv() !== 'shell') return () => {}
+  const { listen } = await tauriApi()
+  return listen<{ action: string }>('lector:menu', (p) => handler(p.action))
 }
 
 /**
