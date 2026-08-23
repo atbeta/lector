@@ -23,6 +23,7 @@ import { renderBlockHtml } from './mdastHtml.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
+import { findBar, escapeRegExp } from './findBar.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
@@ -53,6 +54,7 @@ const saveBtn = document.getElementById('save-btn')!
 const themeBtn = document.getElementById('theme-btn')!
 const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
+const findBtn = document.getElementById('find-btn')!
 
 const outlinePanel = document.createElement('aside')
 outlinePanel.className = 'outline-panel'
@@ -332,6 +334,35 @@ openBtn.addEventListener('click', () => void openFromShellOrDialog())
 themeBtn.addEventListener('click', () => toggleTheme())
 settingsBtn.addEventListener('click', () => openSettingsModal())
 outlineBtn.addEventListener('click', () => toggleOutline())
+
+function openFind() {
+  if (document.querySelector('.find-bar')) {
+    document.querySelector<HTMLInputElement>('.find-input')?.focus()
+    return
+  }
+  findBar({
+    getBlocks: () => session.blocks,
+    replaceInBlock: (id, from, to) => {
+      const b = session.blocks.find((x) => x.id === id)
+      if (!b) return
+      const re = new RegExp(escapeRegExp(from), 'gi')
+      b.raw = b.raw.replace(re, () => to)
+      b.dirty = true
+      b.mdast = parseOne(b.raw)
+      markDirty()
+      render()
+    },
+    scrollTo: (id) => blocksEl.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+  })
+}
+
+findBtn.addEventListener('click', () => openFind())
+window.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+    e.preventDefault()
+    openFind()
+  }
+})
 
 saveBtn.addEventListener('click', async () => {
   if (!session.source) return

@@ -188,6 +188,43 @@ button, a {
   padding: 32px 24px 96px;
 }
 
+/* ───────────── 查找栏 ───────────── */
+.find-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: rgb(var(--card));
+  box-shadow: var(--shadow-card);
+}
+.find-bar input {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+}
+.find-bar input:focus-visible { outline: 1px solid rgb(var(--primary) / 0.45); outline-offset: 1px; }
+.find-bar .find-input { width: 160px; }
+.find-bar .find-replace { width: 140px; }
+.find-count {
+  min-width: 48px;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: rgb(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
 /* ───────────── 大纲浮窗 ───────────── */
 .outline-panel {
   position: fixed;
