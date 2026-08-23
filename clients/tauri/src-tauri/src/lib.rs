@@ -39,6 +39,7 @@ pub fn run() {
       }
     }))
     .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -64,8 +65,6 @@ pub fn run() {
       protocol::handle(&allowed, request)
     })
     .invoke_handler(tauri::generate_handler![
-      io::read_file,
-      io::write_file,
       io::dir_for,
       io::watch,
       io::load_settings,

@@ -7,6 +7,9 @@
   ],
   "permissions": [
     "core:default",
-    "dialog:default"
+    "dialog:allow-open",
+    { "identifier": "fs:read-files", "allow": [{ "path": "**" }] },
+    { "identifier": "fs:read-meta", "allow": [{ "path": "**" }] },
+    { "identifier": "fs:write-files", "allow": [{ "path": "**" }] }
   ]
 }

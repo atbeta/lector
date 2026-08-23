@@ -50,23 +50,35 @@ async function tauriApi(): Promise<TauriApi> {
   return apiPromise
 }
 
-/** 从壳打开+读盘（shell 用 dialog 插件 open() + read_file；browser 走 input file）。 */
+async function fsApi() {
+  return import('@tauri-apps/plugin-fs')
+}
+
+function toMs(t: number | Date | null | undefined): number {
+  if (t == null) return Date.now()
+  return typeof t === 'number' ? t : t.getTime()
+}
+
+/** 从壳打开+读盘（shell 用 dialog open() + fs readTextFile；browser 走 input file）。 */
 export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
   if (detectEnv() === 'shell') {
-    const { invoke } = await tauriApi()
     const { open } = await import('@tauri-apps/plugin-dialog')
-    // 不吞错：取消返回 null；权限/命令错误则抛出，由调用方提示
     const picked = await open({
       multiple: false,
       directory: false,
       filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
     })
     if (!picked) return null
-    const res = await invoke<ReadResult>('lector:read_file', { path: picked }).catch((err) => {
-      console.error('[lector] read_file failed', err)
-      throw new Error('无法读取文件')
-    })
-    return { path: res.path, content: res.content, mtime_ms: res.mtime_ms }
+    const path = typeof picked === 'string' ? picked : picked[0]!
+    const fs = await fsApi()
+    const [content, info] = await Promise.all([
+      fs.readTextFile(path).catch((err) => {
+        console.error('[lector] readTextFile failed', err)
+        throw new Error(`读取失败：${err instanceof Error ? err.message : String(err)}`)
+      }),
+      fs.stat(path).catch(() => null),
+    ])
+    return { path, content, mtime_ms: toMs(info?.mtime) }
   }
   // browser 后退：input file
   return new Promise((resolve) => {
@@ -85,15 +97,27 @@ export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
 }
 
 export async function read(path: string): Promise<ReadResult> {
-  const { invoke } = await tauriApi()
-  return invoke<ReadResult>('lector:read_file', { path })
+  const fs = await fsApi()
+  const [content, info] = await Promise.all([
+    fs.readTextFile(path),
+    fs.stat(path).catch(() => null),
+  ])
+  return { path, content, mtime_ms: toMs(info?.mtime) }
 }
 
 export async function save(path: string, content: string, mtime_ms: number): Promise<SaveResult> {
   if (detectEnv() === 'shell') {
-    const { invoke } = await tauriApi()
-    const res = await invoke<SaveResult>('lector:write_file', { path, content, mtime_ms })
-    return res ?? { ok: true }
+    const fs = await fsApi()
+    const info = await fs.stat(path).catch(() => null)
+    const current = (info ? toMs(info.mtime) : 0)
+    if (current !== mtime_ms) {
+      return { ok: false, conflict: true, current_mtime_ms: current }
+    }
+    await fs.writeTextFile(path, content).catch((err) => {
+      console.error('[lector] writeTextFile failed', err)
+      throw new Error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
+    })
+    return { ok: true }
   }
   // browser 后退：下载
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })

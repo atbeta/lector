@@ -26,29 +26,8 @@ pub struct WatcherStore(pub Mutex<Vec<RecommendedWatcher>>);
 static WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Serialize)]
-pub struct ReadResult {
-  path: String,
-  content: String,
-  mtime_ms: u64,
-}
-
-#[derive(Serialize)]
 pub struct DirResult {
   base_dir: String,
-}
-
-#[derive(Deserialize)]
-pub struct WriteRequest {
-  path: String,
-  content: String,
-  mtime_ms: u64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum WriteOutcome {
-  Ok,
-  Conflict { current_mtime_ms: u64 },
 }
 
 fn mtime_ms(path: &std::path::Path) -> io::Result<u64> {
@@ -68,25 +47,6 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
   fs::write(&tmp, content)?;
   fs::rename(&tmp, path)?;
   Ok(())
-}
-
-#[tauri::command]
-pub fn read_file(path: String) -> Result<ReadResult, String> {
-  let buf = fs::read(&path).map_err(|e| e.to_string())?;
-  let content = String::from_utf8_lossy(&buf).into_owned();
-  let m = mtime_ms(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
-  Ok(ReadResult { path, content, mtime_ms: m })
-}
-
-#[tauri::command]
-pub fn write_file(req: WriteRequest) -> Result<WriteOutcome, String> {
-  let path = std::path::Path::new(&req.path);
-  let current = mtime_ms(path).map_err(|e| e.to_string())?;
-  if current != req.mtime_ms {
-    return Ok(WriteOutcome::Conflict { current_mtime_ms: current });
-  }
-  atomic_write(path, req.content.as_bytes()).map_err(|e| e.to_string())?;
-  Ok(WriteOutcome::Ok)
 }
 
 #[tauri::command]
