@@ -291,11 +291,15 @@ button, a {
 .block {
   position: relative;
   border-radius: var(--radius);
-  transition: background var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .block:hover { background: rgb(var(--muted) / 0.5); }
-.block.focused { background: rgb(var(--muted)); }
-.block.focused .cm-host { padding: 4px 8px; }
+/* 聚焦块 = 唯一可见的「源码编辑」标识：左缘靛蓝条 + 极浅靛蓝底 */
+.block.focused {
+  background: var(--primary-softer);
+  box-shadow: inset 3px 0 0 rgb(var(--primary));
+}
+.block.focused .cm-host { padding: 6px 12px; }
 .cm-host {
   min-height: 1.5em;
   cursor: text;
@@ -405,7 +409,12 @@ button, a {
   background: rgb(var(--muted) / 0.5);
 }
 .reading-prose tbody tr:hover { background: rgb(var(--muted) / 0.3); }
-.reading-prose img { max-width: 100%; border-radius: var(--radius-card); }
+.reading-prose img {
+  max-width: 100%;
+  border-radius: var(--radius-card);
+  border: 1px solid rgb(var(--border));
+  display: block;
+}
 
 /* 任务复选框 — 对齐 NoteFast 自绘 checkbox */
 .reading-prose input[type='checkbox'] {
@@ -479,7 +488,7 @@ button, a {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(var(--foreground) / 0.25);
+  background: rgb(var(--foreground) / 0.14);
   backdrop-filter: blur(4px);
   animation: fade-in-soft var(--dur-fast) var(--ease) both;
 }
