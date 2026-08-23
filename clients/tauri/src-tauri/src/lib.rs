@@ -1,4 +1,5 @@
 mod io;
+mod menu;
 mod protocol;
 
 use std::path::PathBuf;
@@ -46,6 +47,8 @@ pub fn run() {
             .build(),
         )?;
       }
+      // 原生菜单栏
+      let _ = menu::create(app.handle());
       // 首实例 argv（Windows / Linux 双击关联把文件路径作为参数传入）
       for path in paths_from_argv(&std::env::args().collect::<Vec<_>>()) {
         open_if_markdown(app.handle(), &path);
@@ -77,6 +80,7 @@ pub fn run() {
         }
       }
     }
+    RunEvent::MenuEvent(id) => menu::route(app, id.id().0.as_str()),
     RunEvent::ExitRequested { .. } => {}
     _ => {}
   });
