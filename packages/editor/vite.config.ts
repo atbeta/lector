@@ -6,6 +6,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@lector/core': resolve(import.meta.dirname, '../core/src/index.ts'),
+      '@lector/shell-web': resolve(import.meta.dirname, '../shell-web/src/platform.ts'),
     },
   },
   server: {

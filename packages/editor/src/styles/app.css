@@ -337,6 +337,29 @@ button, a {
   color: rgb(var(--muted-foreground));
 }
 
+/* ───────────── Toast ───────────── */
+.lector-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--card) / 0.96);
+  color: rgb(var(--foreground));
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.lector-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* 减弱动态效果 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

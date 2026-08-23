@@ -7,9 +7,19 @@ import {
   type BlockView,
   type SourceDocument,
 } from '@lector/core'
+import {
+  detectEnv,
+  pickAndRead,
+  read,
+  save,
+  watch,
+  onOpen,
+  onFileChanged,
+  shellAssetResolver,
+} from '@lector/shell-web'
 import { mountEditor, type CmHandle } from './cm.ts'
 import { renderBlockHtml } from './mdastHtml.ts'
-import { setCurrentMdPath } from './asset.ts'
+import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import './styles/app.css'
 
 interface Session {
@@ -32,7 +42,6 @@ const session: Session = {
 const contentEl = document.getElementById('content')!
 const dirtyDot = document.getElementById('dirty-dot')!
 const fileNameEl = document.getElementById('file-name')!
-const fileInput = document.getElementById('file-input') as HTMLInputElement
 const openBtn = document.getElementById('open-btn')!
 const saveBtn = document.getElementById('save-btn')!
 const themeBtn = document.getElementById('theme-btn')!
@@ -40,7 +49,6 @@ const themeBtn = document.getElementById('theme-btn')!
 const blocksEl = new Map<string, HTMLElement>()
 let cm: CmHandle | null = null
 
-/** 记录聚焦块在 CM 内的实时文本（finalize 时读取）。 */
 const liveText = new Map<string, string>()
 
 function markDirty() {
@@ -48,14 +56,27 @@ function markDirty() {
   dirtyDot.style.display = session.dirty ? 'block' : 'none'
 }
 
-function loadSession(path: string, raw: string) {
+function showToast(msg: string) {
+  let toast = document.getElementById('lector-toast')
+  if (!toast) {
+    toast = document.createElement('div')
+    toast.id = 'lector-toast'
+    toast.className = 'lector-toast'
+    document.body.appendChild(toast)
+  }
+  toast.textContent = msg
+  toast.classList.add('show')
+  window.setTimeout(() => toast?.classList.remove('show'), 2400)
+}
+
+function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   if (cm) {
     cm.destroy()
     cm = null
   }
   blocksEl.clear()
   liveText.clear()
-  session.source = createSourceDocument(path, raw, Date.now())
+  session.source = createSourceDocument(path, raw, mtimeMs)
   setCurrentMdPath(session.source.path)
   session.blocks = parseBlocks(session.source.text)
   session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
@@ -65,10 +86,12 @@ function loadSession(path: string, raw: string) {
   contentEl.innerHTML = ''
   render()
   markDirty()
+  if (detectEnv() === 'shell') {
+    void watch(path)
+  }
 }
 
 function render() {
-  // 若 CM 聚焦，finalize 前先取出文本进 liveText
   for (const block of session.blocks) {
     let el = blocksEl.get(block.id)
     if (!el) {
@@ -90,8 +113,6 @@ function createBlockEl(block: BlockView): HTMLElement {
 function renderBlockContent(el: HTMLElement, block: BlockView) {
   el.classList.toggle('focused', block.id === session.focusedId)
   const focus = block.id === session.focusedId
-
-  // 清理旧的 CM/preview 子节点
   el.textContent = ''
   if (focus) {
     const host = document.createElement('div')
@@ -106,7 +127,6 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
   }
 }
 
-/** 失焦当前块：把 CM 文本写回 raw，标 dirty。 */
 function finalizeFocused() {
   if (session.focusedId === null || !cm) return
   const block = session.blocks.find((b) => b.id === session.focusedId)
@@ -115,7 +135,6 @@ function finalizeFocused() {
   const original = session.originals.get(block.id) ?? block.raw
   block.raw = text
   block.dirty = text !== original
-  // 脏块重新解析，重建预览 mdast
   block.mdast = block.dirty ? parseOne(text) : block.mdast
   markDirty()
 }
@@ -141,6 +160,11 @@ function defocus() {
   render()
 }
 
+async function openFromShellOrDialog() {
+  const picked = await pickAndRead()
+  if (picked) loadSession(picked.path, picked.content, picked.mtime_ms)
+}
+
 contentEl.addEventListener('click', (e) => {
   const target = (e.target as HTMLElement).closest<HTMLElement>('.block')
   if (!target) return
@@ -148,7 +172,6 @@ contentEl.addEventListener('click', (e) => {
   if (id) focusBlock(id)
 })
 
-// Enter 在空段落末尾：分裂块（结构变化，占位实现：先失焦）
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && session.focusedId !== null) {
     e.preventDefault()
@@ -156,7 +179,7 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
-openBtn.addEventListener('click', () => fileInput.click())
+openBtn.addEventListener('click', () => void openFromShellOrDialog())
 
 themeBtn.addEventListener('click', () => {
   const cur = document.documentElement.getAttribute('data-theme') ?? 'light'
@@ -168,41 +191,70 @@ themeBtn.addEventListener('click', () => {
     /* 忽略持久化失败 */
   }
 })
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files?.[0]
-  if (!file) return
-  void file.text().then((raw) => {
-    loadSession(file.name, raw)
-  })
-})
 
-saveBtn.addEventListener('click', () => {
+saveBtn.addEventListener('click', async () => {
   if (!session.source) return
   finalizeFocused()
   if (cm) {
     cm.destroy()
     cm = null
   }
-  const blocks = session.blocks
-  const normalized = serialize(blocks)
+  const normalized = serialize(session.blocks)
   const finalText = applyEncoding(session.source, normalized)
-
-  const blob = new Blob([finalText], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = session.source.path.split('/').pop() ?? 'untitled.md'
-  a.click()
-  URL.revokeObjectURL(url)
-  // 保存后视为干净
+  const res = await save(session.source.path, finalText, session.source.mtimeMs)
+  if (res.conflict) {
+    showToast('磁盘已发生变化，已重新加载最新内容（未覆盖）。')
+    // 重新加载磁盘版本，避免覆盖外部改动
+    await reloadFromDisk()
+    return
+  }
   session.blocks.forEach((b) => {
     session.originals.set(b.id, b.raw)
     b.dirty = false
   })
+  // 更新 mtime，避免下一次保存误判冲突
+  session.source.mtimeMs = Date.now()
   markDirty()
+  showToast('已保存')
 })
 
-// 首次加载一个示例，便于直开即见。
+async function reloadFromDisk() {
+  if (!session.source) return
+  try {
+    const res = await read(session.source.path)
+    loadSession(res.path, res.content, res.mtime_ms)
+  } catch {
+    showToast('重新加载失败')
+  }
+}
+
+function bindShellEvents() {
+  if (detectEnv() !== 'shell') return
+  // 壳把最终路径交给 web（双击 / 单实例转发）
+  void onOpen(async (e) => {
+    try {
+      const res = await read(e.path)
+      loadSession(res.path, res.content, res.mtime_ms)
+    } catch {
+      showToast('读取失败')
+    }
+  })
+  // 外部变更（watch 回调）
+  void onFileChanged(async (e) => {
+    if (session.source && e.path === session.source.path && !session.dirty) {
+      await reloadFromDisk()
+    } else if (session.source && e.path === session.source.path && session.dirty) {
+      showToast('磁盘文件已变化')
+    }
+  })
+}
+
+// 初始化：壳环境注入资源解析器 + 绑定事件
+if (detectEnv() === 'shell') {
+  setAssetResolver(shellAssetResolver)
+}
+bindShellEvents()
+
 const sample = `# 欢迎使用 Lector
 
 > 阅读优先的纯 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。

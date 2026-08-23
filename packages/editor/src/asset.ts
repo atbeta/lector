@@ -2,7 +2,7 @@
 // 壳通过 setAssetResolver 注入自定义协议解析（lector-file://，baseDir 沙箱防穿越）。
 // 浏览器 dev：回退到 origin（假设资源在 packages/editor/public 下由 Vite 服务）。
 
-type Resolver = (raw: string, mdPath: string | null) => string
+type Resolver = (raw: string, mdPath: string | null) => string | null | undefined
 
 let customResolver: Resolver | null = null
 let currentMdPath: string | null = null
@@ -41,7 +41,10 @@ export function resolveImageSrc(raw: string): string {
   if (ABSOLUTE_RE.test(raw)) return raw
   const safe = sanitizeRelative(raw)
   if (safe === null) return ''
-  if (customResolver) return customResolver(safe, currentMdPath)
+  if (customResolver) {
+    const custom = customResolver(safe, currentMdPath)
+    if (custom != null) return custom
+  }
   // dev：按 Vite 服务根解析（默认 public/ 或 /images/）
   return new URL(safe, window.location.origin).href
 }
