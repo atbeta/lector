@@ -3,5 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "菜单绑定、打开保存、最近列表、与壳的 IPC 接口"
+  "description": "菜单绑定、打开保存、最近列表、与壳的 IPC 接口",
+  "exports": {
+    ".": "./src/platform.ts"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1"
+  }
 }
