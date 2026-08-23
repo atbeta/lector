@@ -1,4 +1,5 @@
 import type { BlockView } from '@lector/core'
+import { iconSvg } from './icons.ts'
 
 export interface FindHost {
   getBlocks: () => BlockView[]
@@ -25,11 +26,11 @@ export function findBar(host: FindHost) {
   bar.innerHTML = `
     <input class="find-input" type="text" placeholder="查找" aria-label="查找" />
     <span class="find-count"></span>
-    <button class="btn-icon find-prev" title="上一个" aria-label="上一个">↑</button>
-    <button class="btn-icon find-next" title="下一个" aria-label="下一个">↓</button>
+    <button class="btn-icon find-prev" title="上一个" aria-label="上一个">${iconSvg('chevronUp')}</button>
+    <button class="btn-icon find-next" title="下一个" aria-label="下一个">${iconSvg('chevronDown')}</button>
     <input class="find-replace" type="text" placeholder="替换为" aria-label="替换为" />
     <button class="btn find-replaceall">全部替换</button>
-    <button class="btn-icon find-close" title="关闭" aria-label="关闭">✕</button>
+    <button class="find-close btn-icon" title="关闭" aria-label="关闭">${iconSvg('close')}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!

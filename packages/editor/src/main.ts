@@ -15,6 +15,7 @@ import {
   watch,
   onOpen,
   onFileChanged,
+  onMenu,
   shellAssetResolver,
 } from '@lector/shell-web'
 import { mountEditor, type CmHandle } from './cm.ts'
@@ -24,6 +25,7 @@ import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
+import { iconSvg } from './icons.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
@@ -55,6 +57,23 @@ const themeBtn = document.getElementById('theme-btn')!
 const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
 const findBtn = document.getElementById('find-btn')!
+
+// 图标（SVG，替换 emoji）
+setIcon('open-glyph', 'folder')
+setIcon('save-glyph', 'save')
+outlineBtn.innerHTML = iconSvg('outline')
+findBtn.innerHTML = iconSvg('search')
+settingsBtn.innerHTML = iconSvg('settings')
+function setIcon(id: string, name: string) {
+  document.getElementById(id)!.innerHTML = iconSvg(name)
+}
+function refreshThemeIcon() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+  themeBtn.innerHTML = iconSvg(dark ? 'sun' : 'moon')
+}
+refreshThemeIcon()
+const themeObserver = new MutationObserver(() => refreshThemeIcon())
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
 const outlinePanel = document.createElement('aside')
 outlinePanel.className = 'outline-panel'
@@ -419,6 +438,26 @@ function bindShellEvents() {
       showToast('磁盘文件已变化')
     }
   })
+  // 原生菜单
+  void onMenu((action) => {
+    switch (action) {
+      case 'open':
+        void openFromShellOrDialog()
+        break
+      case 'save':
+        saveBtn.click()
+        break
+      case 'find':
+        openFind()
+        break
+      case 'theme':
+        toggleTheme()
+        break
+      case 'outline':
+        toggleOutline()
+        break
+    }
+  })
 }
 
 // 初始化：壳环境注入资源解析器 + 绑定事件
@@ -441,14 +480,14 @@ function renderEmptyState() {
   wrap.className = 'empty-state'
   const icon = document.createElement('div')
   icon.className = 'empty-icon'
-  icon.textContent = '☰'
+  icon.innerHTML = iconSvg('book', 24)
   const title = document.createElement('h2')
   title.textContent = 'Lector'
   const p = document.createElement('p')
   p.textContent = '打开一个 Markdown 文件开始阅读。'
   const btn = document.createElement('button')
   btn.className = 'btn btn-primary'
-  btn.textContent = '打开文件'
+  btn.innerHTML = `${iconSvg('folder', 16)} 打开文件`
   btn.addEventListener('click', () => void openFromShellOrDialog())
   wrap.append(icon, title, p, btn)
   contentEl.appendChild(wrap)
@@ -495,6 +534,9 @@ export function parseBlocks(text: string): BlockView[] {
 void (async () => {
   await initSettings()
   if (detectEnv() === 'shell') {
+    if (/Mac/i.test(navigator.platform)) {
+      document.documentElement.setAttribute('data-shell', 'macos')
+    }
     renderEmptyState()
   } else {
     loadSession('sample.md', sample)

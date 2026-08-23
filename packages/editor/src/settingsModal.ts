@@ -1,81 +1,29 @@
 import { getSettings, resetSettings, setSettings } from './settings.ts'
 import type { EditorSettings } from '@lector/core'
+import { iconSvg } from './icons.ts'
+import { Segmented, Slider, Switch } from './ui.ts'
 
 let root: HTMLElement | null = null
 
-function h(tag: string, cls = '', text = ''): HTMLElement {
-  const el = document.createElement(tag)
-  if (cls) el.className = cls
-  if (text) el.textContent = text
-  return el
+function h(tag: string, cls = ''): HTMLElement {
+  const e = document.createElement(tag)
+  if (cls) e.className = cls
+  return e
 }
 
 function section(label: string): HTMLElement {
   const wrap = h('section', 'settings-section')
-  wrap.appendChild(h('h3', 'settings-row-label', label))
+  wrap.appendChild(h('h3')).textContent = label
+  wrap.firstElementChild!.className = 'settings-row-label'
   return wrap
 }
 
 function row(label: string, control: HTMLElement): HTMLElement {
   const row = h('div', 'settings-row')
-  row.append(h('span', 'row-label', label), control)
+  row.appendChild(h('span')).textContent = label
+  row.firstElementChild!.className = 'row-label'
+  row.appendChild(control)
   return row
-}
-
-function segmented<T extends string>(
-  value: T,
-  options: Array<{ v: T; label: string }>,
-  onChange: (v: T) => void,
-): HTMLElement {
-  const box = h('div', 'segmented')
-  for (const opt of options) {
-    const btn = h('button', 'seg-item' + (opt.v === value ? ' active' : ''), opt.label)
-    btn.dataset.v = opt.v
-    btn.addEventListener('click', () => {
-      box.querySelectorAll('.seg-item').forEach((b) => b.classList.remove('active'))
-      btn.classList.add('active')
-      onChange(opt.v)
-    })
-    box.appendChild(btn)
-  }
-  return box
-}
-
-function range(
-  value: number,
-  min: number,
-  max: number,
-  step: number,
-  unit: string,
-  fmt: (n: number) => string,
-  onChange: (v: number) => void,
-): HTMLElement {
-  const wrap = h('div', 'range-row')
-  const input = document.createElement('input')
-  input.type = 'range'
-  input.min = String(min)
-  input.max = String(max)
-  input.step = String(step)
-  input.value = String(value)
-  const out = h('span', 'range-value', `${fmt(value)}${unit}`)
-  input.addEventListener('input', () => {
-    const v = Number(input.value)
-    out.textContent = `${fmt(v)}${unit}`
-    onChange(v)
-  })
-  wrap.append(input, out)
-  return wrap
-}
-
-function toggle(checked: boolean, onChange: (v: boolean) => void): HTMLElement {
-  const box = h('label', 'toggle')
-  const input = document.createElement('input')
-  input.type = 'checkbox'
-  input.checked = checked
-  const track = h('span', 'toggle-track')
-  box.append(input, track)
-  input.addEventListener('change', () => onChange(input.checked))
-  return box
 }
 
 export function closeSettingsModal() {
@@ -94,49 +42,68 @@ export function openSettingsModal(onClose?: () => void) {
   const backdrop = h('div', 'modal-backdrop')
   const card = h('div', 'modal-card')
 
+  // 头部
   const header = h('div', 'modal-header')
-  header.append(h('h2', 'modal-title', '设置'))
-  const closeBtn = h('button', 'btn-icon', '✕')
+  const title = h('h2', 'modal-title')
+  title.textContent = '设置'
+  const closeBtn = h('button', 'btn-icon')
+  closeBtn.innerHTML = iconSvg('close')
   closeBtn.addEventListener('click', closeSettingsModal)
-  header.appendChild(closeBtn)
+  header.append(title, closeBtn)
   card.appendChild(header)
 
+  // 外观
   const appearance = section('外观')
-  appearance.appendChild(
-    row('主题', segmented(live.theme,
-      [{ v: 'system', label: '跟随系统' }, { v: 'light', label: '浅色' }, { v: 'dark', label: '深色' }],
-      (v) => apply((s) => ({ ...s, theme: v })))),
-  )
-  appearance.appendChild(
-    row('阅读字体', segmented(live.fontFamily,
-      [{ v: 'system', label: '系统' }, { v: 'serif', label: '衬线' }],
-      (v) => apply((s) => ({ ...s, fontFamily: v })))),
-  )
-  appearance.appendChild(
-    row('正文字号', range(live.fontSize, 11, 32, 1, 'px', (n) => String(n), (v) => apply((s) => ({ ...s, fontSize: v })))),
-  )
-  appearance.appendChild(
-    row('行高', range(live.lineHeight, 1.2, 2.6, 0.05, '', (n) => n.toFixed(2), (v) => apply((s) => ({ ...s, lineHeight: v })))),
-  )
-  appearance.appendChild(
-    row('阅读列宽', range(live.readingWidth, 480, 1200, 16, 'px', (n) => String(n), (v) => apply((s) => ({ ...s, readingWidth: v })))),
-  )
+  const theme = Segmented(live.theme,
+    [{ v: 'system', label: '跟随系统' }, { v: 'light', label: '浅色' }, { v: 'dark', label: '深色' }],
+    (v) => apply((s) => ({ ...s, theme: v })))
+  appearance.appendChild(row('主题', theme))
+
+  const font = Segmented(live.fontFamily,
+    [{ v: 'system', label: '系统' }, { v: 'serif', label: '衬线' }],
+    (v) => apply((s) => ({ ...s, fontFamily: v })))
+  appearance.appendChild(row('阅读字体', font))
+
+  const fontSlider = Slider(live.fontSize, 11, 32, 1, (v) => apply((s) => ({ ...s, fontSize: v })), (n) => `${n}px`)
+  const fRow = h('div', 'settings-row cell')
+  fRow.appendChild(h('span')).textContent = '正文字号'
+  fRow.firstElementChild!.className = 'row-label'
+  fRow.append(fontSlider.root, fontSlider.readout)
+  appearance.appendChild(fRow)
+
+  const lhSlider = Slider(live.lineHeight, 1.2, 2.6, 0.05, (v) => apply((s) => ({ ...s, lineHeight: v })), (n) => n.toFixed(2))
+  const lhRow = h('div', 'settings-row cell')
+  lhRow.appendChild(h('span')).textContent = '行高'
+  lhRow.firstElementChild!.className = 'row-label'
+  lhRow.append(lhSlider.root, lhSlider.readout)
+  appearance.appendChild(lhRow)
+
+  const wSlider = Slider(live.readingWidth, 480, 1200, 16, (v) => apply((s) => ({ ...s, readingWidth: v })), (n) => `${n}px`)
+  const wRow = h('div', 'settings-row cell')
+  wRow.appendChild(h('span')).textContent = '阅读列宽'
+  wRow.firstElementChild!.className = 'row-label'
+  wRow.append(wSlider.root, wSlider.readout)
+  appearance.appendChild(wRow)
   card.appendChild(appearance)
 
+  // 编辑
   const editing = section('编辑')
-  editing.appendChild(row('自生成对符号', toggle(live.autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v })))))
-  editing.appendChild(row('关闭脏文档前确认', toggle(live.closeAlwaysConfirmsChanges, (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v })))))
-  editing.appendChild(row('显示空白字符', toggle(live.showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v })))))
+  editing.appendChild(row('自生成对符号', Switch(live.autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v })))))
+  editing.appendChild(row('关闭脏文档前确认', Switch(live.closeAlwaysConfirmsChanges, (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v })))))
+  editing.appendChild(row('显示空白字符', Switch(live.showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v })))))
   card.appendChild(editing)
 
+  // 底部
   const footer = h('div', 'modal-footer')
-  const reset = h('button', 'btn', '恢复默认')
+  const reset = h('button', 'btn')
+  reset.textContent = '恢复默认'
   reset.addEventListener('click', () => {
     resetSettings()
     closeSettingsModal()
     openSettingsModal(onClose)
   })
-  const done = h('button', 'btn btn-primary', '完成')
+  const done = h('button', 'btn btn-primary')
+  done.textContent = '完成'
   done.addEventListener('click', () => {
     closeSettingsModal()
     onClose?.()
@@ -148,6 +115,13 @@ export function openSettingsModal(onClose?: () => void) {
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) closeSettingsModal()
   })
+  document.addEventListener('keydown', onKey)
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      closeSettingsModal()
+      document.removeEventListener('keydown', onKey)
+    }
+  }
   document.body.appendChild(backdrop)
   root = backdrop
 }
