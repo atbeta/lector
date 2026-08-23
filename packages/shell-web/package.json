@@ -8,6 +8,7 @@
     ".": "./src/platform.ts"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.11.1"
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-dialog": "2.7.2"
   }
 }

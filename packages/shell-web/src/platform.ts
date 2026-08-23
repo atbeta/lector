@@ -50,13 +50,20 @@ async function tauriApi(): Promise<TauriApi> {
   return apiPromise
 }
 
-/** 从壳打开+读盘（shell 走 open_file_dialog + read_file；browser 走 input file）。 */
+/** 从壳打开+读盘（shell 用 dialog 插件 open() + read_file；browser 走 input file）。 */
 export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
   if (detectEnv() === 'shell') {
     const { invoke } = await tauriApi()
-    const picked = await invoke<string | null>('lector:open_file_dialog').catch(() => null)
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    // 不吞错：取消返回 null；权限/命令错误则抛出，由调用方提示
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+    })
     if (!picked) return null
-    const res = await invoke<ReadResult>('lector:read_file', { path: picked }).catch(() => {
+    const res = await invoke<ReadResult>('lector:read_file', { path: picked }).catch((err) => {
+      console.error('[lector] read_file failed', err)
       throw new Error('无法读取文件')
     })
     return { path: res.path, content: res.content, mtime_ms: res.mtime_ms }

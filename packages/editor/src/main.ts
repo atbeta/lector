@@ -330,8 +330,13 @@ function defocus() {
 }
 
 async function openFromShellOrDialog() {
-  const picked = await pickAndRead()
-  if (picked) loadSession(picked.path, picked.content, picked.mtime_ms)
+  try {
+    const picked = await pickAndRead()
+    if (picked) loadSession(picked.path, picked.content, picked.mtime_ms)
+  } catch (err) {
+    console.error('[lector] open failed', err)
+    showToast(`打开失败：${String(err)}`)
+  }
 }
 
 contentEl.addEventListener('click', (e) => {
