@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.lector.reader",
   "build": {
-    "frontendDist": "../../packages/editor/dist",
+    "frontendDist": "../../../packages/editor/dist",
     "devUrl": "http://localhost:5173"
   },
   "app": {

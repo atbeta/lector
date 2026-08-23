@@ -8,8 +8,8 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "tauri:dev": "tauri --config clients/tauri/src-tauri/tauri.conf.json dev --no-watch",
-    "tauri:build": "tauri --config clients/tauri/src-tauri/tauri.conf.json build"
+    "tauri:dev": "tauri dev --config clients/tauri/src-tauri/tauri.conf.json --no-watch",
+    "tauri:build": "tauri build --config clients/tauri/src-tauri/tauri.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4",
