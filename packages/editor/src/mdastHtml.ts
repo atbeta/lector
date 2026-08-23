@@ -96,7 +96,7 @@ function blockToHtml(n: Node): string {
               .join('')}</tr>`,
         )
         .join('')
-      return `<table>${thead}<tbody>${tbody}</tbody></table>`
+      return `<div class="table-wrap"><table>${thead}<tbody>${tbody}</tbody></table></div>`
     }
     case 'yaml':
       return `<div class="preform yaml">${esc(n.value ?? '')}</div>`

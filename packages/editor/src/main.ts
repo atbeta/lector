@@ -457,18 +457,38 @@ function renderEmptyState() {
   markDirty()
 }
 
-const sample = `# 欢迎使用 Lector
+const sample = `# 阅读体验展示
 
-> 阅读优先的纯 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。
+> Lector —— 阅读优先的纯 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。
 
-## 试试这些
+## 中西文混排与行内
 
-- 点击下方段落，原地编辑 Markdown 源码
-- 按 Esc 或点击别处失焦并标脏
-- 顶部「保存」写回并标记为干净
+在 AI 时代，**读** 远大于 **写**。Markdown 是 AI 内容的事实格式，\`inline code\` 里可以放 \`const a = 1\`，链接请看 [CommonMark](https://commonmark.org)，编号 2026 与指标 1.618 也要排得顺眼。中文段落里混排 Latin 与数字，应当平滑而不突兀。
 
-相对图片预览：![示例图](images/sample.png)
+## 任务列表
 
+- [ ] 未完成任务，后面还有一段未勾选
+- [x] 已完成的任务，会显示为勾选态
+- [x] 支持多行任务项，当文本足够长而换行时，续行应当对齐在复选框之后而不是回到 bullet 起点缩进。
+
+## 一个表格
+
+| 引擎 | 语言 | 体积 | 定位 |
+| --- | --- | --- | --- |
+| CodeMirror 6 | TS | ~4MB | 焦点块源码编辑 |
+| ProseMirror | TS | 重 | 被排除（保真原罪） |
+| Vditor | JS | 重 | 被排除（内核绑定） |
+
+## 代码块
+
+\`\`\`ts
+export function parseBlocks(text: string): BlockView[] {
+  const tree = fromMarkdown(text, { extensions, mdastExtensions })
+  return sliceSeamless(tree, text)
+}
+\`\`\`
+
+---
 第二段，用于测试「只改这一块」的切片保真。
 `
 
