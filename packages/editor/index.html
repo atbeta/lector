@@ -21,23 +21,20 @@
     </script>
   </head>
   <body>
-    <header id="titlebar" data-drag-region>
-      <span class="app-title">Lector</span>
-      <div class="titlebar-actions">
-        <button class="btn btn-ghost" id="open-btn">
-          <span class="btn-icon-slot" id="open-glyph"></span>打开
-        </button>
-        <button class="btn btn-primary" id="save-btn">
-          <span class="btn-icon-slot" id="save-glyph"></span>保存
-        </button>
-        <span class="divider"></span>
-        <button class="btn-icon" id="outline-btn" title="大纲 (⌘⇧O)" aria-label="大纲"></button>
-        <button class="btn-icon" id="find-btn" title="查找 (⌘F)" aria-label="查找"></button>
-        <button class="btn-icon" id="theme-btn" title="切换主题" aria-label="切换主题"></button>
-        <button class="btn-icon" id="settings-btn" title="设置" aria-label="设置"></button>
+    <header id="titlebar">
+      <div class="titlebar-drag"></div>
+      <div class="titlebar-center">
+        <span id="file-name" class="titlebar-title">Lector</span>
+        <span class="dirty-dot" id="dirty-dot" title="有未保存修改"></span>
       </div>
-      <span id="file-name"></span>
-      <span class="dirty-dot" id="dirty-dot" title="有未保存修改"></span>
+      <div class="titlebar-actions">
+        <button type="button" class="btn-icon" id="open-btn" title="打开 (⌘O)" aria-label="打开"></button>
+        <button type="button" class="btn-icon" id="save-btn" title="保存 (⌘S)" aria-label="保存"></button>
+        <button type="button" class="btn-icon" id="outline-btn" title="大纲 (⌘⇧O)" aria-label="大纲"></button>
+        <button type="button" class="btn-icon" id="find-btn" title="查找 (⌘F)" aria-label="查找"></button>
+        <button type="button" class="btn-icon" id="theme-btn" title="切换主题" aria-label="切换主题"></button>
+        <button type="button" class="btn-icon" id="settings-btn" title="设置" aria-label="设置"></button>
+      </div>
     </header>
     <main id="content"></main>
     <script type="module" src="/src/main.ts"></script>

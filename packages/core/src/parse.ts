@@ -100,6 +100,33 @@ export function parseBlocks(text: string): BlockView[] {
   return blocks
 }
 
+/** 块间空行缝：只用于拼接保真，不是可编辑内容。 */
+export function isWhitespaceGap(
+  block: { kind: BlockKind; raw: string } | undefined | null,
+): boolean {
+  return !!block && block.kind === 'unknown' && block.raw.trim() === ''
+}
+
+/** 可点击进入源码编辑的块。空白缝永远返回 false。 */
+export function isFocusableBlock(block: { kind: BlockKind; raw: string }): boolean {
+  return !isWhitespaceGap(block)
+}
+
+/** 方向键跨块：从 fromId 沿 dir 找下一个可聚焦块，跳过空白缝。 */
+export function adjacentFocusableId(
+  blocks: ReadonlyArray<{ id: string; kind: BlockKind; raw: string }>,
+  fromId: string,
+  dir: -1 | 1,
+): string | null {
+  const i = blocks.findIndex((b) => b.id === fromId)
+  if (i < 0) return null
+  for (let k = i + dir; k >= 0 && k < blocks.length; k += dir) {
+    const b = blocks[k]!
+    if (isFocusableBlock(b)) return b.id
+  }
+  return null
+}
+
 /**
  * 解析单个块的 raw，返回其首个块级 mdast 节点（用于脏块预览重建）。
  * position 缺省时返回 null。

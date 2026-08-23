@@ -7,6 +7,9 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-internal-toggle-maximize",
     "dialog:allow-open",
     { "identifier": "fs:read-files", "allow": [{ "path": "**" }] },
     { "identifier": "fs:read-meta", "allow": [{ "path": "**" }] },

@@ -197,6 +197,23 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 }
 
 /**
+ * Overlay 标题栏：空白处拖窗口，双击缩放。
+ * 交互控件必须放在拖拽层之外，由调用方保证。
+ */
+export function bindTitlebar(dragEl: HTMLElement): void {
+  if (detectEnv() !== 'shell') return
+  void import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+    const win = getCurrentWindow()
+    dragEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return
+      if ((e.target as HTMLElement).closest('button, a, input, [role="button"]')) return
+      if (e.detail === 2) void win.toggleMaximize().catch((err) => console.error('[lector] titlebar zoom', err))
+      else void win.startDragging().catch((err) => console.error('[lector] titlebar drag', err))
+    })
+  })
+}
+
+/**
  * 相对图片解析器：shell 下把 baseDir + relative 拼接成 lector-file:/// 绝对路径；
  * 否则返回 null（editor 走 dev 回退到 origin）。
  */

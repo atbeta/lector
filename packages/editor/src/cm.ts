@@ -4,7 +4,7 @@ import { keymap, EditorView, highlightWhitespace } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
-import type { Extension } from '@codemirror/state'
+import { Prec, type Extension } from '@codemirror/state'
 
 export interface EditorialConfig {
   autoCharacterPairs: boolean
@@ -13,6 +13,10 @@ export interface EditorialConfig {
   structuralKeymap?: {
     Enter?: (view: EditorView) => boolean
     Backspace?: (view: EditorView) => boolean
+    ArrowUp?: (view: EditorView) => boolean
+    ArrowDown?: (view: EditorView) => boolean
+    ArrowLeft?: (view: EditorView) => boolean
+    ArrowRight?: (view: EditorView) => boolean
   }
 }
 
@@ -28,12 +32,12 @@ const syntaxHigh = syntaxHighlighting(
     { tag: [tags.string, tags.attributeValue], color: 'rgb(var(--code-string))' },
     { tag: [tags.comment, tags.blockComment], color: 'rgb(var(--code-comment))', fontStyle: 'italic' },
     { tag: [tags.number, tags.bool, tags.null], color: 'rgb(var(--code-number))' },
-    { tag: tags.heading, color: 'rgb(var(--primary))', fontWeight: '650' },
+    { tag: tags.heading, color: 'inherit', fontWeight: '650' },
     { tag: tags.strong, fontWeight: '600' },
     { tag: tags.emphasis, fontStyle: 'italic' },
-    { tag: tags.link, color: 'rgb(var(--primary))', textDecoration: 'underline' },
-    { tag: tags.url, color: 'rgb(var(--code-string))' },
-    { tag: [tags.meta, tags.processingInstruction], color: 'rgb(var(--code-comment))' },
+    { tag: tags.link, color: 'inherit', textDecoration: 'underline' },
+    { tag: tags.url, color: 'rgb(var(--muted-foreground))' },
+    { tag: [tags.meta, tags.processingInstruction], color: 'rgb(var(--muted-foreground))' },
   ]),
 )
 
@@ -59,15 +63,21 @@ export function mountEditor(
       }
     }),
     EditorView.theme({
-      '&': { fontSize: '14px', backgroundColor: 'transparent', color: 'rgb(var(--foreground))' },
-      '.cm-content': { padding: '2px 4px', caretColor: 'rgb(var(--foreground))' },
+      '&': {
+        fontSize: 'inherit',
+        fontFamily: 'inherit',
+        backgroundColor: 'transparent',
+        color: 'inherit',
+      },
+      '.cm-content': { padding: '0', caretColor: 'rgb(var(--foreground))', fontFamily: 'inherit' },
+      '.cm-line': { padding: '0' },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'rgb(var(--foreground))' },
       '.cm-selectionBackground, ::selection': { backgroundColor: 'var(--selection)' },
       '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection)' },
       '.cm-gutters': { display: 'none' },
-      '.cm-activeLine': { backgroundColor: 'rgb(var(--muted) / 0.5)' },
+      '.cm-activeLine': { backgroundColor: 'transparent' },
       '&.cm-focused': { outline: 'none' },
-      '.cm-selectionMatch': { backgroundColor: 'rgb(var(--primary) / 0.12)' },
+      '.cm-selectionMatch': { backgroundColor: 'transparent' },
     }),
   ]
   if (config.autoCharacterPairs) {
@@ -78,14 +88,17 @@ export function mountEditor(
   }
   if (config.structuralKeymap) {
     const keys = config.structuralKeymap
-    const structuralKeys: Extension[] = []
-    if (keys.Enter) {
-      structuralKeys.push(keymap.of([{ key: 'Enter', run: (view) => keys.Enter?.(view) ?? false }]))
+    const bindings: { key: string; run: (view: EditorView) => boolean }[] = []
+    const bind = (key: string, fn?: (view: EditorView) => boolean) => {
+      if (fn) bindings.push({ key, run: (view) => fn(view) })
     }
-    if (keys.Backspace) {
-      structuralKeys.push(keymap.of([{ key: 'Backspace', run: (view) => keys.Backspace?.(view) ?? false }]))
-    }
-    extensions.push(...structuralKeys)
+    bind('Enter', keys.Enter)
+    bind('Backspace', keys.Backspace)
+    bind('ArrowUp', keys.ArrowUp)
+    bind('ArrowDown', keys.ArrowDown)
+    bind('ArrowLeft', keys.ArrowLeft)
+    bind('ArrowRight', keys.ArrowRight)
+    if (bindings.length) extensions.push(Prec.high(keymap.of(bindings)))
   }
   const view = new EditorView({ parent: host, doc, extensions })
   return {

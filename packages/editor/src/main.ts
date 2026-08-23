@@ -1,6 +1,9 @@
 import {
   applyEncoding,
   createSourceDocument,
+  adjacentFocusableId,
+  isFocusableBlock,
+  isWhitespaceGap,
   parseBlocks,
   parseOne,
   serialize,
@@ -8,6 +11,7 @@ import {
   type SourceDocument,
 } from '@lector/core'
 import {
+  bindTitlebar,
   detectEnv,
   pickAndRead,
   read,
@@ -58,18 +62,17 @@ const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
 const findBtn = document.getElementById('find-btn')!
 
-// 图标（SVG，替换 emoji）
-setIcon('open-glyph', 'folder')
-setIcon('save-glyph', 'save')
-outlineBtn.innerHTML = iconSvg('outline')
-findBtn.innerHTML = iconSvg('search')
-settingsBtn.innerHTML = iconSvg('settings')
-function setIcon(id: string, name: string) {
-  document.getElementById(id)!.innerHTML = iconSvg(name)
-}
+openBtn.innerHTML = iconSvg('folder', 16)
+saveBtn.innerHTML = iconSvg('save', 16)
+outlineBtn.innerHTML = iconSvg('outline', 16)
+findBtn.innerHTML = iconSvg('search', 16)
+settingsBtn.innerHTML = iconSvg('settings', 16)
+const titlebarDrag = document.querySelector<HTMLElement>('.titlebar-drag')
+if (titlebarDrag) bindTitlebar(titlebarDrag)
+
 function refreshThemeIcon() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark'
-  themeBtn.innerHTML = iconSvg(dark ? 'sun' : 'moon')
+  themeBtn.innerHTML = iconSvg(dark ? 'sun' : 'moon', 16)
 }
 refreshThemeIcon()
 const themeObserver = new MutationObserver(() => refreshThemeIcon())
@@ -179,6 +182,10 @@ function splitBlock(block: BlockView, view: EditorView): boolean {
   session.originals.set(emptyPara.id, emptyPara.raw)
   session.originals.set(extraGap.id, extraGap.raw)
   session.focusedId = emptyPara.id
+  if (cm) {
+    cm.destroy()
+    cm = null
+  }
   markDirty()
   render()
   return true
@@ -208,12 +215,18 @@ function mergeBlock(block: BlockView, view: EditorView): boolean {
     session.blocks.splice(k, 1)
   }
   if (prevContent) {
+    caretIntent = { mode: 'end' }
     session.focusedId = prevContent.id
   } else {
     session.focusedId = null
   }
+  if (cm) {
+    cm.destroy()
+    cm = null
+  }
   markDirty()
   render()
+  caretIntent = null
   return true
 }
 
@@ -244,6 +257,7 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   session.focusedId = null
   session.dirty = false
   fileNameEl.textContent = path.split('/').pop() ?? path
+  fileNameEl.dataset.untitled = 'false'
   contentEl.innerHTML = ''
   render()
   markDirty()
@@ -264,20 +278,123 @@ function render() {
   }
 }
 
+function headingDepth(block: BlockView): number | null {
+  if (block.kind !== 'heading') return null
+  const d = (block.mdast as { depth?: number } | null)?.depth
+  return d == null ? 1 : d
+}
+
+function applyBlockMeta(el: HTMLElement, block: BlockView) {
+  el.dataset.kind = block.kind
+  const depth = headingDepth(block)
+  if (depth != null) el.dataset.depth = String(depth)
+  else delete el.dataset.depth
+}
+
 function createBlockEl(block: BlockView): HTMLElement {
   const el = document.createElement('div')
   el.className = 'block'
   el.dataset.blockId = block.id
+  applyBlockMeta(el, block)
+  if (isWhitespaceGap(block)) el.classList.add('gap')
   return el
 }
 
+/** 点击或方向键跨块后，光标要落到哪里。 */
+type CaretIntent =
+  | { mode: 'coords'; x: number; y: number }
+  | { mode: 'start'; x?: number }
+  | { mode: 'end'; x?: number }
+
+let caretIntent: CaretIntent | null = null
+
+function placeCaret(view: EditorView, intent: CaretIntent) {
+  const doc = view.state.doc
+  let pos: number | null = null
+  if (intent.mode === 'coords') {
+    pos = view.posAtCoords({ x: intent.x, y: intent.y })
+  } else if (intent.mode === 'start') {
+    if (intent.x == null) pos = 0
+    else {
+      const line = doc.line(1)
+      const c = view.coordsAtPos(line.from)
+      pos = c ? view.posAtCoords({ x: intent.x, y: c.top + 1 }) : 0
+    }
+  } else if (intent.x == null) {
+    pos = doc.length
+  } else {
+    const line = doc.line(doc.lines)
+    const c = view.coordsAtPos(line.to)
+    pos = c ? view.posAtCoords({ x: intent.x, y: c.top + 1 }) : doc.length
+  }
+  if (pos == null) pos = intent.mode === 'end' ? doc.length : 0
+  view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
+}
+
+function caretX(view: EditorView): number | undefined {
+  return view.coordsAtPos(view.state.selection.main.head)?.left
+}
+
+function atVisualVerticalEdge(view: EditorView, down: boolean): boolean {
+  if (view.composing) return false
+  const sel = view.state.selection.main
+  if (!sel.empty) return false
+  const moved = view.moveVertically(sel, down)
+  if (moved.head === sel.head) return true
+  // 单行块上 moveVertically 常把光标挪到行尾，head 变了但还在同一视觉行
+  const a = view.coordsAtPos(sel.head)
+  const b = view.coordsAtPos(moved.head)
+  if (!a || !b) return true
+  return a.top < b.bottom && b.top < a.bottom
+}
+
+function atHorizontalEdge(view: EditorView, right: boolean): boolean {
+  if (view.composing) return false
+  const sel = view.state.selection.main
+  if (!sel.empty) return false
+  return right ? sel.head === view.state.doc.length : sel.head === 0
+}
+
+/** 方向键顶到块边界 → 跳到相邻可聚焦块，并接上光标列。 */
+function moveAcrossBlocks(
+  block: BlockView,
+  view: EditorView,
+  dir: 'up' | 'down' | 'left' | 'right',
+): boolean {
+  const vertical = dir === 'up' || dir === 'down'
+  const forward = dir === 'down' || dir === 'right'
+  if (vertical ? !atVisualVerticalEdge(view, forward) : !atHorizontalEdge(view, forward)) {
+    return false
+  }
+  const nextId = adjacentFocusableId(session.blocks, block.id, forward ? 1 : -1)
+  if (!nextId) return false
+  const x = vertical ? caretX(view) : undefined
+  const intent: CaretIntent = forward
+    ? x == null ? { mode: 'start' } : { mode: 'start', x }
+    : x == null ? { mode: 'end' } : { mode: 'end', x }
+  // 必须等当前 keydown 结束再切块，否则新 CM 会吃到同一记方向键，单行块会被连跳两次。
+  window.setTimeout(() => {
+    focusBlock(nextId, intent)
+    blocksEl.get(nextId)?.scrollIntoView({ block: 'nearest' })
+  }, 0)
+  return true
+}
+
 function renderBlockContent(el: HTMLElement, block: BlockView) {
+  if (isWhitespaceGap(block)) {
+    el.className = 'block gap'
+    el.replaceChildren()
+    return
+  }
+  applyBlockMeta(el, block)
+  el.classList.remove('gap')
   el.classList.toggle('focused', block.id === session.focusedId)
   const focus = block.id === session.focusedId
-  el.textContent = ''
+  el.replaceChildren()
   if (focus) {
     const host = document.createElement('div')
     host.className = 'cm-host'
+    applyBlockMeta(host, block)
     el.appendChild(host)
     const config = {
       autoCharacterPairs: getSettings().autoCharacterPairs,
@@ -285,9 +402,19 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
       structuralKeymap: {
         Enter: (view: EditorView) => splitBlock(block, view),
         Backspace: (view: EditorView) => mergeBlock(block, view),
+        ArrowUp: (view: EditorView) => moveAcrossBlocks(block, view, 'up'),
+        ArrowDown: (view: EditorView) => moveAcrossBlocks(block, view, 'down'),
+        ArrowLeft: (view: EditorView) => moveAcrossBlocks(block, view, 'left'),
+        ArrowRight: (view: EditorView) => moveAcrossBlocks(block, view, 'right'),
       },
     }
     cm = mountEditor(host, block.raw, (text) => liveText.set(block.id, text), config)
+    const intent = caretIntent
+    requestAnimationFrame(() => {
+      if (!cm) return
+      cm.view.focus()
+      if (intent) placeCaret(cm.view, intent)
+    })
   } else {
     const preview = document.createElement('div')
     preview.className = 'preview reading-prose'
@@ -308,15 +435,25 @@ function finalizeFocused() {
   markDirty()
 }
 
-function focusBlock(id: string) {
-  if (session.focusedId === id) return
+function focusBlock(id: string, intent?: CaretIntent) {
+  if (session.focusedId === id) {
+    if (intent && cm) {
+      placeCaret(cm.view, intent)
+      cm.view.focus()
+    }
+    return
+  }
+  const next = session.blocks.find((b) => b.id === id)
+  if (!next || !isFocusableBlock(next)) return
   finalizeFocused()
   if (cm) {
     cm.destroy()
     cm = null
   }
   session.focusedId = id
+  caretIntent = intent ?? null
   render()
+  caretIntent = null
 }
 
 function defocus() {
@@ -340,16 +477,23 @@ async function openFromShellOrDialog() {
 }
 
 contentEl.addEventListener('click', (e) => {
-  const target = (e.target as HTMLElement).closest<HTMLElement>('.block')
-  if (!target) return
+  const target = (e.target as HTMLElement).closest<HTMLElement>('.block:not(.gap)')
+  if (!target) {
+    if (session.focusedId !== null) defocus()
+    return
+  }
   const id = target.dataset.blockId
-  if (id) focusBlock(id)
+  if (id) focusBlock(id, { mode: 'coords', x: e.clientX, y: e.clientY })
 })
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && session.focusedId !== null) {
     e.preventDefault()
     defocus()
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault()
+    saveBtn.click()
   }
 })
 
@@ -496,7 +640,8 @@ function renderEmptyState() {
   btn.addEventListener('click', () => void openFromShellOrDialog())
   wrap.append(icon, title, p, btn)
   contentEl.appendChild(wrap)
-  fileNameEl.textContent = ''
+  fileNameEl.textContent = 'Lector'
+  fileNameEl.dataset.untitled = 'true'
   blocksEl.clear()
   markDirty()
 }
