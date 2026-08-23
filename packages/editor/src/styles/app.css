@@ -1,0 +1,347 @@
+@import './tokens.css';
+
+/* ───────────── 基础 ───────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+body {
+  margin: 0;
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02';
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+}
+::selection {
+  background: var(--selection);
+  color: rgb(var(--foreground));
+}
+
+/* ───────────── 滚动条：细、淡；悬停容器浮现 ───────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: rgb(var(--foreground) / 0.14) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition: background-color 0.2s ease 0.5s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.12);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
+}
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--foreground) / 0.22);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ───────────── 焦点环（唯一方案：:focus-visible + outline） ───────────── */
+:focus-visible {
+  outline: none;
+}
+:is(button, a, [role='button']):focus-visible {
+  outline: 1px solid rgb(var(--ring) / 0.5);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* 交互节奏全局统一 */
+button, a {
+  transition-timing-function: var(--ease);
+  transition-duration: var(--dur);
+}
+
+/* ───────────── 顶栏 ───────────── */
+#toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgb(var(--border));
+  background: rgb(var(--background) / 0.95);
+  backdrop-filter: blur(8px);
+}
+#toolbar[data-drag-region] {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+#toolbar [data-drag-region] button,
+#toolbar button {
+  -webkit-app-region: no-drag;
+}
+#file-name {
+  margin-left: 8px;
+  margin-right: auto;
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+/* 按钮 — 对齐 NoteFast：主要 = 墨色/主色，次要 = ghost */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  cursor: pointer;
+  color: rgb(var(--muted-foreground));
+  background: transparent;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform 100ms var(--ease);
+}
+.btn:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+.btn:active { background: rgb(var(--secondary)); transform: scale(0.98); }
+.btn-primary {
+  color: rgb(var(--primary-foreground));
+  background: rgb(var(--primary));
+  border-color: rgb(var(--primary));
+  box-shadow: var(--shadow-btn);
+}
+.btn-primary:hover:not(:disabled) {
+  color: rgb(var(--primary-foreground));
+  background: rgb(var(--primary-hover));
+  border-color: rgb(var(--primary-hover));
+}
+.btn-primary:active { transform: scale(0.98); }
+.btn-ghost-active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.btn-icon:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+
+/* 脏点 */
+.dirty-dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(var(--warning));
+}
+
+/* ───────────── 正文容器 ───────────── */
+#content {
+  max-width: var(--reading-max-w);
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+}
+
+/* ───────────── 块 ───────────── */
+.block {
+  position: relative;
+  border-radius: var(--radius);
+  transition: background var(--dur) var(--ease);
+}
+.block:hover { background: rgb(var(--muted) / 0.5); }
+.block.focused { background: rgb(var(--muted)); }
+.block.focused .cm-host { padding: 4px 8px; }
+.cm-host {
+  min-height: 1.5em;
+  cursor: text;
+}
+.cm-host .cm-editor { outline: none; }
+.cm-host .cm-editor.cm-focused { outline: none; }
+.cm-host .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* ───────────── 阅读排版（对齐 NoteFast .reading-prose） ───────────── */
+.reading-prose {
+  font-family: var(--font-sans);
+  color: rgb(var(--foreground));
+  line-height: 1.7;
+  font-size: var(--text-lg);
+  letter-spacing: 0.005em;
+}
+.reading-prose > * + * { margin-top: 0.65em; }
+.reading-prose p { margin: 0.65em 0; }
+.reading-prose h1, .reading-prose h2, .reading-prose h3,
+.reading-prose h4, .reading-prose h5, .reading-prose h6 {
+  margin: 1.2em 0 0.5em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.reading-prose h1 { font-size: var(--text-h1); margin-top: 0.8em; }
+.reading-prose h2 { font-size: var(--text-h2); margin-top: 1.4em; }
+.reading-prose h3 { font-size: var(--text-h3); }
+.reading-prose h4 { font-size: var(--text-h4); }
+.reading-prose h5 { font-size: var(--text-h5); }
+.reading-prose h6 { font-size: var(--text-h6); }
+
+.reading-prose blockquote {
+  margin: 1.1em 0;
+  padding: 0.35em 1em;
+  border-left: 3px solid rgb(var(--border-strong));
+  color: rgb(var(--muted-foreground));
+  font-size: 0.98em;
+  background: rgb(var(--muted) / 0.35);
+  border-radius: 0 calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0;
+}
+.reading-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  font-weight: 500;
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+  padding: 0.15em 0.4em;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid rgb(var(--border) / 0.8);
+}
+.reading-prose pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 1.35em 0;
+  padding: 14px 18px;
+  background: rgb(var(--muted) / 0.55);
+  border: 1px solid rgb(var(--border) / 0.7);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  color: rgb(var(--foreground));
+}
+.reading-prose pre code {
+  display: block;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.reading-prose ul, .reading-prose ol { padding-left: 1.2em; }
+.reading-prose li { margin-top: 0.25em; margin-bottom: 0.25em; }
+.reading-prose a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--border-strong));
+  text-underline-offset: 3px;
+}
+.reading-prose a:hover {
+  text-decoration-color: rgb(var(--primary));
+  color: rgb(var(--primary));
+}
+.reading-prose hr {
+  border: 0;
+  border-top: 1px solid rgb(var(--border));
+  margin: 1.5em 0;
+}
+.reading-prose table {
+  width: auto;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.reading-prose th, .reading-prose td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgb(var(--border) / 0.5);
+  border: 1px solid rgb(var(--border));
+  text-align: left;
+}
+.reading-prose th {
+  font-weight: 600;
+  background: rgb(var(--muted) / 0.5);
+}
+.reading-prose tbody tr:hover { background: rgb(var(--muted) / 0.3); }
+.reading-prose img { max-width: 100%; border-radius: var(--radius-card); }
+
+/* 任务复选框 — 对齐 NoteFast 自绘 checkbox */
+.reading-prose input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.4em 0 0;
+  vertical-align: middle;
+  border: 1.5px solid rgb(var(--border));
+  background: rgb(var(--background));
+  border-radius: calc(var(--radius) - 2px);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.reading-prose input[type='checkbox']:checked {
+  background-color: rgb(var(--ink));
+  border-color: rgb(var(--ink));
+}
+.reading-prose input[type='checkbox']:checked::after {
+  content: '';
+  width: 0.28rem;
+  height: 0.5rem;
+  margin-bottom: 0.1rem;
+  border: solid rgb(var(--ink-foreground));
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.reading-prose input[type='checkbox']:disabled { opacity: 0.55; cursor: default; }
+
+/* 未知 / yaml / html 降级 — 等宽源码 */
+.preform {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(var(--muted-foreground));
+}
+
+/* 减弱动态效果 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

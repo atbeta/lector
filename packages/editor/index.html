@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lector</title>
+    <script>
+      // 防闪烁：挂载前按系统偏好同步 data-theme
+      ;(function () {
+        try {
+          var m = window.matchMedia('(prefers-color-scheme: dark)')
+          var saved = localStorage.getItem('lector-theme')
+          document.documentElement.setAttribute(
+            'data-theme',
+            saved === 'dark' || saved === 'light' ? saved : m.matches ? 'dark' : 'light',
+          )
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="toolbar" data-drag-region>
+      <span class="dirty-dot" id="dirty-dot" title="有未保存修改"></span>
+      <button class="btn" id="open-btn">打开</button>
+      <button class="btn btn-primary" id="save-btn">保存</button>
+      <button class="btn-icon" id="theme-btn" title="切换深浅主题" aria-label="切换主题">
+        <span id="theme-glyph" aria-hidden="true">◐</span>
+      </button>
+      <input id="file-input" type="file" accept=".md,.markdown,.txt" style="display:none" />
+      <span id="file-name"></span>
+    </div>
+    <main id="content"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
