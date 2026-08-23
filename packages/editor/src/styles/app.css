@@ -188,6 +188,43 @@ button, a {
   padding: 32px 24px 96px;
 }
 
+/* ───────────── 大纲浮窗 ───────────── */
+.outline-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: 20;
+  padding: 20px 12px 12px;
+  border-left: 1px solid rgb(var(--border));
+  background: rgb(var(--card));
+  overflow: auto;
+}
+.outline-panel[hidden] { display: none; }
+.outline-list { display: flex; flex-direction: column; }
+.outline-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+.outline-row[data-depth='2'] { padding-left: 22px; }
+.outline-row[data-depth='3'] { padding-left: 34px; }
+.outline-row[data-depth='4'] { padding-left: 46px; }
+.outline-row[data-depth='5'], .outline-row[data-depth='6'] { padding-left: 58px; }
+.outline-empty { padding: 12px 10px; color: rgb(var(--muted-foreground)); font-size: var(--text-sm); }
+
 /* ───────────── 首屏空态 ───────────── */
 .empty-state {
   display: flex;

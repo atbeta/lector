@@ -9,6 +9,11 @@ import type { Extension } from '@codemirror/state'
 export interface EditorialConfig {
   autoCharacterPairs: boolean
   showWhitespace: boolean
+  /** 返回 true = 处理了该结构键（阻止默认行为）。 */
+  structuralKeymap?: {
+    Enter?: (view: EditorView) => boolean
+    Backspace?: (view: EditorView) => boolean
+  }
 }
 
 export interface CmHandle {
@@ -70,6 +75,17 @@ export function mountEditor(
   }
   if (config.showWhitespace) {
     extensions.push(highlightWhitespace())
+  }
+  if (config.structuralKeymap) {
+    const keys = config.structuralKeymap
+    const structuralKeys: Extension[] = []
+    if (keys.Enter) {
+      structuralKeys.push(keymap.of([{ key: 'Enter', run: (view) => keys.Enter?.(view) ?? false }]))
+    }
+    if (keys.Backspace) {
+      structuralKeys.push(keymap.of([{ key: 'Backspace', run: (view) => keys.Backspace?.(view) ?? false }]))
+    }
+    extensions.push(...structuralKeys)
   }
   const view = new EditorView({ parent: host, doc, extensions })
   return {
