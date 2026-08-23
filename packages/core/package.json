@@ -1,0 +1,19 @@
+{
+  "name": "@lector/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SourceDocument / parse / serialize / BlockView —— 无 DOM，测试先行",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "mdast-util-frontmatter": "2.0.1",
+    "mdast-util-from-markdown": "2.0.3",
+    "micromark": "4.0.2",
+    "micromark-extension-frontmatter": "2.0.0",
+    "micromark-extension-gfm": "3.0.0"
+  }
+}
