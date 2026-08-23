@@ -219,6 +219,23 @@ describe('块语义（v1 关键行为）', () => {
     expect(yaml!.raw).toBe('---\ntitle: x\n---')
   })
 
+  test('GFM 表格解析出 table 块', () => {
+    const text = '| 列一 | 列二 |\n| --- | --- |\n| 甲 | 乙 |\n'
+    const blocks = parseBlocks(text)
+    expect(blocks.some((b) => b.kind === 'table')).toBe(true)
+  })
+
+  test('GFM 任务列表项带 checked 标记', () => {
+    const text = '- [ ] 未完成\n- [x] 已完成\n'
+    const blocks = parseBlocks(text)
+    const list = blocks.find((b) => b.kind === 'list')
+    expect(list).toBeTruthy()
+    const items = (list as unknown as { mdast: { children?: Array<{ checked?: boolean | null }> } }).mdast.children ?? []
+    expect(items.length).toBe(2)
+    expect(items[0]!.checked).toBe(false)
+    expect(items[1]!.checked).toBe(true)
+  })
+
   test('id 稳定唯一', () => {
     const blocks = parseBlocks('甲。\n\n乙。\n')
     const ids = blocks.map((b) => b.id)
