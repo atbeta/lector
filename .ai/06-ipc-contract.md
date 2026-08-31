@@ -55,51 +55,59 @@ Web 侧通过 `resolveImageSrc` 构造。壳侧解析：归一化后校验 `rela
 
 ## 命令（Web → 壳，invoke）
 
-### `lector:open_file_dialog`
+Tauri 2 命令名是 Rust 函数名，**不能**带 `lector:` 前缀（`:` 是插件权限分隔符）。事件名仍用 `lector:`。
 
-打开系统文件对话框，返回选中的 path。
+打开对话框走官方 `plugin-dialog`（只拿 path）；读/写必须走下面两条，禁止 Web 用 fs 插件碰盘。
 
-```ts
-invoke('lector:open_file_dialog') → { path: string | null }
-```
-
-### `lector:read_file`
+### `read_file`
 
 ```ts
-invoke('lector:read_file', { path: string }) → {
+invoke('read_file', { path: string }) → {
   path: string
   content: string      // 原始字节文本（含 BOM / \r\n，壳不做归一）
-  mtimeMs: number
+  mtime_ms: number
 }
 ```
 
-### `lector:write_file`
+### `write_file`
 
-写回同一路径。**原子写**（temp + rename）。仅在 `mtimeMs` 匹配当前磁盘 mtime 时写；不匹配返回 `conflict: true`。
-
-```ts
-invoke('lector:write_file', { path: string, content: string, mtimeMs: number }) → {
-  ok: true
-} | { ok: false, conflict: true, currentMtimeMs: number }
-```
-
-`content` 为**最终字节文本**（Web 已按 newline/BOM 还原），壳不再做换行归一，只负责写。
-
-### `lector:watch`
-
-开始监听某目录/文件，外部变化以 `lector:file-changed` 事件回推。
+写回同一路径。**原子写**（temp + rename）。仅在 `mtime_ms` 匹配当前磁盘 mtime 时写；不匹配返回 `conflict: true`。`force: true` 跳过冲突检查（用户明确选「覆盖」）。
 
 ```ts
-invoke('lector:watch', { path: string }) → { ok: boolean }
+invoke('write_file', { path: string, content: string, mtime_ms: number, force?: boolean }) → {
+  ok: true, current_mtime_ms: number
+} | { ok: false, conflict: true, current_mtime_ms: number }
 ```
 
-### `lector:dir_for`
+`content` 为**最终字节文本**（Web 已按 newline/BOM 还原），壳不再做换行归一，只负责写。成功时返回磁盘真实 `current_mtime_ms`，禁止客户端用 `Date.now()` 猜。
+
+### `watch`
+
+开始监听某目录/文件，外部变化以 `lector:file-changed` 事件回推。关窗时壳卸掉 watcher。
+
+```ts
+invoke('watch', { path: string }) → { ok: boolean }
+```
+
+### `dir_for`
 
 取某文档所在目录（baseDir），供相对图片协议与粘贴落盘定位。
 
 ```ts
-invoke('lector:dir_for', { path: string }) → { baseDir: string }
+invoke('dir_for', { path: string }) → { base_dir: string }
 ```
+
+### `take_pending_open`
+
+新建窗口时壳先记下 path。Web 就绪后调用，避免 `lector:open` 早于监听。
+
+```ts
+invoke('take_pending_open') → string | null
+```
+
+### `load_settings` / `save_settings`
+
+读写 app 配置目录 `lector-settings.json`。
 
 ---
 
@@ -122,4 +130,5 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-08-31：命令名去掉 `lector:` 前缀以符合 Tauri 2 ACL；读/写收回 Rust；补 `take_pending_open` 与写回真实 mtime。
 - 2026-08-23：初版契约。命令名与事件名锁定，未定 `openFile`/`closeWindow` 等后续再议。

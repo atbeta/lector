@@ -33,12 +33,15 @@ export function sanitizeRelative(src: string): string | null {
   return src
 }
 
-const ABSOLUTE_RE = /^(https?:|data:|file:|lector-file:|blob:)/i
+const SAFE_ABS_RE = /^(https?:|lector-file:)/i
+const SAFE_DATA_RE = /^data:image\/(png|jpe?g|gif|webp|avif)[;,]/i
 
 /** 由 mdast 的 image url 产出最终 src。 */
 export function resolveImageSrc(raw: string): string {
   if (!raw) return ''
-  if (ABSOLUTE_RE.test(raw)) return raw
+  if (/^(file:|blob:)/i.test(raw)) return ''
+  if (/^data:/i.test(raw)) return SAFE_DATA_RE.test(raw) ? raw : ''
+  if (SAFE_ABS_RE.test(raw)) return raw
   const safe = sanitizeRelative(raw)
   if (safe === null) return ''
   if (customResolver) {

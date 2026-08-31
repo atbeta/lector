@@ -747,6 +747,14 @@ html[data-shell='macos'] #titlebar { padding-left: 80px; }
   padding: 12px 18px;
   border-top: 1px solid rgb(var(--border));
 }
+.dialog-card { width: min(420px, calc(100vw - 48px)); }
+.dialog-body {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: rgb(var(--foreground));
+}
 
 @keyframes fade-in-soft {
   from { opacity: 0; }

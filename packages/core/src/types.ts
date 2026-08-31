@@ -1,9 +1,11 @@
-/** 打开后的不可变原文契约。换行统一为 '\n'，BOM 单独标记，写回还原。 */
+/** 打开后的不可变原文契约。一致换行在内存中统一为 '\n'；混合换行保持原文。 */
+export type NewlineStyle = '\n' | '\r\n' | 'mixed'
+
 export interface SourceDocument {
   path: string
-  /** 打开时的全文，已统一换行为 '\n' 且剥离 BOM。 */
+  /** 打开时的全文：一致 CRLF 已归一为 '\n'；mixed 为磁盘原文（已剥 BOM）。 */
   text: string
-  newline: '\n' | '\r\n'
+  newline: NewlineStyle
   /** 原文是否以 UTF-8 BOM 开头；写回时按此还原。 */
   hasBom: boolean
   mtimeMs: number

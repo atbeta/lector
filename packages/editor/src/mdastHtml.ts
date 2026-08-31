@@ -19,6 +19,17 @@ function inline(children: Node[] | undefined): string {
   return children.map((c) => inlineNode(c)).join('')
 }
 
+/** 预览链接只允许安全协议；危险协议降级为纯文本。 */
+export function safeHref(url: string): string | null {
+  const t = url.trim()
+  if (!t) return null
+  if (t.startsWith('#')) return t
+  if (/^(https?:|mailto:)/i.test(t)) return t
+  // 无 scheme 的相对路径：可以展示，点击时由编辑器拦截导航
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(t)) return t
+  return null
+}
+
 function inlineNode(n: Node): string {
   switch (n.type) {
     case 'text':
@@ -31,8 +42,11 @@ function inlineNode(n: Node): string {
       return `<del>${inline(n.children)}</del>`
     case 'inlineCode':
       return `<code>${esc(n.value ?? '')}</code>`
-    case 'link':
-      return `<a href="${esc(n.url ?? '')}"${n.title ? ` title="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
+    case 'link': {
+      const href = safeHref(n.url ?? '')
+      if (!href) return `<span>${inline(n.children)}</span>`
+      return `<a href="${esc(href)}"${n.title ? ` title="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
+    }
     case 'image':
       return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
     case 'break':
@@ -109,11 +123,19 @@ function blockToHtml(n: Node): string {
   }
 }
 
-/** 渲染一个块级 mdast 节点为 HTML 字符串（mdast 来自 core，具体结构未知，内部校验）。 */
-export function renderBlockHtml(mdast: unknown, rawFallback: string): string {
+function renderOne(mdast: unknown, rawFallback: string): string {
   const n = mdast as Node | null | undefined
   if (!n || typeof n.type !== 'string') {
     return `<div class="preform unknown">${esc(rawFallback)}</div>`
   }
   return blockToHtml(n)
+}
+
+/** 渲染一块（或脏块产生的多个根）为 HTML。 */
+export function renderBlockHtml(mdast: unknown, rawFallback: string): string {
+  if (Array.isArray(mdast)) {
+    if (mdast.length === 0) return renderOne(null, rawFallback)
+    return mdast.map((n) => renderOne(n, rawFallback)).join('')
+  }
+  return renderOne(mdast, rawFallback)
 }

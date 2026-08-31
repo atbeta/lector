@@ -1,5 +1,5 @@
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Wry};
+use tauri::{AppHandle, Emitter, Manager, Wry};
 
 /// 构建原生菜单栏：macOS 带应用菜单（About/Quit），其余为 File/Edit/View。
 /// 菜单项交给 web 处理：统一 emit `lector:menu`（payload = { action }）。
@@ -37,7 +37,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
   Ok(())
 }
 
-/// 菜单事件 → web 事件。
+/// 菜单事件 → 只发给当前焦点窗口。
 pub fn route(app: &AppHandle, id: &str) {
   let action = match id {
     "file-open" => "open",
@@ -47,5 +47,14 @@ pub fn route(app: &AppHandle, id: &str) {
     "view-outline" => "outline",
     _ => return,
   };
-  let _ = app.emit("lector:menu", serde_json::json!({ "action": action }));
+  let payload = serde_json::json!({ "action": action });
+  let focused = app
+    .webview_windows()
+    .into_values()
+    .find(|w| w.is_focused().unwrap_or(false));
+  if let Some(win) = focused {
+    let _ = win.emit("lector:menu", payload);
+  } else if let Some(main) = app.get_webview_window("main") {
+    let _ = main.emit("lector:menu", payload);
+  }
 }

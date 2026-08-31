@@ -18,7 +18,7 @@
 
 ## 状态
 
-立项完成，待开工。方案与第一周计划见 [.ai/](./.ai/README.md)。
+内核切片、编辑器预览/聚焦块、Tauri 壳已在开发中。方案见 [.ai/](./.ai/README.md)。质量门：`bun test` + `bun run typecheck`。
 
 ## License
 

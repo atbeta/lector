@@ -4,5 +4,5 @@
 
 ## 红线
 
-- Web 层不直接读任意路径，文件 IO 走壳 IPC
+- Web 层不直接读任意路径；读/写走 `read_file` / `write_file`，对话框可用官方 dialog 插件
 - 「送到 NoteFast」只留 `companion.ts` 空实现，v1 不做

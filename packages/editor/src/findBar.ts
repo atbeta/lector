@@ -1,5 +1,6 @@
 import type { BlockView } from '@lector/core'
 import { iconSvg } from './icons.ts'
+import { t } from './i18n.ts'
 
 export interface FindHost {
   getBlocks: () => BlockView[]
@@ -24,13 +25,13 @@ export function findBar(host: FindHost) {
   const bar = document.createElement('div')
   bar.className = 'find-bar'
   bar.innerHTML = `
-    <input class="find-input" type="text" placeholder="查找" aria-label="查找" />
+    <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
     <span class="find-count"></span>
-    <button class="btn-icon find-prev" title="上一个" aria-label="上一个">${iconSvg('chevronUp')}</button>
-    <button class="btn-icon find-next" title="下一个" aria-label="下一个">${iconSvg('chevronDown')}</button>
-    <input class="find-replace" type="text" placeholder="替换为" aria-label="替换为" />
-    <button class="btn find-replaceall">全部替换</button>
-    <button class="find-close btn-icon" title="关闭" aria-label="关闭">${iconSvg('close')}</button>
+    <button class="btn-icon find-prev" title="${t('findPrev')}" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
+    <button class="btn-icon find-next" title="${t('findNext')}" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
+    <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
+    <button class="btn find-replaceall">${t('replaceAll')}</button>
+    <button class="find-close btn-icon" title="${t('close')}" aria-label="${t('close')}">${iconSvg('close')}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!
@@ -54,7 +55,7 @@ export function findBar(host: FindHost) {
   function refresh() {
     const ms = matches()
     const total = ms.reduce((a, m) => a + m.count, 0)
-    count.textContent = total === 0 ? '无结果' : `${total} 处`
+    count.textContent = total === 0 ? t('noResults') : t('matchCount', { n: total })
     for (const m of ms) host.scrollTo(m.id)
   }
 

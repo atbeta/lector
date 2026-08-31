@@ -1,5 +1,5 @@
-// 平台抽象：壳（Tauri）用 IPC，浏览器（vite dev / 打包预览）退化为 input file / download。
-// 契约见 .ai/06-ipc-contract.md。
+// 平台抽象：壳（Tauri）走自定义 IPC；浏览器（vite dev）退化为 input file / download。
+// 契约见 .ai/06-ipc-contract.md。命令名为 Tauri 函数名（无 lector: 前缀）；事件仍用 lector:。
 
 export type Env = 'shell' | 'browser'
 
@@ -50,17 +50,8 @@ async function tauriApi(): Promise<TauriApi> {
   return apiPromise
 }
 
-async function fsApi() {
-  return import('@tauri-apps/plugin-fs')
-}
-
-function toMs(t: number | Date | null | undefined): number {
-  if (t == null) return Date.now()
-  return typeof t === 'number' ? t : t.getTime()
-}
-
-/** 从壳打开+读盘（shell 用 dialog open() + fs readTextFile；browser 走 input file）。 */
-export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
+/** 从壳打开+读盘（dialog 插件选路径，内容经 Rust read_file）。 */
+export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> {
   if (detectEnv() === 'shell') {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const picked = await open({
@@ -70,17 +61,8 @@ export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
     })
     if (!picked) return null
     const path = typeof picked === 'string' ? picked : picked[0]!
-    const fs = await fsApi()
-    const [content, info] = await Promise.all([
-      fs.readTextFile(path).catch((err) => {
-        console.error('[lector] readTextFile failed', err)
-        throw new Error(`读取失败：${err instanceof Error ? err.message : String(err)}`)
-      }),
-      fs.stat(path).catch(() => null),
-    ])
-    return { path, content, mtime_ms: toMs(info?.mtime) }
+    return read(path)
   }
-  // browser 后退：input file
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -97,29 +79,23 @@ export async function pickAndRead(): Promise<OpenPayload & ReadResult | null> {
 }
 
 export async function read(path: string): Promise<ReadResult> {
-  const fs = await fsApi()
-  const [content, info] = await Promise.all([
-    fs.readTextFile(path),
-    fs.stat(path).catch(() => null),
-  ])
-  return { path, content, mtime_ms: toMs(info?.mtime) }
+  if (detectEnv() !== 'shell') {
+    throw new Error('read() 仅壳环境可用')
+  }
+  const { invoke } = await tauriApi()
+  return invoke<ReadResult>('read_file', { path })
 }
 
-export async function save(path: string, content: string, mtime_ms: number): Promise<SaveResult> {
+export async function save(
+  path: string,
+  content: string,
+  mtime_ms: number,
+  force = false,
+): Promise<SaveResult> {
   if (detectEnv() === 'shell') {
-    const fs = await fsApi()
-    const info = await fs.stat(path).catch(() => null)
-    const current = (info ? toMs(info.mtime) : 0)
-    if (current !== mtime_ms) {
-      return { ok: false, conflict: true, current_mtime_ms: current }
-    }
-    await fs.writeTextFile(path, content).catch((err) => {
-      console.error('[lector] writeTextFile failed', err)
-      throw new Error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
-    })
-    return { ok: true }
+    const { invoke } = await tauriApi()
+    return invoke<SaveResult>('write_file', { path, content, mtime_ms, force })
   }
-  // browser 后退：下载
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -127,18 +103,24 @@ export async function save(path: string, content: string, mtime_ms: number): Pro
   a.download = path.split('/').pop() ?? 'untitled.md'
   a.click()
   URL.revokeObjectURL(url)
-  return { ok: true }
+  return { ok: true, current_mtime_ms: Date.now() }
 }
 
 export async function dirFor(path: string): Promise<string> {
   const { invoke } = await tauriApi()
-  const res = await invoke<{ base_dir: string }>('lector:dir_for', { path })
+  const res = await invoke<{ base_dir: string }>('dir_for', { path })
   return res.base_dir
 }
 
 export async function watch(path: string): Promise<void> {
   const { invoke } = await tauriApi()
-  await invoke('lector:watch', { path })
+  await invoke('watch', { path })
+}
+
+export async function takePendingOpen(): Promise<string | null> {
+  if (detectEnv() !== 'shell') return null
+  const { invoke } = await tauriApi()
+  return invoke<string | null>('take_pending_open')
 }
 
 const SETTINGS_LS_KEY = 'lector-settings'
@@ -153,7 +135,7 @@ export async function loadSettings(): Promise<unknown> {
     }
   }
   const { invoke } = await tauriApi()
-  return invoke<unknown>('lector:load_settings')
+  return invoke<unknown>('load_settings')
 }
 
 export async function saveSettings(settings: unknown): Promise<void> {
@@ -166,7 +148,7 @@ export async function saveSettings(settings: unknown): Promise<void> {
     return
   }
   const { invoke } = await tauriApi()
-  await invoke('lector:save_settings', { settings })
+  await invoke('save_settings', { settings })
 }
 
 export async function onOpen(handler: (p: OpenPayload) => void): Promise<() => void> {
@@ -198,7 +180,6 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 
 /**
  * Overlay 标题栏：空白处拖窗口，双击缩放。
- * 交互控件必须放在拖拽层之外，由调用方保证。
  */
 export function bindTitlebar(dragEl: HTMLElement): void {
   if (detectEnv() !== 'shell') return
@@ -214,8 +195,7 @@ export function bindTitlebar(dragEl: HTMLElement): void {
 }
 
 /**
- * 相对图片解析器：shell 下把 baseDir + relative 拼接成 lector-file:/// 绝对路径；
- * 否则返回 null（editor 走 dev 回退到 origin）。
+ * 相对图片解析器：shell 下把 baseDir + relative 拼接成 lector-file:///。
  */
 export function shellAssetResolver(raw: string, mdPath: string | null): string | null {
   if (detectEnv() !== 'shell') return null

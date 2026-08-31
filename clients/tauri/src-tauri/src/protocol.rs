@@ -11,6 +11,11 @@ use tauri::http::{response::Builder, Request, Response};
 #[derive(Default)]
 pub struct AllowedDirs(pub Mutex<HashSet<PathBuf>>);
 
+/// 关窗后按仍打开的文档重建白名单。
+pub fn reset_dirs(allowed: &AllowedDirs) {
+  allowed.0.lock().unwrap().clear();
+}
+
 /// 幂等放行一个 baseDir（打开文档时调用）。
 pub fn allow_dir(allowed: &AllowedDirs, file_path: &str) {
   let parent = PathBuf::from(file_path)
@@ -41,6 +46,13 @@ pub fn handle(allowed: &AllowedDirs, request: Request<Vec<u8>>) -> Response<Cow<
   if !ok {
     return err(Response::builder().status(403), Cow::Borrowed(b"outside base dir"));
   }
+  if canon
+    .extension()
+    .and_then(|e| e.to_str())
+    .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
+  {
+    return err(Response::builder().status(403), Cow::Borrowed(b"svg denied"));
+  }
 
   match std::fs::read(&canon) {
     Ok(bytes) => Response::builder()
@@ -69,7 +81,6 @@ fn mime_for(ext: Option<&std::ffi::OsStr>) -> &'static str {
     Some("jpg") | Some("jpeg") => "image/jpeg",
     Some("gif") => "image/gif",
     Some("webp") => "image/webp",
-    Some("svg") => "image/svg+xml",
     Some("avif") => "image/avif",
     _ => "application/octet-stream",
   }

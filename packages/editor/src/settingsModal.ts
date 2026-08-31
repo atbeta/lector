@@ -2,6 +2,7 @@ import { getSettings, resetSettings, setSettings } from './settings.ts'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
+import { t } from './i18n.ts'
 
 let root: HTMLElement | null = null
 
@@ -45,7 +46,7 @@ export function openSettingsModal(onClose?: () => void) {
   // 头部
   const header = h('div', 'modal-header')
   const title = h('h2', 'modal-title')
-  title.textContent = '设置'
+  title.textContent = t('settingsTitle')
   const closeBtn = h('button', 'btn-icon')
   closeBtn.innerHTML = iconSvg('close')
   closeBtn.addEventListener('click', closeSettingsModal)
@@ -53,57 +54,57 @@ export function openSettingsModal(onClose?: () => void) {
   card.appendChild(header)
 
   // 外观
-  const appearance = section('外观')
+  const appearance = section(t('appearance'))
   const theme = Segmented(live.theme,
-    [{ v: 'system', label: '跟随系统' }, { v: 'light', label: '浅色' }, { v: 'dark', label: '深色' }],
+    [{ v: 'system', label: t('themeSystem') }, { v: 'light', label: t('themeLight') }, { v: 'dark', label: t('themeDark') }],
     (v) => apply((s) => ({ ...s, theme: v })))
-  appearance.appendChild(row('主题', theme))
+  appearance.appendChild(row(t('theme'), theme))
 
   const font = Segmented(live.fontFamily,
-    [{ v: 'system', label: '系统' }, { v: 'serif', label: '衬线' }],
+    [{ v: 'system', label: t('fontSystem') }, { v: 'serif', label: t('fontSerif') }],
     (v) => apply((s) => ({ ...s, fontFamily: v })))
-  appearance.appendChild(row('阅读字体', font))
+  appearance.appendChild(row(t('readingFont'), font))
 
   const fontSlider = Slider(live.fontSize, 11, 32, 1, (v) => apply((s) => ({ ...s, fontSize: v })), (n) => `${n}px`)
   const fRow = h('div', 'settings-row cell')
-  fRow.appendChild(h('span')).textContent = '正文字号'
+  fRow.appendChild(h('span')).textContent = t('fontSize')
   fRow.firstElementChild!.className = 'row-label'
   fRow.append(fontSlider.root, fontSlider.readout)
   appearance.appendChild(fRow)
 
   const lhSlider = Slider(live.lineHeight, 1.2, 2.6, 0.05, (v) => apply((s) => ({ ...s, lineHeight: v })), (n) => n.toFixed(2))
   const lhRow = h('div', 'settings-row cell')
-  lhRow.appendChild(h('span')).textContent = '行高'
+  lhRow.appendChild(h('span')).textContent = t('lineHeight')
   lhRow.firstElementChild!.className = 'row-label'
   lhRow.append(lhSlider.root, lhSlider.readout)
   appearance.appendChild(lhRow)
 
   const wSlider = Slider(live.readingWidth, 480, 1200, 16, (v) => apply((s) => ({ ...s, readingWidth: v })), (n) => `${n}px`)
   const wRow = h('div', 'settings-row cell')
-  wRow.appendChild(h('span')).textContent = '阅读列宽'
+  wRow.appendChild(h('span')).textContent = t('readingWidth')
   wRow.firstElementChild!.className = 'row-label'
   wRow.append(wSlider.root, wSlider.readout)
   appearance.appendChild(wRow)
   card.appendChild(appearance)
 
   // 编辑
-  const editing = section('编辑')
-  editing.appendChild(row('自生成对符号', Switch(live.autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v })))))
-  editing.appendChild(row('关闭脏文档前确认', Switch(live.closeAlwaysConfirmsChanges, (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v })))))
-  editing.appendChild(row('显示空白字符', Switch(live.showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v })))))
+  const editing = section(t('editing'))
+  editing.appendChild(row(t('autoPairs'), Switch(live.autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v })))))
+  editing.appendChild(row(t('confirmClose'), Switch(live.closeAlwaysConfirmsChanges, (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v })))))
+  editing.appendChild(row(t('showWhitespace'), Switch(live.showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v })))))
   card.appendChild(editing)
 
   // 底部
   const footer = h('div', 'modal-footer')
   const reset = h('button', 'btn')
-  reset.textContent = '恢复默认'
+  reset.textContent = t('resetDefaults')
   reset.addEventListener('click', () => {
     resetSettings()
     closeSettingsModal()
     openSettingsModal(onClose)
   })
   const done = h('button', 'btn btn-primary')
-  done.textContent = '完成'
+  done.textContent = t('done')
   done.addEventListener('click', () => {
     closeSettingsModal()
     onClose?.()

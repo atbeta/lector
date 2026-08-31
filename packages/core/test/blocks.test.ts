@@ -167,6 +167,7 @@ describe('文件级字节相等（testdata 夹具）', () => {
     'bom.md',
     'crlf.md',
     'frontmatter.md',
+    'mixed-newlines.md',
   ]
 
   for (const f of fixtures) {

@@ -54,14 +54,37 @@ function makeContentBlock(
   }
 }
 
+/** 由 mdast 节点类型映射 BlockKind。 */
+export function kindFromMdast(node: unknown): BlockKind {
+  if (!node || typeof node !== 'object') return 'unknown'
+  const type = (node as { type?: string }).type
+  if (!type) return 'unknown'
+  return KIND_MAP[type] ?? 'unknown'
+}
+
 /**
- * 由归一后的 '\n' 正文切片成 BlockView[]。
+ * 由归一后的正文切片成 BlockView[]。
  *
  * 保证：blocks[0].start === 0；blocks[i].end === blocks[i+1].start；
  * last.end === text.length；拼接还原全文。mdast 子节点不带块尾空行，
  * 块间空隙（空行/空白）合成 unknown 块，**绝不丢空行**。
+ * 空文档给一块可聚焦空段落，否则无法开始输入。
  */
 export function parseBlocks(text: string): BlockView[] {
+  if (text.length === 0) {
+    return [
+      {
+        id: 'b0:0',
+        kind: 'paragraph',
+        start: 0,
+        end: 0,
+        raw: '',
+        mdast: parseOne(''),
+        dirty: false,
+      },
+    ]
+  }
+
   const tree = fromMarkdown(text, { extensions, mdastExtensions }) as {
     children: Array<{
       type: string
@@ -128,13 +151,18 @@ export function adjacentFocusableId(
 }
 
 /**
- * 解析单个块的 raw，返回其首个块级 mdast 节点（用于脏块预览重建）。
- * position 缺省时返回 null。
+ * 解析一块 raw，返回全部块级根节点（一段改成两段时预览不能只画第一个）。
  */
-export function parseOne(raw: string): unknown | null {
+export function parseBlockRoots(raw: string): unknown[] {
   const tree = fromMarkdown(raw, { extensions, mdastExtensions }) as {
     children: unknown[]
   }
-  const first = tree.children[0]
-  return first ?? null
+  return tree.children
+}
+
+/**
+ * 解析单个块的 raw，返回其首个块级 mdast 节点（用于脏块 kind / 单根预览）。
+ */
+export function parseOne(raw: string): unknown | null {
+  return parseBlockRoots(raw)[0] ?? null
 }

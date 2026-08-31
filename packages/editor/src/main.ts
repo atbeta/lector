@@ -4,9 +4,12 @@ import {
   adjacentFocusableId,
   isFocusableBlock,
   isWhitespaceGap,
+  kindFromMdast,
   parseBlocks,
+  parseBlockRoots,
   parseOne,
   serialize,
+  type BlockKind,
   type BlockView,
   type SourceDocument,
 } from '@lector/core'
@@ -17,6 +20,7 @@ import {
   read,
   save,
   watch,
+  takePendingOpen,
   onOpen,
   onFileChanged,
   onMenu,
@@ -30,6 +34,10 @@ import { initSettings, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
+import { t } from './i18n.ts'
+import { chooseConflict, confirmDiscard } from './dialog.ts'
+import { applyKeyedChildren } from './reconcile.ts'
+import { sessionIsDirty } from './sessionDirty.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
@@ -40,6 +48,8 @@ interface Session {
   blocks: BlockView[]
   focusedId: string | null
   dirty: boolean
+  /** 插入/删除块后，即使各块 raw 未改也算脏。 */
+  structuralDirty: boolean
   /** 解析时的原始 raw，用于判定 dirty（还原到原文即不算脏）。 */
   originals: Map<string, string>
 }
@@ -49,6 +59,7 @@ const session: Session = {
   blocks: [],
   focusedId: null,
   dirty: false,
+  structuralDirty: false,
   originals: new Map(),
 }
 
@@ -63,10 +74,23 @@ const outlineBtn = document.getElementById('outline-btn')!
 const findBtn = document.getElementById('find-btn')!
 
 openBtn.innerHTML = iconSvg('folder', 16)
+openBtn.setAttribute('aria-label', t('openAria'))
+openBtn.title = t('openAria')
 saveBtn.innerHTML = iconSvg('save', 16)
+saveBtn.setAttribute('aria-label', t('saveAria'))
+saveBtn.title = t('saveAria')
 outlineBtn.innerHTML = iconSvg('outline', 16)
+outlineBtn.setAttribute('aria-label', t('outlineAria'))
+outlineBtn.title = t('outlineAria')
 findBtn.innerHTML = iconSvg('search', 16)
+findBtn.setAttribute('aria-label', t('findAria'))
+findBtn.title = t('findAria')
+themeBtn.setAttribute('aria-label', t('themeAria'))
+themeBtn.title = t('themeAria')
 settingsBtn.innerHTML = iconSvg('settings', 16)
+settingsBtn.setAttribute('aria-label', t('settingsAria'))
+settingsBtn.title = t('settingsAria')
+dirtyDot.title = t('dirtyTitle')
 const titlebarDrag = document.querySelector<HTMLElement>('.titlebar-drag')
 if (titlebarDrag) bindTitlebar(titlebarDrag)
 
@@ -80,13 +104,14 @@ themeObserver.observe(document.documentElement, { attributes: true, attributeFil
 
 const outlinePanel = document.createElement('aside')
 outlinePanel.className = 'outline-panel'
-outlinePanel.setAttribute('aria-label', '大纲')
+outlinePanel.setAttribute('aria-label', t('outlineLabel'))
 outlinePanel.hidden = true
 document.body.appendChild(outlinePanel)
 let outlineOpen = false
 
 /** 从块内 mdast 提取纯文本（标题用）。 */
 function headingText(mdast: unknown): string {
+  if (Array.isArray(mdast)) return mdast.map(headingText).join(' ')
   const walk = (n: unknown): string => {
     if (!n || typeof n !== 'object') return ''
     const node = n as { type?: string; value?: string; children?: unknown[] }
@@ -100,8 +125,7 @@ function renderOutline() {
   const headings = session.blocks
     .filter((b) => b.kind === 'heading')
     .map((b) => {
-      const d = b.mdast as { depth?: number } | null
-      return { id: b.id, depth: d?.depth ?? 1, text: headingText(b.mdast) || b.raw.trim() }
+      return { id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() }
     })
   outlinePanel.innerHTML = ''
   const list = document.createElement('div')
@@ -121,7 +145,7 @@ function renderOutline() {
   if (empty) {
     const p = document.createElement('p')
     p.className = 'outline-empty'
-    p.textContent = '暂无标题'
+    p.textContent = t('outlineEmpty')
     outlinePanel.appendChild(p)
   }
   outlinePanel.appendChild(list)
@@ -144,7 +168,7 @@ function nextId(): string {
 }
 
 function markDirty() {
-  session.dirty = session.blocks.some((b) => b.dirty)
+  session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   dirtyDot.style.display = session.dirty ? 'block' : 'none'
 }
 
@@ -181,6 +205,7 @@ function splitBlock(block: BlockView, view: EditorView): boolean {
   session.blocks.splice(i + 2, 0, emptyPara, extraGap)
   session.originals.set(emptyPara.id, emptyPara.raw)
   session.originals.set(extraGap.id, extraGap.raw)
+  session.structuralDirty = true
   session.focusedId = emptyPara.id
   if (cm) {
     cm.destroy()
@@ -214,6 +239,7 @@ function mergeBlock(block: BlockView, view: EditorView): boolean {
   for (const k of remove.sort((a, b) => b - a)) {
     session.blocks.splice(k, 1)
   }
+  session.structuralDirty = true
   if (prevContent) {
     caretIntent = { mode: 'end' }
     session.focusedId = prevContent.id
@@ -256,6 +282,7 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
   session.focusedId = null
   session.dirty = false
+  session.structuralDirty = false
   fileNameEl.textContent = path.split('/').pop() ?? path
   fileNameEl.dataset.untitled = 'false'
   contentEl.innerHTML = ''
@@ -267,20 +294,34 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
 }
 
 function render() {
+  const desired: HTMLElement[] = []
+  const seen = new Set<string>()
   for (const block of session.blocks) {
+    seen.add(block.id)
     let el = blocksEl.get(block.id)
     if (!el) {
       el = createBlockEl(block)
       blocksEl.set(block.id, el)
-      contentEl.appendChild(el)
     }
-    renderBlockContent(el, block)
+    desired.push(el)
+  }
+  for (const [id, el] of blocksEl) {
+    if (!seen.has(id)) {
+      el.remove()
+      blocksEl.delete(id)
+    }
+  }
+  applyKeyedChildren(contentEl, desired)
+  for (const block of session.blocks) {
+    const el = blocksEl.get(block.id)
+    if (el) renderBlockContent(el, block)
   }
 }
 
 function headingDepth(block: BlockView): number | null {
   if (block.kind !== 'heading') return null
-  const d = (block.mdast as { depth?: number } | null)?.depth
+  const node = Array.isArray(block.mdast) ? block.mdast[0] : block.mdast
+  const d = (node as { depth?: number } | null)?.depth
   return d == null ? 1 : d
 }
 
@@ -431,7 +472,11 @@ function finalizeFocused() {
   const original = session.originals.get(block.id) ?? block.raw
   block.raw = text
   block.dirty = text !== original
-  block.mdast = block.dirty ? parseOne(text) : block.mdast
+  if (block.dirty) {
+    const roots = parseBlockRoots(text)
+    block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
+    block.kind = kindFromMdast(roots[0]) as BlockKind
+  }
   markDirty()
 }
 
@@ -466,17 +511,32 @@ function defocus() {
   render()
 }
 
+async function confirmOpenIfDirty(): Promise<boolean> {
+  if (!session.dirty) return true
+  return confirmDiscard()
+}
+
 async function openFromShellOrDialog() {
+  if (!(await confirmOpenIfDirty())) return
   try {
     const picked = await pickAndRead()
     if (picked) loadSession(picked.path, picked.content, picked.mtime_ms)
   } catch (err) {
     console.error('[lector] open failed', err)
-    showToast(`打开失败：${String(err)}`)
+    showToast(`${t('openFailed')}：${String(err)}`)
   }
 }
 
 contentEl.addEventListener('click', (e) => {
+  const link = (e.target as HTMLElement).closest('a')
+  if (link && !link.closest('.cm-host')) {
+    e.preventDefault()
+    const href = link.getAttribute('href')
+    if (href && /^(https?:|mailto:)/i.test(href)) {
+      window.open(href, '_blank', 'noopener,noreferrer')
+    }
+    return
+  }
   const target = (e.target as HTMLElement).closest<HTMLElement>('.block:not(.gap)')
   if (!target) {
     if (session.focusedId !== null) defocus()
@@ -516,8 +576,14 @@ function openFind() {
       const re = new RegExp(escapeRegExp(from), 'gi')
       b.raw = b.raw.replace(re, () => to)
       b.dirty = true
-      b.mdast = parseOne(b.raw)
+      const roots = parseBlockRoots(b.raw)
+      b.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
+      b.kind = kindFromMdast(roots[0]) as BlockKind
       markDirty()
+      if (session.focusedId === id && cm) {
+        cm.destroy()
+        cm = null
+      }
       render()
     },
     scrollTo: (id) => blocksEl.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
@@ -532,31 +598,45 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
-saveBtn.addEventListener('click', async () => {
-  if (!session.source) return
+async function persistToDisk(force = false): Promise<boolean> {
+  if (!session.source) return false
   finalizeFocused()
-  if (cm) {
-    cm.destroy()
-    cm = null
-  }
   const normalized = serialize(session.blocks)
   const finalText = applyEncoding(session.source, normalized)
-  const res = await save(session.source.path, finalText, session.source.mtimeMs)
+  const res = await save(session.source.path, finalText, session.source.mtimeMs, force)
   if (res.conflict) {
-    showToast('磁盘已发生变化，已重新加载最新内容（未覆盖）。')
-    // 重新加载磁盘版本，避免覆盖外部改动
-    await reloadFromDisk()
-    return
+    const choice = await chooseConflict()
+    if (choice === 'reload') {
+      await reloadFromDisk()
+      return false
+    }
+    if (choice === 'overwrite') return persistToDisk(true)
+    return false
+  }
+  if (!res.ok) {
+    showToast(t('saveFailed'))
+    return false
   }
   session.blocks.forEach((b) => {
     session.originals.set(b.id, b.raw)
     b.dirty = false
   })
-  // 更新 mtime，避免下一次保存误判冲突
-  session.source.mtimeMs = Date.now()
+  session.structuralDirty = false
+  if (typeof res.current_mtime_ms === 'number') {
+    session.source.mtimeMs = res.current_mtime_ms
+  }
+  if (cm) {
+    cm.destroy()
+    cm = null
+  }
+  session.focusedId = null
   markDirty()
-  showToast('已保存')
-})
+  render()
+  showToast(t('saved'))
+  return true
+}
+
+saveBtn.addEventListener('click', () => void persistToDisk())
 
 async function reloadFromDisk() {
   if (!session.source) return
@@ -564,7 +644,7 @@ async function reloadFromDisk() {
     const res = await read(session.source.path)
     loadSession(res.path, res.content, res.mtime_ms)
   } catch {
-    showToast('重新加载失败')
+    showToast(t('reloadFailed'))
   }
 }
 
@@ -572,11 +652,12 @@ function bindShellEvents() {
   if (detectEnv() !== 'shell') return
   // 壳把最终路径交给 web（双击 / 单实例转发）
   void onOpen(async (e) => {
+    if (!(await confirmOpenIfDirty())) return
     try {
       const res = await read(e.path)
       loadSession(res.path, res.content, res.mtime_ms)
     } catch {
-      showToast('读取失败')
+      showToast(t('readFailed'))
     }
   })
   // 外部变更（watch 回调）
@@ -584,7 +665,7 @@ function bindShellEvents() {
     if (session.source && e.path === session.source.path && !session.dirty) {
       await reloadFromDisk()
     } else if (session.source && e.path === session.source.path && session.dirty) {
-      showToast('磁盘文件已变化')
+      showToast(t('diskChanged'))
     }
   })
   // 原生菜单
@@ -631,12 +712,12 @@ function renderEmptyState() {
   icon.className = 'empty-icon'
   icon.innerHTML = iconSvg('book', 24)
   const title = document.createElement('h2')
-  title.textContent = 'Lector'
+  title.textContent = t('emptyTitle')
   const p = document.createElement('p')
-  p.textContent = '打开一个 Markdown 文件开始阅读。'
+  p.textContent = t('emptyHint')
   const btn = document.createElement('button')
   btn.className = 'btn btn-primary'
-  btn.innerHTML = `${iconSvg('folder', 16)} 打开文件`
+  btn.innerHTML = `${iconSvg('folder', 16)} ${t('openFile')}`
   btn.addEventListener('click', () => void openFromShellOrDialog())
   wrap.append(icon, title, p, btn)
   contentEl.appendChild(wrap)
@@ -688,6 +769,15 @@ void (async () => {
       document.documentElement.setAttribute('data-shell', 'macos')
     }
     renderEmptyState()
+    try {
+      const pending = await takePendingOpen()
+      if (pending) {
+        const res = await read(pending)
+        loadSession(res.path, res.content, res.mtime_ms)
+      }
+    } catch (err) {
+      console.error('[lector] pending open', err)
+    }
   } else {
     loadSession('sample.md', sample)
   }
