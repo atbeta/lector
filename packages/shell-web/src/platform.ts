@@ -78,6 +78,16 @@ export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> 
   })
 }
 
+/** 另存为：dialog 插件选目标路径，只返回 path；写盘仍走 write_file。 */
+export async function pickSavePath(defaultName: string): Promise<string | null> {
+  if (detectEnv() !== 'shell') return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  return save({
+    defaultPath: defaultName,
+    filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+  })
+}
+
 export async function read(path: string): Promise<ReadResult> {
   if (detectEnv() !== 'shell') {
     throw new Error('read() 仅壳环境可用')

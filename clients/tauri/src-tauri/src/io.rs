@@ -108,8 +108,10 @@ pub fn write_file(
   force: Option<bool>,
 ) -> Result<WriteResult, String> {
   let p = std::path::Path::new(&path);
-  let current = file_mtime_ms(p).map_err(|e| e.to_string())?;
-  if !force.unwrap_or(false) && current != mtime_ms {
+  // 目标不存在（另存为新文件）时无冲突可言，直接写。
+  let exists = p.exists();
+  let current = file_mtime_ms(p).unwrap_or(0);
+  if !force.unwrap_or(false) && exists && current != mtime_ms {
     return Ok(WriteResult {
       ok: false,
       conflict: Some(true),
@@ -168,6 +170,60 @@ pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), 
   let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
   atomic_write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
   Ok(())
+}
+
+const RECENT_MAX: usize = 20;
+
+fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
+  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  Ok(dir.join("lector-recent.json"))
+}
+
+/// 读「最近打开」列表（新在前）。文件缺失或损坏都当空表。
+pub fn load_recent(app: &AppHandle) -> Vec<String> {
+  let Ok(path) = recent_file(app) else {
+    return Vec::new();
+  };
+  let Ok(s) = fs::read_to_string(&path) else {
+    return Vec::new();
+  };
+  serde_json::from_str::<Vec<String>>(&s).unwrap_or_default()
+}
+
+fn save_recent(app: &AppHandle, list: &[String]) {
+  let Ok(path) = recent_file(app) else {
+    return;
+  };
+  if let Some(dir) = path.parent() {
+    let _ = fs::create_dir_all(dir);
+  }
+  if let Ok(text) = serde_json::to_string_pretty(&list) {
+    let _ = atomic_write(&path, text.as_bytes());
+  }
+}
+
+/// 去重置顶、截断到上限。纯函数，便于测试。
+fn push_recent_list(mut list: Vec<String>, path: String) -> Vec<String> {
+  list.retain(|p| p != &path);
+  list.insert(0, path);
+  list.truncate(RECENT_MAX);
+  list
+}
+
+/// 打开一篇文档后登记到「最近打开」。壳单点读写，Web 不参与。
+pub fn push_recent(app: &AppHandle, path: &str) {
+  let list = push_recent_list(load_recent(app), path.to_string());
+  save_recent(app, &list);
+}
+
+pub fn remove_recent(app: &AppHandle, path: &str) {
+  let mut list = load_recent(app);
+  list.retain(|p| p != path);
+  save_recent(app, &list);
+}
+
+pub fn clear_recent(app: &AppHandle) {
+  save_recent(app, &[]);
 }
 
 const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif"];
@@ -246,13 +302,18 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
 
 #[tauri::command]
 pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Result<bool, String> {
-  protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
   let canon = canonical(&path).unwrap_or_else(|| PathBuf::from(&path));
   let label = window.label().to_string();
-  let registry = app.state::<WindowRegistry>();
-  let mut map = registry.0.lock().unwrap();
-  map.retain(|_, l| l != &label);
-  map.insert(canon, label);
+  {
+    let registry = app.state::<WindowRegistry>();
+    let mut map = registry.0.lock().unwrap();
+    map.retain(|_, l| l != &label);
+    map.insert(canon, label);
+  }
+  // 白名单按路径表重建，顺带收紧旧目录。
+  rebuild_allowed_dirs(&app);
+  push_recent(&app, &path);
+  let _ = crate::menu::create(&app);
   Ok(true)
 }
 
@@ -453,6 +514,28 @@ mod tests {
     assert!(forced.ok);
     assert_eq!(fs::read_to_string(&path).unwrap(), "b");
     let _ = fs::remove_file(&path);
+  }
+
+  #[test]
+  fn write_new_file_without_conflict() {
+    let dir = std::env::temp_dir();
+    let path = dir.join(format!("lector-newfile-{}.md", std::process::id()));
+    let _ = fs::remove_file(&path);
+    let res = write_file(path.to_string_lossy().into(), "hi".into(), 0, Some(false)).unwrap();
+    assert!(res.ok);
+    assert_eq!(fs::read_to_string(&path).unwrap(), "hi");
+    let _ = fs::remove_file(&path);
+  }
+
+  #[test]
+  fn push_recent_dedupes_and_caps() {
+    let list: Vec<String> = (0..25).map(|i| format!("/tmp/f{i}.md")).collect();
+    let list = push_recent_list(list, "/tmp/f3.md".into());
+    assert_eq!(list.len(), RECENT_MAX);
+    assert_eq!(list[0], "/tmp/f3.md");
+    assert_eq!(list.iter().filter(|p| p.as_str() == "/tmp/f3.md").count(), 1);
+    let list = push_recent_list(Vec::new(), "/tmp/a.md".into());
+    assert_eq!(list, vec!["/tmp/a.md".to_string()]);
   }
 
   #[test]

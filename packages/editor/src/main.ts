@@ -17,6 +17,7 @@ import {
   bindTitlebar,
   detectEnv,
   pickAndRead,
+  pickSavePath,
   read,
   save,
   watch,
@@ -688,6 +689,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault()
     defocus()
   }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    void saveAsFlow()
+    return
+  }
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
     e.preventDefault()
     saveBtn.click()
@@ -775,6 +781,39 @@ async function persistToDisk(force = false): Promise<boolean> {
 
 saveBtn.addEventListener('click', () => void persistToDisk())
 
+/** 另存为：选新路径 → 强制写（系统对话框已确认覆盖）→ 会话切到新文件。 */
+async function saveAsFlow() {
+  if (!session.source) return
+  if (detectEnv() !== 'shell') {
+    await persistToDisk()
+    return
+  }
+  finalizeFocused()
+  const normalized = serialize(session.blocks)
+  const finalText = applyEncoding(session.source, normalized)
+  const defaultName = session.source.path.split('/').pop() ?? 'untitled.md'
+  let target: string | null = null
+  try {
+    target = await pickSavePath(defaultName)
+  } catch (err) {
+    console.error('[lector] save-as dialog', err)
+    return
+  }
+  if (!target) return
+  try {
+    const res = await save(target, finalText, 0, true)
+    if (!res.ok) {
+      showToast(t('saveFailed'))
+      return
+    }
+    loadSession(target, finalText, res.current_mtime_ms ?? Date.now())
+    showToast(t('saved'))
+  } catch (err) {
+    console.error('[lector] save-as failed', err)
+    showToast(t('saveFailed'))
+  }
+}
+
 async function reloadFromDisk() {
   if (!session.source) return
   try {
@@ -813,6 +852,9 @@ function bindShellEvents() {
         break
       case 'save':
         saveBtn.click()
+        break
+      case 'save-as':
+        void saveAsFlow()
         break
       case 'find':
         openFind()

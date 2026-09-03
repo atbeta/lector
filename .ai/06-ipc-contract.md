@@ -81,6 +81,8 @@ invoke('write_file', { path: string, content: string, mtime_ms: number, force?: 
 
 `content` 为**最终字节文本**（Web 已按 newline/BOM 还原），壳不再做换行归一，只负责写。成功时返回磁盘真实 `current_mtime_ms`，禁止客户端用 `Date.now()` 猜。
 
+目标**不存在**（另存为新文件）时无冲突可言，直接写；此时客户端传 `mtime_ms: 0`。另存为覆盖已有文件由系统保存对话框确认，Web 随后用 `force: true` 写。
+
 ### `watch`
 
 开始监听某目录/文件，外部变化以 `lector:file-changed` 事件回推。关窗时壳卸掉 watcher。
@@ -107,7 +109,7 @@ invoke('take_pending_open') → string | null
 
 ### `bind_document`
 
-Web 打开一篇文档后登记到当前窗口（对话框打开的 main 窗口也要登记，否则相对图协议与粘贴落盘无法授权）。
+Web 打开一篇文档后登记到当前窗口（对话框打开的 main 窗口也要登记，否则相对图协议与粘贴落盘无法授权）。副作用三件：协议白名单按路径表重建（收紧旧目录）、写入「最近打开」、重建原生菜单。
 
 ```ts
 invoke('bind_document', { path: string }) → boolean
@@ -126,6 +128,19 @@ invoke('save_image', { docPath: string, filename: string, bytesBase64: string })
 ### `load_settings` / `save_settings`
 
 读写 app 配置目录 `lector-settings.json`。
+
+---
+
+## 最近打开与另存为
+
+**最近打开**：壳单点维护配置目录 `lector-recent.json`（字符串数组，新在前，≤20，去重）。Web 无读接口。
+
+- 记入时机：`bind_document`（覆盖对话框打开、双击关联、argv、单实例转发、另存为后切换全部路径）。
+- 展示：原生菜单 File > Open Recent。条目 id `recent-<i>`；点击由壳直接 `open_path`（已开则聚焦，未开新窗口），**不经 Web**。文件已不存在 → 从列表移除并重建菜单。
+- 「Clear Menu」（id `recent-clear`）清空并重建菜单。
+- 列表变化（bind / clear / 移除失效项）后整体重建菜单。
+
+**另存为**：菜单 `file-save-as`（⇧⌘S）→ emit `{ action: 'save-as' }` → Web 走 dialog 插件 `save()` 拿路径 → `write_file(path, content, 0, force: true)` → 成功后 `loadSession` 切到新路径（随之 bind + watch + 记最近）。
 
 ---
 
@@ -148,6 +163,7 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-09-03：补「最近打开」（壳单点 `lector-recent.json` + 原生菜单）与「另存为」（dialog save + `write_file` force）；`write_file` 目标不存在时直接写；`bind_document` 副作用收白名单、记最近、重建菜单。
 - 2026-08-31：补 `bind_document` / `save_image`（粘贴拖入图片写 `./images/`）。
 - 2026-08-31：命令名去掉 `lector:` 前缀以符合 Tauri 2 ACL；读/写收回 Rust；补 `take_pending_open` 与写回真实 mtime。
 - 2026-08-23：初版契约。命令名与事件名锁定，未定 `openFile`/`closeWindow` 等后续再议。
