@@ -123,6 +123,25 @@ export async function takePendingOpen(): Promise<string | null> {
   return invoke<string | null>('take_pending_open')
 }
 
+export async function bindDocument(path: string): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('bind_document', { path })
+}
+
+export async function saveImage(
+  docPath: string,
+  filename: string,
+  bytesBase64: string,
+): Promise<{ relative_path: string }> {
+  const { invoke } = await tauriApi()
+  return invoke<{ relative_path: string }>('save_image', {
+    doc_path: docPath,
+    filename,
+    bytes_base64: bytesBase64,
+  })
+}
+
 const SETTINGS_LS_KEY = 'lector-settings'
 
 export async function loadSettings(): Promise<unknown> {

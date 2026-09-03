@@ -170,6 +170,132 @@ pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), 
   Ok(())
 }
 
+const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif"];
+const MAX_IMAGE_BYTES: usize = 15 * 1024 * 1024;
+
+fn sanitize_image_name(name: &str) -> Option<String> {
+  let base = name.replace('\\', "/");
+  let base = base.rsplit('/').next().unwrap_or("");
+  if base.is_empty() || base == "." || base == ".." {
+    return None;
+  }
+  let (stem, ext) = base.rsplit_once('.')?;
+  let ext = ext.to_ascii_lowercase();
+  if !IMAGE_EXTS.contains(&ext.as_str()) {
+    return None;
+  }
+  let mut out = String::new();
+  for c in stem.chars() {
+    if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' {
+      out.push(c);
+    } else {
+      out.push('-');
+    }
+  }
+  let stem = out.trim_matches('-');
+  if stem.is_empty() {
+    return None;
+  }
+  Some(format!("{stem}.{ext}"))
+}
+
+fn unique_path(dir: &std::path::Path, filename: &str) -> PathBuf {
+  let dest = dir.join(filename);
+  if !dest.exists() {
+    return dest;
+  }
+  let (stem, ext) = filename.rsplit_once('.').unwrap_or((filename, "png"));
+  for i in 2..1000 {
+    let cand = dir.join(format!("{stem}-{i}.{ext}"));
+    if !cand.exists() {
+      return cand;
+    }
+  }
+  dir.join(format!("{stem}-{}.{}", std::process::id(), ext))
+}
+
+fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
+  fn val(c: u8) -> Option<u8> {
+    match c {
+      b'A'..=b'Z' => Some(c - b'A'),
+      b'a'..=b'z' => Some(c - b'a' + 26),
+      b'0'..=b'9' => Some(c - b'0' + 52),
+      b'+' => Some(62),
+      b'/' => Some(63),
+      _ => None,
+    }
+  }
+  let bytes = s.as_bytes();
+  let mut out = Vec::with_capacity(bytes.len() * 3 / 4);
+  let mut buf = 0u32;
+  let mut n = 0;
+  for &c in bytes {
+    if c == b'=' || c.is_ascii_whitespace() {
+      continue;
+    }
+    let v = val(c).ok_or_else(|| "invalid base64".to_string())?;
+    buf = (buf << 6) | u32::from(v);
+    n += 6;
+    if n >= 8 {
+      n -= 8;
+      out.push((buf >> n) as u8);
+    }
+  }
+  Ok(out)
+}
+
+#[tauri::command]
+pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Result<bool, String> {
+  protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
+  let canon = canonical(&path).unwrap_or_else(|| PathBuf::from(&path));
+  let label = window.label().to_string();
+  let registry = app.state::<WindowRegistry>();
+  let mut map = registry.0.lock().unwrap();
+  map.retain(|_, l| l != &label);
+  map.insert(canon, label);
+  Ok(true)
+}
+
+#[derive(Serialize)]
+pub struct SaveImageResult {
+  relative_path: String,
+}
+
+#[tauri::command]
+pub fn save_image(
+  app: AppHandle,
+  doc_path: String,
+  filename: String,
+  bytes_base64: String,
+) -> Result<SaveImageResult, String> {
+  let canon = canonical(&doc_path).ok_or_else(|| "document path not found".to_string())?;
+  let registry = app.state::<WindowRegistry>();
+  let bound = registry.0.lock().unwrap().contains_key(&canon);
+  if !bound {
+    return Err("document is not bound to this app".into());
+  }
+  let name = sanitize_image_name(&filename).ok_or_else(|| "invalid image name".to_string())?;
+  let parent = canon.parent().ok_or_else(|| "no parent dir".to_string())?;
+  let dir = parent.join("images");
+  fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+  let dest = unique_path(&dir, &name);
+  let bytes = decode_base64(&bytes_base64)?;
+  if bytes.is_empty() {
+    return Err("empty image".into());
+  }
+  if bytes.len() > MAX_IMAGE_BYTES {
+    return Err("image too large".into());
+  }
+  atomic_write(&dest, &bytes).map_err(|e| e.to_string())?;
+  let file = dest
+    .file_name()
+    .map(|s| s.to_string_lossy().into_owned())
+    .unwrap_or(name);
+  Ok(SaveImageResult {
+    relative_path: format!("images/{file}").replace('\\', "/"),
+  })
+}
+
 fn rebuild_allowed_dirs(app: &AppHandle) {
   let registry = app.state::<WindowRegistry>();
   let allowed = app.state::<protocol::AllowedDirs>();
@@ -329,4 +455,29 @@ mod tests {
     let _ = fs::remove_file(&path);
   }
 
+  #[test]
+  fn sanitize_image_name_strips_paths() {
+    assert_eq!(sanitize_image_name("photo.png").as_deref(), Some("photo.png"));
+    assert_eq!(sanitize_image_name("a/../x.PNG").as_deref(), Some("x.png"));
+    assert_eq!(sanitize_image_name("weird name.webp").as_deref(), Some("weird-name.webp"));
+    assert!(sanitize_image_name("../x.png").is_none() || sanitize_image_name("../x.png").as_deref() == Some("x.png"));
+    assert!(sanitize_image_name("x.txt").is_none());
+    assert!(sanitize_image_name("..").is_none());
+  }
+
+  #[test]
+  fn decode_base64_hello() {
+    assert_eq!(decode_base64("aGVsbG8=").unwrap(), b"hello");
+  }
+
+  #[test]
+  fn unique_path_adds_suffix() {
+    let dir = std::env::temp_dir().join(format!("lector-uniq-{}", std::process::id()));
+    let _ = fs::create_dir_all(&dir);
+    let a = dir.join("shot.png");
+    fs::write(&a, b"1").unwrap();
+    let next = unique_path(&dir, "shot.png");
+    assert_eq!(next.file_name().unwrap().to_string_lossy(), "shot-2.png");
+    let _ = fs::remove_dir_all(&dir);
+  }
 }

@@ -21,6 +21,8 @@ import {
   save,
   watch,
   takePendingOpen,
+  bindDocument,
+  saveImage,
   onOpen,
   onFileChanged,
   onMenu,
@@ -38,6 +40,13 @@ import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
+import {
+  fileToBase64,
+  imageMarkdown,
+  isImageMime,
+  pastedFileName,
+  safeDropName,
+} from './imageInsert.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
@@ -289,6 +298,7 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   render()
   markDirty()
   if (detectEnv() === 'shell') {
+    void bindDocument(path)
     void watch(path)
   }
 }
@@ -544,6 +554,133 @@ contentEl.addEventListener('click', (e) => {
   }
   const id = target.dataset.blockId
   if (id) focusBlock(id, { mode: 'coords', x: e.clientX, y: e.clientY })
+})
+
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024
+
+function appendImageParagraph(md: string) {
+  const onlyEmpty =
+    session.blocks.length === 1 &&
+    session.blocks[0] &&
+    isFocusableBlock(session.blocks[0]) &&
+    session.blocks[0].raw === ''
+  if (onlyEmpty) {
+    const b = session.blocks[0]!
+    b.raw = md
+    b.dirty = true
+    b.mdast = parseOne(md)
+    b.kind = kindFromMdast(b.mdast)
+    markDirty()
+    render()
+    return
+  }
+  const last = session.blocks[session.blocks.length - 1]
+  if (last && !isWhitespaceGap(last)) {
+    const gapId = nextId()
+    session.blocks.push({
+      id: gapId,
+      kind: 'unknown',
+      start: 0,
+      end: 0,
+      raw: '\n\n',
+      mdast: null,
+      dirty: true,
+    })
+    session.originals.set(gapId, '')
+  }
+  const para: BlockView = {
+    id: nextId(),
+    kind: 'paragraph',
+    start: 0,
+    end: 0,
+    raw: md,
+    mdast: parseOne(md),
+    dirty: true,
+  }
+  session.blocks.push(para)
+  session.originals.set(para.id, '')
+  session.structuralDirty = true
+  markDirty()
+  render()
+}
+
+function insertImageMarkdownAtCaret(md: string) {
+  if (cm && session.focusedId) {
+    const pos = cm.view.state.selection.main.head
+    cm.view.dispatch({
+      changes: { from: pos, insert: md },
+      selection: { anchor: pos + md.length },
+    })
+    return
+  }
+  appendImageParagraph(md)
+}
+
+async function ingestImageFile(file: File, name: string | null) {
+  if (!name) return
+  if (file.size > MAX_IMAGE_BYTES) {
+    showToast(t('imageTooLarge'))
+    return
+  }
+  if (detectEnv() !== 'shell' || !session.source) {
+    showToast(t('imageNeedFile'))
+    return
+  }
+  try {
+    const bytes_base64 = fileToBase64(await file.arrayBuffer())
+    const { relative_path } = await saveImage(session.source.path, name, bytes_base64)
+    insertImageMarkdownAtCaret(imageMarkdown(relative_path))
+  } catch (err) {
+    showToast(`${t('imageFailed')}：${String(err)}`)
+  }
+}
+
+function imageFilesFromList(list: FileList | DataTransferItemList | undefined | null): File[] {
+  if (!list) return []
+  const out: File[] = []
+  for (const item of list) {
+    if (item instanceof File) {
+      if (isImageMime(item.type) || safeDropName(item.name)) out.push(item)
+      continue
+    }
+    if (item.kind === 'file' && isImageMime(item.type)) {
+      const f = item.getAsFile()
+      if (f) out.push(f)
+    }
+  }
+  return out
+}
+
+window.addEventListener(
+  'paste',
+  (e) => {
+    const files = imageFilesFromList(e.clipboardData?.items)
+    if (files.length === 0) return
+    e.preventDefault()
+    void (async () => {
+      for (const f of files) {
+        await ingestImageFile(f, pastedFileName(new Date(), f.type) ?? safeDropName(f.name))
+      }
+    })()
+  },
+  true,
+)
+
+window.addEventListener('dragover', (e) => {
+  if (imageFilesFromList(e.dataTransfer?.files).length > 0 || e.dataTransfer?.types.includes('Files')) {
+    e.preventDefault()
+  }
+})
+
+window.addEventListener('drop', (e) => {
+  const files = imageFilesFromList(e.dataTransfer?.files)
+  if (files.length === 0) return
+  e.preventDefault()
+  void (async () => {
+    for (const f of files) {
+      await ingestImageFile(f, safeDropName(f.name) ?? pastedFileName(new Date(), f.type))
+    }
+  })()
 })
 
 window.addEventListener('keydown', (e) => {

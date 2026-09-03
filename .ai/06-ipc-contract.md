@@ -105,6 +105,24 @@ invoke('dir_for', { path: string }) → { base_dir: string }
 invoke('take_pending_open') → string | null
 ```
 
+### `bind_document`
+
+Web 打开一篇文档后登记到当前窗口（对话框打开的 main 窗口也要登记，否则相对图协议与粘贴落盘无法授权）。
+
+```ts
+invoke('bind_document', { path: string }) → boolean
+```
+
+### `save_image`
+
+把位图写到该文档同目录 `images/`，返回正斜杠相对路径。仅当 `path` 已 bind / 在路径表中。文件名由壳再消毒；重名自动加 `-2`。
+
+```ts
+invoke('save_image', { docPath: string, filename: string, bytesBase64: string }) → {
+  relative_path: string
+}
+```
+
 ### `load_settings` / `save_settings`
 
 读写 app 配置目录 `lector-settings.json`。
@@ -130,5 +148,6 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-08-31：补 `bind_document` / `save_image`（粘贴拖入图片写 `./images/`）。
 - 2026-08-31：命令名去掉 `lector:` 前缀以符合 Tauri 2 ACL；读/写收回 Rust；补 `take_pending_open` 与写回真实 mtime。
 - 2026-08-23：初版契约。命令名与事件名锁定，未定 `openFile`/`closeWindow` 等后续再议。

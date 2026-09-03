@@ -56,6 +56,9 @@ const zh = {
   close: '关闭',
   noResults: '无结果',
   matchCount: '{n} 处',
+  imageNeedFile: '请先打开一个磁盘上的 Markdown 文件，再粘贴或拖入图片。',
+  imageFailed: '图片保存失败',
+  imageTooLarge: '图片超过 15MB，未写入。',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
@@ -112,6 +115,9 @@ const en: Record<keyof typeof zh, string> = {
   close: 'Close',
   noResults: 'No results',
   matchCount: '{n} matches',
+  imageNeedFile: 'Open a Markdown file on disk before pasting or dropping images.',
+  imageFailed: 'Could not save image',
+  imageTooLarge: 'Image is larger than 15MB and was not saved.',
 }
 
 export type MessageKey = keyof typeof zh
