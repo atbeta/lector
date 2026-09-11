@@ -491,42 +491,70 @@ pub fn watch_file(app: &AppHandle, path: &str) {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// 每个用例独占一个刚建出来的空目录，并且只在开始时清一次。
+  ///
+  /// 不要在系统临时目录里用 `lector-xxx-<pid>.md` 这种固定名字：上一次被杀掉的
+  /// 进程会留下同名文件，下一次跑（pid 往往复用）就带着脏状态开始——「目标不存在」
+  /// 与「mtime 冲突」两条断言都会莫名其妙地翻。测试必须自备干净环境。
+  fn tdir(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("lector-test-{tag}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    dir
+  }
+
+  fn tmp_leftovers(dir: &std::path::Path) -> Vec<String> {
+    fs::read_dir(dir)
+      .unwrap()
+      .filter_map(|e| e.ok())
+      .map(|e| e.file_name().to_string_lossy().into_owned())
+      .filter(|n| n.starts_with(".lector-tmp-"))
+      .collect()
+  }
+
   #[test]
   fn atomic_write_roundtrip() {
-    let dir = std::env::temp_dir();
-    let path = dir.join(format!("lector-atomic-{}.md", std::process::id()));
+    let dir = tdir("atomic");
+    let path = dir.join("a.md");
     atomic_write(&path, b"hello").unwrap();
     assert_eq!(fs::read(&path).unwrap(), b"hello");
     atomic_write(&path, b"world").unwrap();
     assert_eq!(fs::read(&path).unwrap(), b"world");
-    let _ = fs::remove_file(&path);
+    // 覆盖写不能留下临时文件——那是写进用户文档目录里的垃圾。
+    assert!(tmp_leftovers(&dir).is_empty(), "leftover: {:?}", tmp_leftovers(&dir));
+    let _ = fs::remove_dir_all(&dir);
   }
 
   #[test]
   fn write_conflict_when_mtime_differs() {
-    let dir = std::env::temp_dir();
-    let path = dir.join(format!("lector-conflict-{}.md", std::process::id()));
+    let dir = tdir("conflict");
+    let path = dir.join("a.md");
     atomic_write(&path, b"a").unwrap();
     let real = file_mtime_ms(&path).unwrap();
-    let res = write_file(path.to_string_lossy().into(), "b".into(), real.saturating_sub(1), Some(false)).unwrap();
+    assert!(real > 0, "mtime must be readable, otherwise the check is vacuous");
+    // 用「一分钟前」而不是 real-1：有些文件系统 mtime 粒度是秒，减 1 毫秒可能
+    // 落回同一个值，断言就变成随机的。
+    let stale = real.saturating_sub(60_000);
+    let res = write_file(path.to_string_lossy().into(), "b".into(), stale, Some(false)).unwrap();
     assert_eq!(res.ok, false);
     assert_eq!(res.conflict, Some(true));
     assert_eq!(fs::read_to_string(&path).unwrap(), "a");
     let forced = write_file(path.to_string_lossy().into(), "b".into(), 0, Some(true)).unwrap();
     assert!(forced.ok);
     assert_eq!(fs::read_to_string(&path).unwrap(), "b");
-    let _ = fs::remove_file(&path);
+    let _ = fs::remove_dir_all(&dir);
   }
 
   #[test]
   fn write_new_file_without_conflict() {
-    let dir = std::env::temp_dir();
-    let path = dir.join(format!("lector-newfile-{}.md", std::process::id()));
-    let _ = fs::remove_file(&path);
+    let dir = tdir("newfile");
+    let path = dir.join("brand-new.md");
     let res = write_file(path.to_string_lossy().into(), "hi".into(), 0, Some(false)).unwrap();
     assert!(res.ok);
     assert_eq!(fs::read_to_string(&path).unwrap(), "hi");
-    let _ = fs::remove_file(&path);
+    assert!(tmp_leftovers(&dir).is_empty());
+    let _ = fs::remove_dir_all(&dir);
   }
 
   #[test]
@@ -557,10 +585,8 @@ mod tests {
 
   #[test]
   fn unique_path_adds_suffix() {
-    let dir = std::env::temp_dir().join(format!("lector-uniq-{}", std::process::id()));
-    let _ = fs::create_dir_all(&dir);
-    let a = dir.join("shot.png");
-    fs::write(&a, b"1").unwrap();
+    let dir = tdir("uniq");
+    atomic_write(&dir.join("shot.png"), b"1").unwrap();
     let next = unique_path(&dir, "shot.png");
     assert_eq!(next.file_name().unwrap().to_string_lossy(), "shot-2.png");
     let _ = fs::remove_dir_all(&dir);
