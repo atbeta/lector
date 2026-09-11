@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.lector.reader",
   "build": {
-    "beforeDevCommand": "cd packages/editor && bun run dev",
-    "beforeBuildCommand": "cd packages/editor && bun run build",
+    "beforeDevCommand": "cd ../../../packages/editor && bun run dev",
+    "beforeBuildCommand": "cd ../../../packages/editor && bun run build",
     "frontendDist": "../../../packages/editor/dist",
     "devUrl": "http://localhost:5173"
   },
