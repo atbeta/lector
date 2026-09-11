@@ -86,6 +86,49 @@ jobs:
           Copy-Item "$dir/lector.exe" "$stage/lector-portable.exe" -ErrorAction Stop
           Get-ChildItem $stage | Format-Table Name, Length
           "LECTOR_EXE=$stage/lector-portable.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "SETUP_EXE=$(Get-ChildItem "$stage/*setup.exe" | Select-Object -First 1 -ExpandProperty FullName)" |
+            Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      # NSIS 脚本是压缩存放的，在安装器二进制里 grep 字符串必然是假阴性。
+      # 真正能验 patch 的办法只有一条：静默装一遍，然后读注册表。
+      # 装到 runner 的临时目录，验完立刻反注册，不碰 runner 自身环境。
+      - name: Install silently and verify the icon registry entry
+        shell: pwsh
+        run: |
+          $install = "$env:TEMP\lector-install"
+          $proc = Start-Process -FilePath $env:SETUP_EXE -ArgumentList "/S", "/D=$install" -PassThru -Wait
+          Write-Host "installer exit: $($proc.ExitCode)"
+          Start-Sleep -Seconds 5
+
+          $progIds = @("com.lector.reader.md", "com.lector.reader.markdown", "com.lector.reader.txt")
+          $bad = @()
+          foreach ($id in $progIds) {
+            $icon = (Get-ItemProperty -Path "HKCU:\Software\Classes\$id\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
+            $cmd  = (Get-ItemProperty -Path "HKCU:\Software\Classes\$id\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
+            Write-Host "$id  DefaultIcon='$icon'  command='$cmd'"
+            if (-not $icon) { $bad += "$id has no DefaultIcon" }
+            if ($icon -and $icon -notmatch 'lector\.exe') { $bad += "$id icon does not point at lector.exe (got '$icon')" }
+            if (-not $cmd)  { $bad += "$id has no open command" }
+          }
+
+          # exe 图标索引 0 不能为空，否则资源管理器还是白纸。
+          $exe = Join-Path $install "Lector.exe"
+          if (-not (Test-Path $exe)) { $bad += "installed exe missing at $exe" }
+
+          # 收尾：能静默卸载就卸，失败只告警（runner 是一次性的）。
+          $uninst = Join-Path $install "uninstall.exe"
+          if (Test-Path $uninst) {
+            Start-Process -FilePath $uninst -ArgumentList "/S" -PassThru -Wait | Out-Null
+            Start-Sleep -Seconds 3
+            $left = (Get-ItemProperty -Path "HKCU:\Software\Classes\com.lector.reader.md\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
+            if ($left) { Write-Warning "卸载后 DefaultIcon 仍在：$left" }
+          }
+
+          if ($bad.Count -gt 0) {
+            $bad | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          Write-Host "file association icon entries verified"
 
       - name: Smoke test the built binary
         shell: pwsh
