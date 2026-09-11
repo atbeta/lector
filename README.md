@@ -18,7 +18,16 @@
 
 ## 状态
 
-内核切片、编辑器预览/聚焦块、Tauri 壳已在开发中。方案见 [.ai/](./.ai/README.md)。质量门：`bun test` + `bun run typecheck`。
+内核切片、编辑器预览/聚焦块、Tauri 壳已在开发中。方案见 [.ai/](./.ai/README.md)。质量门：`bun test` + `bun run typecheck` + `cargo test`。
+
+Windows 包由 GitHub Actions 出（NSIS 只能在 Windows 上打，macOS 开发机打不出来）：
+
+```
+gh run download --repo atbeta/lector --name lector-windows-x64
+```
+
+产物两份：`Lector_<版本>_x64-setup.exe`（安装器，无需管理员，装完带 `.md` 关联与图标）
+和 `lector-portable.exe`（免安装直接跑）。推 `v*` tag 会自动挂到 draft release。
 
 ## License
 
