@@ -64,6 +64,15 @@ jobs:
       - name: Install JS deps
         run: bun install --frozen-lockfile
 
+      # 临时诊断：确认 beforeBuildCommand 到底从哪里跑。
+      - name: Diagnose hook cwd
+        shell: pwsh
+        run: |
+          Write-Host "PWD=$($PWD.Path)"
+          Write-Host "exists ../../../packages/editor = $(Test-Path '..\..\..\packages\editor')"
+          cmd /c "cd ..\..\..\packages\editor && cd"
+          cmd /c "cd packages\editor && cd"
+
       # 壳的写盘/冲突逻辑由 Rust 单测覆盖；原子写在 Windows 上是「先删后改名」，
       # 必须在这个 runner 上真跑一遍，不能只靠 macOS 的结果。
       - name: Shell unit tests
