@@ -13,3 +13,6 @@ clients/tauri/gen/
 .env
 .push.log
 .gh-cache/
+
+# 本机 CI 排障日志
+.runlog.txt
