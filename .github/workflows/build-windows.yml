@@ -26,19 +26,30 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Installer hook stays in sync with tauri.conf.json
         run: |
-          EXPECTED=$(python3 - <<'PY'
-          import json
+          # Tauri 用 fileAssociations[].name 当 Windows 类键；patch 必须盯着同一个名字。
+          python3 - <<'PY'
+          import json, pathlib, re, sys
+
           conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json'))
-          ids = [a['identifier'] if 'identifier' in a else conf['identifier'] + '.' + e
-                 for a in conf['bundle']['fileAssociations'] for e in a['ext']]
-          print('\n'.join(sorted(ids)))
+          names = sorted({a['name'] for a in conf['bundle']['fileAssociations']})
+          exts = sorted({e for a in conf['bundle']['fileAssociations'] for e in a['ext']})
+          hooks = pathlib.Path('clients/tauri/src-tauri/windows/nsis-hooks.nsh').read_text()
+
+          m = re.search(r'!define\s+LECTOR_FILE_CLASS\s+"([^"]+)"', hooks)
+          hook_class = m.group(1) if m else None
+
+          errs = []
+          if hook_class not in names:
+              errs.append(f"nsis-hooks.nsh 的 LECTOR_FILE_CLASS={hook_class!r} 不在 {names} 里")
+          if 'DefaultIcon' not in hooks:
+              errs.append("nsis-hooks.nsh 不再写 DefaultIcon")
+          if conf.get('bundle', {}).get('windows', {}).get('nsis', {}).get('installerHooks') != 'windows/nsis-hooks.nsh':
+              errs.append("tauri.conf.json 没挂上 windows/nsis-hooks.nsh")
+
+          print(f"class={hook_class} extensions={exts}")
+          if errs:
+              print("\n".join(errs)); sys.exit(1)
           PY
-          )
-          ACTUAL=$(grep -o 'com\.lector\.reader\.[a-z]*\\DefaultIcon' \
-            clients/tauri/src-tauri/windows/nsis-hooks.nsh | sed 's/\\DefaultIcon//' | sort -u)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "nsis-hooks.nsh 的 ProgID 与 tauri.conf.json 不一致"; echo "--- conf ---"; echo "$EXPECTED"; echo "--- hooks ---"; echo "$ACTUAL"; exit 1
-          fi
       - run: bun test
       - run: bun run typecheck
 
@@ -89,67 +100,57 @@ jobs:
           "SETUP_EXE=$(Get-ChildItem "$stage/*setup.exe" | Select-Object -First 1 -ExpandProperty FullName)" |
             Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
-      # NSIS 脚本是压缩存放的，在安装器二进制里 grep 字符串必然是假阴性。
+      # NSIS 脚本是压缩存放的，在安装器二进制里 grep 字符串是假阴性。
       # 真正能验 patch 的办法只有一条：静默装一遍，然后读注册表。
-      # 装到 runner 的临时目录，验完立刻反注册，不碰 runner 自身环境。
+      # 装到 runner 的临时目录，验完立刻卸载，不碰 runner 自身环境。
       - name: Install silently and verify the icon registry entry
         shell: pwsh
         run: |
+          $class = "Markdown"          # = bundle.fileAssociations[].name
           $install = "$env:TEMP\lector-install"
           $proc = Start-Process -FilePath $env:SETUP_EXE -ArgumentList "/S", "/D=$install" -PassThru -Wait
           Write-Host "installer exit: $($proc.ExitCode)"
           Start-Sleep -Seconds 5
 
-          foreach ($k in @("HKCU:\Software\Classes\Markdown", "HKLM:\Software\Classes\Markdown")) {
-            Write-Host "=== $k ==="
-            if (Test-Path $k) {
-              Get-Item $k | Select-Object -ExpandProperty Property | ForEach-Object {
-                $v = (Get-ItemProperty $k).$_
-                Write-Host "  value: $_ = $v"
-              }
-              Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-                Write-Host "  subkey: $($_.Name)"
-                Get-Item $_.PSPath | Select-Object -ExpandProperty Property | ForEach-Object {
-                  Write-Host "    value: $_ = $((Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).$_)"
-                }
-              }
-            } else { Write-Host "  (absent)" }
-          }
-          foreach ($k in @("HKCU:\Software\Classes\.markdown", "HKCU:\Software\Classes\.txt")) {
-            Write-Host "=== $k ==="
-            if (Test-Path $k) { Get-Item $k | Select-Object -ExpandProperty Property | ForEach-Object { Write-Host "  value: $_" } }
-            else { Write-Host "  (absent)" }
-          }
-
-          $progIds = @("com.lector.reader.md", "com.lector.reader.markdown", "com.lector.reader.txt")
           $bad = @()
-          foreach ($id in $progIds) {
-            $icon = (Get-ItemProperty -Path "HKCU:\Software\Classes\$id\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
-            $cmd  = (Get-ItemProperty -Path "HKCU:\Software\Classes\$id\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
-            Write-Host "$id  DefaultIcon='$icon'  command='$cmd'"
-            if (-not $icon) { $bad += "$id has no DefaultIcon" }
-            if ($icon -and $icon -notmatch 'lector\.exe') { $bad += "$id icon does not point at lector.exe (got '$icon')" }
-            if (-not $cmd)  { $bad += "$id has no open command" }
+          $classKey = "HKCU:\Software\Classes\$class"
+
+          # 1) .md 扩展名要指向这个类键，否则整条关联都没生效。
+          foreach ($ext in @(".md", ".markdown", ".txt")) {
+            $v = (Get-ItemProperty "HKCU:\Software\Classes\$ext" -ErrorAction SilentlyContinue).'(default)'
+            $backup = (Get-ItemProperty "HKCU:\Software\Classes\$ext" -ErrorAction SilentlyContinue)."${class}_backup"
+            Write-Host "$ext -> '$v' (backup='$backup')"
+            if ($v -ne $class) { $bad += "$ext does not point at the $class class (got '$v')" }
           }
 
-          # exe 图标索引 0 不能为空，否则资源管理器还是白纸。
+          # 2) 官方只建空 DefaultIcon；patched 后必须指向安装出来的 exe。
+          $icon = (Get-ItemProperty "$classKey\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
+          $cmd = (Get-ItemProperty "$classKey\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
+          Write-Host "DefaultIcon = '$icon'"
+          Write-Host "open command = '$cmd'"
+          if (-not $cmd) { $bad += "$class has no shell\open\command" }
+          if (-not $icon) { $bad += "$class has no DefaultIcon (patch did not run)" }
+          elseif ($icon -notmatch 'Lector\.exe') { $bad += "DefaultIcon does not point at Lector.exe (got '$icon')" }
+
           $exe = Join-Path $install "Lector.exe"
           if (-not (Test-Path $exe)) { $bad += "installed exe missing at $exe" }
 
-          # 收尾：能静默卸载就卸，失败只告警（runner 是一次性的）。
+          # 收尾：静默卸载，并确认图标值被清掉。
           $uninst = Join-Path $install "uninstall.exe"
           if (Test-Path $uninst) {
             Start-Process -FilePath $uninst -ArgumentList "/S" -PassThru -Wait | Out-Null
-            Start-Sleep -Seconds 3
-            $left = (Get-ItemProperty -Path "HKCU:\Software\Classes\com.lector.reader.md\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
-            if ($left) { Write-Warning "卸载后 DefaultIcon 仍在：$left" }
+            Start-Sleep -Seconds 5
+            $left = (Get-ItemProperty "$classKey\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
+            Write-Host "DefaultIcon after uninstall = '$left'"
+            if ($left) { $bad += "uninstall left DefaultIcon behind ('$left')" }
+          } else {
+            Write-Warning "no uninstaller at $uninst, skipping the uninstall assertion"
           }
 
           if ($bad.Count -gt 0) {
-            # 临时：先看清 Tauri 到底注册了什么，不要提前中断诊断。
-            $bad | ForEach-Object { Write-Warning $_ }
+            $bad | ForEach-Object { Write-Host "::error::$_" }
+            exit 1
           }
-          if (-not $env:STRICT_REGISTRY_CHECK) { Write-Host "diagnostic mode: not failing on registry mismatches" }
           Write-Host "file association icon entries verified"
 
       - name: Smoke test the built binary
