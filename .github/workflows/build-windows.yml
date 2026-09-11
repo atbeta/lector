@@ -100,17 +100,25 @@ jobs:
           Write-Host "installer exit: $($proc.ExitCode)"
           Start-Sleep -Seconds 5
 
-          Write-Host "=== class keys for .md ==="
-          Get-ChildItem "HKCU:\Software\Classes" -ErrorAction SilentlyContinue |
-            Where-Object { $_.PSChildName -like "*md*" -or $_.PSChildName -like "*lector*" } |
-            ForEach-Object { Write-Host "  $($_.PSChildName)" }
-          foreach ($k in @("HKCU:\Software\Classes\.md", "HKCU:\Software\Classes\com.lector.reader.md")) {
+          foreach ($k in @("HKCU:\Software\Classes\Markdown", "HKLM:\Software\Classes\Markdown")) {
             Write-Host "=== $k ==="
             if (Test-Path $k) {
-              Get-Item $k | Select-Object -ExpandProperty Property | ForEach-Object { Write-Host "  value: $_" }
-              Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue |
-                ForEach-Object { Write-Host "  subkey: $($_.Name)" }
+              Get-Item $k | Select-Object -ExpandProperty Property | ForEach-Object {
+                $v = (Get-ItemProperty $k).$_
+                Write-Host "  value: $_ = $v"
+              }
+              Get-ChildItem $k -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                Write-Host "  subkey: $($_.Name)"
+                Get-Item $_.PSPath | Select-Object -ExpandProperty Property | ForEach-Object {
+                  Write-Host "    value: $_ = $((Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).$_)"
+                }
+              }
             } else { Write-Host "  (absent)" }
+          }
+          foreach ($k in @("HKCU:\Software\Classes\.markdown", "HKCU:\Software\Classes\.txt")) {
+            Write-Host "=== $k ==="
+            if (Test-Path $k) { Get-Item $k | Select-Object -ExpandProperty Property | ForEach-Object { Write-Host "  value: $_" } }
+            else { Write-Host "  (absent)" }
           }
 
           $progIds = @("com.lector.reader.md", "com.lector.reader.markdown", "com.lector.reader.txt")
