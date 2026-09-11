@@ -6,6 +6,10 @@ dist/
 # Tauri
 clients/tauri/target/
 clients/tauri/gen/
+# 本机校验用的临时 CARGO_TARGET_DIR（cargo 产物动辄上百 MB，绝不入库）
+.cargo-check*/
 
 # 本机环境
 .env
+.push.log
+.gh-cache/

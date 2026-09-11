@@ -78,6 +78,10 @@ pub fn run() {
     .expect("error while building tauri application");
 
   app.run(|app, event| match event {
+    // 只有 macOS 有这一路：Finder 的双击/拖到 Dock 走 Apple Event。
+    // Windows 的文件关联走 argv（见 setup 与 single-instance 回调），
+    // 所以在别的平台这个 variant 根本不存在，必须 gate 掉，否则 Windows 编不过。
+    #[cfg(target_os = "macos")]
     RunEvent::Opened { urls } => {
       for url in urls {
         if let Ok(p) = url.to_file_path() {

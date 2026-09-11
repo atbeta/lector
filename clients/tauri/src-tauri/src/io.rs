@@ -431,10 +431,12 @@ pub fn open_path(app: &AppHandle, path: &str) {
 }
 
 fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::WebviewWindow> {
+  #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title("Lector")
     .inner_size(900.0, 720.0)
     .min_inner_size(480.0, 360.0);
+  // 覆盖式标题栏与红绿灯位置是 macOS 专属；Windows 保持系统原生标题栏。
   #[cfg(target_os = "macos")]
   {
     builder = builder
