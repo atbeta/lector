@@ -1,0 +1,116 @@
+name: build-windows
+
+# Lector 主要面向 Windows。这个流水线是唯一能出 Windows 包的地方：
+# NSIS 安装器只能在 Windows 上打，macOS 本机无法交叉打包。
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: test + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Installer hook stays in sync with tauri.conf.json
+        run: |
+          EXPECTED=$(python3 - <<'PY'
+          import json
+          conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json'))
+          ids = [a['identifier'] if 'identifier' in a else conf['identifier'] + '.' + e
+                 for a in conf['bundle']['fileAssociations'] for e in a['ext']]
+          print('\n'.join(sorted(ids)))
+          PY
+          )
+          ACTUAL=$(grep -o 'com\.lector\.reader\.[a-z]*\\DefaultIcon' \
+            clients/tauri/src-tauri/windows/nsis-hooks.nsh | sed 's/\\DefaultIcon//' | sort -u)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "nsis-hooks.nsh 的 ProgID 与 tauri.conf.json 不一致"; echo "--- conf ---"; echo "$EXPECTED"; echo "--- hooks ---"; echo "$ACTUAL"; exit 1
+          fi
+      - run: bun test
+      - run: bun run typecheck
+
+  windows:
+    name: NSIS installer (x64)
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: clients/tauri/src-tauri -> target
+
+      - name: Install JS deps
+        run: bun install --frozen-lockfile
+
+      # 壳的写盘/冲突逻辑由 Rust 单测覆盖；原子写在 Windows 上是「先删后改名」，
+      # 必须在这个 runner 上真跑一遍，不能只靠 macOS 的结果。
+      - name: Shell unit tests
+        working-directory: clients/tauri/src-tauri
+        run: cargo test --locked
+
+      - name: Build NSIS installer
+        working-directory: clients/tauri
+        run: bunx tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          $dir = "clients/tauri/src-tauri/target/x86_64-pc-windows-msvc/release"
+          $stage = "dist-win"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$dir/bundle/nsis/*.exe" $stage -ErrorAction Stop
+          Copy-Item "$dir/lector.exe" "$stage/lector-portable.exe" -ErrorAction Stop
+          Get-ChildItem $stage | Format-Table Name, Length
+          "LECTOR_EXE=$stage/lector-portable.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Smoke test the built binary
+        shell: pwsh
+        run: |
+          # 只能验「进程能起来且不退」，GUI 无法在 CI 里做真实交互。
+          New-Item -ItemType Directory -Force -Path "$env:TEMP\lector-smoke" | Out-Null
+          Set-Content "$env:TEMP\lector-smoke\smoke.md" "# 中文标题`n`n正文段落。`n"
+          $p = Start-Process -FilePath $env:LECTOR_EXE `
+                -ArgumentList "$env:TEMP\lector-smoke\smoke.md" -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) {
+            Write-Error "lector-portable.exe 启动后立即退出，exit code $($p.ExitCode)"
+            exit 1
+          }
+          Write-Host "process alive after 12s (pid $($p.Id))"
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lector-windows-x64
+          path: dist-win/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-win/*
+          draft: true
