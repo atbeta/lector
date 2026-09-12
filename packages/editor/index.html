@@ -5,15 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lector</title>
     <script>
-      // 防闪烁：挂载前按系统偏好同步 data-theme
+      // 防闪烁：在样式与模块加载之前定好主题。
+      //
+      // 主题的真身在设置里（core 的 EditorSettings.theme），壳里存 app 配置目录的
+      // lector-settings.json、浏览器里存 localStorage['lector-settings']。
+      // 这里必须读同一个 key：早期版本读的是 'lector-theme'，而全仓库没有任何地方
+      // 写它，等于防闪烁从未生效——深色用户每次启动都会先闪一下白再变黑。
+      //
+      // 壳环境下读不到配置文件（要走 IPC，来不及），只能按系统偏好预判；
+      // 设置加载完会立刻纠正。这一小段闪动在壳里暂时无法根除，
+      // 要彻底解决得由 Rust 把主题注入到 HTML。
       ;(function () {
         try {
           var m = window.matchMedia('(prefers-color-scheme: dark)')
-          var saved = localStorage.getItem('lector-theme')
-          document.documentElement.setAttribute(
-            'data-theme',
-            saved === 'dark' || saved === 'light' ? saved : m.matches ? 'dark' : 'light',
-          )
+          var theme = null
+          var raw = localStorage.getItem('lector-settings')
+          if (raw) {
+            var parsed = JSON.parse(raw)
+            if (parsed && (parsed.theme === 'dark' || parsed.theme === 'light')) theme = parsed.theme
+          }
+          var resolved = theme || (m.matches ? 'dark' : 'light')
+          document.documentElement.setAttribute('data-theme', resolved)
+          document.documentElement.setAttribute('data-theme-mode', theme || 'system')
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light')
         }
