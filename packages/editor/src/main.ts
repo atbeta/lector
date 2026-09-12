@@ -36,7 +36,7 @@ import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml } from './mdastHtml.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
-import { initSettings, toggleTheme, getSettings } from './settings.ts'
+import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
@@ -931,6 +931,21 @@ function bindShellEvents() {
       case 'outline':
         toggleOutline()
         break
+      case 'reload':
+        void reloadFromDisk()
+        break
+      case 'settings':
+        openSettingsModal()
+        break
+      case 'zoom-in':
+        stepFontSize(1)
+        break
+      case 'zoom-out':
+        stepFontSize(-1)
+        break
+      case 'zoom-reset':
+        resetFontSize()
+        break
     }
   })
 }
@@ -973,6 +988,23 @@ function renderEmptyState() {
   session.blocks = []
   markDirty()
 }
+
+// 预览用的 frontmatter 样例：属性卡 + 标签列表两种形状都要能看到
+const frontmatterSample = `---
+title: 开源文档工具最佳选择
+author: Beta
+date: 2026-09-12
+tags:
+  - markdown
+  - 阅读器
+  - 设计
+draft: false
+---
+
+# 属性卡预览
+
+上面这段 frontmatter 在预览里渲染成属性表；点击它即可回到原始 YAML 编辑。
+`
 
 const sample = `# 阅读体验展示
 
@@ -1048,7 +1080,9 @@ void (async () => {
     // 浏览器预览（vite dev）：默认载入内置样例，方便脱离壳调版式。
     // ?doc=empty 可切回空态，检查首屏。
     const params = new URLSearchParams(location.search)
-    if (params.get('doc') === 'empty') renderEmptyState()
-    else loadSession(params.get('doc') || 'sample.md', sample)
+    const which = params.get('doc')
+    if (which === 'empty') renderEmptyState()
+    else if (which === 'frontmatter') loadSession('frontmatter.md', frontmatterSample)
+    else loadSession(which || 'sample.md', sample)
   }
 })()

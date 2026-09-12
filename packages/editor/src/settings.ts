@@ -47,6 +47,19 @@ export function resetSettings() {
   setSettings(DEFAULT_SETTINGS, true)
 }
 
+/**
+ * 字号步进：菜单里的「增大/减小字号」。
+ * 复用设置里的 fontSize（clamp 11–32 已在 core 里做），不另开一套缩放比例——
+ * 两套缩放会互相打架，用户也会分不清哪个在生效。
+ */
+export function stepFontSize(delta: number) {
+  setSettings({ ...current, fontSize: current.fontSize + delta })
+}
+
+export function resetFontSize() {
+  setSettings({ ...current, fontSize: DEFAULT_SETTINGS.fontSize })
+}
+
 export function toggleTheme() {
   const resolved = current.theme === 'system' ? (mq?.matches ? 'dark' : 'light') : current.theme
   setSettings({ ...current, theme: resolved === 'dark' ? 'light' : 'dark' })

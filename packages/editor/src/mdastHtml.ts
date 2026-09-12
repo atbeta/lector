@@ -77,6 +77,108 @@ function listItems(list: Node): string {
   return items.join('\n')
 }
 
+/**
+ * Frontmatter 渲染成「属性卡」而不是一坨 YAML。
+ *
+ * 阅读场景里 frontmatter 是元数据（标题、作者、日期、标签），读者要看的是
+ * 「有哪些字段、值是什么」，不是缩进和引号。源码仍然完好在块里，
+ * 点击这块仍会切成原始 YAML 编辑——这里只改预览。
+ *
+ * 支持两种形状，其余退回等宽源码：
+ *   1. `key: value`
+ *   2. `key:` 后跟一串缩进的 `- item`（标签列表，真实 frontmatter 最常见的形状）
+ * 嵌套对象（`key:` 下面是 `子键: 值`）不解析：两列表格表达不了缩进层次，
+ * 硬塞会失真，那种情况给源码更诚实。
+ */
+function renderFrontmatter(raw: string): string {
+  const lines = raw.split('\n')
+  const rows: Array<{ key: string; value: string | null; list: string[] | null }> = []
+  let fallback = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    if (line.trim() === '') continue
+    if (/^\s/.test(line)) continue // 缩进行由所属字段消费，这里跳过
+
+    const m = line.match(/^([^:#][^:]*):\s*(.*)$/)
+    if (!m) {
+      fallback = true
+      break
+    }
+    const key = m[1]!.trim()
+    const rest = m[2]!.trim()
+
+    if (rest !== '') {
+      rows.push({ key, value: rest, list: null })
+      continue
+    }
+
+    // 值为空：往后收集缩进的 `- item`
+    const items: string[] = []
+    let j = i + 1
+    for (; j < lines.length; j++) {
+      const next = lines[j]!
+      if (next.trim() === '') continue
+      const item = next.match(/^\s+-\s*(.*)$/)
+      if (!item) break
+      items.push(item[1]!.trim())
+    }
+    if (items.length > 0) {
+      rows.push({ key, value: null, list: items })
+      i = j - 1
+      continue
+    }
+    // 没有列表项：还要看紧跟的缩进块是不是「子键: 值」。
+    // 是的话这是嵌套对象——两列表格表达不了缩进层次，整体退回源码；
+    // 若直接当空值渲染成「—」，用户会以为这个字段真的没值。
+    let k = i + 1
+    for (; k < lines.length; k++) {
+      const next = lines[k]!
+      if (next.trim() === '') continue
+      if (/^\s+\S/.test(next)) {
+        fallback = true
+        break
+      }
+      break
+    }
+    if (fallback) break
+    rows.push({ key, value: null, list: null })
+  }
+
+  if (fallback || rows.length === 0) {
+    return `<div class="preform yaml">${esc(raw)}</div>`
+  }
+
+  const cells = rows
+    .map(({ key, value, list }) => {
+      let rendered: string
+      if (list) {
+        // 标签列表渲染成 chips：一眼看出有几个标签，比一行 `- 甲 - 乙` 好读
+        rendered = `<span class="fm-list">${list
+          .map((it) => `<span class="fm-tag">${inlineText(it)}</span>`)
+          .join('')}</span>`
+      } else if (value) {
+        rendered = inlineText(value)
+      } else {
+        rendered = '<span class="fm-empty">—</span>'
+      }
+      return `<div class="fm-key">${esc(key)}</div><div class="fm-value">${rendered}</div>`
+    })
+    .join('')
+  return `<div class="frontmatter">${cells}</div>`
+}
+
+/** 行内元素的最小解析：只处理链接与代码，用于 frontmatter 的短值。 */
+function inlineText(v: string): string {
+  return esc(v)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, href: string) => {
+      const safe = safeHref(href)
+      // 协议不安全时留纯文本：塞个 href="null" 比不解析更糟
+      return safe ? `<a href="${esc(safe)}">${text}</a>` : text
+    })
+}
+
 function blockToHtml(n: Node): string {
   switch (n.type) {
     case 'paragraph':
@@ -120,7 +222,7 @@ function blockToHtml(n: Node): string {
       return `<div class="table-wrap"><table>${thead}<tbody>${tbody}</tbody></table></div>`
     }
     case 'yaml':
-      return `<div class="preform yaml">${esc(n.value ?? '')}</div>`
+      return renderFrontmatter(n.value ?? '')
     case 'html':
       // 块级 HTML：安全降级为等宽源码
       return `<pre class="preform">${esc(n.value ?? '')}</pre>`

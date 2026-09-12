@@ -724,7 +724,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .reading-prose ul, .reading-prose ol { padding-left: 1.35em; }
 .reading-prose li { margin-top: 0.3em; margin-bottom: 0.3em; }
-/* 列表符号不能太亮，否则一列圆点会把正文压过去 */
+/* 列表符号：小方块而不是圆点。方块更像「文档条目」，圆点更像「随手的列表」，
+   与阅读器的调性更合；颜色压到 border-strong，否则一列符号会把正文压过去。 */
+.reading-prose ul { list-style-type: square; }
 .reading-prose li::marker { color: rgb(var(--border-strong)); }
 .reading-prose li.task { list-style: none; margin-left: -1.35em; }
 .reading-prose li.task::marker { content: ''; }
@@ -832,6 +834,48 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   text-decoration: line-through;
   text-decoration-color: rgb(var(--foreground) / 0.45);
   text-decoration-thickness: 1px;
+}
+
+/* ───────────── Frontmatter 属性卡 ─────────────
+ * 阅读场景里 frontmatter 是元数据，读者要的是「有哪些字段」，
+ * 不是缩进与引号。源码仍完好在块里，点击即回到 YAML 编辑。 */
+.frontmatter {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) 1fr;
+  gap: 6px 14px;
+  padding: 12px 14px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-card);
+  background: rgb(var(--muted) / 0.4);
+  font-size: var(--text-base);
+}
+.frontmatter .fm-key {
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.frontmatter .fm-value {
+  color: rgb(var(--foreground));
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.frontmatter .fm-empty { color: rgb(var(--subtle-foreground)); }
+/* 标签渲染成 chips：一眼看出有几个标签 */
+.frontmatter .fm-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.frontmatter .fm-tag {
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--primary-soft);
+  color: rgb(var(--primary));
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+.frontmatter code {
+  font-size: 0.9em;
+  background: rgb(var(--muted));
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
 }
 
 /* 未知 / yaml / html 降级 — 等宽源码 */
