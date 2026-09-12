@@ -224,22 +224,15 @@ html[data-shell='windows'] .titlebar-actions { margin-left: auto; }
 .window-controls {
   z-index: 1;
 }
-/* 导航位置：窗口左边缘的克制留白（mac 上让开红绿灯）。
-   故意不跟正文列对齐——窗口宽时正文列会在 560px 开外，两个图标跟着推进去
-   会悬在顶栏中段。用一条分区发丝说明「这里是壳、右边是内容」。
-   窗口越宽留白越大（clamp），避免小窗口里挤、大窗口里空。 */
-#titlebar { padding-left: clamp(12px, 4vw, 64px); }
-html[data-shell='macos'] #titlebar { padding-left: max(80px, clamp(12px, 4vw, 64px)); }
-
-/* 分区发丝：导航与正文之间的一道极淡竖线，把顶栏切分为「壳 / 内容」。
-   比留白更能说明分组，也比给每个图标加边框安静。 */
-.titlebar-lead::after {
-  content: '';
-  width: 1px;
-  height: 18px;
-  margin-left: 10px;
-  background: rgb(var(--border));
-}
+/* 壳的左右留白 = --band-inset（顶栏导航与状态行文字共用一条竖线，
+   与正文列对齐；见 chrome.ts 的 syncTitlebarInset）。
+   macOS 还要让开红绿灯：灯组占 20–72px，所以下限 80px。 */
+#titlebar { padding-left: var(--band-inset, 14px); }
+/* macOS 窄窗口下红绿灯要占 20–72px，正文左沿可能只有 32px：
+   这时壳退到 80px，顶栏与状态行一起退，保持两条壳线彼此一致
+   （与正文的偏差只在极窄窗口出现，那时正文本身也快贴边了）。 */
+html[data-shell='macos'] #titlebar,
+html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 14px)); }
 
 
 .titlebar-title {
@@ -618,7 +611,10 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   align-items: center;
   gap: 10px;
   height: 34px;
-  padding: 0 14px;
+  /* 左端与正文列对齐（同顶栏导航），右端与正文列右沿对齐：
+     状态行因此和正文列完全重合，而不是贴窗口边——
+     贴边会让同一屏出现三条不同的竖线。 */
+  padding: 0 var(--band-inset-right, 14px) 0 var(--band-inset, 14px);
   background: rgb(var(--shell));
   box-shadow: 0 -1px 0 rgb(var(--border-subtle));
   color: rgb(var(--subtle-foreground));

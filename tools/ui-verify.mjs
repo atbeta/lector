@@ -557,21 +557,29 @@ const summary = {
       barRight: Math.round(document.getElementById('titlebar').getBoundingClientRect().right),
     }
   })
-  // 导航位置：窗口左边缘的克制留白。
-  // 这条曾经被写成「必须对齐正文列」，那样窗口一宽正文列会跑到 560px 开外，
-  // 两个图标跟着推进去悬在顶栏中段——比留白大更难看。所以只约束范围，
-  // 并检查分区线存在（它才是说明「壳 / 内容」分组的东西）。
-  if (barGeo.lead) {
-    if (barGeo.lead.x < 8) note('error', `顶栏导航左沿 ${barGeo.lead.x}px，贴边了`)
-    if (barGeo.lead.x > 200) note('error', `顶栏导航左沿 ${barGeo.lead.x}px，离左边缘过远（超出 200px 的合理留白）`)
-  }
-  const hasDivider = await page.evaluate(() => {
-    const d = document.querySelector('.titlebar-lead')
-    if (!d) return false
-    const cs = getComputedStyle(d, '::after')
-    return cs.content !== 'none' && parseFloat(cs.width) > 0
+  // 壳与正文共用一条竖线：顶栏导航左沿 == 状态行左沿 == 状态行右沿 == 正文文字左右沿。
+  // 这条被用户指出过两次（先是「左边空白大」，再是「没对齐」），
+  // 所以固化成断言：同屏出现三条不同的竖线，看着就是没做完。
+  const edges = await page.evaluate(() => {
+    const cs = getComputedStyle(document.getElementById('content'))
+    const cb = document.getElementById('content').getBoundingClientRect()
+    const left = Math.round(cb.x + parseFloat(cs.paddingLeft))
+    const right = Math.round(cb.right - parseFloat(cs.paddingRight))
+    const L = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().x)
+    const R = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().right)
+    return { textLeft: left, textRight: right, navLeft: L('.titlebar-lead'), statusLeft: L('#status-left'), statusRight: R('#status-right') }
   })
-  if (!hasDivider) note('error', '顶栏导航后缺少分区线（壳与内容的分组靠它说明）')
+  const loose = (a, b) => Math.abs(a - b)
+  if (loose(edges.navLeft, edges.textLeft) > 2) {
+    note('error', `顶栏导航左沿 ${edges.navLeft} 与正文左沿 ${edges.textLeft} 未对齐`)
+  }
+  if (loose(edges.statusLeft, edges.textLeft) > 2) {
+    note('error', `状态行左沿 ${edges.statusLeft} 与正文左沿 ${edges.textLeft} 未对齐`)
+  }
+  if (loose(edges.statusRight, edges.textRight) > 2) {
+    note('error', `状态行右沿 ${edges.statusRight} 与正文右沿 ${edges.textRight} 未对齐`)
+  }
+  summary.shellEdges = edges
   // 标题必须对齐正文列的中心（不是窗口中心——有侧栏时两者差侧栏宽的一半）
   if (barGeo.title && barGeo.text) {
     // 门槛 4px：布局实测恒定在这个量级（图标字形宽度取整所致），

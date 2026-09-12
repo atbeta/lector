@@ -121,20 +121,43 @@ export function syncTitlebarInset(): void {
   const content = document.getElementById('content')
   if (!bar || !content) return
 
-  // 夹取区间必须落在**正文文字**的左右沿上，而不是容器的外沿：
-  // #content 有 32px 左右内边距，拿容器外沿会让区间整体偏左 32px，
-  // 标题于是偏左半个内边距（实测 11–49px，窗口越宽越明显）。
   const cs = getComputedStyle(content)
   const cb = content.getBoundingClientRect()
   const padL = Number.parseFloat(cs.paddingLeft) || 0
   const padR = Number.parseFloat(cs.paddingRight) || 0
   const textLeft = Math.round(cb.x + padL)
   const textRight = Math.round(cb.right - padR)
-  bar.style.setProperty('--titlebar-clamp-left', `${textLeft}px`)
-
-  // 右端 = 顶栏右沿到正文文字右沿的距离（含操作区所占地）。这样区间恰好等于文字列。
   const barRight = Math.round(bar.getBoundingClientRect().right)
+
+  // 标题夹取区间 = 正文文字的左右沿，标题因此精确居中于正文列。
+  bar.style.setProperty('--titlebar-clamp-left', `${textLeft}px`)
   bar.style.setProperty('--titlebar-clamp-right', `${barRight - textRight}px`)
+
+  // 壳两侧（顶栏导航、状态行文字）与正文共用一个左边缘。
+  //
+  // 之前是三套：状态行贴窗口边（14px）、导航固定 80px、正文随窗口居中（130→600px）。
+  // 同一屏里三条竖线，眼睛立刻觉得「没对齐」。
+  //
+  // 一条规则贯彻到底：壳的左右边缘 = 正文文字的左右沿。
+  // 试过封顶在侧栏宽度（那样宽窗口下导航落在内容区轨道左沿），但正文在轨道内居中，
+  // 两者会错开 160px——用户看到的就是「没对齐」。macOS 的红绿灯避让由 CSS 的
+  // max(80px, …) 负责，不在这里掺进来。
+  document.documentElement.style.setProperty('--band-inset', `${Math.max(14, textLeft)}px`)
+
+  // 状态行右端与正文列右沿对齐，让状态行和正文列完全重合（左统计、右状态）。
+  const status = document.getElementById('statusbar')
+  if (status) {
+    status.style.setProperty('--band-inset-right', `${barRight - textRight}px`)
+  }
+
+  // 右侧操作区宽（含呼吸），供标题夹取区间右端使用；顶栏右端的按钮贴窗口边
+  const actions = bar.querySelector<HTMLElement>('.titlebar-actions')
+  if (actions) {
+    bar.style.setProperty(
+      '--titlebar-actions-w',
+      `${Math.round(actions.getBoundingClientRect().width) + 22}px`,
+    )
+  }
 }
 
 export function mountTitlebarInset(): () => void {
