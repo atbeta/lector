@@ -1,7 +1,0 @@
-(1) The blockquote’s left bar is clearly visible against the dark page — it appears as a solid, medium-gray vertical line on the far left of the quote.
-
-(2) The blockquote text looks dimmer than normal body text — it’s rendered in a lighter gray (likely #6a737d or similar), while the H1 title is bright white (#ffffff). This creates a visual hierarchy but may reduce readability for some users.
-
-(3) The gap between the H1 and the quote is appropriate — there’s sufficient vertical spacing to distinguish them as separate elements without crowding.
-
-(4) Nothing obvious looks like a mistake in dark mode specifically. However, the low contrast of the blockquote text against the background could be considered a design flaw for accessibility or readability purposes — not necessarily a “mistake,” but a potential usability issue in dark mode.
