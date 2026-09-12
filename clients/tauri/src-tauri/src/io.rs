@@ -127,6 +127,24 @@ pub fn write_file(
   })
 }
 
+/// 正文里的链接交给系统浏览器打开。
+///
+/// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
+/// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
+/// 自定义协议就能被一键触发。校验放壳侧，Web 侧的 safeHref 只是第一道。
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+  let u = url.trim();
+  let lower = u.to_ascii_lowercase();
+  let allowed = lower.starts_with("http://")
+    || lower.starts_with("https://")
+    || lower.starts_with("mailto:");
+  if !allowed {
+    return Err(format!("refused to open non-http url: {u}"));
+  }
+  crate::menu::open_external(u).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn dir_for(path: String) -> Result<DirResult, String> {
   let p = std::path::Path::new(&path);

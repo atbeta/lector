@@ -31,18 +31,28 @@ import {
   onFileChanged,
   onMenu,
   shellAssetResolver,
+  openExternal,
 } from '@lector/shell-web'
 import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
-import { renderBlockHtml } from './mdastHtml.ts'
+import { renderBlockHtml, safeHref } from './mdastHtml.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
+import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
 import { mountLightbox } from './lightbox.ts'
+import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
+import {
+  getPosition,
+  parsePositions,
+  prunePositions,
+  recordPosition,
+  type PositionMap,
+} from './readingPosition.ts'
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
@@ -204,11 +214,32 @@ function jumpToHeading(id: string): void {
   setActiveHeading(id, { reveal: true })
 }
 
-/** 把 activeHeadingId 对应的类贴到当前这批行上（不做「是否变化」的判断）。 */
+/**
+ * 把「当前小节」与「它所属的上级小节」贴到行上。
+ *
+ * 上级高亮解决的是长文档的方向感：读到一个 h3 时，能一眼看出它挂在哪个 h2/h1 下。
+ * 只用文字变深表达，不加指示条——指示条是「你在这里」，上级只是「你在这条线上」。
+ */
 function applyActiveClasses(): void {
+  const ids = [...outlineRows.keys()]
+  const idx = activeHeadingId ? ids.indexOf(activeHeadingId) : -1
+  const ancestors = new Set<string>()
+  if (idx > 0) {
+    // 从当前项往前找，深度严格递减的那些就是它的祖先链
+    let depth = Number(outlineRows.get(ids[idx]!)?.dataset.depth ?? 1)
+    for (let i = idx - 1; i >= 0 && depth > 1; i--) {
+      const id = ids[i]!
+      const d = Number(outlineRows.get(id)?.dataset.depth ?? 1)
+      if (d < depth) {
+        ancestors.add(id)
+        depth = d
+      }
+    }
+  }
   for (const [rowId, row] of outlineRows) {
     const on = rowId === activeHeadingId
     row.classList.toggle('active', on)
+    row.classList.toggle('ancestor', !on && ancestors.has(rowId))
     if (on) row.setAttribute('aria-current', 'true')
     else row.removeAttribute('aria-current')
   }
@@ -272,6 +303,403 @@ function nextId(): string {
 }
 
 /** 取文件名：Windows 路径是反斜杠，只 split('/') 会把整条路径留在标题上。 */
+// ── 阅读位置记忆 ──
+// 阅读器的刚需：长文档关掉再打开不该回到顶部。
+// 存 localStorage 而不是设置里：这是每次滚动都在变的会话状态，不属于用户配置。
+const POSITIONS_KEY = 'lector-positions'
+
+function loadPositions(): PositionMap {
+  try {
+    return parsePositions(localStorage.getItem(POSITIONS_KEY))
+  } catch {
+    return {}
+  }
+}
+
+function savePositions(map: PositionMap): void {
+  try {
+    localStorage.setItem(POSITIONS_KEY, JSON.stringify(prunePositions(map)))
+  } catch {
+    /* 忽略持久化失败：位置记忆丢了不影响正确性 */
+  }
+}
+
+let positions: PositionMap = loadPositions()
+let restoreTimer: number | null = null
+
+/** 取回并应用上次的阅读位置。只在有记录且位置仍合理时滚动。 */
+function restoreReadingPosition(): void {
+  const path = session.source?.path
+  if (!path) return
+  const top = getPosition(positions, path, contentEl.scrollHeight)
+  if (top === null) return
+  // 等一帧：render() 刚改完 DOM，同一帧里设 scrollTop 会被随后的布局吃掉
+  requestAnimationFrame(() => {
+    contentEl.scrollTop = top
+    updateActiveHeading()
+  })
+}
+
+/**
+ * 记录当前位置。
+ *
+ * 防抖 400ms：滚动时每帧写 localStorage 会拖慢滚动，
+ * 而这个值只需要在「用户停下来」时准确。
+ * 写之前按文档长度裁剪：编辑让文档变长后，旧的绝对偏移仍能用，
+ * 所以这里不按比例换算（换算反而会把位置算丢）。
+ */
+function scheduleRecordPosition(): void {
+  if (restoreTimer !== null) window.clearTimeout(restoreTimer)
+  restoreTimer = window.setTimeout(() => {
+    restoreTimer = null
+    const path = session.source?.path
+    if (!path) return
+    positions = recordPosition(positions, path, contentEl.scrollTop, contentEl.scrollHeight)
+    savePositions(positions)
+  }, 400)
+}
+
+
+// ───────────── 块级操作（右键菜单用） ─────────────
+// 与 splitBlock/mergeBlock 同一套约定：改 session.blocks、标 structuralDirty、
+// 同步 originals、重新 render。写盘仍由 serialize 按块拼装，所以这里不碰原文偏移。
+
+/** 找到块在 session.blocks 里的下标。 */
+function blockIndex(id: string): number {
+  return session.blocks.findIndex((b) => b.id === id)
+}
+
+/** 合成一个空段落块与其后的空白缝。 */
+function makeEmptyParagraph(at: number): { para: BlockView; gap: BlockView } {
+  const para: BlockView = {
+    id: nextId(),
+    kind: 'paragraph',
+    start: at,
+    end: at,
+    raw: '',
+    mdast: parseOne(''),
+    dirty: true,
+  }
+  const gap: BlockView = {
+    id: nextId(),
+    kind: 'unknown',
+    start: at,
+    end: at,
+    raw: '\n\n',
+    mdast: null,
+    dirty: true,
+  }
+  return { para, gap }
+}
+
+/** 在块后插入空段落并聚焦，方便直接开始写。 */
+function insertParagraphAfter(id: string): void {
+  const i = blockIndex(id)
+  if (i < 0) return
+  const at = session.blocks[i]!.end
+  const { para, gap } = makeEmptyParagraph(at)
+  session.blocks.splice(i + 1, 0, para, gap)
+  session.originals.set(para.id, para.raw)
+  session.originals.set(gap.id, gap.raw)
+  session.structuralDirty = true
+  markDirty()
+  render()
+  focusBlock(para.id)
+}
+
+/** 在块前插入空段落并聚焦。 */
+function insertParagraphBefore(id: string): void {
+  const i = blockIndex(id)
+  if (i < 0) return
+  const at = session.blocks[i]!.start
+  const { para, gap } = makeEmptyParagraph(at)
+  session.blocks.splice(i, 0, para, gap)
+  session.originals.set(para.id, para.raw)
+  session.originals.set(gap.id, gap.raw)
+  session.structuralDirty = true
+  markDirty()
+  render()
+  focusBlock(para.id)
+}
+
+/**
+ * 块级撤销栈。
+ *
+ * 右键菜单能一键删掉整块，而 CodeMirror 的 undo 只管聚焦块内部——
+ * 删完就没有后悔药了。对一个「文件是唯一真相」的产品来说这是不能留的风险，
+ * 所以删除/剪切把被删的块压栈，⌘Z（且不在编辑器里）时恢复。
+ *
+ * 只压结构操作，不压文字编辑（那是 CM 的事）。栈上限 20，够用且不积内存。
+ */
+const blockUndoStack: Array<{ from: number; blocks: BlockView[] }> = []
+const BLOCK_UNDO_MAX = 20
+
+function pushBlockUndo(from: number, blocks: BlockView[]): void {
+  if (blocks.length === 0) return
+  blockUndoStack.push({ from, blocks })
+  if (blockUndoStack.length > BLOCK_UNDO_MAX) blockUndoStack.shift()
+}
+
+function undoBlockOp(): boolean {
+  const entry = blockUndoStack.pop()
+  if (!entry) return false
+  const at = Math.min(entry.from, session.blocks.length)
+  session.blocks.splice(at, 0, ...entry.blocks)
+  for (const b of entry.blocks) {
+    if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
+  }
+  session.structuralDirty = true
+  markDirty()
+  render()
+  showToast(t('menuUndoBlock'))
+  return true
+}
+
+/**
+ * 删除块。
+ *
+ * 连同其后紧邻的空白缝一起删——只删内容会留下孤立的空行，
+ * 用户看到的是「删了但版面又多空了一截」。
+ * 首块删掉时把「前置」缝也带走（缝在它前面）。
+ */
+function deleteBlock(id: string): void {
+  const i = blockIndex(id)
+  if (i < 0) return
+  const block = session.blocks[i]!
+  const isGap = (b: BlockView | undefined) => b?.kind === 'unknown' && b.raw.trim() === ''
+  let from = i
+  let count = 1
+  if (isGap(session.blocks[i + 1])) {
+    count += 1 // 带走后面的缝
+  } else if (isGap(session.blocks[i - 1])) {
+    from = i - 1
+    count += 1 // 末块：带走前面的缝
+  }
+  const removed = session.blocks.splice(from, count)
+  pushBlockUndo(from, removed)
+  for (const r of removed) {
+    session.originals.delete(r.id)
+    blocksEl.get(r.id)?.remove()
+    blocksEl.delete(r.id)
+  }
+  session.structuralDirty = true
+  if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
+    if (cm) {
+      cm.destroy()
+      cm = null
+    }
+    session.focusedId = null
+  }
+  markDirty()
+  render()
+}
+
+/** 把块的原文写回并标脏（用于任务勾选这类「只改一小处」的操作）。 */
+function setBlockRaw(block: BlockView, raw: string): void {
+  block.raw = raw
+  const original = session.originals.get(block.id) ?? ''
+  block.dirty = raw !== original
+  const roots = parseBlockRoots(raw)
+  block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
+  block.kind = kindFromMdast(roots[0]) as BlockKind
+  markDirty()
+}
+
+/**
+ * 勾选/取消任务项。
+ *
+ * 列表整块是一个 block，所以要按「渲染出来的第 n 个任务项」去源码里找第 n 个
+ * `- [ ]` 行。用序号对应而不是文本匹配：两条任务文字相同时文本匹配会改错行。
+ */
+function toggleTaskItem(block: BlockView, itemIndex: number, checked: boolean): void {
+  const lines = block.raw.split('\n')
+  let seen = 0
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i]!.match(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\]\s*)/)
+    if (!m) continue
+    if (seen === itemIndex) {
+      lines[i] = `${m[1]}${checked ? 'x' : ' '}${m[3]}${lines[i]!.slice(m[0].length)}`
+      setBlockRaw(block, lines.join('\n'))
+      render()
+      return
+    }
+    seen += 1
+  }
+}
+
+
+// ───────────── 右键菜单 ─────────────
+// 分场景给菜单：读代码的要「复制」，改文档的要「删除/插入」，点了任务的想「勾选」。
+// 同一个菜单套所有场景会让每一项都显得可疑。
+
+/** 编辑器（聚焦块）内的菜单：标准编辑动作。 */
+function editorMenuItems(): ContextMenuItem[] {
+  const run = (cmd: string) => () => {
+    try {
+      document.execCommand(cmd)
+    } catch {
+      showToast(t('codeCopyFailed'))
+    }
+  }
+  return [
+    { label: t('menuUndo'), hint: '⌘Z', run: () => cm?.view && undo(cm.view) },
+    { label: t('menuRedo'), hint: '⇧⌘Z', run: () => cm?.view && redo(cm.view) },
+    { separatorBefore: true, label: t('menuCut'), hint: '⌘X', run: run('cut') },
+    { label: t('menuCopy'), hint: '⌘C', run: run('copy') },
+    {
+      label: t('menuPaste'),
+      hint: '⌘V',
+      run: () => {
+        // 剪贴板读取在部分 webview 里被拒；失败就给明确提示，
+        // 不要让用户以为是应用坏了。
+        void navigator.clipboard
+          .readText()
+          .then((text) => {
+            if (!text || !cm) return
+            const view = cm.view
+            const sel = view.state.selection.main
+            view.dispatch({
+              changes: { from: sel.from, to: sel.to, insert: text },
+              selection: { anchor: sel.from + text.length },
+              userEvent: 'input',
+            })
+          })
+          .catch(() => showToast(t('menuPasteFailed')))
+      },
+    },
+    { label: t('menuSelectAll'), hint: '⌘A', run: run('selectAll') },
+  ]
+}
+
+/** 预览块上的菜单：整块的读/改动作。 */
+function blockMenuItems(block: BlockView, el: HTMLElement): ContextMenuItem[] {
+  const preview = el.querySelector('.preview')
+  const raw = block.raw
+  return [
+    {
+      label: t('menuCopyBlock'),
+      hint: 'Markdown',
+      run: () => void copyText(raw, t('menuCopied')),
+    },
+    {
+      label: t('menuCopyText'),
+      // 渲染后的纯文本：粘进聊天窗口时不该带 ** 和 #
+      run: () => void copyText(preview?.textContent ?? '', t('menuCopied')),
+    },
+    {
+      label: t('menuCopyHtml'),
+      // HTML 片段：粘进邮件/富文本编辑器时保留结构与表格
+      run: () => void copyText(preview?.innerHTML ?? '', t('menuCopied')),
+    },
+    {
+      separatorBefore: true,
+      label: t('menuCutBlock'),
+      run: () => {
+        void copyText(raw, t('menuCopied'))
+        deleteBlock(block.id)
+      },
+    },
+    {
+      label: t('menuDeleteBlock'),
+      danger: true,
+      run: () => deleteBlock(block.id),
+    },
+    { separatorBefore: true, label: t('menuInsertBefore'), run: () => insertParagraphBefore(block.id) },
+    { label: t('menuInsertAfter'), run: () => insertParagraphAfter(block.id) },
+  ]
+}
+
+/** 任务项上的菜单。 */
+function taskMenuItems(block: BlockView, itemIndex: number, checked: boolean): ContextMenuItem[] {
+  return [
+    {
+      label: checked ? t('menuUncheck') : t('menuCheck'),
+      run: () => toggleTaskItem(block, itemIndex, !checked),
+    },
+    { separatorBefore: true, label: t('menuCopyText'), run: () => void copyText(block.raw, t('menuCopied')) },
+  ]
+}
+
+/** 链接上的菜单。 */
+function linkMenuItems(href: string): ContextMenuItem[] {
+  const safe = safeHref(href)
+  return [
+    {
+      label: t('menuOpenLink'),
+      disabled: !safe,
+      run: () => {
+        if (!safe) return
+        void openExternal(safe).catch(() => showToast(t('menuOpenLinkFailed')))
+      },
+    },
+    { label: t('menuCopyLink'), run: () => void copyText(href, t('menuCopied')) },
+  ]
+}
+
+/** 图片上的菜单。 */
+function imageMenuItems(img: HTMLImageElement): ContextMenuItem[] {
+  return [
+    { label: t('menuZoomImage'), run: () => img.click() },
+    { label: t('menuCopyImagePath'), run: () => void copyText(img.getAttribute('src') ?? '', t('menuCopied')) },
+  ]
+}
+
+/** 右键入口：按目标决定给哪套菜单。 */
+function onContextMenu(e: MouseEvent): void {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+
+  // 编辑器内
+  if (target.closest('.cm-content')) {
+    e.preventDefault()
+    showContextMenu(editorMenuItems(), e.clientX, e.clientY)
+    return
+  }
+
+  // 图片
+  if (target.tagName === 'IMG' && target.closest('.reading-prose')) {
+    e.preventDefault()
+    showContextMenu(imageMenuItems(target as HTMLImageElement), e.clientX, e.clientY)
+    return
+  }
+
+  // 链接
+  const link = target.closest('a') as HTMLAnchorElement | null
+  if (link && link.closest('.reading-prose')) {
+    e.preventDefault()
+    showContextMenu(linkMenuItems(link.getAttribute('href') ?? ''), e.clientX, e.clientY)
+    return
+  }
+
+  // 任务项：按渲染顺序定位到源码里第几条任务
+  const li = target.closest('li.task') as HTMLLIElement | null
+  if (li) {
+    const blockEl = li.closest('.block') as HTMLElement | null
+    const id = blockEl?.dataset.blockId
+    const block = id ? session.blocks.find((b) => b.id === id) : undefined
+    if (block && blockEl) {
+      e.preventDefault()
+      const items = Array.from(blockEl.querySelectorAll('li.task'))
+      const idx = items.indexOf(li)
+      const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
+      showContextMenu(taskMenuItems(block, idx, !!box?.checked), e.clientX, e.clientY)
+      return
+    }
+  }
+
+  // 预览块
+  const blockEl = target.closest('.block') as HTMLElement | null
+  const id = blockEl?.dataset.blockId
+  const block = id ? session.blocks.find((b) => b.id === id) : undefined
+  if (block && blockEl && block.kind !== 'unknown') {
+    e.preventDefault()
+    showContextMenu(blockMenuItems(block, blockEl), e.clientX, e.clientY)
+    return
+  }
+
+  // 其它区域（顶栏、侧栏、状态行）：不弹自定义菜单，也不拦系统菜单
+}
+
 function outlineSignature(): string {
   return session.blocks
     .filter((b) => b.kind === 'heading')
@@ -460,6 +888,9 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   contentEl.scrollTop = 0
   render()
   markDirty()
+  // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
+  // 用 rAF 等一帧，避免和 render 的布局在同一帧里打架。
+  restoreReadingPosition()
   // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
   if (sidebar.isOpen()) renderOutline()
   // 通知外框复位（顶栏的滚动分隔影）
@@ -680,10 +1111,11 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
 }
 
 /** 复制文本：优先 Clipboard API，失败退回 execCommand（壳里的老 WebView 可能不支持前者）。 */
-async function copyText(text: string): Promise<void> {
+async function copyText(text: string, okMessage?: string): Promise<void> {
+  const done = okMessage ?? t('codeCopied')
   try {
     await navigator.clipboard.writeText(text)
-    showToast(t('codeCopied'))
+    showToast(done)
     return
   } catch {
     /* 落到下面的兜底 */
@@ -697,7 +1129,7 @@ async function copyText(text: string): Promise<void> {
     ta.select()
     const ok = document.execCommand('copy')
     ta.remove()
-    showToast(ok ? t('codeCopied') : t('codeCopyFailed'))
+    showToast(ok ? done : t('codeCopyFailed'))
   } catch {
     showToast(t('codeCopyFailed'))
   }
@@ -910,6 +1342,17 @@ window.addEventListener('drop', (e) => {
       await ingestImageFile(f, safeDropName(f.name) ?? pastedFileName(new Date(), f.type))
     }
   })()
+})
+
+// 块级撤销：只有没聚焦编辑器时才接管 ⌘Z（编辑器里那是 CM 的文字撤销）
+window.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.shiftKey) return
+  if (e.key.toLowerCase() !== 'z') return
+  if (session.focusedId !== null || cm) return
+  if (undoBlockOp()) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
 })
 
 window.addEventListener('keydown', (e) => {
@@ -1235,6 +1678,10 @@ void (async () => {
   mountWindowControls()
   mountHeaderScrollState()
   mountLightbox()
+  // 右键菜单：capture 阶段接管，避免被块自身的点击处理先吃掉
+  document.addEventListener('contextmenu', onContextMenu)
+  // 视图切换（换文档、点空白）时收起菜单
+  window.addEventListener('lector:doc-changed', hideContextMenu)
   // 阅读位置 → 大纲高亮。挂在正文容器上（骨架里滚动发生在正文里）。
   let spyTick = false
   contentEl.addEventListener(
@@ -1246,6 +1693,7 @@ void (async () => {
         spyTick = false
         updateActiveHeading()
       })
+      scheduleRecordPosition()
     },
     { passive: true },
   )

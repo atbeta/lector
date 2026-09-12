@@ -77,6 +77,7 @@ pub fn run() {
       io::read_file,
       io::write_file,
       io::dir_for,
+      io::open_url,
       io::watch,
       io::take_pending_open,
       io::load_settings,

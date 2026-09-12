@@ -116,6 +116,20 @@ export async function save(
   return { ok: true, current_mtime_ms: Date.now() }
 }
 
+/**
+ * 用系统默认浏览器打开外链。
+ * 壳里走 open_url 命令（壳侧再做一次协议白名单，文档内容不可信）；
+ * 浏览器预览用 window.open。
+ */
+export async function openExternal(url: string): Promise<void> {
+  if (detectEnv() !== 'shell') {
+    window.open(url, '_blank', 'noopener')
+    return
+  }
+  const { invoke } = await tauriApi()
+  await invoke('open_url', { url })
+}
+
 export async function dirFor(path: string): Promise<string> {
   const { invoke } = await tauriApi()
   const res = await invoke<{ base_dir: string }>('dir_for', { path })

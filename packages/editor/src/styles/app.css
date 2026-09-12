@@ -602,6 +602,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
    指示条贴在行首，缩进层级不受影响。 */
 .outline-row { position: relative; }
 .outline-row.active { color: rgb(var(--foreground)); font-weight: 550; }
+/* 当前小节的上级：只把文字变深，不加指示条。
+   指示条表示「你在这里」，上级表示「你在这条线上」，两者不该同一种表达。 */
+.outline-row.ancestor { color: rgb(var(--foreground)); }
 .outline-row.active::before {
   content: '';
   position: absolute;
@@ -999,6 +1002,56 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* 阅读里的图片：可点开放大，光标要说明这件事 */
 .reading-prose img { cursor: zoom-in; }
+
+/* ───────────── 右键菜单 ─────────────
+ * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
+ * 视觉上按「浮层」处理：圆角、浮层投影、比正文更紧的行距。 */
+.context-menu {
+  position: fixed;
+  z-index: 210;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-fast) var(--ease-emphasized) both;
+  outline: none;
+}
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: default;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.context-item > span:first-child { flex: 1 1 auto; min-width: 0; }
+.context-item:hover:not(:disabled),
+.context-item:focus-visible:not(:disabled) { background: var(--primary-soft); outline: none; }
+/* 删除类动作用红色：菜单里唯一的危险项必须一眼可辨 */
+.context-item[data-danger='true'] { color: rgb(var(--destructive)); }
+.context-item[data-danger='true']:hover:not(:disabled) { background: var(--destructive-soft); }
+.context-item:disabled { color: rgb(var(--subtle-foreground)); cursor: default; }
+.context-hint {
+  flex: 0 0 auto;
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.context-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgb(var(--border-subtle));
+}
 
 /* ───────────── 图片放大（lightbox） ───────────── */
 .lightbox {

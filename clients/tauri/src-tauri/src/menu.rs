@@ -192,12 +192,12 @@ pub fn route(app: &AppHandle, id: &str) {
 
 /// 用系统默认浏览器打开外链。
 #[cfg(target_os = "macos")]
-fn open_external(url: &str) -> std::io::Result<()> {
+pub fn open_external(url: &str) -> std::io::Result<()> {
   std::process::Command::new("open").arg(url).spawn().map(|_| ())
 }
 
 #[cfg(target_os = "windows")]
-fn open_external(url: &str) -> std::io::Result<()> {
+pub fn open_external(url: &str) -> std::io::Result<()> {
   // 不能直接 spawn url：Windows 会把带 & 的 URL 解析成命令分隔符。
   // 交给 cmd 的 start，空标题参数是 start 的固定语法。
   std::process::Command::new("cmd")
@@ -207,6 +207,6 @@ fn open_external(url: &str) -> std::io::Result<()> {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn open_external(url: &str) -> std::io::Result<()> {
+pub fn open_external(url: &str) -> std::io::Result<()> {
   std::process::Command::new("xdg-open").arg(url).spawn().map(|_| ())
 }

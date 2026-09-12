@@ -569,7 +569,32 @@ const summary = {
         note('error', `点击大纲第 ${jump.clickedIdx + 1} 项后，高亮的是第 ${jump.activeIdx + 1} 项`)
       }
       note('info', `大纲跳转：标题距顶 ${jump.gap}px，高亮第 ${jump.activeIdx + 1} 项`)
-      summary.outlineSpy = { ...spy, ...jump }
+      // 上级高亮：读到一个二级小节时，要能看出它挂在哪个一级小节下
+      const ancestry = await page.evaluate(async () => {
+        const c = document.getElementById('content')
+        const rows = [...document.querySelectorAll('.outline-row')]
+        const out = []
+        for (const top of [0, c.scrollHeight * 0.4, c.scrollHeight]) {
+          c.scrollTop = top
+          for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r))
+          const active = rows.find((r) => r.classList.contains('active'))
+          out.push({
+            depth: Number(active?.dataset.depth ?? 1),
+            ancestors: rows.filter((r) => r.classList.contains('ancestor')).map((r) => Number(r.dataset.depth)),
+          })
+        }
+        c.scrollTop = 0
+        return out
+      })
+      for (const a of ancestry) {
+        if (a.depth > 1 && a.ancestors.length === 0) {
+          note('error', `当前是 ${a.depth} 级小节，但没有任何上级被标出（长文档会失去方向感）`)
+        }
+        if (a.depth === 1 && a.ancestors.length > 0) {
+          note('error', `一级小节不该有上级，却标出了 ${a.ancestors.length} 个`)
+        }
+      }
+      summary.outlineSpy = { ...spy, ...jump, ancestry }
       await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
       await page.waitForTimeout(200)
     }
@@ -709,6 +734,103 @@ const summary = {
       if (!closed.hidden) note('error', 'Esc 关不掉图片放大浮层')
       if (!closed.unlocked) note('error', '关闭放大浮层后正文滚动没有恢复')
     }
+  }
+
+  // 3.65) 右键菜单：功能不做进常驻 UI，全靠它承接
+  {
+    const menuItems = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('.context-menu .context-item')].map((b) => b.textContent),
+      )
+    const rightClick = async (sel, pos) => {
+      const el = page.locator(sel).first()
+      await el.scrollIntoViewIfNeeded()
+      await page.waitForTimeout(200)
+      const box = await el.boundingBox()
+      if (!box) return false
+      const x = pos?.x ?? box.x + box.width - 12
+      const y = pos?.y ?? box.y + box.height / 2
+      await page.mouse.click(x, y, { button: 'right' })
+      await page.waitForTimeout(220)
+      return true
+    }
+
+    // 块菜单
+    await rightClick('#content .block[data-kind="paragraph"]')
+    const blockMenu = await menuItems()
+    if (blockMenu.length < 5) {
+      note('error', `右键块只给出 ${blockMenu.length} 项：${JSON.stringify(blockMenu)}`)
+    }
+    if (!blockMenu.some((l) => /delete|删除/i.test(l))) note('error', '块菜单里没有删除项')
+    if (!blockMenu.some((l) => /copy|复制/i.test(l))) note('error', '块菜单里没有复制项')
+    // Esc 必须能关
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    if (await page.evaluate(() => !!document.querySelector('.context-menu'))) {
+      note('error', 'Esc 关不掉右键菜单')
+    }
+
+    // 菜单不能溢出视口（右下角右键最容易踩）
+    await rightClick('#content .block[data-kind="paragraph"]', {
+      x: 1200 - 6,
+      y: 800 - 6,
+    })
+    const clamped = await page.evaluate(() => {
+      const m = document.querySelector('.context-menu')
+      if (!m) return null
+      const r = m.getBoundingClientRect()
+      return { right: Math.round(r.right), bottom: Math.round(r.bottom), w: window.innerWidth, h: window.innerHeight }
+    })
+    if (clamped && (clamped.right > clamped.w || clamped.bottom > clamped.h)) {
+      note('error', `右键菜单溢出视口：右下角 ${clamped.right}x${clamped.bottom} vs 视口 ${clamped.w}x${clamped.h}`)
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+
+    // 编辑态菜单
+    await rightClick('#content .block[data-kind="paragraph"]', { x: 460, y: 300 })
+    await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#content .block')].find((x) => x.dataset.kind === 'paragraph')
+      b?.click()
+    })
+    await page.waitForTimeout(350)
+    await page.locator('.cm-content').first().click({ button: 'right' })
+    await page.waitForTimeout(220)
+    const editorMenu = await menuItems()
+    if (!editorMenu.some((l) => l.includes('撤销') || l.includes('Undo'))) {
+      note('error', `编辑器右键没有标准编辑项：${JSON.stringify(editorMenu)}`)
+    }
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+
+    // 删除 + ⌘Z 恢复：破坏性操作必须有后悔药
+    const countBlocks = () => page.evaluate(() => document.querySelectorAll('#content .block:not(.gap)').length)
+    // 先退出编辑态，否则右键落在编辑器上，给的是编辑菜单（没有删除项）
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+    const before = await countBlocks()
+    await rightClick('#content .block[data-kind="paragraph"]')
+    // 用索引而不是文案：文案随语言变，而删除项在块菜单里的位置是固定的
+    const idx = await page.evaluate(() =>
+      [...document.querySelectorAll('.context-menu .context-item')].findIndex((b) =>
+        /delete|删除/i.test(b.textContent ?? ''),
+      ),
+    )
+    if (idx < 0) note('error', '块菜单里找不到删除项')
+    else await page.locator('.context-menu .context-item').nth(idx).click()
+    await page.waitForTimeout(300)
+    const afterDelete = await countBlocks()
+    if (afterDelete !== before - 1) {
+      note('error', `删除块后块数 ${before} → ${afterDelete}，期望少 1`)
+    }
+    await page.keyboard.press('Meta+z')
+    await page.waitForTimeout(400)
+    const afterUndo = await countBlocks()
+    if (afterUndo !== before) {
+      note('error', `⌘Z 没能恢复删除的块：${afterDelete} → ${afterUndo}，期望回到 ${before}`)
+    }
+    note('info', `右键菜单：块 ${blockMenu.length} 项，删除+⌘Z 恢复 ${before}→${afterDelete}→${afterUndo}`)
   }
 
   // 3.7) 顶栏几何：导航对齐正文列、标题对齐正文中心、操作区贴右
