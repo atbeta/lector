@@ -21,3 +21,4 @@ clients/tauri/gen/
 # 本机 CI 排障日志
 .runlog.txt
 .runid
+.review/
