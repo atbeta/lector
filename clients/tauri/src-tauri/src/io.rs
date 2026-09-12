@@ -430,23 +430,64 @@ pub fn open_path(app: &AppHandle, path: &str) {
   }
 }
 
+/// 窗口边框的平台差异，单独成函数以便单测（无 GUI 也能验配置对不对）。
+///
+/// 教训写在这里，别再踩：**tauri.conf.json 里的 window 配置会覆盖 builder**。
+/// 曾经在 config 里写了 `"decorations": false`，又在 macOS 分支里调
+/// `.decorations(true)` 想改回来——不起作用，macOS 的红绿灯连同原生边框一起消失，
+/// 用户只能从系统菜单关窗口。所以 config 只放不变量，平台差异一律在 builder 里做。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowChrome {
+  /// 是否保留系统绘制的窗口边框（macOS 的红绿灯就长在这里）
+  pub decorations: bool,
+}
+
+#[cfg(target_os = "macos")]
+pub const fn window_chrome() -> WindowChrome {
+  // macOS：保留原生边框 + 覆盖式标题栏。红绿灯是 mac 用户的肌肉记忆，
+  // 自绘一套会立刻显得「不是 mac 应用」。
+  WindowChrome { decorations: true }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub const fn window_chrome() -> WindowChrome {
+  // Windows / Linux：无边框自绘，最小化/最大化/关闭由 Web 层的 chrome.ts 调窗口命令。
+  WindowChrome { decorations: false }
+}
+
+/// 主窗口也必须由此函数创建，不能交给 tauri.conf.json 的 app.windows。
+///
+/// 原因：config 里的 window 配置会覆盖 builder，而且是**所有平台共用**的。
+/// 只要有一处窗口来自 config，就会出现「主窗口有原生边框、双击打开的窗口没有」
+/// 这种平台差异跑偏——macOS 红绿灯消失那次的成因就是 config 与 builder 打架。
+/// 统一入口后，平台差异只有 window_chrome() 一个来源。
+pub fn ensure_main_window(app: &AppHandle) -> tauri::Result<()> {
+  if app.get_webview_window("main").is_some() {
+    return Ok(());
+  }
+  build_doc_window(app, "main")?;
+  Ok(())
+}
+
 fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::WebviewWindow> {
+  let chrome = window_chrome();
   #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title("Lector")
     .inner_size(900.0, 720.0)
-    .min_inner_size(480.0, 360.0);
-  // macOS 保留原生窗口边框 + 覆盖式标题栏：红绿灯是 mac 用户的肌肉记忆，
-  // 自绘一套会立刻显得「不是 mac 应用」。Windows / Linux 走无边框自绘
-  // （minimize / maximize / close 由 Web 层的 chrome.ts 调窗口命令）。
+    .min_inner_size(480.0, 360.0)
+    // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
+    .shadow(true)
+    .decorations(chrome.decorations);
   #[cfg(target_os = "macos")]
   {
     builder = builder
-      .decorations(true)
       .hidden_title(true)
       .title_bar_style(tauri::TitleBarStyle::Overlay)
       .accept_first_mouse(true)
-      .traffic_light_position(tauri::LogicalPosition::new(16.0, 18.0));
+      // 46px 顶栏里把 13px 高的灯组垂直居中：(46-13)/2 ≈ 16。
+      // x=20 是 macOS 惯例（第一颗按钮距左边缘 20pt），顶栏左内边距留了 80px 给它。
+      .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
   }
   builder.build()
 }
@@ -494,6 +535,35 @@ pub fn watch_file(app: &AppHandle, path: &str) {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// 回归防线：tauri.conf.json 里的 window 配置会覆盖 builder，
+  /// 一旦有人在 config 里写死 decorations:false，macOS 会连红绿灯一起丢掉，
+  /// 而这个问题在 macOS 上跑 `cargo test` 也不会报错（配置合法），
+  /// 所以必须显式读 config 断言。
+  #[test]
+  fn window_config_does_not_hardcode_decorations() {
+    let raw = include_str!("../tauri.conf.json");
+    let conf: serde_json::Value = serde_json::from_str(raw).expect("tauri.conf.json 应当是合法 JSON");
+    let windows = conf["app"]["windows"].as_array().expect("应有 app.windows");
+    // 窗口一律由 io::build_doc_window / ensure_main_window 创建。
+    // 一旦有人把窗口写回 config，就会多出一条创建路径，平台差异必然跑偏
+    // （macOS 红绿灯消失那次就是 config 与 builder 打架）。
+    assert!(
+      windows.is_empty(),
+      "app.windows 必须为空：窗口由 Rust 创建，平台差异只写在 window_chrome()"
+    );
+    for (i, w) in windows.iter().enumerate() {
+      if let Some(d) = w.get("decorations") {
+        panic!("app.windows[{i}].decorations = {d}：config 会覆盖 builder，不要在这里固定");
+      }
+    }
+    // macOS 必须有原生边框，否则没有红绿灯
+    #[cfg(target_os = "macos")]
+    assert!(window_chrome().decorations, "macOS 必须保留原生窗口边框（红绿灯）");
+    // Windows / Linux 走无边框自绘
+    #[cfg(not(target_os = "macos"))]
+    assert!(!window_chrome().decorations, "非 macOS 走 decorations:false 自绘");
+  }
 
   /// 每个用例独占一个刚建出来的空目录，并且只在开始时清一次。
   ///

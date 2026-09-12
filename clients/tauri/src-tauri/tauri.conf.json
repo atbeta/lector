@@ -10,25 +10,7 @@
     "devUrl": "http://localhost:5173"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Lector",
-        "label": "main",
-        "width": 900,
-        "height": 720,
-        "minWidth": 480,
-        "minHeight": 360,
-        "resizable": true,
-        "fullscreen": false,
-        "decorations": false,
-        "transparent": false,
-        "shadow": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
-        "acceptFirstMouse": true,
-        "trafficLightPosition": { "x": 16, "y": 18 }
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data: https: lector-file: http://lector-file.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost https://ipc.localhost http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline'"
     }

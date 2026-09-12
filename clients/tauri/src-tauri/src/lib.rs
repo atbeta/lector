@@ -54,8 +54,18 @@ pub fn run() {
         )?;
       }
       let _ = menu::create(app.handle());
-      for path in paths_from_argv(&std::env::args().collect::<Vec<_>>()) {
-        open_if_markdown(app.handle(), &path);
+      let argv: Vec<String> = std::env::args().collect();
+      let opened = paths_from_argv(&argv);
+      if opened.is_empty() {
+        // 没有带文件启动：建主窗口（空态）。
+        // 窗口由 io::ensure_main_window 统一创建，见该函数上的注释。
+        if let Err(e) = io::ensure_main_window(app.handle()) {
+          log::error!("failed to create main window: {e}");
+        }
+      } else {
+        for path in &opened {
+          open_if_markdown(app.handle(), path);
+        }
       }
       Ok(())
     })
