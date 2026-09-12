@@ -104,6 +104,70 @@ export function mountWindowControls(): () => void {
 }
 
 /**
+ * 顶栏的两处几何，统一在这里量，写进 CSS 变量。
+ *
+ * 1. 标题夹取区间的左端 = 正文列的左沿 + 导航区宽。
+ *    标题必须在**正文列**上居中，不是在整个窗口上居中——有侧栏时两者差侧栏宽的
+ *    一半（实测偏 120px）。夹取区间要和正文列完全重合，才能做到真正对齐。
+ *
+ * 2. 顶栏左内边距（导航的位置）**故意不等于**正文列左沿。
+ *    试过让它对齐正文列：窗口宽到一定程度正文列会在 560px 开外，两个图标跟着
+ *    推进去就孤零零悬在顶栏中段，比「左边留白大」更难看。
+ *    所以导航回到窗口左边缘的克制留白（mac 上红绿灯之后），
+ *    靠一条发丝分区线说明「这里是壳、右边是内容」。
+ */
+export function syncTitlebarInset(): void {
+  const bar = document.getElementById('titlebar')
+  const content = document.getElementById('content')
+  if (!bar || !content) return
+
+  // 夹取区间必须落在**正文文字**的左右沿上，而不是容器的外沿：
+  // #content 有 32px 左右内边距，拿容器外沿会让区间整体偏左 32px，
+  // 标题于是偏左半个内边距（实测 11–49px，窗口越宽越明显）。
+  const cs = getComputedStyle(content)
+  const cb = content.getBoundingClientRect()
+  const padL = Number.parseFloat(cs.paddingLeft) || 0
+  const padR = Number.parseFloat(cs.paddingRight) || 0
+  const textLeft = Math.round(cb.x + padL)
+  const textRight = Math.round(cb.right - padR)
+  bar.style.setProperty('--titlebar-clamp-left', `${textLeft}px`)
+
+  // 右端 = 顶栏右沿到正文文字右沿的距离（含操作区所占地）。这样区间恰好等于文字列。
+  const barRight = Math.round(bar.getBoundingClientRect().right)
+  bar.style.setProperty('--titlebar-clamp-right', `${barRight - textRight}px`)
+}
+
+export function mountTitlebarInset(): () => void {
+  const bar = document.getElementById('titlebar')
+  const content = document.getElementById('content')
+  if (!bar || !content) return () => {}
+  const sync = syncTitlebarInset
+  const schedule = () => requestAnimationFrame(sync)
+
+  // 自己校正，而不是在每个可能改变布局的地方补一次调用。
+  //
+  // 两个观察点，缺一不可：
+  //  - 窗口缩放：ResizeObserver 盯正文容器（宽度会变）
+  //  - 侧栏开合：**容器尺寸不变**（变的是网格轨道，正文本就固定 640px 宽），
+  //    所以 ResizeObserver 收不到。这时只有 class 会变，用 MutationObserver 盯它。
+  //    早期版本只盯容器，结果侧栏一开一合，标题夹取区间还是旧值（实测偏 131px）。
+  const ro = new ResizeObserver(schedule)
+  ro.observe(content)
+  const mo = new MutationObserver(schedule)
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  window.addEventListener('lector:doc-changed', schedule as EventListener)
+  // grid 轨道有过渡：动画结束后再校一次，拿到的是终值而不是中间值
+  const settle = window.setTimeout(schedule, 360)
+  sync()
+  return () => {
+    ro.disconnect()
+    mo.disconnect()
+    window.clearTimeout(settle)
+    window.removeEventListener('lector:doc-changed', schedule as EventListener)
+  }
+}
+
+/**
  * 顶栏分隔只在滚动后出现：静止时留白更干净，滚动时才需要告诉用户
  * 「内容正从下面穿过」。
  *

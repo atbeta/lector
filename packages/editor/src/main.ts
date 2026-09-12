@@ -40,7 +40,7 @@ import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } f
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
-import { mountHeaderScrollState, mountWindowControls } from './chrome.ts'
+import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
@@ -126,6 +126,7 @@ const sidebar = createSidebar({
   onToggle: (open) => {
     outlineBtn.classList.toggle('active', open)
     outlineBtn.setAttribute('aria-pressed', String(open))
+    markDirty()
   },
 })
 
@@ -1047,6 +1048,8 @@ void (async () => {
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
+  // 顶栏左侧与正文列对齐（窗口变化时自动重算；侧栏开合另见下方 onToggle）
+  mountTitlebarInset()
   // 窗口尺寸变化时重判侧栏该停靠还是浮层。
   // 用 rAF 折叠连续事件，避免拖拽窗口时每帧都重排。
   let resizeTick = false

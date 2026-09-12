@@ -34,7 +34,10 @@ body.app {
   height: 100vh;
   transition: grid-template-columns var(--motion-slow) var(--ease-emphasized);
 }
-html.sidebar-docked body.app { grid-template-columns: 240px 1fr; }
+/* 侧栏宽度的唯一来源。JS（sidebar.ts 的 SIDEBAR_W 与标题夹取）与 CSS 都读它，
+   改宽度只改这一处。 */
+:root { --sidebar-w: 240px; }
+html.sidebar-docked body.app { grid-template-columns: var(--sidebar-w) 1fr; }
 body {
   margin: 0;
   height: 100%;
@@ -123,10 +126,11 @@ button, a, input, [role='slider'], [role='switch'] {
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   height: 46px;
   padding: 0 10px 0 14px;
   background: rgb(var(--shell));
+  /* 拖动靠 -webkit-app-region: drag（整个元素），不用在按钮上挂 JS 拖拽 */
   user-select: none;
   -webkit-app-region: drag;
   /* 分隔不常驻：滚动后由 JS 加 .scrolled，避免静止时的「线稿感」 */
@@ -134,68 +138,110 @@ button, a, input, [role='slider'], [role='switch'] {
   transition: box-shadow var(--motion-base) var(--ease-standard),
     background var(--motion-base) var(--ease-standard);
 }
+/* 正文滚动后顶栏浮现分隔影 + 半透明毛玻璃，说明内容正从下面穿过。
+   注意：这条曾在我重写顶栏时被连带删掉，UI 上没有任何报错，只有断言能发现。 */
 #titlebar.scrolled {
   box-shadow: var(--shadow-header);
   background: color-mix(in srgb, rgb(var(--shell)) 82%, transparent);
   backdrop-filter: blur(12px) saturate(1.4);
 }
 
-/* macOS 让位原生红绿灯；Windows 顶栏右侧留给自绘控件 */
-html[data-shell='macos'] #titlebar { padding-left: 80px; }
-/* Windows 的标题栏向系统看齐：32px 高、标题左对齐、控件 46x32。
-   46px 的居中式标题栏 + 右侧控件会读成「mac 窗口贴了 Windows 按钮」。 */
+/* ───────────── 顶栏三段：导航 / 标题 / 操作 ─────────────
+ * 三条硬约束，写在前面，改的时候别再破坏：
+ *  1. 标题必须在「正文列」上居中，不是在整个窗口上居中。窗口有侧栏时两者差
+ *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
+ *  2. 右侧是固定的一排按钮，宽度可预测，所以用 absolute + margin:auto 夹在
+ *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
+ *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
+ *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
+.titlebar-lead {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+.titlebar-center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  height: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 区间已与正文列重合，不再限宽：限宽会让盒子的居中基准与区间不一致
+     （max-width 从左侧生效，而 auto 外边距的中心是区间中心），
+     反而把标题推偏。窄窗口的避让由 shell 隐藏标题处理。 */
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+/* 标题夹取区间：
+ *   左侧 = 侧栏宽度（停靠时），右侧 = 操作区宽度（实测 128px）+ 一点呼吸。
+ * 区间两端要落在「正文列」上，而不是窗口上——窗口居中在有侧栏时会偏左。
+ * 左侧的 240px 必须与 sidebar.ts 的 SIDEBAR_W 一致，右侧与那排按钮的实际宽度一致；
+ * ui-verify 会断言标题中心与正文列中心的偏差。 */
+.titlebar-center {
+  left: var(--titlebar-clamp-left, 88px);
+  right: var(--titlebar-clamp-right, 150px);
+  justify-content: center;
+}
+
+
+/* mac 让位原生红绿灯；Windows 顶栏右侧留给自绘控件（3 × 46px） */
+/* Windows 向系统看齐：32px 高、标题左对齐、控件 46x32。
+   居中式标题栏 + 右侧控件会读成「mac 窗口贴了 Windows 按钮」。 */
 html[data-shell='windows'] #titlebar {
   height: 32px;
   padding: 0 0 0 12px;
   gap: 6px;
 }
+html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
+html[data-shell='windows'] .window-controls { height: 32px; }
+html[data-shell='windows'] .win-btn { width: 46px; }
+/* 标题在 Windows 上跟在导航之后左对齐（系统惯例），不参与居中夹取 */
 html[data-shell='windows'] .titlebar-center {
   position: static;
-  transform: none;
-  margin-left: 10px;
+  margin: 0 0 0 10px;
   max-width: none;
   min-width: 0;
-  order: 1;
+  justify-content: flex-start;
 }
-html[data-shell='windows'] .titlebar-lead { order: 0; }
-html[data-shell='windows'] .titlebar-actions { order: 2; }
-html[data-shell='windows'] .window-controls { order: 3; height: 32px; }
-html[data-shell='windows'] .win-btn { width: 46px; }
-html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
-html[data-shell='windows'] .outline-panel { top: 44px; }
+html[data-shell='windows'] .titlebar-actions { margin-left: auto; }
 
 .titlebar-lead,
 .titlebar-center,
 .titlebar-actions,
 .window-controls {
-  position: relative;
   z-index: 1;
-  -webkit-app-region: no-drag;
 }
-.titlebar-lead {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-/* 组间分隔：一根 1px 发丝，比留白更能说明「这是两组不同的操作」 */
-.titlebar-divider {
+/* 导航位置：窗口左边缘的克制留白（mac 上让开红绿灯）。
+   故意不跟正文列对齐——窗口宽时正文列会在 560px 开外，两个图标跟着推进去
+   会悬在顶栏中段。用一条分区发丝说明「这里是壳、右边是内容」。
+   窗口越宽留白越大（clamp），避免小窗口里挤、大窗口里空。 */
+#titlebar { padding-left: clamp(12px, 4vw, 64px); }
+html[data-shell='macos'] #titlebar { padding-left: max(80px, clamp(12px, 4vw, 64px)); }
+
+/* 分区发丝：导航与正文之间的一道极淡竖线，把顶栏切分为「壳 / 内容」。
+   比留白更能说明分组，也比给每个图标加边框安静。 */
+.titlebar-lead::after {
+  content: '';
   width: 1px;
-  height: 16px;
-  margin: 0 6px;
+  height: 18px;
+  margin-left: 10px;
   background: rgb(var(--border));
-  flex: 0 0 auto;
 }
-/* 标题居中：绝对定位不吃掉两侧空间 */
-.titlebar-center {
-  pointer-events: none;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(42vw, 420px);
-}
+
+
 .titlebar-title {
   display: flex;
   align-items: center;
@@ -225,19 +271,7 @@ html[data-shell='windows'] .outline-panel { top: 44px; }
 }
 html.dirty .dirty-dot { display: block; }
 
-/* 工具按钮：默认安静，悬停或聚焦时浮现 */
-.titlebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-  /* 不压 opacity：图标对比会掉到 3.5:1 像禁用。安静靠颜色本身就够。 */
-  transition: opacity var(--motion-base) var(--ease-standard);
-}
-#titlebar:hover .titlebar-actions,
-.titlebar-actions:focus-within {
-  opacity: 1;
-}
+
 
 /* ───────────── 自绘窗口控件（仅 Windows） ───────────── */
 .window-controls {

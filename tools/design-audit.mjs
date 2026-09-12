@@ -177,7 +177,20 @@ if (!Number.isNaN(measure) && !Number.isNaN(readingSize)) {
 }
 
 // ── 7. 组件层：检查关键结构是否存在（防重构漏改） ──
-const required = ['.window-controls', '.win-btn', '#titlebar.scrolled', 'html[data-shell=\'windows\']', '.modal-backdrop', '.find-bar', '.outline-panel', '.empty-state']
+// 骨架与浮层的关键选择器：任何一个消失都说明有人误删，
+// 而这些结构在 UI 上往往「不报错、只是没了」（#titlebar.scrolled 就被误删过一次）。
+const required = [
+  '.window-controls', // Windows 自绘窗口控件
+  '.win-btn',
+  '#titlebar.scrolled', // 正文滚动后顶栏浮现的分隔影
+  'html[data-shell=\'windows\']',
+  '.modal-backdrop',
+  '.find-bar',
+  '.sidebar', // 停靠侧栏（替代了早期的 .outline-panel 浮层）
+  '#statusbar', // 状态行
+  '.frontmatter', // frontmatter 属性卡
+  '.empty-state',
+]
 for (const sel of required) {
   if (!APP.includes(sel.replace(/^html\[/, 'html[').replace(/'/g, "'"))) {
     note('error', `缺少关键样式：${sel}`)

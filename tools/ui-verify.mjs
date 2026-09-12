@@ -496,12 +496,21 @@ const summary = {
   await page.waitForTimeout(300)
 
   // 3.5) 滚动归属：正文自己滚，顶栏与状态行常驻（骨架的核心约束）
+  // 先把滚动位置清零再滚，避免上一次断言留下的位置让 .scrolled 已经是真
+  await page.evaluate(() => {
+    const c = document.getElementById('content')
+    c.scrollTop = 0
+  })
+  await page.waitForTimeout(150)
   const scrolling = await page.evaluate(async () => {
     const c = document.getElementById('content')
     const bar = document.getElementById('titlebar')
     const before = getComputedStyle(bar).boxShadow
     c.scrollTop = 300
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    // 顶栏的 .scrolled 是在 rAF 里设的，等它出现（最多 300ms）再读
+    for (let i = 0; i < 30 && !bar.classList.contains('scrolled'); i++) {
+      await new Promise((r) => requestAnimationFrame(r))
+    }
     return {
       contentScrolls: c.scrollHeight > c.clientHeight,
       domScrolls: document.documentElement.scrollHeight > window.innerHeight,
@@ -509,6 +518,7 @@ const summary = {
       barShadowBefore: before,
       barShadowAfter: getComputedStyle(bar).boxShadow,
       barScrolledClass: bar.classList.contains('scrolled'),
+      diag: { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight },
       statusPinned: Math.abs(document.getElementById('statusbar').getBoundingClientRect().bottom - window.innerHeight) <= 2,
     }
   })
@@ -520,6 +530,61 @@ const summary = {
   }
   await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
   await page.waitForTimeout(200)
+
+  // 3.7) 顶栏几何：导航对齐正文列、标题对齐正文中心、操作区贴右
+  const barGeo = await page.evaluate(() => {
+    const r = (sel) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      return { x: Math.round(b.x), right: Math.round(b.right), center: Math.round(b.x + b.width / 2) }
+    }
+    return {
+      lead: r('.titlebar-lead'),
+      content: r('#content'),
+      title: r('.titlebar-title'),
+      // 正文的「光学中心」：盒子含左右内边距，用盒子中心比会得到 16px 假偏差
+      text: (() => {
+        const el = document.querySelector('.reading-prose')
+        if (!el) return null
+        const cs = getComputedStyle(el)
+        const b = el.getBoundingClientRect()
+        const l = b.x + parseFloat(cs.paddingLeft || '0')
+        const rr = b.right - parseFloat(cs.paddingRight || '0')
+        return { x: Math.round(l), right: Math.round(rr), center: Math.round((l + rr) / 2) }
+      })(),
+      actions: r('.titlebar-actions'),
+      barRight: Math.round(document.getElementById('titlebar').getBoundingClientRect().right),
+    }
+  })
+  // 导航位置：窗口左边缘的克制留白。
+  // 这条曾经被写成「必须对齐正文列」，那样窗口一宽正文列会跑到 560px 开外，
+  // 两个图标跟着推进去悬在顶栏中段——比留白大更难看。所以只约束范围，
+  // 并检查分区线存在（它才是说明「壳 / 内容」分组的东西）。
+  if (barGeo.lead) {
+    if (barGeo.lead.x < 8) note('error', `顶栏导航左沿 ${barGeo.lead.x}px，贴边了`)
+    if (barGeo.lead.x > 200) note('error', `顶栏导航左沿 ${barGeo.lead.x}px，离左边缘过远（超出 200px 的合理留白）`)
+  }
+  const hasDivider = await page.evaluate(() => {
+    const d = document.querySelector('.titlebar-lead')
+    if (!d) return false
+    const cs = getComputedStyle(d, '::after')
+    return cs.content !== 'none' && parseFloat(cs.width) > 0
+  })
+  if (!hasDivider) note('error', '顶栏导航后缺少分区线（壳与内容的分组靠它说明）')
+  // 标题必须对齐正文列的中心（不是窗口中心——有侧栏时两者差侧栏宽的一半）
+  if (barGeo.title && barGeo.text) {
+    // 门槛 4px：布局实测恒定在这个量级（图标字形宽度取整所致），
+    // 而「对窗口居中」在有侧栏时会偏 120px，两者差两个数量级，不会误判。
+    const delta = Math.abs(barGeo.title.center - barGeo.text.center)
+    if (delta > 6) {
+      note('error', `顶栏标题中心与正文光学中心相差 ${delta}px（有侧栏时对窗口居中就会偏 100px 以上）`)
+    }
+  }
+  if (barGeo.actions && barGeo.barRight - barGeo.actions.right > 20) {
+    note('warn', `顶栏操作区距右边缘 ${barGeo.barRight - barGeo.actions.right}px，偏大`)
+  }
+  summary.titlebarGeometry = barGeo
 
   // 4) 状态行：常驻、贴底、有内容
   if (docked.statusH < 24 || docked.statusH > 44) {
