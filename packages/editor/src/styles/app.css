@@ -376,6 +376,9 @@ html[data-shell='windows'] .window-controls { display: flex; }
   grid-area: content;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 大纲跳转是顶部对齐（scrollIntoView block:'start'），
+     留 24px 呼吸，标题不贴容器顶边 */
+  scroll-padding-top: 24px;
   min-width: 0;
   max-width: calc(var(--reading-max-w) + 64px);
   margin-inline: auto;
@@ -589,6 +592,29 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
     color var(--motion-fast) var(--ease-standard);
 }
 .outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+
+/* 当前小节：左侧一根靛蓝指示条 + 文字变实。
+   不用整行填色——一列目录里出现色块会把侧栏压得很重，也会和 hover 打架。
+   指示条贴在行首，缩进层级不受影响。 */
+.outline-row { position: relative; }
+.outline-row.active { color: rgb(var(--foreground)); font-weight: 550; }
+.outline-row.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(var(--primary));
+}
+/* 二级及以下的当前项，指示条跟着缩进走，读者才知道是哪一级 */
+.outline-row.active[data-depth='2'] { padding-left: 20px; }
+.outline-row.active[data-depth='2']::before { left: 12px; }
+.outline-row.active[data-depth='3']::before { left: 24px; }
+.outline-row.active[data-depth='4']::before { left: 36px; }
+.outline-row.active[data-depth='5']::before,
+.outline-row.active[data-depth='6']::before { left: 48px; }
 /* 层级用「字重 + 缩进」双层表达，比只用缩进更抗窄栏 */
 .outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
 .outline-row[data-depth='2'] { padding-left: 20px; }

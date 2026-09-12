@@ -126,9 +126,14 @@ const sidebar = createSidebar({
   onToggle: (open) => {
     outlineBtn.classList.toggle('active', open)
     outlineBtn.setAttribute('aria-pressed', String(open))
-    markDirty()
   },
 })
+
+/**
+ * 大纲签名：标题的 id / 级别 / 文字。变了就说明大纲该重建。
+ * 紧挨着侧栏声明放：这个变量在模块初始化期就可能被读到，声明位置不能再往下挪。
+ */
+let lastOutlineSignature = ''
 
 
 /** 从块内 mdast 提取纯文本（标题用）。 */
@@ -143,6 +148,10 @@ function headingText(mdast: unknown): string {
   return walk(mdast)
 }
 
+// 大纲行 → 块 id，供滚动时反查当前小节
+const outlineRows = new Map<string, HTMLButtonElement>()
+let activeHeadingId: string | null = null
+
 function renderOutline() {
   const headings = session.blocks
     .filter((b) => b.kind === 'heading')
@@ -150,19 +159,7 @@ function renderOutline() {
       return { id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() }
     })
   sidebar.body.innerHTML = ''
-  const list = document.createElement('div')
-  list.className = 'outline-list'
-  for (const h of headings) {
-    const row = document.createElement('button')
-    row.className = 'outline-row'
-    row.dataset.depth = String(h.depth)
-    row.textContent = h.text
-    row.addEventListener('click', () => {
-      const el = blocksEl.get(h.id)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
-    list.appendChild(row)
-  }
+  outlineRows.clear()
   if (headings.length === 0) {
     const p = document.createElement('p')
     p.className = 'outline-empty'
@@ -170,7 +167,92 @@ function renderOutline() {
     sidebar.body.appendChild(p)
     return
   }
+  const list = document.createElement('div')
+  list.className = 'outline-list'
+  for (const h of headings) {
+    const row = document.createElement('button')
+    row.className = 'outline-row'
+    row.dataset.depth = String(h.depth)
+    row.dataset.blockId = h.id
+    row.textContent = h.text
+    row.addEventListener('click', () => {
+      // 定位到页面最上，不是居中。
+      // 「跳到某一节」在阅读器里的含义是「从这一节开始读」，居中会把上一节
+      // 的尾巴留在上方，读者还得自己往回找。文档站的锚点跳转（MDN、GitHub）
+      // 也一律是顶部对齐，这是读者的既有预期。
+      jumpToHeading(h.id)
+    })
+    outlineRows.set(h.id, row)
+    list.appendChild(row)
+  }
   sidebar.body.appendChild(list)
+  // 重绘后必须把高亮重新贴回新行：
+  // setActiveHeading 里有「id 未变则跳过」的短路，而这里的行是新建的、
+  // 不带任何类——所以要先无条件贴一次，再让滚动反查刷新。
+  applyActiveClasses()
+  updateActiveHeading()
+}
+
+/** 跳到某小节：顶部对齐，并留一点呼吸（由 #content 的 scroll-padding-top 提供）。 */
+function jumpToHeading(id: string): void {
+  const el = blocksEl.get(id)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // 立刻把高亮切过去：平滑滚动期间用户已经认为自己在那一节了，
+  // 等滚动结束再变会显得迟滞。
+  setActiveHeading(id, { reveal: true })
+}
+
+/** 把 activeHeadingId 对应的类贴到当前这批行上（不做「是否变化」的判断）。 */
+function applyActiveClasses(): void {
+  for (const [rowId, row] of outlineRows) {
+    const on = rowId === activeHeadingId
+    row.classList.toggle('active', on)
+    if (on) row.setAttribute('aria-current', 'true')
+    else row.removeAttribute('aria-current')
+  }
+}
+
+function setActiveHeading(id: string | null, opts: { reveal?: boolean } = {}): void {
+  if (id === activeHeadingId && !opts.reveal) return
+  activeHeadingId = id
+  applyActiveClasses()
+  if (opts.reveal && id) {
+    // 大纲很长时，当前项要自动滚进可视区（只滚侧栏，不动正文）
+    outlineRows.get(id)?.scrollIntoView({ block: 'nearest' })
+  }
+}
+
+/**
+ * 滚动反查当前小节：取「已经越过阅读线」的最后一个标题。
+ *
+ * 阅读线定在容器顶部下方 72px：标题刚进视口时就切过去太早
+ * （读者还在看上一节的最后一段），太晚则高亮总是慢半拍。
+ */
+function updateActiveHeading(): void {
+  if (outlineRows.size === 0) return
+  const headingIds = [...outlineRows.keys()]
+  const contentTop = contentEl.getBoundingClientRect().top
+  const scrollTop = contentEl.scrollTop
+  const atBottom =
+    contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 2
+
+  let active: string | null = null
+  if (atBottom) {
+    // 到底了：最后一节未必能滚到阅读线（后面内容不够），
+    // 不特判的话最后一节永远高亮不到。
+    active = headingIds[headingIds.length - 1] ?? null
+  } else {
+    const line = scrollTop + 72
+    for (const id of headingIds) {
+      const el = blocksEl.get(id)
+      if (!el) continue
+      const top = el.getBoundingClientRect().top - contentTop + scrollTop
+      if (top <= line) active = id
+      else break
+    }
+  }
+  setActiveHeading(active)
 }
 
 function toggleOutline() {
@@ -189,6 +271,13 @@ function nextId(): string {
 }
 
 /** 取文件名：Windows 路径是反斜杠，只 split('/') 会把整条路径留在标题上。 */
+function outlineSignature(): string {
+  return session.blocks
+    .filter((b) => b.kind === 'heading')
+    .map((b) => `${b.id}:${headingDepth(b) ?? 1}:${headingText(b.mdast)}`)
+    .join('|')
+}
+
 function baseName(p: string): string {
   const parts = p.split(/[\\/]/)
   return parts[parts.length - 1] || p
@@ -239,6 +328,13 @@ function renderStatus() {
 }
 
 function markDirty() {
+  // 编辑可能增删标题、改级别或改文字（分裂/合并会换 id），
+  // 大纲不重建就会指着一批不存在的块——表现为高亮消失、点击无反应。
+  const sig = outlineSignature()
+  if (sig !== lastOutlineSignature) {
+    lastOutlineSignature = sig
+    if (sidebar.isOpen()) renderOutline()
+  }
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
   document.documentElement.classList.toggle('dirty', session.dirty)
@@ -363,7 +459,9 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   contentEl.scrollTop = 0
   render()
   markDirty()
-  // 换文档后通知外框复位（顶栏的滚动分隔影）
+  // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
+  if (sidebar.isOpen()) renderOutline()
+  // 通知外框复位（顶栏的滚动分隔影）
   window.dispatchEvent(new Event('lector:doc-changed'))
   if (detectEnv() === 'shell') {
     void bindDocument(path)
@@ -405,6 +503,10 @@ function headingDepth(block: BlockView): number | null {
 
 function applyBlockMeta(el: HTMLElement, block: BlockView) {
   el.dataset.kind = block.kind
+  // 把块 id 写进 DOM：大纲行、测试、排障都要能自证「这一行指的是哪个块」。
+  // 曾经出现过大纲行指着已被替换的旧 id 的情况（表现为高亮消失、点击无反应），
+  // 没有这个属性就只能靠猜。
+  el.dataset.blockId = block.id
   const depth = headingDepth(block)
   if (depth != null) el.dataset.depth = String(depth)
   else delete el.dataset.depth
@@ -1048,6 +1150,20 @@ void (async () => {
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
+  // 阅读位置 → 大纲高亮。挂在正文容器上（骨架里滚动发生在正文里）。
+  let spyTick = false
+  contentEl.addEventListener(
+    'scroll',
+    () => {
+      if (spyTick) return
+      spyTick = true
+      requestAnimationFrame(() => {
+        spyTick = false
+        updateActiveHeading()
+      })
+    },
+    { passive: true },
+  )
   // 顶栏左侧与正文列对齐（窗口变化时自动重算；侧栏开合另见下方 onToggle）
   mountTitlebarInset()
   // 窗口尺寸变化时重判侧栏该停靠还是浮层。

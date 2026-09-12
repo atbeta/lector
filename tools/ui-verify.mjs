@@ -495,6 +495,86 @@ const summary = {
   await page.setViewportSize({ width: 1200, height: 820 })
   await page.waitForTimeout(300)
 
+  // 3.4) 大纲：当前小节高亮 + 跳转顶部对齐
+  {
+    const outline = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.outline-row')]
+      const c = document.getElementById('content')
+      return {
+        count: rows.length,
+        active: rows.filter((r) => r.classList.contains('active')).length,
+        diag: {
+          scrollTop: c.scrollTop,
+          blocks: document.querySelectorAll('#content .block').length,
+          sidebarHidden: document.getElementById('sidebar').hidden,
+          firstRow: rows[0]?.textContent ?? null,
+        },
+      }
+    })
+
+    if (outline.count > 0) {
+      if (outline.active === 0) note('error', '大纲没有任何高亮项（阅读时看不出「读到哪了」）')
+      if (outline.active > 1) note('error', `大纲同时高亮 ${outline.active} 项，当前小节应当唯一`)
+
+      // 滚动后高亮要跟着动
+      // 每个大纲行都要指向真实存在的块：指不到就会「高亮消失 + 点击无反应」
+      const dangling = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.outline-row')]
+        const ids = new Set([...document.querySelectorAll('#content .block')].map((b) => b.dataset.blockId))
+        return rows.map((r) => r.dataset.blockId).filter((id) => !id || !ids.has(id))
+      })
+      if (dangling.length) {
+        note('error', `大纲有 ${dangling.length} 行指向不存在的块：${dangling.slice(0, 3).join(', ')}`)
+      }
+
+      const spy = await page.evaluate(async () => {
+        const c = document.getElementById('content')
+        const label = () => [...document.querySelectorAll('.outline-row')].find((r) => r.classList.contains('active'))?.textContent ?? null
+        c.scrollTop = 0
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        for (let i = 0; i < 20; i++) await new Promise((r) => requestAnimationFrame(r))
+        const atTop = label()
+        c.scrollTop = c.scrollHeight
+        for (let i = 0; i < 40; i++) await new Promise((r) => requestAnimationFrame(r))
+        const atBottom = label()
+        c.scrollTop = 0
+        return { atTop, atBottom, rows: document.querySelectorAll('.outline-row').length }
+      })
+      if (spy.rows > 1 && spy.atTop === spy.atBottom) {
+        note('error', `滚动前后高亮都是「${spy.atTop}」，滚动反查没生效`)
+      }
+
+      // 点击跳转：标题应当到顶部（留呼吸），不是居中。
+      // 取靠前的那一节——最后一节常常因为后面内容不够而滚不到顶，那是正常的，
+      // 拿它断言会误报（第一版就是这么错的）。
+      const jump = await page.evaluate(async () => {
+        const rows = [...document.querySelectorAll('.outline-row')]
+        const idx = Math.min(1, rows.length - 1)
+        rows[idx].click()
+        await new Promise((r) => setTimeout(r, 800))
+        const content = document.getElementById('content')
+        const heads = [...content.querySelectorAll('.block[data-kind="heading"]')]
+        const el = heads[idx]
+        const gap = el
+          ? Math.round(el.getBoundingClientRect().top - content.getBoundingClientRect().top)
+          : null
+        const activeIdx = rows.indexOf(document.querySelector('.outline-row.active'))
+        return { gap, clickedIdx: idx, viewportH: content.clientHeight, activeIdx }
+      })
+      // scroll-padding-top 是 24px，远小于视口；若居中对齐这里会是视口的 1/3 上下
+      if (jump.gap !== null && jump.gap > 80) {
+        note('error', `点击大纲项后标题距容器顶 ${jump.gap}px（视口 ${jump.viewportH}px），像是居中对齐而非顶部对齐`)
+      }
+      if (jump.activeIdx !== jump.clickedIdx) {
+        note('error', `点击大纲第 ${jump.clickedIdx + 1} 项后，高亮的是第 ${jump.activeIdx + 1} 项`)
+      }
+      note('info', `大纲跳转：标题距顶 ${jump.gap}px，高亮第 ${jump.activeIdx + 1} 项`)
+      summary.outlineSpy = { ...spy, ...jump }
+      await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
+      await page.waitForTimeout(200)
+    }
+  }
+
   // 3.5) 滚动归属：正文自己滚，顶栏与状态行常驻（骨架的核心约束）
   // 先把滚动位置清零再滚，避免上一次断言留下的位置让 .scrolled 已经是真
   await page.evaluate(() => {
