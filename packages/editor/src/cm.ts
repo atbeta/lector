@@ -5,6 +5,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { Prec, type Extension } from '@codemirror/state'
+import { expandFence, toggleWrap } from './wrap.ts'
 
 export interface EditorialConfig {
   autoCharacterPairs: boolean
@@ -86,6 +87,66 @@ export function mountEditor(
   if (config.showWhitespace) {
     extensions.push(highlightWhitespace())
   }
+  // 行内格式快捷键：⌘B 粗体 / ⌘I 斜体 / ⌘E 行内代码 / ⌘K 链接。
+  //
+  // 这是「顺手能改」的核心：没有它，读者想加粗一个词就得手打四个星号、
+  // 想加链接就得记住 `[]()` 的顺序。参考 notefast 的 keymap，但只取纯格式部分
+  // （它的 ⌘Enter 续写、选区气泡问 AI 属于 AI 能力，本项目不做）。
+  //
+  // 用 Prec.high：lang-markdown 自带的 keymap 里有同键位（如 ⌘E 在某些编辑器里
+  // 是「行内代码」），要先于它执行。
+  const wrapKey = (left: string, right?: string, placeholder?: string) => (view: EditorView) => {
+    const { state } = view
+    const sel = state.selection.main
+    const r = toggleWrap(state.doc.toString(), sel.from, sel.to, { left, right, placeholder })
+    view.dispatch({
+      changes: { from: 0, to: state.doc.length, insert: r.text },
+      selection: { anchor: r.selection.from, head: r.selection.to },
+      scrollIntoView: true,
+      userEvent: 'input',
+    })
+    return true
+  }
+
+  extensions.push(
+    Prec.high(
+      keymap.of([
+        { key: 'Mod-b', preventDefault: true, run: wrapKey('**') },
+        { key: 'Mod-i', preventDefault: true, run: wrapKey('*') },
+        { key: 'Mod-e', preventDefault: true, run: wrapKey('`') },
+        // 中文输入法下 ⌘K 不冲突；链接一律给 url 占位
+        { key: 'Mod-k', preventDefault: true, run: wrapKey('[', undefined, 'url') },
+        {
+          key: 'Enter',
+          run: (view) => {
+            // ``` 之后回车 → 展开成代码块（光标进块内）。返回 false 时
+            // 交给 lang-markdown 的列表续行等默认行为。
+            const { state } = view
+            const sel = state.selection.main
+            if (!sel.empty) return false
+            const line = state.doc.lineAt(sel.head)
+            const before = state.doc.line(line.number)
+            // 已闭合的围栏：数一数前面还有几个 ``` 行
+            let fences = 0
+            for (let i = 1; i < line.number; i++) {
+              if (/^\s*```/.test(state.doc.line(i).text)) fences++
+            }
+            void before
+            const r = expandFence(state.doc.toString(), sel.head, fences)
+            if (!r) return false
+            view.dispatch({
+              changes: { from: 0, to: state.doc.length, insert: r.text },
+              selection: { anchor: r.cursor },
+              scrollIntoView: true,
+              userEvent: 'input',
+            })
+            return true
+          },
+        },
+      ]),
+    ),
+  )
+
   if (config.structuralKeymap) {
     const keys = config.structuralKeymap
     const bindings: { key: string; run: (view: EditorView) => boolean }[] = []

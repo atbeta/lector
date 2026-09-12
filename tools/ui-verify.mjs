@@ -611,6 +611,106 @@ const summary = {
   await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
   await page.waitForTimeout(200)
 
+  // 3.6) 编辑与阅读能力：快捷键、代码复制、图片放大
+  {
+    const keys = await page.evaluate(() => {
+      const block = [...document.querySelectorAll('#content .block')].find((b) => b.dataset.kind === 'paragraph')
+      return block ? { found: true } : { found: false }
+    })
+    if (!keys.found) note('error', '样本文档里找不到段落块，无法验证编辑能力')
+
+    // 快捷键走真实键盘：直接问 keymap 有没有装上是问不出来的
+    if (keys.found) {
+      const press = async (key) => {
+        // 先失焦（Escape 让当前块回到预览态），再点目标块，
+        // 否则「已经聚焦同一块」时点击不会重建编辑器。
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(150)
+        await page.evaluate(() => {
+          const block = [...document.querySelectorAll('#content .block')].find((b) => b.dataset.kind === 'paragraph')
+          block.click()
+        })
+        await page.waitForSelector('.cm-content', { timeout: 5000 })
+        await page.waitForTimeout(200)
+        await page.locator('.cm-content').first().click()
+        await page.keyboard.press('Meta+a')
+        await page.keyboard.type('x y')
+        await page.keyboard.press('Meta+a')
+        await page.keyboard.press(key)
+        await page.waitForTimeout(200)
+        return page.evaluate(() =>
+          [...document.querySelectorAll('.cm-content .cm-line')].map((l) => l.textContent).join('\n'),
+        )
+      }
+      const cases = [
+        ['Meta+b', '**x y**', '⌘B 粗体'],
+        ['Meta+i', '*x y*', '⌘I 斜体'],
+        ['Meta+e', '`x y`', '⌘E 行内代码'],
+      ]
+      for (const [key, want, label] of cases) {
+        const got = await press(key)
+        if (got !== want) note('error', `${label} 没生效：得到 ${JSON.stringify(got)}，期望 ${JSON.stringify(want)}`)
+      }
+      const link = await press('Meta+k')
+      if (!/^\[x y\]\(.+\)$/.test(link)) {
+        note('error', `⌘K 链接没生效：得到 ${JSON.stringify(link)}`)
+      }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+    }
+
+    // 代码块：语言标签 + 复制
+    const code = await page.evaluate(() => {
+      const block = document.querySelector('.block[data-kind="code"]')
+      if (!block) return { missing: true }
+      const bar = block.querySelector('.code-bar')
+      return {
+        bar: !!bar,
+        lang: bar?.querySelector('.code-lang')?.textContent ?? null,
+        copy: !!bar?.querySelector('.code-copy'),
+        insidePre: !!bar?.closest('pre'),
+      }
+    })
+    if (code.missing) note('warn', '样本文档里没有代码块，跳过代码工具条检查')
+    else {
+      if (!code.bar) note('error', '代码块没有工具条（语言标签 + 复制）')
+      if (!code.copy) note('error', '代码块没有复制按钮')
+      if (code.insidePre) note('error', '代码工具条被塞进了 <pre>，会污染复制的文本')
+      if (!code.lang) note('warn', '代码块没有显示语言标签')
+    }
+
+    // 阅读里的图片：光标要提示可放大，点击要真的能开、能关
+    const img = await page.evaluate(() => {
+      const i = document.querySelector('.reading-prose img')
+      if (!i) return { missing: true }
+      return { cursor: getComputedStyle(i).cursor, loaded: i.complete && i.naturalWidth > 0 }
+    })
+    if (img.missing) note('error', '样本文档里没有图片，无法验证放大查看')
+    else {
+      if (img.cursor !== 'zoom-in') note('error', `阅读里的图片光标是 ${img.cursor}，没有「可放大」的提示`)
+      if (!img.loaded) note('error', '样本文档里的图片没加载出来（夹具路径不对？）')
+      await page.click('.reading-prose img')
+      await page.waitForTimeout(300)
+      const opened = await page.evaluate(() => {
+        const l = document.querySelector('.lightbox')
+        return {
+          open: !!l && !l.hidden,
+          locked: getComputedStyle(document.getElementById('content')).overflowY === 'hidden',
+        }
+      })
+      if (!opened.open) note('error', '点击图片没有打开放大浮层')
+      if (!opened.locked) note('error', '放大浮层打开时正文仍可滚动（背景会跟着滚）')
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(250)
+      const closed = await page.evaluate(() => ({
+        hidden: document.querySelector('.lightbox')?.hidden !== false,
+        unlocked: getComputedStyle(document.getElementById('content')).overflowY !== 'hidden',
+      }))
+      if (!closed.hidden) note('error', 'Esc 关不掉图片放大浮层')
+      if (!closed.unlocked) note('error', '关闭放大浮层后正文滚动没有恢复')
+    }
+  }
+
   // 3.7) 顶栏几何：导航对齐正文列、标题对齐正文中心、操作区贴右
   const barGeo = await page.evaluate(() => {
     const r = (sel) => {
@@ -624,14 +724,13 @@ const summary = {
       content: r('#content'),
       title: r('.titlebar-title'),
       // 正文的「光学中心」：盒子含左右内边距，用盒子中心比会得到 16px 假偏差
+      // 用真实块元素量正文列：容器右侧可能被经典滚动条占掉
+      // （Windows），按内边距推算会多算，断言就会假失败。
       text: (() => {
-        const el = document.querySelector('.reading-prose')
+        const el = document.querySelector('#content .block:not(.gap)') ?? document.querySelector('.reading-prose')
         if (!el) return null
-        const cs = getComputedStyle(el)
         const b = el.getBoundingClientRect()
-        const l = b.x + parseFloat(cs.paddingLeft || '0')
-        const rr = b.right - parseFloat(cs.paddingRight || '0')
-        return { x: Math.round(l), right: Math.round(rr), center: Math.round((l + rr) / 2) }
+        return { x: Math.round(b.x), right: Math.round(b.right), center: Math.round(b.x + b.width / 2) }
       })(),
       actions: r('.titlebar-actions'),
       barRight: Math.round(document.getElementById('titlebar').getBoundingClientRect().right),
@@ -641,10 +740,11 @@ const summary = {
   // 这条被用户指出过两次（先是「左边空白大」，再是「没对齐」），
   // 所以固化成断言：同屏出现三条不同的竖线，看着就是没做完。
   const edges = await page.evaluate(() => {
-    const cs = getComputedStyle(document.getElementById('content'))
+    const block = document.querySelector('#content .block:not(.gap)')
     const cb = document.getElementById('content').getBoundingClientRect()
-    const left = Math.round(cb.x + parseFloat(cs.paddingLeft))
-    const right = Math.round(cb.right - parseFloat(cs.paddingRight))
+    const bb = block ? block.getBoundingClientRect() : null
+    const left = bb ? Math.round(bb.x) : Math.round(cb.x)
+    const right = bb ? Math.round(bb.right) : Math.round(cb.right)
     const L = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().x)
     const R = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().right)
     return { textLeft: left, textRight: right, navLeft: L('.titlebar-lead'), statusLeft: L('#status-left'), statusRight: R('#status-right') }

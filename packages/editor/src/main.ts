@@ -42,6 +42,7 @@ import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
+import { mountLightbox } from './lightbox.ts'
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
@@ -641,6 +642,64 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
     preview.className = 'preview reading-prose'
     preview.innerHTML = renderBlockHtml(block.mdast, block.raw)
     el.appendChild(preview)
+    if (block.kind === 'code') decorateCodeBlock(el, preview)
+  }
+}
+
+/**
+ * 代码块加「语言标签 + 复制」。
+ *
+ * 读代码时的实际需求：想知道这是什么语言、想把这段拿走。
+ * 复制走 DOM 的文本而不是 block.raw——raw 含围栏与缩进，复制出来是源码片段而不是代码。
+ */
+function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
+  const code = preview.querySelector('pre code')
+  if (!code) return
+  const lang = (code.className.match(/language-([\w+#-]+)/)?.[1] ?? '').toLowerCase()
+
+  const bar = document.createElement('div')
+  bar.className = 'code-bar'
+  if (lang) {
+    const label = document.createElement('span')
+    label.className = 'code-lang'
+    label.textContent = lang
+    bar.appendChild(label)
+  }
+  const copy = document.createElement('button')
+  copy.type = 'button'
+  copy.className = 'code-copy'
+  copy.textContent = t('codeCopy')
+  copy.addEventListener('click', (e) => {
+    e.stopPropagation()
+    void copyText(code.textContent ?? '')
+  })
+  bar.appendChild(copy)
+  // 挂在块的预览容器上（不是 pre 里面）：pre 的内容是代码，塞按钮会污染复制结果
+  const pre = code.parentElement
+  pre?.parentElement?.insertBefore(bar, pre)
+}
+
+/** 复制文本：优先 Clipboard API，失败退回 execCommand（壳里的老 WebView 可能不支持前者）。 */
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast(t('codeCopied'))
+    return
+  } catch {
+    /* 落到下面的兜底 */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    showToast(ok ? t('codeCopied') : t('codeCopyFailed'))
+  } catch {
+    showToast(t('codeCopyFailed'))
   }
 }
 
@@ -1092,6 +1151,27 @@ function renderEmptyState() {
   markDirty()
 }
 
+// 预览用的媒体样例：图片放大与代码块复制都要能在这里验
+const mediaSample = `# 媒体预览
+
+下面这张图点击应当放大查看（Esc / 点背景 / 点右上角关闭）：
+
+![示例图片](./images/sample.png)
+
+## 代码块
+
+代码块右上角悬停出现语言标签与复制按钮：
+
+\`\`\`ts
+export function countText(text: string): DocStats {
+  const cjk = (text.match(CJK) ?? []).length
+  return { words: cjk + latinWords(text), chars: text.length, lines: 1 }
+}
+\`\`\`
+
+普通段落用于对比高度。
+`
+
 // 预览用的 frontmatter 样例：属性卡 + 标签列表两种形状都要能看到
 const frontmatterSample = `---
 title: 开源文档工具最佳选择
@@ -1131,6 +1211,10 @@ const sample = `# 阅读体验展示
 | ProseMirror | TS | 重 | 被排除（保真原罪） |
 | Vditor | JS | 重 | 被排除（内核绑定） |
 
+下面这张图点击可放大查看：
+
+![示例图片](./images/sample.png)
+
 ## 代码块
 
 \`\`\`ts
@@ -1150,6 +1234,7 @@ void (async () => {
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
+  mountLightbox()
   // 阅读位置 → 大纲高亮。挂在正文容器上（骨架里滚动发生在正文里）。
   let spyTick = false
   contentEl.addEventListener(
@@ -1202,6 +1287,7 @@ void (async () => {
     const which = params.get('doc')
     if (which === 'empty') renderEmptyState()
     else if (which === 'frontmatter') loadSession('frontmatter.md', frontmatterSample)
+    else if (which === 'media') loadSession('media.md', mediaSample)
     else loadSession(which || 'sample.md', sample)
   }
 })()

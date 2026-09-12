@@ -66,6 +66,9 @@ const zh = {
   statUnsaved: '未保存',
   statSavedAt: '已保存',
   statEmpty: '空文档',
+  codeCopy: '复制',
+  codeCopied: '已复制代码',
+  codeCopyFailed: '复制失败',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
@@ -132,6 +135,9 @@ const en: Record<keyof typeof zh, string> = {
   statUnsaved: 'Unsaved',
   statSavedAt: 'Saved',
   statEmpty: 'Empty document',
+  codeCopy: 'Copy',
+  codeCopied: 'Code copied',
+  codeCopyFailed: 'Copy failed',
 }
 
 export type MessageKey = keyof typeof zh

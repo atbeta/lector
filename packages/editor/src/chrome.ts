@@ -121,12 +121,18 @@ export function syncTitlebarInset(): void {
   const content = document.getElementById('content')
   if (!bar || !content) return
 
+  // 正文列的字面左右沿：优先量真实块元素，拿不到再退回「容器 + 内边距」。
+  // 必须用块元素：Windows 上经典滚动条会占掉容器右侧约 10px，
+  // 按内边距推算会把右沿多算出去，标题与状态行就会偏右半个滚动条宽。
+  const block = content.querySelector<HTMLElement>('.block:not(.gap)')
   const cs = getComputedStyle(content)
   const cb = content.getBoundingClientRect()
   const padL = Number.parseFloat(cs.paddingLeft) || 0
   const padR = Number.parseFloat(cs.paddingRight) || 0
-  const textLeft = Math.round(cb.x + padL)
-  const textRight = Math.round(cb.right - padR)
+  const textLeft = block ? Math.round(block.getBoundingClientRect().x) : Math.round(cb.x + padL)
+  const textRight = block
+    ? Math.round(block.getBoundingClientRect().right)
+    : Math.round(cb.right - padR)
   const barRight = Math.round(bar.getBoundingClientRect().right)
 
   // 标题夹取区间 = 正文文字的左右沿，标题因此精确居中于正文列。
