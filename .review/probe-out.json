@@ -1,0 +1,797 @@
+{
+ "rootFontSize": "16px",
+ "htmlBoxSizing": "content-box",
+ "bodyBoxSizing": "content-box",
+ "content": {
+  "tag": "main",
+  "kind": null,
+  "depth": null,
+  "x": 200,
+  "y": 46,
+  "w": 800,
+  "h": 1417.2,
+  "fs": "14px",
+  "fw": "400",
+  "mt": "0px",
+  "mb": "0px",
+  "pt": "34px",
+  "pb": "180.4px",
+  "pl": "32px",
+  "pr": "32px",
+  "lh": "21px",
+  "bg": "rgba(0, 0, 0, 0)",
+  "color": "rgb(16, 16, 20)",
+  "ta": "start",
+  "maxw": "736px",
+  "text": "阅读体验展示Lector —— 阅读优先的纯 Markd",
+  "children": 12
+ },
+ "blocks": [
+  {
+   "tag": "div",
+   "kind": "heading",
+   "depth": "1",
+   "x": 232,
+   "y": 80,
+   "w": 736,
+   "h": 39,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "0px",
+   "mb": "8.4px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "阅读体验展示"
+  },
+  {
+   "tag": "div",
+   "kind": "blockquote",
+   "depth": null,
+   "x": 232,
+   "y": 144.9,
+   "w": 736,
+   "h": 60.8,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "17.5px",
+   "mb": "17.5px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "Lector —— 阅读优先的纯 Markdown 编辑"
+  },
+  {
+   "tag": "div",
+   "kind": "heading",
+   "depth": "2",
+   "x": 232,
+   "y": 247,
+   "w": 736,
+   "h": 31.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "23.8px",
+   "mb": "7px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "中西文混排与行内"
+  },
+  {
+   "tag": "div",
+   "kind": "paragraph",
+   "depth": null,
+   "x": 232,
+   "y": 285.2,
+   "w": 736,
+   "h": 81.6,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "0px",
+   "mb": "12.88px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "在 AI 时代，读 远大于 写。Markdown 是 A"
+  },
+  {
+   "tag": "div",
+   "kind": "heading",
+   "depth": "2",
+   "x": 232,
+   "y": 403.4,
+   "w": 736,
+   "h": 31.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "23.8px",
+   "mb": "7px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "任务列表"
+  },
+  {
+   "tag": "div",
+   "kind": "list",
+   "depth": null,
+   "x": 232,
+   "y": 453.5,
+   "w": 736,
+   "h": 243.1,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "11.9px",
+   "mb": "11.9px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "未完成任务，后面还有一段未勾选 已完成的任务，会显示为"
+  },
+  {
+   "tag": "div",
+   "kind": "heading",
+   "depth": "2",
+   "x": 232,
+   "y": 736.4,
+   "w": 736,
+   "h": 31.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "23.8px",
+   "mb": "7px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "一个表格"
+  },
+  {
+   "tag": "div",
+   "kind": "table",
+   "depth": null,
+   "x": 232,
+   "y": 792.1,
+   "w": 736,
+   "h": 165,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "17.5px",
+   "mb": "17.5px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "引擎语言体积定位CodeMirror 6TS~4MB焦点"
+  },
+  {
+   "tag": "div",
+   "kind": "heading",
+   "depth": "2",
+   "x": 232,
+   "y": 998.3,
+   "w": 736,
+   "h": 31.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "23.8px",
+   "mb": "7px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "代码块"
+  },
+  {
+   "tag": "div",
+   "kind": "code",
+   "depth": null,
+   "x": 232,
+   "y": 1054,
+   "w": 736,
+   "h": 114.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "17.5px",
+   "mb": "17.5px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "export function parseBlocks("
+  },
+  {
+   "tag": "div",
+   "kind": "thematicBreak",
+   "depth": null,
+   "x": 232,
+   "y": 1213.7,
+   "w": 736,
+   "h": 1,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "28px",
+   "mb": "28px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": ""
+  },
+  {
+   "tag": "div",
+   "kind": "paragraph",
+   "depth": null,
+   "x": 232,
+   "y": 1242.7,
+   "w": 736,
+   "h": 27.2,
+   "fs": "14px",
+   "fw": "400",
+   "mt": "0px",
+   "mb": "12.88px",
+   "pt": "0px",
+   "pb": "0px",
+   "pl": "0px",
+   "pr": "0px",
+   "lh": "21px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(16, 16, 20)",
+   "ta": "start",
+   "maxw": "none",
+   "text": "第二段，用于测试「只改这一块」的切片保真。"
+  }
+ ],
+ "contentChildrenKinds": [
+  "heading:1",
+  "blockquote",
+  "heading:2",
+  "paragraph",
+  "heading:2",
+  "list",
+  "heading:2",
+  "table",
+  "heading:2",
+  "code",
+  "thematicBreak",
+  "paragraph"
+ ],
+ "table": {
+  "rect": {
+   "x": 233,
+   "y": 793.1,
+   "w": 734,
+   "h": 163,
+   "b": 956,
+   "r": 967
+  },
+  "maxw": "none",
+  "tableLayout": "auto",
+  "head": [
+   {
+    "t": "引擎",
+    "x": 233,
+    "w": 220
+   },
+   {
+    "t": "语言",
+    "x": 453,
+    "w": 97.2
+   },
+   {
+    "t": "体积",
+    "x": 550.2,
+    "w": 124.6
+   },
+   {
+    "t": "定位",
+    "x": 674.8,
+    "w": 292.2
+   }
+  ],
+  "rows": [
+   [
+    {
+     "t": "CodeMirror 6",
+     "x": 233,
+     "w": 220,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "TS",
+     "x": 453,
+     "w": 97.2,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "~4MB",
+     "x": 550.2,
+     "w": 124.6,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "焦点块源码编辑",
+     "x": 674.8,
+     "w": 292.2,
+     "h": 41.4,
+     "ta": "left"
+    }
+   ],
+   [
+    {
+     "t": "ProseMirror",
+     "x": 233,
+     "w": 220,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "TS",
+     "x": 453,
+     "w": 97.2,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "重",
+     "x": 550.2,
+     "w": 124.6,
+     "h": 41.4,
+     "ta": "left"
+    },
+    {
+     "t": "被排除（保真原罪）",
+     "x": 674.8,
+     "w": 292.2,
+     "h": 41.4,
+     "ta": "left"
+    }
+   ],
+   [
+    {
+     "t": "Vditor",
+     "x": 233,
+     "w": 220,
+     "h": 40.9,
+     "ta": "left"
+    },
+    {
+     "t": "JS",
+     "x": 453,
+     "w": 97.2,
+     "h": 40.9,
+     "ta": "left"
+    },
+    {
+     "t": "重",
+     "x": 550.2,
+     "w": 124.6,
+     "h": 40.9,
+     "ta": "left"
+    },
+    {
+     "t": "被排除（内核绑定）",
+     "x": 674.8,
+     "w": 292.2,
+     "h": 40.9,
+     "ta": "left"
+    }
+   ]
+  ],
+  "fonts": [
+   "14px",
+   "14px",
+   "14px",
+   "14px"
+  ]
+ },
+ "pre": {
+  "rect": {
+   "x": 232,
+   "y": 1054,
+   "w": 555.1,
+   "h": 114.2,
+   "b": 1168.2,
+   "r": 787.1
+  },
+  "bg": "rgba(243, 243, 245, 0.6)",
+  "fs": "13px",
+  "lh": "21.06px",
+  "pl": "16px",
+  "pr": "16px",
+  "pt": "14px",
+  "pb": "14px",
+  "radius": "10px",
+  "overflowX": "auto",
+  "whiteSpace": "pre",
+  "maxw": "100%",
+  "fontFamily": "\"JetBrains Mono Variable\", \"JetBrains Mo",
+  "tokens": [
+   {
+    "t": "export",
+    "c": "rgb(94, 106, 210)"
+   },
+   {
+    "t": "function",
+    "c": "rgb(94, 106, 210)"
+   },
+   {
+    "t": "const",
+    "c": "rgb(94, 106, 210)"
+   },
+   {
+    "t": "return",
+    "c": "rgb(94, 106, 210)"
+   }
+  ],
+  "scrollW": 553,
+  "clientW": 553
+ },
+ "inlineCode": {
+  "tag": "code",
+  "kind": null,
+  "depth": null,
+  "x": 680.2,
+  "y": 288.2,
+  "w": 101.8,
+  "h": 21.8,
+  "fs": "13.76px",
+  "fw": "480",
+  "mt": "0px",
+  "mb": "0px",
+  "pt": "1.9264px",
+  "pb": "1.9264px",
+  "pl": "4.9536px",
+  "pr": "4.9536px",
+  "lh": "23.392px",
+  "bg": "rgb(243, 243, 245)",
+  "color": "rgb(16, 16, 20)",
+  "ta": "start",
+  "maxw": "none",
+  "text": "inline code",
+  "bd": "rgb(16, 16, 20)",
+  "bw": "0px",
+  "radius": "4px"
+ },
+ "inlineCodes": [
+  {
+   "t": "inline code",
+   "bg": "rgb(243, 243, 245)",
+   "color": "rgb(16, 16, 20)",
+   "x": 680.2,
+   "w": 101.8,
+   "h": 21.8,
+   "fs": "13.76px"
+  },
+  {
+   "t": "const a = 1",
+   "bg": "rgb(243, 243, 245)",
+   "color": "rgb(16, 16, 20)",
+   "x": 232,
+   "w": 703.3,
+   "h": 49,
+   "fs": "13.76px"
+  }
+ ],
+ "checkboxes": [
+  {
+   "checked": false,
+   "x": 232,
+   "y": 460.1,
+   "w": 16,
+   "h": 16,
+   "bg": "rgb(255, 255, 255)",
+   "bd": "rgb(130, 130, 142)",
+   "bw": "1px",
+   "ap": "none"
+  },
+  {
+   "checked": true,
+   "x": 232,
+   "y": 546.5,
+   "w": 16,
+   "h": 16,
+   "bg": "rgb(79, 90, 186)",
+   "bd": "rgb(79, 90, 186)",
+   "bw": "1px",
+   "ap": "none"
+  },
+  {
+   "checked": true,
+   "x": 232,
+   "y": 632.8,
+   "w": 16,
+   "h": 16,
+   "bg": "rgb(79, 90, 186)",
+   "bd": "rgb(79, 90, 186)",
+   "bw": "1px",
+   "ap": "none"
+  }
+ ],
+ "taskLis": [
+  {
+   "t": "未完成任务，后面还有一段未勾选",
+   "x": 232,
+   "w": 736,
+   "h": 70.4,
+   "deco": "none",
+   "labX": 232,
+   "labW": 736,
+   "labDeco": "none",
+   "labColor": "rgb(16, 16, 20)"
+  },
+  {
+   "t": "已完成的任务，会显示为勾选态",
+   "x": 232,
+   "w": 736,
+   "h": 70.4,
+   "deco": "none",
+   "labX": 232,
+   "labW": 736,
+   "labDeco": "line-through",
+   "labColor": "rgb(16, 16, 20)"
+  },
+  {
+   "t": "支持多行任务项，当文本足够长而换行时，续",
+   "x": 232,
+   "w": 736,
+   "h": 70.4,
+   "deco": "none",
+   "labX": 232,
+   "labW": 736,
+   "labDeco": "line-through",
+   "labColor": "rgb(16, 16, 20)"
+  }
+ ],
+ "hr": {
+  "x": 552,
+  "y": 1213.7,
+  "w": 96,
+  "h": 1,
+  "b": 1214.7,
+  "r": 648,
+  "bg": "rgb(130, 130, 142)",
+  "bs": "none",
+  "bw": "0px",
+  "bc": "rgb(128, 128, 128)"
+ },
+ "quote": {
+  "x": 232,
+  "y": 144.9,
+  "w": 736,
+  "h": 60.8,
+  "b": 205.7,
+  "r": 968,
+  "bg": "rgba(0, 0, 0, 0)",
+  "bl": "3px",
+  "blc": "rgb(130, 130, 142)",
+  "pl": "16.8px",
+  "ml": "0px"
+ },
+ "h": [
+  {
+   "n": 1,
+   "fs": "30px",
+   "fw": "700",
+   "mt": "0px",
+   "mb": "0px",
+   "y": 80,
+   "h": 39
+  },
+  {
+   "n": 2,
+   "fs": "24px",
+   "fw": "660",
+   "mt": "0px",
+   "mb": "0px",
+   "y": 247,
+   "h": 31.2
+  },
+  null,
+  null,
+  null,
+  null
+ ],
+ "paras": [
+  {
+   "y": 161.7,
+   "h": 27.2,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "16px",
+   "t": "Lector —— 阅读优先的纯"
+  },
+  {
+   "y": 285.2,
+   "h": 81.6,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "0px",
+   "t": "在 AI 时代，读 远大于 写。"
+  },
+  {
+   "y": 496.7,
+   "h": 27.2,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "16px",
+   "t": "未完成任务，后面还有一段未勾选"
+  },
+  {
+   "y": 583,
+   "h": 27.2,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "16px",
+   "t": "已完成的任务，会显示为勾选态"
+  },
+  {
+   "y": 669.4,
+   "h": 27.2,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "16px",
+   "t": "支持多行任务项，当文本足够长而换"
+  },
+  {
+   "y": 1242.7,
+   "h": 27.2,
+   "fs": "16px",
+   "lh": "27.2px",
+   "mb": "0px",
+   "t": "第二段，用于测试「只改这一块」的"
+  }
+ ],
+ "titlebar": {
+  "x": 0,
+  "y": 0,
+  "w": 1200,
+  "h": 46,
+  "b": 46,
+  "r": 1200,
+  "bg": "rgb(247, 247, 248)",
+  "borderBottom": "0px rgb(16, 16, 20)",
+  "pos": "sticky",
+  "backdrop": "none",
+  "shadow": "none",
+  "icons": [
+   {
+    "id": "open-btn",
+    "x": 80,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Open"
+   },
+   {
+    "id": "save-btn",
+    "x": 112,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Save"
+   },
+   {
+    "id": "outline-btn",
+    "x": 1064,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Outline"
+   },
+   {
+    "id": "find-btn",
+    "x": 1096,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Find"
+   },
+   {
+    "id": "theme-btn",
+    "x": 1128,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Toggle theme"
+   },
+   {
+    "id": "settings-btn",
+    "x": 1160,
+    "y": 8,
+    "w": 30,
+    "h": 30,
+    "color": "rgb(92, 92, 102)",
+    "title": "Settings"
+   }
+  ],
+  "title": {
+   "x": 566.3,
+   "w": 67.4,
+   "fs": "13px",
+   "cx": 600,
+   "text": "sample.md"
+  },
+  "lead": {
+   "x": 80,
+   "w": 62
+  },
+  "controls": [],
+  "shell": "macos"
+ },
+ "scrollHeight": 1463,
+ "innerW": 1200,
+ "innerH": 820,
+ "dpr": 2
+}
+CONSOLE_ERRORS []

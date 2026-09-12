@@ -42,9 +42,14 @@
 
   /* ───────────── 文字 ───────────── */
   --foreground: 16 16 20;       /* 墨色，正文。阅读器正文要到 ~17:1，不用通用的 18 24 27 */
-  --muted: 243 243 245;
+  /* --muted 是「码片 / 代码块」的底。原来 243 与画布 247 只差 1.03:1，
+     等于没有面；压到 236 才是看得见的一档（对纸面 ~1.22:1）。 */
+  --muted: 228 228 233;
   --muted-foreground: 92 92 102;    /* 次级信息（表头、元数据） */
   --subtle-foreground: 122 122 132; /* 时间戳 / 图注，比 muted 再淡一档；≥4.4:1 */
+  /* 引用块专用：引用是正文，不能和图标/边框共用一个灰，
+     否则整页只剩一种灰、没有焦点。目标 ~11:1。 */
+  --quote-foreground: 70 70 78;
   --accent: 240 240 241;
   --accent-foreground: 16 16 20;
   --secondary: 243 243 245;
@@ -81,7 +86,9 @@
      strong = 必须被看见的结构线（引用条、复选框、分隔线、表头下沿） */
   --border: 224 224 228;
   --border-strong: 130 130 142;
-  --border-subtle: 232 232 236;
+  /* 表格行线。原值 232 对纸面只有 1.14:1，肉眼不可见，等于表格没有网格；
+     218 约 1.5:1，是「看得见但不吵」的位置。 */
+  --border-subtle: 218 218 224;
   --input: 224 224 228;
   --ring: var(--primary);
 
@@ -119,9 +126,9 @@
   /* ───────────── 阅读版心 / 节奏 ───────────── */
   /* 42rem ≈ 672px：中文一行 38–42 字，接近书籍栏宽；再宽眼睛会丢行。 */
   --reading-max-w: 40rem;      /* ≈640px：中文 37 字、Latin ~85 字符，两头都不难受 */
-  --space-block: 0.92em;
-  --space-heading: 1.7em;
-  --space-section: 2em;
+  --space-block: 0.95rem;      /* 相邻正文块之间的默认间距 */
+  --space-tight: 1rem;         /* 标题与其正文之间的紧间距（≥ 半个行高，否则读成粘连） */
+  --space-section: 2.2rem;     /* 分隔线两侧的呼吸 */
 
   /* ───────────── 阴影：顶光定向（发丝边 + 下偏近影 + 远雾） ───────────── */
   /* 光从 12 点来。浅色纸面已是纯白，高光 inset 看不见，靠影子下偏表达体积。 */
@@ -136,10 +143,12 @@
      不要用一个看不出差别的通用值把主按钮和次要按钮糊成一档。 */
 
   /* ───────────── 代码高亮（低饱和，贴合极简） ───────────── */
-  --code-keyword: 94 106 210;
-  --code-string: 21 128 61;
-  --code-comment: 146 147 144;
-  --code-number: 180 83 9;
+  /* 代码高亮四色都要过 AA（≥4.5:1）：原来的注释色只有 2.81:1，
+     代码块里最该被忽略的一类反而最看不清。 */
+  --code-keyword: 79 90 186;
+  --code-string: 15 110 52;
+  --code-comment: 104 108 118;
+  --code-number: 158 68 8;
 
   /* ───────────── Motion（全站唯一缓动来源） ───────────── */
   --motion-fast: 120ms;      /* 悬停/按压反馈 */
@@ -170,9 +179,10 @@ html[data-theme='dark'] {
   --shell: 13 13 15;
 
   --foreground: 244 244 246;
-  --muted: 39 39 45;
+  --muted: 44 44 50;
   --muted-foreground: 158 158 168;
   --subtle-foreground: 136 136 146;
+  --quote-foreground: 186 186 196;
   --accent: 45 45 50;
   --accent-foreground: 244 244 246;
   --secondary: 39 39 43;
@@ -211,10 +221,10 @@ html[data-theme='dark'] {
   --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.20), 0 4px 14px rgb(var(--primary) / 0.26);
   --shadow-header: 0 1px 0 rgb(255 255 255 / 0.06);
 
-  --code-keyword: 129 140 248;
-  --code-string: 134 239 172;
-  --code-comment: 110 110 118;
-  --code-number: 252 211 77;
+  --code-keyword: 138 148 250;
+  --code-string: 126 226 166;
+  --code-comment: 146 148 158;
+  --code-number: 245 198 92;
 
   --overlay: 0 0 0;
   --overlay-alpha: 0.48;

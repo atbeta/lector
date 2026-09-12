@@ -107,13 +107,27 @@ const PROBE = `(() => {
     }
   })() : null
 
-  // 任务列表：勾选与未勾选的实际颜色
-  const tasks = [...document.querySelectorAll('.reading-prose li.task')].map((li) => ({
-    text: li.textContent.trim().slice(0, 12),
-    checked: !!li.querySelector('input:checked'),
-    contrast: contrastOf(li),
-    color: cs(li).color,
-  }))
+  // 任务列表：勾选与未勾选的实际颜色，以及「勾选框是否与正文同一行」
+  const tasks = [...document.querySelectorAll('.reading-prose li.task')].map((li) => {
+    const box = li.querySelector('input[type=checkbox]')
+    const label = li.querySelector('.task-label')
+    const firstLine = label ? label.querySelector('p, div') ?? label : null
+    const br = box ? box.getBoundingClientRect() : null
+    const lr = firstLine ? firstLine.getBoundingClientRect() : null
+    return {
+      text: li.textContent.trim().slice(0, 12),
+      checked: !!box?.checked,
+      contrast: contrastOf(li),
+      color: cs(li).color,
+      // 勾选框与首行文字的垂直重叠量：> 0 才算同一行
+      lineOverlap: br && lr ? Math.round(Math.min(br.bottom, lr.bottom) - Math.max(br.top, lr.top)) : null,
+      boxTop: br ? Math.round(br.top) : null,
+      textTop: lr ? Math.round(lr.top) : null,
+      textLeft: lr ? Math.round(lr.left) : null,
+      boxLeft: br ? Math.round(br.left) : null,
+      labelDisplay: label ? cs(label).display : null,
+    }
+  })
   const checkbox = document.querySelector('.reading-prose li.task input[type=checkbox]')
   const checkboxInfo = checkbox
     ? { borderContrast: borderContrast(checkbox, 'Left'), borderColor: cs(checkbox).borderLeftColor, w: Math.round(checkbox.getBoundingClientRect().width) }
@@ -142,6 +156,54 @@ const PROBE = `(() => {
       contrast: contrastOf(pre),
     }
   })() : null
+
+  // 表面层级：填充类表面（码片 / 代码块 / 表头）与它们所在背景的对比。
+  // 1.0x 意味着「有背景色但看不见」，这是浅色主题最容易犯的错。
+  const stepOf = (a, b) => {
+    const [l1, l2] = [srgb(a), srgb(b)].sort((x, y) => y - x)
+    return Math.round(((l1 + 0.05) / (l2 + 0.05)) * 100) / 100
+  }
+  // 表面「看得见」= 它和它所在的页面底（画布/纸）差一档。
+  // 不能拿父元素比：码片的父元素就是没有背景的段落，等于和画布比。
+  const surfaceStep = (sel, label) => {
+    const el = document.querySelector(sel)
+    if (!el) return { label, missing: true }
+    const own = parse(cs(el).backgroundColor)
+    if (!own || own.a === 0) return { label, sel, alpha: 0 }
+    const host = bgOf(document.body) // 页面底：纸或画布
+    const eff = own.a < 1 ? over(own, host) : own
+    return { label, sel, step: stepOf(eff, host), color: cs(el).backgroundColor }
+  }
+  const surfaces = [
+    surfaceStep('.reading-prose code', 'inline-code'),
+    surfaceStep('.reading-prose pre', 'code-block'),
+    // 表头不用填充底（在纸面上叠不出可辨的一档），靠 border-strong 的分隔线；
+    // 它的可见度由 headRowSep 断言保证，不列入填充面。
+
+  ]
+
+  // 背景是否平铺：body 高 100%，radial-gradient 不写 no-repeat 会每屏重复一次，
+  // 长文档上出现周期性硬边。用 computed background-repeat 判。
+  const bodyBg = cs(document.body)
+  const bgTiling = {
+    repeat: bodyBg.backgroundRepeat,
+    attachment: bodyBg.backgroundAttachment,
+    size: bodyBg.backgroundSize,
+    image: bodyBg.backgroundImage.slice(0, 60),
+  }
+
+  // 块间距节奏：相邻块之间的真实间距，用来验证 margin 没有相加
+  // 间距要跨过零高的空行缝量：相邻块中间夹着 .block.gap（高度 0），
+  // 只比相邻两个会量出一堆 5–11px 的假值。
+  const contentBlocks = [...document.querySelectorAll('#content > .block')].filter(
+    (el) => el.getBoundingClientRect().height > 0,
+  )
+  const rhythm = []
+  for (let i = 1; i < contentBlocks.length; i++) {
+    const a = contentBlocks[i - 1].getBoundingClientRect()
+    const b = contentBlocks[i].getBoundingClientRect()
+    rhythm.push({ kind: contentBlocks[i].getAttribute('data-kind'), gap: Math.round(b.top - a.bottom) })
+  }
 
   // 版心与溢出
   const content = document.getElementById('content')
@@ -201,6 +263,7 @@ const PROBE = `(() => {
       info('.reading-prose a', 'link'), info('.titlebar-title', 'titlebar-title'),
     ],
     headings, table: tableInfo, tasks, checkbox: checkboxInfo, hr: hrInfo, quote: quoteInfo, pre: preInfo,
+    surfaces, bgTiling, rhythm,
     // 任务项的删除线是否真的落在正文上（span 嵌套 bug 会让它落在空元素上）
     taskDecoration: (() => {
       const label =
@@ -327,6 +390,52 @@ for (const [themeName, d] of [['light', light], ['dark', dark]]) {
   if (dec && !dec.missing && dec.isChecked && dec.textDecorationLine === 'none') {
     note('error', `${themeName}: 已勾选任务没有删除线（CSS 没命中或被嵌套拆掉）`)
   }
+
+  // 任务项：勾选框必须与正文首行同一行（这是最容易复发的排版 bug）
+  for (const t of d.tasks) {
+    if (t.lineOverlap === null) continue
+    if (t.lineOverlap <= 0) {
+      note('error', `${themeName}: 任务项「${t.text}」的勾选框与正文不在同一行（boxTop=${t.boxTop} textTop=${t.textTop}）`)
+    }
+  }
+
+  // 填充类表面必须真的看得出是一档，否则「有背景色」是假的。
+  // 门槛 1.15：低于这个值就是「配了个色但看不见」，浅色主题最容易犯。
+  for (const sfc of d.surfaces) {
+    if (sfc.missing) continue
+    if (sfc.alpha === 0) continue
+    if (sfc.step !== undefined && sfc.step < 1.15) {
+      note('error', `${themeName}: ${sfc.label} 表面与背景只差 ${sfc.step}:1，等于没画`)
+    } else if (sfc.step !== undefined) {
+      note('info', `${themeName}: ${sfc.label} 表面 ${sfc.step}:1`)
+    }
+  }
+
+  // 背景不能平铺
+  // 注意别用 /repeat/ 子串判断——"no-repeat" 里也含 "repeat"
+  const repeats = d.bgTiling.repeat.split(',').map((x) => x.trim())
+  if (repeats.some((r) => r !== 'no-repeat')) {
+    note('error', `${themeName}: body 背景会平铺（background-repeat: ${d.bgTiling.repeat}），长文档会出现周期性硬边`)
+  }
+
+  // 阅读版心与字号：这两个值由设置决定，必须与设计标定一致
+  const bodyT = d.typography.find((x) => x.label === 'body')
+  if (bodyT && !bodyT.missing) {
+    if (bodyT.fontSize < 16) note('warn', `${themeName}: 正文字号 ${bodyT.fontSize}px（阅读器下限 16）`)
+    if (d.content.w && d.content.w > 760) {
+      note('warn', `${themeName}: 版心 ${d.content.w}px 偏宽（>760px 时中文一行超过 45 字）`)
+    }
+  }
+
+  // 块间距：小于 0.5 倍行高才算粘连（半行的说法对应的是 15px，会把正常段距全报成问题）
+  // lineHeight 是 computed 值（已经是 px），不要再乘字号——那会得到 506px 的假阈值
+  const line = bodyT && !bodyT.missing && bodyT.lineHeight ? bodyT.lineHeight : 28
+  for (const r of d.rhythm) {
+    if (r.kind && r.gap > 0 && r.gap < line * 0.5) {
+      note('error', `${themeName}: ${r.kind} 与上一块间距仅 ${r.gap}px（< ${Math.round(line * 0.5)}px），会读成粘连`)
+    }
+  }
+  note('info', `${themeName}: 块间距 ${d.rhythm.map((r) => `${r.kind}:${r.gap}`).join(' ')}`)
   const th = d.table?.heads?.[0]
   if (th && th.contrast < 4.5) note('warn', `${themeName}: 表头对比 ${th.contrast}:1 < 4.5`)
 

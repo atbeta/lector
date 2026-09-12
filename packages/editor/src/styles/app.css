@@ -25,8 +25,9 @@ body {
   /* 正文只有 42rem，宽窗口下两侧会是「空白」而不是「底色」。
      极淡的中心环境光让纸面像有光源，而不是被裁掉的一块白。 */
   background:
-    radial-gradient(120% 70% at 50% 0%, rgb(24 24 27 / 0.018), transparent 62%),
+    radial-gradient(1200px 620px at 50% 0%, rgb(24 24 27 / 0.022), transparent 70%),
     rgb(var(--background));
+  background-repeat: no-repeat;
   color: rgb(var(--foreground));
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -37,8 +38,9 @@ body {
 }
 html[data-theme='dark'] body {
   background:
-    radial-gradient(120% 70% at 50% 0%, rgb(255 255 255 / 0.03), transparent 62%),
+    radial-gradient(1200px 620px at 50% 0%, rgb(255 255 255 / 0.035), transparent 70%),
     rgb(var(--background));
+  background-repeat: no-repeat;
 }
 ::selection {
   background: var(--selection);
@@ -124,7 +126,27 @@ button, a, input, [role='slider'], [role='switch'] {
 
 /* macOS 让位原生红绿灯；Windows 顶栏右侧留给自绘控件 */
 html[data-shell='macos'] #titlebar { padding-left: 80px; }
-html[data-shell='windows'] #titlebar { padding-right: 0; }
+/* Windows 的标题栏向系统看齐：32px 高、标题左对齐、控件 46x32。
+   46px 的居中式标题栏 + 右侧控件会读成「mac 窗口贴了 Windows 按钮」。 */
+html[data-shell='windows'] #titlebar {
+  height: 32px;
+  padding: 0 0 0 12px;
+  gap: 6px;
+}
+html[data-shell='windows'] .titlebar-center {
+  position: static;
+  transform: none;
+  margin-left: 10px;
+  max-width: none;
+  min-width: 0;
+  order: 1;
+}
+html[data-shell='windows'] .titlebar-lead { order: 0; }
+html[data-shell='windows'] .titlebar-actions { order: 2; }
+html[data-shell='windows'] .window-controls { order: 3; height: 32px; }
+html[data-shell='windows'] .win-btn { width: 46px; }
+html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
+html[data-shell='windows'] .outline-panel { top: 32px; }
 
 .titlebar-lead,
 .titlebar-center,
@@ -317,27 +339,34 @@ html[data-shell='windows'] .window-controls { display: flex; }
   height: 0;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折叠，
+     间距就变成「有空行缝时相加、没有时取最大」，同一份文档两种节奏。 */
   pointer-events: none;
   cursor: default;
   background: none !important;
 }
-/* 垂直节奏挂在 data-kind 上，聚焦换成 CM 后间距不能跳 */
-.block:not(.gap) { margin: 0 0 var(--space-block); }
-.block:not(.gap):last-child { margin-bottom: 0; }
+/* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
+   标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
+   「上方留白」（松），两者折叠取较大值——因此标题下方总是更紧，
+   而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
+.block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
-/* 标题的上下留白：读得出来是分节，而不是「加粗的段落」 */
-.block[data-kind='heading'][data-depth='1'] { margin-top: 0.1em; margin-bottom: 0.6em; }
-.block[data-kind='heading'][data-depth='2'] { margin-top: var(--space-heading); margin-bottom: 0.5em; }
-.block[data-kind='heading'][data-depth='3'] { margin-top: 1.4em; margin-bottom: 0.4em; }
-.block[data-kind='heading'][data-depth='4'],
+/* 标题留白：绝对值，按标题自己的字号给。
+   用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
+   标题的上方留白（松）与下方留白（紧）都写死，正文块的下方不写 margin-bottom，
+   所以「标题下面紧」这件事由标题自己负责。 */
+.block[data-kind='heading'] { margin-bottom: var(--space-tight); }
+.block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
+.block[data-kind='heading'][data-depth='2'] { margin-top: 2rem; margin-bottom: 0.6rem; }
+.block[data-kind='heading'][data-depth='3'] { margin-top: 1.6rem; margin-bottom: 0.5rem; }
+.block[data-kind='heading'][data-depth='4'] { margin-top: 1.3rem; margin-bottom: 0.45rem; }
 .block[data-kind='heading'][data-depth='5'],
-.block[data-kind='heading'][data-depth='6'] { margin-top: 1.15em; margin-bottom: 0.35em; }
-.block[data-kind='thematicBreak'] { margin-block: var(--space-section); }
+.block[data-kind='heading'][data-depth='6'] { margin-top: 1.15rem; margin-bottom: 0.4rem; }
+.block[data-kind='thematicBreak'] { margin-top: var(--space-section); }
 .block[data-kind='code'],
 .block[data-kind='blockquote'],
-.block[data-kind='table'] { margin-block: 1.25em; }
-.block[data-kind='list'] { margin-block: 0.85em; }
+.block[data-kind='table'] { margin-top: 1.35rem; }
+.block[data-kind='list'] { margin-top: 0.95rem; }
 #content > .block:not(.gap):first-child,
 #content > .block.gap:first-child + .block {
   margin-top: 0;
@@ -562,7 +591,9 @@ html[data-shell='windows'] .window-controls { display: flex; }
 .reading-prose blockquote {
   padding: 0.05em 0 0.05em 1.05em;
   border-left: 3px solid rgb(var(--border-strong));
-  color: rgb(var(--muted-foreground));
+  /* 引用是正文的一种，不是「次要信息」：用它自己的灰，
+     别和图标/边框共用一个色值（那样整页只剩一种灰，没有焦点）。 */
+  color: rgb(var(--quote-foreground));
 }
 .reading-prose blockquote > * + * { margin-top: 0.6em; }
 
@@ -581,16 +612,12 @@ html[data-shell='windows'] .window-controls { display: flex; }
   font-size: 13px;
   line-height: 1.62;
   padding: 14px 16px;
-  background: rgb(var(--muted) / 0.6);
+  background: rgb(var(--muted));
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-card);
   overflow-x: auto;
   color: rgb(var(--foreground));
   tab-size: 2;
-  /* 代码块按内容宽度，不铺满整栏：右侧一大片空壳很难看 */
-  width: fit-content;
-  min-width: min(100%, 20rem);
-  max-width: 100%;
 }
 /* 代码高亮的四类颜色走 tokens，换主题自动跟随。
    只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。 */
@@ -649,7 +676,6 @@ html[data-shell='windows'] .window-controls { display: flex; }
   font-weight: 600;
   font-size: var(--text-xs);
   color: rgb(var(--muted-foreground));
-  background: rgb(var(--muted) / 0.55);
   border-bottom: 1px solid rgb(var(--border-strong));
 }
 .reading-prose tbody tr:last-child td { border-bottom: none; }
@@ -701,13 +727,23 @@ html[data-shell='windows'] .window-controls { display: flex; }
   transform: rotate(45deg);
 }
 .reading-prose input[type='checkbox']:disabled { cursor: default; }
+/* 任务项：勾选框与正文同一行，续行对齐到文字而不是勾选框。
+   用 flex 而不是把 .task-label 改成 inline——它的内容是 <p>（block），
+   行内元素里塞块级只能断行，这正是「勾选框一行、文字跑到下一行」的成因。 */
+.reading-prose li.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45em;
+}
+.reading-prose li.task .task-label { flex: 1 1 auto; min-width: 0; }
+.reading-prose li.task .task-label > :first-child { margin-top: 0; }
+.reading-prose li.task input[type='checkbox'] { flex: 0 0 auto; margin: 0.4em 0 0; }
 /* 已完成：用「勾选框 + 删除线」表达，不靠把字调暗。
    整行压到 4:1 会读成「禁用」，而未完成反而最亮，层级正好反了。
-   包裹层是 div（里面是 <p>，塞进 span 会被浏览器就地闭合），这里让它像行内元素。 */
-.reading-prose li.task .task-label { display: inline; }
+   删除线用墨色：用 border-strong 画出来比它划掉的字还淡，等于没划。 */
 .reading-prose li.task:has(input:checked) .task-label {
   text-decoration: line-through;
-  text-decoration-color: rgb(var(--border-strong));
+  text-decoration-color: rgb(var(--foreground) / 0.45);
   text-decoration-thickness: 1px;
 }
 

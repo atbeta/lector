@@ -1,0 +1,36 @@
+Based on the provided image of the Markdown reader’s task list in dark theme (2x), here is a literal answer to each question:
+
+---
+
+**(1) For each of the three items, is the checkbox on the same line as the text or on the line ABOVE it?**
+
+→ The checkbox is **on the line above** the text for all three items.  
+Each item consists of two lines: first the checkbox (empty or filled), then the descriptive text below it — vertically stacked, not inline.
+
+---
+
+**(2) Do the filled checkboxes show a visible check mark glyph, or are they just solid filled squares with no tick?**
+
+→ The filled checkboxes **show a visible white check mark glyph** inside a light purple/blue square background.  
+The unchecked box is an empty outline; the checked ones clearly display a “✓” symbol.
+
+---
+
+**(3) Do the strikethroughs read well?**
+
+→ Yes, the strikethroughs **read well**.  
+The horizontal line through the text is thin and centered, and the underlying characters remain fully legible despite being crossed out. No distortion or loss of clarity.
+
+---
+
+**(4) Any contrast or legibility problem?**
+
+→ **No significant contrast or legibility problems.**  
+- Text color (white/light gray) against black background provides good contrast.  
+- Checkbox glyphs (white check on colored bg, gray outline) are clearly distinguishable.  
+- Strikethrough does not impair readability.  
+- Font rendering appears crisp at 2x zoom.
+
+---
+
+✅ Summary: All elements render correctly and legibly in this dark-themed Markdown task list view.

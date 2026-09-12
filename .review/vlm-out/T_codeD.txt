@@ -1,0 +1,21 @@
+(1) Distinct text colours and the words they apply to:
+
+- **Blue** (`#6C9BFF`):  
+  - `export`, `function`, `const`, `return` — all keywords.
+
+- **White / Light Gray** (`#E0E0E0` or similar):  
+  - `parseBlocks`, `text`, `BlockView[]`, `tree`, `fromMarkdown`, `extensions`, `mdastExtensions`, `sliceSeamless` — identifiers, types, function names, parameters.
+
+- **Gray / Muted** (`#888888` or similar):  
+  - `{`, `}`, `[`, `]`, `:`, `,`, `(`, `)` — punctuation and syntax symbols.
+
+Note: The exact shades may vary slightly by renderer, but these are the three dominant colour groups visible in the dark theme.
+
+(2) Is the highlighting sparse or rich?  
+→ **Rich**. Keywords are distinctly coloured (blue), identifiers/types are white/light gray, and punctuation is muted gray — indicating full syntax highlighting with semantic distinction.
+
+(3) Does the code block background differ clearly from the page background?  
+→ **Yes**. The code block has a slightly lighter dark background (e.g., `#1E1E1E`) compared to the surrounding page background (likely `#0D0D0D` or pure black), creating clear visual separation via contrast and border radius.
+
+(4) Any clipping or alignment problem?  
+→ **No**. All text is fully visible, properly indented, aligned within the block, and no characters are cut off or misaligned. The layout appears clean and intentional.

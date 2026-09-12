@@ -1,0 +1,20 @@
+Based on the provided 2x zoomed crop image, here is the exact vertical arrangement:
+
+1.  **The checkbox square is positioned *above* the text.** It is not on the same baseline as the text.
+2.  **The text is located directly below the checkbox.** The top edge of the first line of text ("未完成任务...") starts significantly lower than the bottom edge of the checkbox square. There is a clear vertical gap between them.
+
+**Coordinates (approximate, based on the image frame):**
+
+*   **Checkbox Square:**
+    *   Top-left corner: ~ (15, 10)
+    *   Bottom-right corner: ~ (65, 60)
+    *   Center: ~ (40, 35)
+
+*   **Text ("未完成任务，后面还有一段未勾选"):**
+    *   Top edge of the text block: ~ Y=120
+    *   Bottom edge of the text block: ~ Y=180
+    *   Left edge of the first character "未": ~ X=30
+    *   Right edge of the last character "选": ~ X=470
+    *   Vertical center of the text block: ~ Y=150
+
+**Conclusion:** The checkbox is vertically aligned with the top portion of the image, while the text occupies the lower portion. They are stacked vertically, with the checkbox above and the text below, separated by a noticeable gap. The horizontal alignment is such that the left edge of the text block begins slightly to the right of the left edge of the checkbox square.

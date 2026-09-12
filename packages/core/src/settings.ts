@@ -24,12 +24,17 @@ export interface EditorSettings {
   showWhitespace: boolean
 }
 
+/**
+ * 默认阅读排版。这三个值与 packages/editor 的 --reading-* 标定一致：
+ * 640px / 17px / 1.75 ≈ 中文每行 37 字、Latin ~85 字符，是本项目认定的舒适栏宽。
+ * 改这里等于改默认阅读体验，必须同时跑 tools/ui-verify.mjs 复核版心。
+ */
 export const DEFAULT_SETTINGS: EditorSettings = {
   theme: 'system',
   fontFamily: 'system',
-  fontSize: 16,
-  lineHeight: 1.7,
-  readingWidth: 736,
+  fontSize: 17,
+  lineHeight: 1.75,
+  readingWidth: 640,
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,

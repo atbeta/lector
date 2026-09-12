@@ -1,0 +1,92 @@
+Let’s break this down carefully based on the image description and standard Windows UI conventions.
+
+---
+
+### 1. **Is the window title text “sample.md” centred or left-aligned?**
+
+From your description:  
+> “This is the LEFT+MIDDLE portion of the title bar... Answer: is the window title text centred in the middle of the bar, or left-aligned near the left edge?”
+
+Looking at the layout you described:
+
+- On the **left**: two icons (folder + floppy disk/save)
+- In the **middle/right**: “sample.md”
+
+In a typical **Windows app title bar** (especially modern ones like those built with WinUI, WPF, or even older Win32), the **window title is usually centered horizontally** — *unless* it’s a custom-drawn title bar (like in many Electron apps, VS Code, etc.).
+
+But here’s the key: you said this is the **LEFT+MIDDLE portion** of the title bar — implying that there may be more to the right (perhaps window controls like minimize/maximize/close). If “sample.md” appears toward the right side of the visible area, and especially if it’s not visually centered relative to the full width of the title bar, then it’s likely **not truly centered** — but rather **left-aligned within its own container**, or positioned to balance the left-side icons.
+
+However, in most **standard Windows apps** (e.g., Notepad, File Explorer, Word), the window title is **centered** in the title bar by default — unless the app uses a custom chrome (which many Markdown readers do).
+
+Given that this is a **Markdown reader rendered in its Windows variant**, and considering common implementations (like Typora, MarkText, or VS Code with markdown extension), they often use **custom title bars** where the filename is placed to the right of any left-side controls — effectively making it appear **left-aligned relative to the remaining space after the icons**, not geometrically centered.
+
+So:  
+✅ **In this specific UI shown**: The text “sample.md” is likely **not geometrically centered** — it’s probably positioned to the right of the two icons, occupying the middle-to-right portion of the visible title bar. It might be visually balanced, but not mathematically centered.
+
+---
+
+### 2. **On a real Windows app, where would the title be?**
+
+In a **standard native Windows application** (using classic Win32 or modern WinUI/Fluent Design):
+
+- The **window title is always centered** in the title bar — unless the app explicitly overrides this behavior.
+- Left-side icons (like folder/save) are typically part of the **application menu or toolbar**, not the title bar itself — so they wouldn’t push the title off-center.
+- Right-side window controls (minimize, maximize, close) are always on the far right.
+
+So in a **real standard Windows app**, you’d see:
+
+```
+[App Icon] [Menu]          sample.md          [Min] [Max] [X]
+             ↑                  ↑                ↑
+         Left controls     Centered Title    Right controls
+```
+
+But again — many modern apps (especially cross-platform or custom-chrome apps) **do not follow this**. They place the filename to the right of left-side buttons, which makes it look like it’s “left-aligned” relative to the remaining space — but actually just fills the gap between left icons and right controls.
+
+---
+
+### 3. **Describe every icon and any empty space**
+
+#### Icons:
+
+1. **First icon (leftmost)**:  
+   - A simple outline of a **folder** (open folder, likely representing “Open File” or “Browse”).
+   - Style: Minimalist line art, no fill, thin stroke — typical of modern UI icons.
+   - Function: Likely opens a file dialog to load another markdown file.
+
+2. **Second icon**:  
+   - A **floppy disk** symbol — universally recognized as “Save”.
+   - Also minimalist line art, same style as the folder icon.
+   - Function: Saves the current document (“sample.md”).
+
+Both icons are small, monochrome (likely dark gray or black on light background), and spaced closely together on the left side of the title bar.
+
+#### Empty Space:
+
+- Between the two icons: minimal — they’re adjacent.
+- To the right of the second icon and before “sample.md”: some padding — enough to separate the controls from the filename.
+- To the right of “sample.md”: likely more empty space leading to window control buttons (not visible in your crop), which would include minimize, maximize, and close buttons — typically aligned to the far right edge of the title bar.
+- Above/below the entire row: standard title bar height — probably around 30–40 pixels at 2x scaling, with vertical centering of all elements.
+
+---
+
+### ✅ Final Summary:
+
+- **Title position**: In this UI, “sample.md” is **not geometrically centered** — it’s positioned to the right of the two left-side icons, filling the middle-to-right portion of the visible title bar. It may be visually balanced but not mathematically centered.
+  
+- **In a real standard Windows app**: The window title would be **centered** in the title bar, with left-side controls (if any) being part of a separate menu/toolbar, and right-side window controls always on the far right.
+
+- **Icons**: 
+  - Folder icon (open file/browse)
+  - Floppy disk icon (save)
+  Both are minimalist line-art style, monochrome, placed on the left.
+
+- **Empty space**: 
+  - Minimal between icons
+  - Padding between icons and filename
+  - Likely significant empty space to the right of filename (leading to window controls)
+  - Vertical centering within title bar height
+
+---
+
+This suggests the app is using a **custom-drawn title bar** (common in Electron, Qt, or custom WinUI apps) rather than relying on the OS-default centered title — which explains why the filename isn’t truly centered.

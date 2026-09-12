@@ -1,0 +1,13 @@
+(1) The table has **4 columns** and **3 body rows**.
+
+(2) The header cells appear **vertically centered** within their row — no obvious floating or misalignment.
+
+(3) There is a **visible horizontal line** separating the header from the first body row (a thin, dark gray rule).  
+There are **no visible horizontal lines between the body rows** — they are separated only by whitespace/background color change.  
+There is **no visible outer border** around the entire table — it’s defined by padding and background, not a stroke.
+
+(4) The last column (“定位”) appears **slightly wider** than the others, but not dramatically so — all columns seem roughly proportional to content width, with “定位” having longer text that may have caused slight expansion.
+
+(5) Cell text is **not too close to the left edge** — there’s consistent horizontal padding (likely ~16–24px) on both sides of each cell.
+
+(6) No obvious rendering bugs — alignment, spacing, and typography look clean and intentional for a light-theme Markdown reader at 2x zoom. The only minor quirk is the absence of internal row dividers, which may be by design rather than bug.
