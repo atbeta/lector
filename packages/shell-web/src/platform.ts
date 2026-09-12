@@ -208,7 +208,10 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 }
 
 /**
- * Overlay 标题栏：空白处拖窗口，双击缩放。
+ * 无标题栏：在 titlebar 空白处按下即拖动窗口。
+ *
+ * 双击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
+ * 两处都监听会让一次双击触发两次 toggle，窗口原地闪一下。
  */
 export function bindTitlebar(dragEl: HTMLElement): void {
   if (detectEnv() !== 'shell') return
@@ -217,10 +220,54 @@ export function bindTitlebar(dragEl: HTMLElement): void {
     dragEl.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('button, a, input, [role="button"]')) return
-      if (e.detail === 2) void win.toggleMaximize().catch((err) => console.error('[lector] titlebar zoom', err))
-      else void win.startDragging().catch((err) => console.error('[lector] titlebar drag', err))
+      void win.startDragging().catch((err) => console.error('[lector] titlebar drag', err))
     })
   })
+}
+
+/**
+ * 无标题栏窗口：把自绘控件的三个动作接到壳的真实窗口命令上。
+ *
+ * Windows / Linux 走 decorations:false，最小化、最大化、关闭必须是真窗口操作，
+ * 不能只改 DOM。浏览器预览下拿不到壳，回调保持空实现，调用方据此渲染
+ * 「在位但不可用」的假控件，保证没有壳的环境也能调版式。
+ *
+ * 返回清理函数（移除监听的 Promise 落地前调用也安全）。
+ */
+export function bindWindowControls(opts: {
+  onMinimize: () => void
+  onToggleMaximize: () => void
+  onClose: () => void
+  /** 最大化状态变化回调，用于在「最大化 / 还原」图标之间切换 */
+  onMaximizedChange?: (maximized: boolean) => void
+}): () => void {
+  if (detectEnv() !== 'shell') return () => {}
+  let disposed = false
+  let unlisten: (() => void) | null = null
+  void import('@tauri-apps/api/window')
+    .then(async ({ getCurrentWindow }) => {
+      if (disposed) return
+      const win = getCurrentWindow()
+      opts.onMinimize = () => void win.minimize().catch((e) => console.error('[lector] minimize', e))
+      opts.onToggleMaximize = () =>
+        void win.toggleMaximize().catch((e) => console.error('[lector] maximize', e))
+      opts.onClose = () => void win.close().catch((e) => console.error('[lector] close', e))
+      const sync = async () => {
+        try {
+          opts.onMaximizedChange?.(await win.isMaximized())
+        } catch {
+          /* 窗口已销毁 */
+        }
+      }
+      await sync()
+      if (disposed) return
+      unlisten = await win.onResized(() => void sync())
+    })
+    .catch((err) => console.error('[lector] window controls', err))
+  return () => {
+    disposed = true
+    unlisten?.()
+  }
 }
 
 /**

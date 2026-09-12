@@ -15,6 +15,24 @@ const PATHS: Record<string, string> = {
   chevronDown: `<polyline points="6 9 12 15 18 9"/>`,
 }
 
+// 窗口控件用 1px 细线（Windows 原生观感），与上面 2px 的工具图标区分开：
+// 贴边平铺的图标太粗会显得笨重。viewBox 10x10，直角，无边距。
+const WINDOW_GLYPHS: Record<string, string> = {
+  // 最小化：一条横线，垂直居中偏下
+  minimize: `<line x1="0" y1="5" x2="10" y2="5"/>`,
+  // 最大化：一个方框
+  maximize: `<rect x="0.5" y="0.5" width="9" height="9" rx="1"/>`,
+  // 还原：两个叠起来的方框
+  restore: `<rect x="0.5" y="2.5" width="7" height="7" rx="1"/><path d="M2.5 2.5V1.5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1"/>`,
+  // 关闭：叉
+  close: `<line x1="0.5" y1="0.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="0.5" x2="0.5" y2="9.5"/>`,
+}
+
+export function windowGlyph(name: keyof typeof WINDOW_GLYPHS | string, size = 10): string {
+  const body = WINDOW_GLYPHS[name] ?? ''
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">${body}</svg>`
+}
+
 export function iconSvg(name: string, size = 18): string {
   const body = PATHS[name] ?? ''
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`

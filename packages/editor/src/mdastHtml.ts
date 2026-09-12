@@ -2,6 +2,7 @@
 // 只发已知标签；html / yaml / unknown 一律降级为等宽源码，绝不 dangerouslySetInnerHTML 任意值。
 
 import { resolveImageSrc } from './asset.ts'
+import { highlightCode } from './highlight.ts'
 
 type Node =
   | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; children?: Node[]; position?: unknown }
@@ -67,7 +68,11 @@ function listItems(list: Node): string {
       : ''
     // listItem 的 children 通常是 paragraph 或嵌套 list
     const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')
-    return `<li class="task">${checkbox}${body}</li>`
+    // 任务项正文包一层 .task-label：已完成态给它加删除线即可，不必把整行压暗
+    // （压暗会读成「禁用」，而未完成反而最亮，层级就反了）。
+    // 这里必须是 div 不能是 span：body 里是 <p>，把块级塞进行内元素属于非法嵌套，
+    // 浏览器会把 span 就地闭合，删除线就落在空元素上。
+    return task ? `<li class="task">${checkbox}<div class="task-label">${body}</div></li>` : `<li>${body}</li>`
   })
   return items.join('\n')
 }
@@ -89,7 +94,9 @@ function blockToHtml(n: Node): string {
       return `<blockquote>${body}</blockquote>`
     }
     case 'code': {
-      return `<pre><code class="language-${esc(n.lang ?? '')}">${esc(n.value ?? '')}</code></pre>`
+      // 高亮只改显示，不改源码：token 由 highlightCode 转义后包 span
+      const lang = n.lang ?? ''
+      return `<pre><code class="language-${esc(lang)}">${highlightCode(n.value ?? '', lang)}</code></pre>`
     }
     case 'thematicBreak':
       return '<hr />'

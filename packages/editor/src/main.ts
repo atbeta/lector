@@ -37,6 +37,7 @@ import { initSettings, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
+import { mountHeaderScrollState, mountWindowControls } from './chrome.ts'
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
@@ -101,8 +102,10 @@ settingsBtn.innerHTML = iconSvg('settings', 16)
 settingsBtn.setAttribute('aria-label', t('settingsAria'))
 settingsBtn.title = t('settingsAria')
 dirtyDot.title = t('dirtyTitle')
-const titlebarDrag = document.querySelector<HTMLElement>('.titlebar-drag')
-if (titlebarDrag) bindTitlebar(titlebarDrag)
+// 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
+// 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
+const titlebarEl = document.getElementById('titlebar')
+if (titlebarEl) bindTitlebar(titlebarEl)
 
 function refreshThemeIcon() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -177,9 +180,16 @@ function nextId(): string {
   return `e${seq}`
 }
 
+/** 取文件名：Windows 路径是反斜杠，只 split('/') 会把整条路径留在标题上。 */
+function baseName(p: string): string {
+  const parts = p.split(/[\\/]/)
+  return parts[parts.length - 1] || p
+}
+
 function markDirty() {
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
-  dirtyDot.style.display = session.dirty ? 'block' : 'none'
+  // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
+  document.documentElement.classList.toggle('dirty', session.dirty)
 }
 
 /** 聚焦段末回车 → 分裂成两段（前段 + 空段）。返回 true 表示已处理。 */
@@ -293,8 +303,9 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   session.focusedId = null
   session.dirty = false
   session.structuralDirty = false
-  fileNameEl.textContent = path.split('/').pop() ?? path
+  fileNameEl.textContent = baseName(path)
   fileNameEl.dataset.untitled = 'false'
+  document.title = `${baseName(path)} — Lector`
   contentEl.innerHTML = ''
   render()
   markDirty()
@@ -791,7 +802,7 @@ async function saveAsFlow() {
   finalizeFocused()
   const normalized = serialize(session.blocks)
   const finalText = applyEncoding(session.source, normalized)
-  const defaultName = session.source.path.split('/').pop() ?? 'untitled.md'
+  const defaultName = baseName(session.source.path) || 'untitled.md'
   let target: string | null = null
   try {
     target = await pickSavePath(defaultName)
@@ -902,6 +913,7 @@ function renderEmptyState() {
   contentEl.appendChild(wrap)
   fileNameEl.textContent = 'Lector'
   fileNameEl.dataset.untitled = 'true'
+  document.title = 'Lector'
   blocksEl.clear()
   markDirty()
 }
@@ -943,10 +955,11 @@ export function parseBlocks(text: string): BlockView[] {
 
 void (async () => {
   await initSettings()
+  // 窗口外框（无标题栏）：平台判定 + Windows 自绘控件 + 顶栏滚动分隔。
+  // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
+  mountWindowControls()
+  mountHeaderScrollState()
   if (detectEnv() === 'shell') {
-    if (/Mac/i.test(navigator.platform)) {
-      document.documentElement.setAttribute('data-shell', 'macos')
-    }
     renderEmptyState()
     try {
       const pending = await takePendingOpen()
@@ -958,6 +971,10 @@ void (async () => {
       console.error('[lector] pending open', err)
     }
   } else {
-    loadSession('sample.md', sample)
+    // 浏览器预览（vite dev）：默认载入内置样例，方便脱离壳调版式。
+    // ?doc=empty 可切回空态，检查首屏。
+    const params = new URLSearchParams(location.search)
+    if (params.get('doc') === 'empty') renderEmptyState()
+    else loadSession(params.get('doc') || 'sample.md', sample)
   }
 })()

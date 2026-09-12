@@ -1,138 +1,222 @@
 /**
  * Lector Design Tokens
  *
- * 对齐 NoteFast（packages/web/src/styles/tokens.css），仅抽取阅读器 / 编辑器所需：
- * - Geek & Notion-like：纯白/纯黑，高对比，极简；主体前景 #37352F，少边框少投影
- * - 低饱和品牌靛蓝 #5A74B0 只用于选中态 / 主要操作，界面 95% 黑白灰
- * - 阅读优先：Inter 可变字体（自托管）+ 苹方/雅黑回落，等宽补 CJK
+ * 设计语言来源：~/Projects/notefast/packages/web/src/styles/tokens.css 与
+ * ~/Projects/solboard/packages/web/src/styles/tokens.css。两个项目同一套公式：
+ *
+ *  1. 95% 黑白灰。品牌靛蓝只出现在选中态 / 主按钮 / 焦点环，其余全是墨色与纸色。
+ *  2. 表面分层靠「档」，不靠描边。读者眼前的正文是纸（最亮），壳沉一档。
+ *     只靠 1px 线会像线稿，档距太近会糊成一张灰纸。
+ *  3. 层级 = 字重 > 字号。字阶少档位、大字重差（Linear 式），12px 是 CJK 底线。
+ *  4. 阴影是顶光定向：发丝边 + 下偏近影 + 远雾。禁止各向同性软团、禁止彩色投影。
+ *  5. 动效只有一个来源（下面的 motion token），禁止就地写时长与缓动。
+ *
+ * 阅读器特有：正文是主角，所以 --reading-* 独立成组，由设置面板覆写。
  */
 
 :root {
   /* ───────────── 字体 ───────────── */
+  /* 正文用自托管 Inter（可变字重，桌面 WebView 里比系统 UI 字体更稳），
+     CJK 落 PingFang / 雅黑；等宽补 CJK，避免代码块里的中文掉进宋体。 */
   --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont,
-    'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', 'Microsoft YaHei', Helvetica,
+    'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica,
     'Apple Color Emoji', Arial, sans-serif, 'Segoe UI Emoji', 'Segoe UI Symbol';
   --font-serif: 'Source Serif 4 Variable', 'Source Serif Pro', 'Charter', 'Georgia',
     'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', serif;
-  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'SF Mono',
-    SFMono-Regular, ui-monospace, Menlo, Consolas, 'PingFang SC', 'Hiragino Sans GB',
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'SF Mono', SFMono-Regular,
+    ui-monospace, Menlo, Consolas, 'Cascadia Code', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Noto Sans CJK SC', monospace;
 
-  /* ───────────── 平面 / 表面 ───────────── */
-  --background: 255 255 255;
+  /* ───────────── 表面：壳 → 画布 → 纸 ───────────── */
+  /* 目前只有纸与壳真的被画出来（正文列 / 顶栏）；card / popover 是分层里的
+     下一档，留给将来的卡片与浮层，值已经和 SolBoard 对齐，别再自己配。 */
+  /* 阅读器不设侧栏，但顶栏要能「浮」在正文之上，所以仍然需要三档：
+     纸 = 正文与卡片；画布 = 正文之外的底；壳 = 顶栏与浮层。 */
+  --background: 247 247 248;    /* 画布：略沉的纸灰，与纸拉开一档 */
+  --paper: 255 255 255;         /* 纸：正文与卡片 */
   --card: 255 255 255;
+  --card-foreground: 20 20 24;
   --popover: 255 255 255;
+  --popover-foreground: 20 20 24;
+  --shell: 247 247 248;         /* 顶栏 */
 
   /* ───────────── 文字 ───────────── */
-  --foreground: 55 53 47;       /* #37352F — Notion 墨色 */
-  --muted: 241 241 239;
-  --muted-foreground: 105 104 100;
-  --accent: 235 236 237;
-  --secondary: 241 241 239;
+  --foreground: 16 16 20;       /* 墨色，正文。阅读器正文要到 ~17:1，不用通用的 18 24 27 */
+  --muted: 243 243 245;
+  --muted-foreground: 92 92 102;    /* 次级信息（表头、元数据） */
+  --subtle-foreground: 122 122 132; /* 时间戳 / 图注，比 muted 再淡一档；≥4.4:1 */
+  --accent: 240 240 241;
+  --accent-foreground: 16 16 20;
+  --secondary: 243 243 245;
+  --secondary-foreground: 16 16 20;
 
-  /* ───────────── 主色 ───────────── */
-  --primary: 90 116 176;        /* #5A74B0 低饱和石板靛蓝 */
+  /* ───────────── 主色：青灰靛蓝 ───────────── */
+  /* #5E6AD2（SolBoard 默认）。饱和但不荧光，与警示红/绿/黄都错开色相。 */
+  --primary: 79 90 186;         /* 比 #5E6AD2 深一档：文字用主色时必须过 4.5:1 */
   --primary-foreground: 255 255 255;
-  --primary-hover: 78 100 152;
-  --primary-soft: rgb(var(--primary) / 0.08);
-  --primary-softer: rgb(var(--primary) / 0.04);
-  --selection: rgb(var(--primary) / 0.14);
+  --primary-hover: 62 72 156;
+  --primary-soft: rgb(var(--primary) / 0.10);
+  --primary-softer: rgb(var(--primary) / 0.05);
+  --selection: rgb(var(--primary) / 0.16);
+  --brand-gradient: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary-hover)));
 
-  /* ───────────── 墨色（主按钮 / 最强行动色） ───────────── */
-  --ink: 31 35 40;              /* #1F2328 */
+  /* ───────────── 墨色按钮（最强行动色） ───────────── */
+  /* 墨色：toast、跳转高亮这类「最强、不带品牌色」的动作 */
+  --ink: 28 25 23;
   --ink-foreground: 255 255 255;
-  --ink-hover: 58 63 70;
 
   /* ───────────── 状态 ───────────── */
-  --success: 5 150 105;
-  --warning: 217 115 13;
-  --destructive: 235 87 87;
+  --success: 39 166 68;
+  --success-soft: rgb(var(--success) / 0.12);
+  --warning: 217 119 6;
+  --warning-soft: rgb(var(--warning) / 0.12);
+  --destructive: 220 68 55;
+  --destructive-foreground: 255 255 255;
+  --destructive-soft: rgb(var(--destructive) / 0.12);
 
   /* ───────────── 边框 / 输入 ───────────── */
-  --border: 233 233 231;
-  --border-strong: 200 200 198;
-  --input: 233 233 231;
-  --ring: 90 116 176;
+  /* 边框分三档，按「上屏时能不能看见」定值，不是按好看：
+     subtle = 仅作极轻分区（表格行）
+     border = 发丝边（卡片、输入框）
+     strong = 必须被看见的结构线（引用条、复选框、分隔线、表头下沿） */
+  --border: 224 224 228;
+  --border-strong: 130 130 142;
+  --border-subtle: 232 232 236;
+  --input: 224 224 228;
+  --ring: var(--primary);
 
   /* ───────────── 编辑器 ───────────── */
-  --editor-bg: 255 255 255;
-  --editor-gutter-bg: 247 247 245;
+  /* 聚焦块的极淡衬底：让人知道「这块在编辑」，但不打断阅读节奏 */
+  --block-focus-bg: rgb(var(--primary) / 0.035);
+  --block-hover-bg: rgb(24 24 27 / 0.022);
 
   /* ───────────── 半径 ───────────── */
   --radius: 6px;
-  --radius-card: 8px;
+  --radius-card: 10px;
   --radius-btn: 6px;
-  --radius-xl: 12px;
+  --radius-xl: 14px;
 
-  /* ───────────── 字号（read 正文 16px，UI 13.5px） ───────────── */
-  --text-2xs: 10.5px;
-  --text-xs: 11.5px;
-  --text-sm: 12.5px;
-  --text-base: 13.5px;
-  --text-md: 14.5px;
-  --text-lg: 16px;              /* 阅读正文 */
+  /* ───────────── 字号（Linear 式少档位、大字重差） ───────────── */
+  /* 12 时间戳/徽章 · 13 元信息 · 14 正文/输入/按钮 · 15 卡片标题 · 17 页面标题 · 20 品牌 */
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
   --text-xl: 20px;
-  --text-h1: 28px;
+
+  /* 阅读正文字阶（比 UI 大一档：读者视角里正文才是主体） */
+  /* 阅读标题档位：与 UI 字阶共用数字，档差 ≥2px，一眼能分级 */
+  --text-reading: 17px;
+  /* 严格递减，且 h4 不再等于正文字号（否则四级标题和正文分不出来） */
+  --text-h1: 30px;
   --text-h2: 24px;
   --text-h3: 20px;
-  --text-h4: 16px;
-  --text-h5: 14px;
-  --text-h6: 13px;
+  --text-h4: 18px;
+  --text-h5: 16px;
+  --text-h6: 14px;
 
-  /* ───────────── 阅读列宽 / 块间距节奏 ───────────── */
-  --reading-max-w: 42rem;       /* ≈672px，略收以接近书籍栏宽 */
-  --space-block: 0.9em;
-  --space-heading: 1.65em;
-  --space-section: 1.9em;
+  /* ───────────── 阅读版心 / 节奏 ───────────── */
+  /* 42rem ≈ 672px：中文一行 38–42 字，接近书籍栏宽；再宽眼睛会丢行。 */
+  --reading-max-w: 40rem;      /* ≈640px：中文 37 字、Latin ~85 字符，两头都不难受 */
+  --space-block: 0.92em;
+  --space-heading: 1.7em;
+  --space-section: 2em;
 
-  /* ───────────── 阴影 ───────────── */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
-  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* ───────────── 阴影：顶光定向（发丝边 + 下偏近影 + 远雾） ───────────── */
+  /* 光从 12 点来。浅色纸面已是纯白，高光 inset 看不见，靠影子下偏表达体积。 */
+  --shadow-card: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(24 24 27 / 0.04),
+    0 6px 16px rgb(24 24 27 / 0.05);
+  --shadow-floating: 0 0 0 1px rgb(var(--border)), 0 8px 28px rgb(24 24 27 / 0.12),
+    0 20px 40px rgb(24 24 27 / 0.06);
+  --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(24 24 27 / 0.12);
+  /* 顶栏滚动后浮现的分隔影，代替常驻边框 */
+  --shadow-header: 0 1px 0 rgb(var(--border));
+  /* 注意：没有通用的 --shadow-btn。按钮用 --shadow-btn-primary（靛蓝投影），
+     不要用一个看不出差别的通用值把主按钮和次要按钮糊成一档。 */
 
   /* ───────────── 代码高亮（低饱和，贴合极简） ───────────── */
-  --code-keyword: 90 116 176;  /* 与品牌 primary 同值 */
+  --code-keyword: 94 106 210;
   --code-string: 21 128 61;
   --code-comment: 146 147 144;
   --code-number: 180 83 9;
 
-  /* ───────────── 动效 ───────────── */
-  --ease: cubic-bezier(0.2, 0, 0, 1);
-  --dur-fast: 120ms;
-  --dur: 150ms;
-  --dur-slow: 320ms;
+  /* ───────────── Motion（全站唯一缓动来源） ───────────── */
+  --motion-fast: 120ms;      /* 悬停/按压反馈 */
+  --motion-base: 200ms;      /* 状态过渡 */
+  --motion-slow: 280ms;      /* 浮层入场 */
+  --ease-standard: cubic-bezier(0.3, 0, 0.2, 1);
+  --ease-enter: cubic-bezier(0.2, 0, 0.4, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-enter: 12px;      /* 浮层入场位移，配 opacity 使用 */
+
+  /* 弹层遮罩：禁止裸 black */
+  --overlay: 24 24 27;
+  --overlay-alpha: 0.28;
+  --overlay-blur: 6px;
 }
 
+/* ───────────── 暗色主题 ─────────────
+ * 人眼在暗端对亮度差不敏感：浅色里 12 档 RGB 能分开的槽，暗色里 4 档会糊成一块。
+ * 台阶：近黑画布 → 略亮纸 → 抬起的浮层。卡边用白发丝，黑影在暗底抬不起来。 */
 html[data-theme='dark'] {
-  --background: 25 25 25;
-  --card: 32 32 32;
-  --popover: 32 32 32;
-  --foreground: 255 255 255;
-  --muted: 47 47 47;
-  --muted-foreground: 168 168 168;
-  --accent: 47 47 47;
-  --secondary: 47 47 47;
-  --primary: 149 164 198;
-  --primary-foreground: 25 25 25;
-  --primary-hover: 169 184 214;
-  --primary-soft: rgb(var(--primary) / 0.15);
-  --primary-softer: rgb(var(--primary) / 0.08);
-  --selection: rgb(var(--primary) / 0.38);
-  --ink: 235 237 240;
-  --ink-foreground: 25 25 25;
-  --ink-hover: 200 203 208;
-  --success: 52 211 153;
-  --warning: 251 191 36;
-  --destructive: 248 113 113;
-  --border: 60 60 60;
-  --border-strong: 80 80 80;
-  --input: 60 60 60;
-  --ring: 149 164 198;
-  --editor-bg: 25 25 25;
-  --editor-gutter-bg: 32 32 32;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --shadow-btn: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --code-keyword: 149 164 198;
+  /* 暗端与浅色不同：档距要更大才看得出房间。画布近黑 → 纸抬一档 → 浮层再抬 */
+  --background: 13 13 15;
+  --paper: 26 26 30;
+  --card: 32 32 37;
+  --card-foreground: 244 244 246;
+  --popover: 38 38 43;
+  --popover-foreground: 244 244 246;
+  --shell: 13 13 15;
+
+  --foreground: 244 244 246;
+  --muted: 39 39 45;
+  --muted-foreground: 158 158 168;
+  --subtle-foreground: 136 136 146;
+  --accent: 45 45 50;
+  --accent-foreground: 244 244 246;
+  --secondary: 39 39 43;
+  --secondary-foreground: 244 244 246;
+
+  /* 靛蓝在深底提亮，主按钮用深字，选中文字仍走 --primary */
+  --primary: 138 148 250;       /* 深底提亮，同样保证 ≥4.5:1 */
+  --primary-foreground: 16 18 38;
+  --primary-hover: 158 168 252;
+  --primary-soft: rgb(var(--primary) / 0.18);
+  --primary-softer: rgb(var(--primary) / 0.10);
+  --selection: rgb(var(--primary) / 0.34);
+
+  --ink: 240 238 235;
+  --ink-foreground: 24 24 27;
+
+  --success: 74 186 108;
+  --success-soft: rgb(var(--success) / 0.18);
+  --warning: 250 176 40;
+  --warning-soft: rgb(var(--warning) / 0.20);
+  --destructive: 242 112 96;
+  --destructive-foreground: 255 255 255;
+  --destructive-soft: rgb(var(--destructive) / 0.18);
+
+  --border: 56 56 63;
+  --border-strong: 124 124 138;
+  --border-subtle: 44 44 50;
+  --input: 62 62 70;
+
+  --block-focus-bg: rgb(var(--primary) / 0.08);
+  --block-hover-bg: rgb(255 255 255 / 0.028);
+
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4),
+    0 8px 20px rgb(0 0 0 / 0.32);
+  --shadow-floating: 0 0 0 1px rgb(255 255 255 / 0.12), 0 16px 40px rgb(0 0 0 / 0.55);
+  --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.20), 0 4px 14px rgb(var(--primary) / 0.26);
+  --shadow-header: 0 1px 0 rgb(255 255 255 / 0.06);
+
+  --code-keyword: 129 140 248;
   --code-string: 134 239 172;
-  --code-comment: 110 110 108;
+  --code-comment: 110 110 118;
   --code-number: 252 211 77;
+
+  --overlay: 0 0 0;
+  --overlay-alpha: 0.48;
+  --overlay-blur: 8px;
 }

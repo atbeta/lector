@@ -11,6 +11,10 @@ clients/tauri/gen/
 
 # 本机环境
 .env
+# 验证工具的本地产物：截图、Chrome/Playwright profile、浏览器二进制
+.shots/
+.tmp/
+.chrome-profile/
 .push.log
 .gh-cache/
 

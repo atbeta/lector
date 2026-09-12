@@ -436,10 +436,13 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
     .title("Lector")
     .inner_size(900.0, 720.0)
     .min_inner_size(480.0, 360.0);
-  // 覆盖式标题栏与红绿灯位置是 macOS 专属；Windows 保持系统原生标题栏。
+  // macOS 保留原生窗口边框 + 覆盖式标题栏：红绿灯是 mac 用户的肌肉记忆，
+  // 自绘一套会立刻显得「不是 mac 应用」。Windows / Linux 走无边框自绘
+  // （minimize / maximize / close 由 Web 层的 chrome.ts 调窗口命令）。
   #[cfg(target_os = "macos")]
   {
     builder = builder
+      .decorations(true)
       .hidden_title(true)
       .title_bar_style(tauri::TitleBarStyle::Overlay)
       .accept_first_mouse(true)
