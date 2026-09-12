@@ -457,7 +457,6 @@ for (const [themeName, d] of [['light', light], ['dark', dark]]) {
   if (Math.abs(d.titlebar.titleCenterX - d.titlebar.viewportCenterX) > 2) {
     note('warn', `${themeName}: 顶栏标题中心 ${d.titlebar.titleCenterX} ≠ 视口中心 ${d.titlebar.viewportCenterX}`)
   }
-  if (d.titlebar.h !== 46) note('warn', `${themeName}: 顶栏高 ${d.titlebar.h}px（期望 46）`)
   for (const icon of d.titlebar.icons) {
     if (!icon.visible) note('error', `${themeName}: 顶栏图标 ${icon.id} 不可见`)
     else if (icon.contrast < 3) note('warn', `${themeName}: 顶栏图标 ${icon.id} 对比 ${icon.contrast}:1 < 3`)
@@ -475,6 +474,12 @@ if (win.titlebar.controls.length !== 3) {
   }
 }
 if (light.shell === win.shell) note('error', `macOS 与 Windows 的 data-shell 相同（都是 ${light.shell}），平台判定没生效`)
+// Windows 的标题栏要向系统靠：32px 高。46px 的居中式标题栏 + 右侧控件
+// 会读成「mac 窗口贴了 Windows 按钮」。
+if (win.shell === 'windows' && win.titlebar.h !== 32) {
+  note('error', `Windows 标题栏高 ${win.titlebar.h}px（原生 32px）`)
+}
+if (light.titlebar.h !== 46) note('warn', `macOS 标题栏高 ${light.titlebar.h}px（期望 46）`)
 if (light.titlebar.controls.some((c) => c.visible)) {
   note('error', 'macOS 版式下不应出现自绘窗口控件（有原生红绿灯）')
 }
@@ -483,7 +488,7 @@ if (light.titlebar.controls.some((c) => c.visible)) {
 const summary = {
   theme: { light: light.theme, dark: dark.theme },
   shell: { mac: light.shell, win: win.shell },
-  titlebar: light.titlebar,
+  titlebar: { light: light.titlebar, dark: dark.titlebar },
   table: { light: light.table, dark: dark.table },
   tasks: { light: light.tasks, dark: dark.tasks },
   hr: { light: light.hr, dark: dark.hr },
@@ -493,6 +498,9 @@ const summary = {
   quote: { light: light.quote, dark: dark.quote },
   pre: { light: light.pre, dark: dark.pre },
   typography: { light: light.typography, dark: dark.typography },
+  content: { light: light.content, dark: dark.content },
+  headings: { light: light.headings, dark: dark.headings },
+  windowControls: { mac: light.titlebar.controls, win: win.titlebar.controls },
   overflow: { light: light.overflow, dark: dark.overflow },
   consoleErrors,
 }
