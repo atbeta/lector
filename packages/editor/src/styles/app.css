@@ -146,7 +146,7 @@ html[data-shell='windows'] .titlebar-actions { order: 2; }
 html[data-shell='windows'] .window-controls { order: 3; height: 32px; }
 html[data-shell='windows'] .win-btn { width: 46px; }
 html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
-html[data-shell='windows'] .outline-panel { top: 32px; }
+html[data-shell='windows'] .outline-panel { top: 44px; }
 
 .titlebar-lead,
 .titlebar-center,
@@ -471,20 +471,26 @@ html[data-shell='windows'] .window-controls { display: flex; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ───────────── 大纲浮窗 ───────────── */
-/* 阅读器不设常驻侧栏：大纲是「看一眼」的东西，滑入即可，不必占版面。 */
+/* ───────────── 大纲浮窗 ─────────────
+ * 阅读器不设常驻侧栏：大纲是「看一眼就走」的东西。
+ * 关键是它必须看起来「浮在上面」，不能像一条常驻侧栏——正文只有 640px，
+ * 在 900px 窗口里贴边通栏的面板会盖住 25% 的正文，读起来像被裁掉。
+ * 所以：不贴边、圆角、浮层投影、内容宽度收窄；用浮层语义说明这是临时的。 */
 .outline-panel {
   position: fixed;
-  top: 46px;
-  right: 0;
-  bottom: 0;
-  width: 268px;
-  z-index: 20;
-  padding: 14px 10px;
-  border-left: 1px solid rgb(var(--border));
+  top: 58px;
+  right: 12px;
+  max-height: min(70vh, calc(100vh - 90px));
+  width: 248px;
+  /* 必须低于顶栏（60）：否则面板会压在右上角那排工具按钮上，按钮点不到 */
+  z-index: 40;
+  padding: 8px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
   background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
   overflow: auto;
-  animation: slide-in-right var(--motion-slow) var(--ease-emphasized) both;
+  animation: outline-in var(--motion-slow) var(--ease-emphasized) both;
 }
 .outline-panel[hidden] { display: none; }
 .outline-list { display: flex; flex-direction: column; gap: 1px; }
@@ -493,7 +499,7 @@ html[data-shell='windows'] .window-controls { display: flex; }
   align-items: baseline;
   gap: 8px;
   width: 100%;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border: 0;
   border-radius: var(--radius-btn);
   background: transparent;
@@ -986,9 +992,10 @@ html[data-shell='windows'] .window-controls { display: flex; }
   from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.985); }
   to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
-@keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(var(--motion-enter)); }
-  to { opacity: 1; transform: translateX(0); }
+/* 浮层从右上方落下并轻微放大：表达「临时层」，与常驻侧栏区分开 */
+@keyframes outline-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 减弱动态效果 */

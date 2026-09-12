@@ -245,6 +245,28 @@ const PROBE = `(() => {
     return el ? { tag: t, size: parseFloat(cs(el).fontSize), weight: Number(cs(el).fontWeight), contrast: contrastOf(el) } : null
   }).filter(Boolean)
 
+  // 大纲浮层：必须是「浮层」而不是常驻侧栏，且不能盖住顶栏按钮
+  const outline = (() => {
+    const panel = document.querySelector('.outline-panel')
+    if (!panel) return { missing: true }
+    if (panel.hidden) return { hidden: true }
+    const pr = panel.getBoundingClientRect()
+    const barZ = Number(cs(document.getElementById('titlebar')).zIndex)
+    const panelZ = Number(cs(panel).zIndex)
+    // 浮层盖在正文上时，正文被遮多少
+    const inner = document.querySelector('.reading-prose')
+    const ir = inner ? inner.getBoundingClientRect() : null
+    return {
+      w: Math.round(pr.width),
+      touchesRightEdge: pr.right >= window.innerWidth - 0.5,
+      touchesBottom: pr.bottom >= window.innerHeight - 0.5,
+      radius: parseFloat(cs(panel).borderTopLeftRadius),
+      shadow: cs(panel).boxShadow !== 'none',
+      aboveTitlebar: panelZ >= barZ,
+      overlapTextPct: ir ? Math.round((Math.max(0, ir.right - pr.left) / ir.width) * 100) : null,
+    }
+  })()
+
   // 顶栏与窗口控件
   const bar = document.getElementById('titlebar')
   const barRect = bar.getBoundingClientRect()
@@ -286,7 +308,7 @@ const PROBE = `(() => {
       info('.reading-prose a', 'link'), info('.titlebar-title', 'titlebar-title'),
     ],
     headings, table: tableInfo, tasks, checkbox: checkboxInfo, hr: hrInfo, quote: quoteInfo, pre: preInfo,
-    surfaces, bgTiling, rhythm, codeColors,
+    surfaces, bgTiling, rhythm, codeColors, outline,
     // 任务项的删除线是否真的落在正文上（span 嵌套 bug 会让它落在空元素上）
     taskDecoration: (() => {
       const label =
@@ -362,6 +384,63 @@ await winPage.goto(URL_ARG, { waitUntil: 'networkidle' })
 await winPage.waitForSelector('#content .block', { timeout: 10000 })
 const win = await winPage.evaluate(PROBE)
 await winPage.screenshot({ path: '.shots/verify-windows.png' })
+
+const summary = {
+  theme: { light: light.theme, dark: dark.theme },
+  shell: { mac: light.shell, win: win.shell },
+  titlebar: { light: light.titlebar, dark: dark.titlebar },
+  table: { light: light.table, dark: dark.table },
+  tasks: { light: light.tasks, dark: dark.tasks },
+  hr: { light: light.hr, dark: dark.hr },
+  taskDecoration: { light: light.taskDecoration, dark: dark.taskDecoration },
+  checkbox: { light: light.checkbox, dark: dark.checkbox },
+  quote: { light: light.quote, dark: dark.quote },
+  quote: { light: light.quote, dark: dark.quote },
+  pre: { light: light.pre, dark: dark.pre },
+  typography: { light: light.typography, dark: dark.typography },
+  content: { light: light.content, dark: dark.content },
+  headings: { light: light.headings, dark: dark.headings },
+  windowControls: { mac: light.titlebar.controls, win: win.titlebar.controls },
+  codeColors: { light: light.codeColors, dark: dark.codeColors },
+  overflow: { light: light.overflow, dark: dark.overflow },
+  consoleErrors,
+}
+
+// 大纲浮层的形态与遮挡（要先把面板打开再量）
+{
+  await page.click('#outline-btn')
+  await page.waitForTimeout(320)
+  const o = await page.evaluate(PROBE).then((x) => x.outline)
+  summary.outline = o
+
+  const hit = await page.evaluate(() =>
+    ['outline-btn', 'find-btn', 'theme-btn', 'settings-btn'].map((id) => {
+      const el = document.getElementById(id)
+      const r = el.getBoundingClientRect()
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+      return { id, reachable: top === el || el.contains(top) }
+    }),
+  )
+  if (!o || o.missing) note('error', '大纲面板不存在')
+  else {
+    if (o.touchesRightEdge && o.touchesBottom) {
+      note('error', '大纲面板贴边通栏，读起来像常驻侧栏而不是浮层')
+    }
+    if (o.radius < 6) note('error', `大纲面板圆角 ${o.radius}px，不像浮层`)
+    if (!o.shadow) note('error', '大纲面板没有浮层投影，无法与正文分层')
+    if (o.aboveTitlebar) note('error', '大纲面板 z-index 高于顶栏，会压住窗口控件/工具按钮')
+    // 1200 宽是默认窗口尺寸附近：这个宽度下浮层必须完全不压正文。
+    // 更窄的窗口里压正文是空间所迫（640 正文 + 266 浮层 > 窗口宽），
+    // 那是设计取舍不是 bug；真到那一步用户会自己关掉大纲。
+    if (o.overlapTextPct > 0) {
+      note('error', `1200 宽下大纲浮层遮住正文 ${o.overlapTextPct}%（正文 640 + 浮层 266 应当放得下）`)
+    }
+
+    for (const h of hit) {
+      if (!h.reachable) note('error', `大纲打开时顶栏按钮 ${h.id} 点不到（被面板遮挡）`)
+    }
+  }
+}
 
 await browser.close()
 
@@ -517,27 +596,6 @@ if (light.titlebar.controls.some((c) => c.visible)) {
 }
 
 // 采样出来的关键数字，便于人工复核
-const summary = {
-  theme: { light: light.theme, dark: dark.theme },
-  shell: { mac: light.shell, win: win.shell },
-  titlebar: { light: light.titlebar, dark: dark.titlebar },
-  table: { light: light.table, dark: dark.table },
-  tasks: { light: light.tasks, dark: dark.tasks },
-  hr: { light: light.hr, dark: dark.hr },
-  taskDecoration: { light: light.taskDecoration, dark: dark.taskDecoration },
-  checkbox: { light: light.checkbox, dark: dark.checkbox },
-  quote: { light: light.quote, dark: dark.quote },
-  quote: { light: light.quote, dark: dark.quote },
-  pre: { light: light.pre, dark: dark.pre },
-  typography: { light: light.typography, dark: dark.typography },
-  content: { light: light.content, dark: dark.content },
-  headings: { light: light.headings, dark: dark.headings },
-  windowControls: { mac: light.titlebar.controls, win: win.titlebar.controls },
-  codeColors: { light: light.codeColors, dark: dark.codeColors },
-  overflow: { light: light.overflow, dark: dark.overflow },
-  consoleErrors,
-}
-
 const order = { error: 0, warn: 1 }
 findings.sort((a, b) => order[a.level] - order[b.level])
 for (const f of findings) {
