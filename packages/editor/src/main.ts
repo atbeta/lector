@@ -359,8 +359,11 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   fileNameEl.dataset.untitled = 'false'
   document.title = `${baseName(path)} — Lector`
   contentEl.innerHTML = ''
+  contentEl.scrollTop = 0
   render()
   markDirty()
+  // 换文档后通知外框复位（顶栏的滚动分隔影）
+  window.dispatchEvent(new Event('lector:doc-changed'))
   if (detectEnv() === 'shell') {
     void bindDocument(path)
     void watch(path)

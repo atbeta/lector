@@ -106,21 +106,31 @@ export function mountWindowControls(): () => void {
 /**
  * 顶栏分隔只在滚动后出现：静止时留白更干净，滚动时才需要告诉用户
  * 「内容正从下面穿过」。
+ *
+ * 监听的是 #content 而不是 window：骨架改成「滚动发生在正文里、顶栏与状态行常驻」
+ * 之后，window 永远不滚（domScrolls=false），挂在 window 上等于失效。
  */
 export function mountHeaderScrollState(): () => void {
   const bar = document.getElementById('titlebar')
   if (!bar) return () => {}
+  const scroller = document.getElementById('content')
+  if (!scroller) return () => {}
   let ticking = false
   const update = () => {
     ticking = false
-    bar.classList.toggle('scrolled', window.scrollY > 4)
+    bar.classList.toggle('scrolled', scroller.scrollTop > 4)
   }
   const onScroll = () => {
     if (ticking) return
     ticking = true
     requestAnimationFrame(update)
   }
-  window.addEventListener('scroll', onScroll, { passive: true })
+  scroller.addEventListener('scroll', onScroll, { passive: true })
+  // 换文档后滚动位置归零，状态要跟着复位
+  window.addEventListener('lector:doc-changed', update as EventListener)
   update()
-  return () => window.removeEventListener('scroll', onScroll)
+  return () => {
+    scroller.removeEventListener('scroll', onScroll)
+    window.removeEventListener('lector:doc-changed', update as EventListener)
+  }
 }

@@ -495,6 +495,32 @@ const summary = {
   await page.setViewportSize({ width: 1200, height: 820 })
   await page.waitForTimeout(300)
 
+  // 3.5) 滚动归属：正文自己滚，顶栏与状态行常驻（骨架的核心约束）
+  const scrolling = await page.evaluate(async () => {
+    const c = document.getElementById('content')
+    const bar = document.getElementById('titlebar')
+    const before = getComputedStyle(bar).boxShadow
+    c.scrollTop = 300
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    return {
+      contentScrolls: c.scrollHeight > c.clientHeight,
+      domScrolls: document.documentElement.scrollHeight > window.innerHeight,
+      barAtTop: Math.round(bar.getBoundingClientRect().y) === 0,
+      barShadowBefore: before,
+      barShadowAfter: getComputedStyle(bar).boxShadow,
+      barScrolledClass: bar.classList.contains('scrolled'),
+      statusPinned: Math.abs(document.getElementById('statusbar').getBoundingClientRect().bottom - window.innerHeight) <= 2,
+    }
+  })
+  if (!scrolling.contentScrolls) note('error', '正文没有可滚动区域（骨架要求滚动发生在正文里）')
+  if (scrolling.domScrolls) note('error', '整页在滚动：顶栏与状态行会被滚走')
+  if (!scrolling.statusPinned) note('error', '滚动后状态行离开了视口底部')
+  if (!scrolling.barScrolledClass || scrolling.barShadowAfter === scrolling.barShadowBefore) {
+    note('error', '正文滚动后顶栏没有出现分隔影（滚动监听的可能是 window，改骨架后它会失效）')
+  }
+  await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
+  await page.waitForTimeout(200)
+
   // 4) 状态行：常驻、贴底、有内容
   if (docked.statusH < 24 || docked.statusH > 44) {
     note('error', `状态行高 ${docked.statusH}px（期望 24–44）`)
