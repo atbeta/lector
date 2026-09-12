@@ -48,6 +48,12 @@ const PROBE = `(() => {
     const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4) }
     return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
   }
+  /** 两色对比度。定义在探针顶部：下面的 IIFE 会用到，晚了会 TDZ 报错。 */
+  const stepOf = (a, b) => {
+    const [l1, l2] = [srgb(a), srgb(b)].sort((x, y) => y - x)
+    return Math.round(((l1 + 0.05) / (l2 + 0.05)) * 100) / 100
+  }
+
   const contrastOf = (el) => {
     const fg = parse(cs(el).color)
     if (!fg) return null
@@ -107,7 +113,28 @@ const PROBE = `(() => {
     }
   })() : null
 
-  // 任务列表：勾选与未勾选的实际颜色，以及「勾选框是否与正文同一行」
+  // 代码高亮的四类颜色：各自与代码块底色的对比度。
+  // 这些 span 只在真正出现对应 token 时才渲染，所以要主动构造，
+  // 不能等样例里恰好有注释/字符串才发现颜色不达标。
+  const codeColors = (() => {
+    const host = document.querySelector('.reading-prose pre code')
+    if (!host) return null
+    const probe = document.createElement('span')
+    probe.style.position = 'absolute'
+    probe.style.visibility = 'hidden'
+    host.appendChild(probe)
+    const out = {}
+    for (const cls of ['tok-keyword', 'tok-string', 'tok-number', 'tok-comment']) {
+      probe.className = cls
+      const c = parse(cs(probe).color)
+      // 用元素自己的底色（含半透明合成），才是高亮文字真正坐的面
+      if (c) out[cls.replace('tok-', '')] = stepOf(c, bgOf(host))
+    }
+    probe.remove()
+    return out
+  })()
+
+  // 任务列表：勾选与未勾选的实际颜色，以及「勾选框是否与正文是否同一行」
   const tasks = [...document.querySelectorAll('.reading-prose li.task')].map((li) => {
     const box = li.querySelector('input[type=checkbox]')
     const label = li.querySelector('.task-label')
@@ -159,10 +186,6 @@ const PROBE = `(() => {
 
   // 表面层级：填充类表面（码片 / 代码块 / 表头）与它们所在背景的对比。
   // 1.0x 意味着「有背景色但看不见」，这是浅色主题最容易犯的错。
-  const stepOf = (a, b) => {
-    const [l1, l2] = [srgb(a), srgb(b)].sort((x, y) => y - x)
-    return Math.round(((l1 + 0.05) / (l2 + 0.05)) * 100) / 100
-  }
   // 表面「看得见」= 它和它所在的页面底（画布/纸）差一档。
   // 不能拿父元素比：码片的父元素就是没有背景的段落，等于和画布比。
   const surfaceStep = (sel, label) => {
@@ -263,7 +286,7 @@ const PROBE = `(() => {
       info('.reading-prose a', 'link'), info('.titlebar-title', 'titlebar-title'),
     ],
     headings, table: tableInfo, tasks, checkbox: checkboxInfo, hr: hrInfo, quote: quoteInfo, pre: preInfo,
-    surfaces, bgTiling, rhythm,
+    surfaces, bgTiling, rhythm, codeColors,
     // 任务项的删除线是否真的落在正文上（span 嵌套 bug 会让它落在空元素上）
     taskDecoration: (() => {
       const label =
@@ -411,6 +434,15 @@ for (const [themeName, d] of [['light', light], ['dark', dark]]) {
     }
   }
 
+  // 代码高亮四色都必须过 AA（13px 常规字重 → 4.5:1）
+  if (d.codeColors) {
+    for (const [name, ratio] of Object.entries(d.codeColors)) {
+      if (ratio < 4.5) {
+        note('error', `${themeName}: 代码高亮 ${name} 对代码底色只有 ${ratio}:1 < 4.5（13px 常规字重不适用大字豁免）`)
+      }
+    }
+  }
+
   // 背景不能平铺
   // 注意别用 /repeat/ 子串判断——"no-repeat" 里也含 "repeat"
   const repeats = d.bgTiling.repeat.split(',').map((x) => x.trim())
@@ -501,6 +533,7 @@ const summary = {
   content: { light: light.content, dark: dark.content },
   headings: { light: light.headings, dark: dark.headings },
   windowControls: { mac: light.titlebar.controls, win: win.titlebar.controls },
+  codeColors: { light: light.codeColors, dark: dark.codeColors },
   overflow: { light: light.overflow, dark: dark.overflow },
   consoleErrors,
 }
