@@ -406,196 +406,110 @@ const summary = {
   consoleErrors,
 }
 
-// 大纲浮层的形态与遮挡（要先把面板打开再量）
+// 侧栏与状态行：应用骨架的两端。
+// 侧栏曾是贴边通栏的浮层，既盖正文又不像目录——这里把形态钉死。
 {
-  await page.click('#outline-btn')
-  await page.waitForTimeout(320)
-  const o = await page.evaluate(PROBE).then((x) => x.outline)
-  summary.outline = o
-
-  const hit = await page.evaluate(() =>
-    ['outline-btn', 'find-btn', 'theme-btn', 'settings-btn'].map((id) => {
-      const el = document.getElementById(id)
-      const r = el.getBoundingClientRect()
-      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-      return { id, reachable: top === el || el.contains(top) }
-    }),
-  )
-  if (!o || o.missing) note('error', '大纲面板不存在')
-  else {
-    if (o.touchesRightEdge && o.touchesBottom) {
-      note('error', '大纲面板贴边通栏，读起来像常驻侧栏而不是浮层')
-    }
-    if (o.radius < 6) note('error', `大纲面板圆角 ${o.radius}px，不像浮层`)
-    if (!o.shadow) note('error', '大纲面板没有浮层投影，无法与正文分层')
-    if (o.aboveTitlebar) note('error', '大纲面板 z-index 高于顶栏，会压住窗口控件/工具按钮')
-    // 1200 宽是默认窗口尺寸附近：这个宽度下浮层必须完全不压正文。
-    // 更窄的窗口里压正文是空间所迫（640 正文 + 266 浮层 > 窗口宽），
-    // 那是设计取舍不是 bug；真到那一步用户会自己关掉大纲。
-    if (o.overlapTextPct > 0) {
-      note('error', `1200 宽下大纲浮层遮住正文 ${o.overlapTextPct}%（正文 640 + 浮层 266 应当放得下）`)
-    }
-
-    for (const h of hit) {
-      if (!h.reachable) note('error', `大纲打开时顶栏按钮 ${h.id} 点不到（被面板遮挡）`)
-    }
+  const clickOutline = async () => {
+    await page.click('#outline-btn')
+    await page.waitForTimeout(320)
   }
-}
-
-await browser.close()
-
-// ── 断言 ──
-for (const [themeName, d] of [['light', light], ['dark', dark]]) {
-  // 1. 表格必须真的排成 4 列（这是被怀疑渲染坏掉的地方）
-  if (!d.table) note('error', `${themeName}: 找不到表格`)
-  else {
-    if (d.table.headCols !== 4) note('error', `${themeName}: 表头 ${d.table.headCols} 列，期望 4`)
-    const row = d.table.rows[0] ?? []
-    if (row.length !== 4) note('error', `${themeName}: 表体首行 ${row.length} 列，期望 4（疑似单元格塌陷）`)
-    const narrow = row.filter((c) => c.w < 40)
-    if (narrow.length) note('error', `${themeName}: 表体有 ${narrow.length} 个单元格窄于 40px：${JSON.stringify(narrow)}`)
-    if (d.table.headRowSep !== null && d.table.headRowSep < 1.2) {
-      note('warn', `${themeName}: 表头下边框合成后对比 ${d.table.headRowSep}:1（几乎看不见）`)
-    }
-  }
-
-  // 2. 任务列表：勾选态不能比未勾选暗得多（视觉上像失效）
-  if (d.tasks.length >= 2) {
-    const done = d.tasks.filter((t) => t.checked).map((t) => t.contrast)
-    const todo = d.tasks.filter((t) => !t.checked).map((t) => t.contrast)
-    if (done.length && todo.length) {
-      const worst = Math.min(...done)
-      const best = Math.max(...todo)
-      if (worst < 3) note('error', `${themeName}: 已勾选任务对比度 ${worst}:1 < 3（看起来像禁用）`)
-      else if (worst < best / 2) note('warn', `${themeName}: 已勾选 ${worst}:1 vs 未勾选 ${best}:1，差距过大`)
-    }
-  }
-
-  // 3. 结构元素必须可见：引用条、复选框边框、分隔线
-  if (d.quote?.barContrast !== null && d.quote?.barContrast < 1.8) {
-    note('error', `${themeName}: 引用条合成后对比 ${d.quote.barContrast}:1 < 1.8（看不见）`)
-  }
-  if (d.checkbox?.borderContrast !== null && d.checkbox?.borderContrast < 1.8) {
-    note('error', `${themeName}: 复选框边框合成后对比 ${d.checkbox.borderContrast}:1 < 1.8（看不见）`)
-  }
-  if (d.hr?.visible === false) note('error', `${themeName}: 分隔线高度为 0`)
-  const deco = d.taskDecoration
-  if (deco?.missing) note('error', `${themeName}: 找不到 .task-label`)
-  else if (!deco.hasText) note('error', `${themeName}: .task-label 里没有文字（嵌套被浏览器拆掉了）`)
-
-  // 4. 对比度：正文与链接要过 AA
-  const body = d.typography.find((t) => t.label === 'body')
-  if (body && !body.missing && body.contrast < 7) note('warn', `${themeName}: 正文对比 ${body.contrast}:1（阅读器建议 ≥7）`)
-  const link = d.typography.find((t) => t.label === 'link')
-  if (link && !link.missing && link.contrast < 4.5) note('warn', `${themeName}: 链接对比 ${link.contrast}:1 < 4.5`)
-  const dec = d.taskDecoration
-  if (dec && !dec.missing && dec.isChecked && dec.textDecorationLine === 'none') {
-    note('error', `${themeName}: 已勾选任务没有删除线（CSS 没命中或被嵌套拆掉）`)
-  }
-
-  // 任务项：勾选框必须与正文首行同一行（这是最容易复发的排版 bug）
-  for (const t of d.tasks) {
-    if (t.lineOverlap === null) continue
-    if (t.lineOverlap <= 0) {
-      note('error', `${themeName}: 任务项「${t.text}」的勾选框与正文不在同一行（boxTop=${t.boxTop} textTop=${t.textTop}）`)
-    }
-  }
-
-  // 填充类表面必须真的看得出是一档，否则「有背景色」是假的。
-  // 门槛 1.15：低于这个值就是「配了个色但看不见」，浅色主题最容易犯。
-  for (const sfc of d.surfaces) {
-    if (sfc.missing) continue
-    if (sfc.alpha === 0) continue
-    if (sfc.step !== undefined && sfc.step < 1.15) {
-      note('error', `${themeName}: ${sfc.label} 表面与背景只差 ${sfc.step}:1，等于没画`)
-    } else if (sfc.step !== undefined) {
-      note('info', `${themeName}: ${sfc.label} 表面 ${sfc.step}:1`)
-    }
-  }
-
-  // 代码高亮四色都必须过 AA（13px 常规字重 → 4.5:1）
-  if (d.codeColors) {
-    for (const [name, ratio] of Object.entries(d.codeColors)) {
-      if (ratio < 4.5) {
-        note('error', `${themeName}: 代码高亮 ${name} 对代码底色只有 ${ratio}:1 < 4.5（13px 常规字重不适用大字豁免）`)
+  const shell = () =>
+    page.evaluate(() => {
+      const sb = document.getElementById('sidebar')
+      const sr = sb.getBoundingClientRect()
+      const inner = document.querySelector('.reading-prose')
+      const ir = inner ? inner.getBoundingClientRect() : null
+      const bar = document.getElementById('statusbar')
+      const cs = getComputedStyle(sb)
+      return {
+        mode: document.documentElement.classList.contains('sidebar-docked')
+          ? 'docked'
+          : document.documentElement.classList.contains('sidebar-overlay')
+            ? 'overlay'
+            : 'hidden',
+        btnActive: document.getElementById('outline-btn').classList.contains('active'),
+        sidebarW: Math.round(sr.width),
+        sidebarRight: Math.round(sr.right),
+        textX: ir ? Math.round(ir.x) : null,
+        textRight: ir ? Math.round(ir.right) : null,
+        // 侧栏在左：被压住的是正文的左边缘
+        overlap: ir ? Math.round(Math.max(0, sr.right - ir.left)) : 0,
+        position: cs.position,
+        statusH: Math.round(bar.getBoundingClientRect().height),
+        statusBottom: Math.round(bar.getBoundingClientRect().bottom),
+        statusText: (document.getElementById('status-left')?.textContent ?? '').trim(),
       }
+    })
+
+  // 顶栏分组：文件操作 2 个 + 视图 4 个，中间一条分隔
+  const tb = await page.evaluate(() => ({
+    lead: document.querySelectorAll('.titlebar-lead .btn-icon').length,
+    actions: document.querySelectorAll('.titlebar-actions .btn-icon').length,
+    divider: !!document.querySelector('.titlebar-divider'),
+  }))
+  if (tb.lead !== 2) note('error', `顶栏左侧工具 ${tb.lead} 个（期望 2：打开/保存）`)
+  if (tb.actions !== 4) note('error', `顶栏右侧工具 ${tb.actions} 个（期望 4：大纲/查找/主题/设置）`)
+  if (!tb.divider) note('error', '顶栏缺少组间分隔，六个图标会读成一排散兵')
+
+  // 1) 宽窗口：停靠、默认展开、不压正文
+  const docked = await shell()
+  if (docked.mode !== 'docked') {
+    note('error', `1200px 宽下侧栏形态是 ${docked.mode}（期望 docked）`)
+  } else {
+    if (docked.sidebarW < 200 || docked.sidebarW > 300) {
+      note('error', `停靠侧栏宽 ${docked.sidebarW}px，超出 200–300 的合理区间`)
+    }
+    if (docked.overlap > 0) {
+      note('error', `停靠侧栏压住正文 ${docked.overlap}px（停靠时正文必须让位）`)
+    }
+    if (docked.textX !== null && docked.textX <= docked.sidebarRight) {
+      note('error', `正文起点 ${docked.textX} 在侧栏右沿 ${docked.sidebarRight} 之内`)
     }
   }
+  if (!docked.btnActive) note('error', '侧栏展开时顶栏大纲按钮没有点亮')
 
-  // 背景不能平铺
-  // 注意别用 /repeat/ 子串判断——"no-repeat" 里也含 "repeat"
-  const repeats = d.bgTiling.repeat.split(',').map((x) => x.trim())
-  if (repeats.some((r) => r !== 'no-repeat')) {
-    note('error', `${themeName}: body 背景会平铺（background-repeat: ${d.bgTiling.repeat}），长文档会出现周期性硬边`)
+  // 2) 开合：点一次收起，正文应重新居中
+  await clickOutline()
+  const closed = await shell()
+  if (closed.mode !== 'hidden') note('error', '点击大纲按钮后侧栏没有收起')
+  if (closed.btnActive) note('error', '侧栏收起后大纲按钮仍然点亮')
+  await clickOutline()
+  const reopened = await shell()
+  if (reopened.mode !== 'docked') note('error', '再次点击后侧栏没有恢复停靠')
+
+  // 3) 窄窗口：必须退化成浮层，且能点外关闭
+  await page.setViewportSize({ width: 900, height: 720 })
+  await page.waitForTimeout(420)
+  const narrow = await shell()
+  if (narrow.mode !== 'overlay') {
+    note('error', `900px 宽下侧栏形态是 ${narrow.mode}（期望 overlay：放不下就该变成抽屉）`)
+  } else if (narrow.position !== 'fixed') {
+    note('error', '窄窗口的侧栏没有脱离文档流（position 应为 fixed）')
   }
-
-  // 阅读版心与字号：这两个值由设置决定，必须与设计标定一致
-  const bodyT = d.typography.find((x) => x.label === 'body')
-  if (bodyT && !bodyT.missing) {
-    if (bodyT.fontSize < 16) note('warn', `${themeName}: 正文字号 ${bodyT.fontSize}px（阅读器下限 16）`)
-    if (d.content.w && d.content.w > 760) {
-      note('warn', `${themeName}: 版心 ${d.content.w}px 偏宽（>760px 时中文一行超过 45 字）`)
-    }
+  await page.mouse.click(760, 400)
+  await page.waitForTimeout(280)
+  const afterOutsideClick = await shell()
+  if (afterOutsideClick.mode !== 'hidden') {
+    note('error', '窄窗口浮层模式下点击正文没有关闭侧栏')
   }
+  await page.setViewportSize({ width: 1200, height: 820 })
+  await page.waitForTimeout(300)
 
-  // 块间距：小于 0.5 倍行高才算粘连（半行的说法对应的是 15px，会把正常段距全报成问题）
-  // lineHeight 是 computed 值（已经是 px），不要再乘字号——那会得到 506px 的假阈值
-  const line = bodyT && !bodyT.missing && bodyT.lineHeight ? bodyT.lineHeight : 28
-  for (const r of d.rhythm) {
-    if (r.kind && r.gap > 0 && r.gap < line * 0.5) {
-      note('error', `${themeName}: ${r.kind} 与上一块间距仅 ${r.gap}px（< ${Math.round(line * 0.5)}px），会读成粘连`)
-    }
+  // 4) 状态行：常驻、贴底、有内容
+  if (docked.statusH < 24 || docked.statusH > 44) {
+    note('error', `状态行高 ${docked.statusH}px（期望 24–44）`)
   }
-  note('info', `${themeName}: 块间距 ${d.rhythm.map((r) => `${r.kind}:${r.gap}`).join(' ')}`)
-  const th = d.table?.heads?.[0]
-  if (th && th.contrast < 4.5) note('warn', `${themeName}: 表头对比 ${th.contrast}:1 < 4.5`)
-
-  // 5. 溢出
-  if (d.overflow.length) note('error', `${themeName}: ${d.overflow.length} 个元素横向溢出：${JSON.stringify(d.overflow.slice(0, 3))}`)
-
-  // 6. 标题字阶必须严格递减，且都不小于正文字号
-  for (let i = 1; i < d.headings.length; i++) {
-    if (d.headings[i].size >= d.headings[i - 1].size) {
-      note('error', `${themeName}: 标题字阶非递减 ${d.headings[i - 1].tag}(${d.headings[i - 1].size}) → ${d.headings[i].tag}(${d.headings[i].size})`)
-    }
+  if (Math.abs(docked.statusBottom - 820) > 2) {
+    note('error', `状态行底边在 ${docked.statusBottom}px，没有贴住视口底部`)
   }
-
-  // 7. 表面分层：纸 vs 画布不能糊在一起
-  const l = d.surface
-  note('info', `${themeName}: 表面 background=${l.background} paper=${l.paper}`)
-
-  // 8. 顶栏标题必须居中
-  if (Math.abs(d.titlebar.titleCenterX - d.titlebar.viewportCenterX) > 2) {
-    note('warn', `${themeName}: 顶栏标题中心 ${d.titlebar.titleCenterX} ≠ 视口中心 ${d.titlebar.viewportCenterX}`)
+  if (!/\d/.test(docked.statusText)) {
+    note('error', `状态行没有数字：${JSON.stringify(docked.statusText)}`)
   }
-  for (const icon of d.titlebar.icons) {
-    if (!icon.visible) note('error', `${themeName}: 顶栏图标 ${icon.id} 不可见`)
-    else if (icon.contrast < 3) note('warn', `${themeName}: 顶栏图标 ${icon.id} 对比 ${icon.contrast}:1 < 3`)
-  }
+  note('info', `状态行：${docked.statusText}`)
+  summary.shellAt1200 = reopened
+  summary.shellAt900 = narrow
 }
 
-// Windows：三个窗口控件必须在位、可用、且贴右边缘
-if (win.shell !== 'windows') note('error', `Windows UA 下 data-shell=${win.shell}，期望 windows`)
-if (win.titlebar.controls.length !== 3) {
-  note('error', `Windows 下窗口控件 ${win.titlebar.controls.length} 个，期望 3`)
-} else {
-  for (const c of win.titlebar.controls) {
-    if (!c.visible) note('error', `Windows 窗口控件「${c.title}」不可见`)
-    if (c.w < 30) note('warn', `Windows 窗口控件「${c.title}」宽 ${c.w}px，点击区域偏小`)
-  }
-}
-if (light.shell === win.shell) note('error', `macOS 与 Windows 的 data-shell 相同（都是 ${light.shell}），平台判定没生效`)
-// Windows 的标题栏要向系统靠：32px 高。46px 的居中式标题栏 + 右侧控件
-// 会读成「mac 窗口贴了 Windows 按钮」。
-if (win.shell === 'windows' && win.titlebar.h !== 32) {
-  note('error', `Windows 标题栏高 ${win.titlebar.h}px（原生 32px）`)
-}
-if (light.titlebar.h !== 46) note('warn', `macOS 标题栏高 ${light.titlebar.h}px（期望 46）`)
-if (light.titlebar.controls.some((c) => c.visible)) {
-  note('error', 'macOS 版式下不应出现自绘窗口控件（有原生红绿灯）')
-}
-
-// 采样出来的关键数字，便于人工复核
 const order = { error: 0, warn: 1 }
 findings.sort((a, b) => order[a.level] - order[b.level])
 for (const f of findings) {

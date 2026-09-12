@@ -11,6 +11,9 @@ import {
   serialize,
   type BlockKind,
   type BlockView,
+  countText,
+  formatCount,
+  readingMinutes,
   type SourceDocument,
 } from '@lector/core'
 import {
@@ -38,6 +41,7 @@ import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountWindowControls } from './chrome.ts'
+import { createSidebar } from './sidebar.ts'
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
@@ -83,6 +87,8 @@ const themeBtn = document.getElementById('theme-btn')!
 const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
 const findBtn = document.getElementById('find-btn')!
+const statusLeft = document.getElementById('status-left')!
+const statusRight = document.getElementById('status-right')!
 
 openBtn.innerHTML = iconSvg('folder', 16)
 openBtn.setAttribute('aria-label', t('openAria'))
@@ -115,12 +121,14 @@ refreshThemeIcon()
 const themeObserver = new MutationObserver(() => refreshThemeIcon())
 themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
-const outlinePanel = document.createElement('aside')
-outlinePanel.className = 'outline-panel'
-outlinePanel.setAttribute('aria-label', t('outlineLabel'))
-outlinePanel.hidden = true
-document.body.appendChild(outlinePanel)
-let outlineOpen = false
+// 侧栏 = 当前文档的目录。停靠/浮层两种形态由 sidebar.ts 按窗口宽度决定。
+const sidebar = createSidebar({
+  onToggle: (open) => {
+    outlineBtn.classList.toggle('active', open)
+    outlineBtn.setAttribute('aria-pressed', String(open))
+  },
+})
+
 
 /** 从块内 mdast 提取纯文本（标题用）。 */
 function headingText(mdast: unknown): string {
@@ -140,7 +148,7 @@ function renderOutline() {
     .map((b) => {
       return { id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() }
     })
-  outlinePanel.innerHTML = ''
+  sidebar.body.innerHTML = ''
   const list = document.createElement('div')
   list.className = 'outline-list'
   for (const h of headings) {
@@ -154,20 +162,19 @@ function renderOutline() {
     })
     list.appendChild(row)
   }
-  const empty = headings.length === 0
-  if (empty) {
+  if (headings.length === 0) {
     const p = document.createElement('p')
     p.className = 'outline-empty'
     p.textContent = t('outlineEmpty')
-    outlinePanel.appendChild(p)
+    sidebar.body.appendChild(p)
+    return
   }
-  outlinePanel.appendChild(list)
+  sidebar.body.appendChild(list)
 }
 
 function toggleOutline() {
-  outlineOpen = !outlineOpen
-  outlinePanel.hidden = !outlineOpen
-  if (outlineOpen) renderOutline()
+  sidebar.toggle()
+  if (sidebar.isOpen()) renderOutline()
 }
 
 const blocksEl = new Map<string, HTMLElement>()
@@ -186,10 +193,55 @@ function baseName(p: string): string {
   return parts[parts.length - 1] || p
 }
 
+/**
+ * 状态行：文档的一行自述。
+ *
+ * 数字取自「当前会把什么写回磁盘」——脏块用编辑器里的文本、净块用磁盘原文，
+ * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 字、保存后变 98」。
+ */
+function renderStatus() {
+  const blocks = session.blocks
+  if (blocks.length === 0) {
+    statusLeft.replaceChildren()
+    statusRight.replaceChildren()
+    return
+  }
+  const text = blocks.map((b) => b.raw).join('')
+  const stats = countText(text)
+  const sections = blocks.filter((b) => b.kind === 'heading').length
+  const minutes = readingMinutes(stats)
+
+  // 项目之间补一个空格字符：视觉间隔由 CSS gap 负责，
+  // 但读屏与「选中状态行复制」拿到的是 textContent，不能连成一串。
+  const item = (text: string, strong = false) => {
+    const el = document.createElement('span')
+    el.className = 'status-item'
+    if (strong) el.dataset.strong = 'true'
+    el.textContent = text
+    el.append(' ')
+    return el
+  }
+
+  statusLeft.replaceChildren()
+  if (stats.words === 0) {
+    statusLeft.append(item(t('statEmpty')))
+  } else {
+    statusLeft.append(item(t('statWords', { n: formatCount(stats.words) })))
+    if (sections > 0) statusLeft.append(item(t('statSections', { n: sections })))
+    if (minutes > 0) statusLeft.append(item(t('statReading', { n: minutes })))
+  }
+
+  statusRight.replaceChildren()
+  statusRight.append(item(session.dirty ? t('statUnsaved') : t('statSavedAt'), session.dirty))
+  // 保存状态与文件名在同一行：这是「这份文件现在是什么状态」的完整答案
+  statusRight.append(item(fileNameEl.textContent ?? ''))
+}
+
 function markDirty() {
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
   document.documentElement.classList.toggle('dirty', session.dirty)
+  renderStatus()
 }
 
 /** 聚焦段末回车 → 分裂成两段（前段 + 空段）。返回 true 表示已处理。 */
@@ -915,6 +967,7 @@ function renderEmptyState() {
   fileNameEl.dataset.untitled = 'true'
   document.title = 'Lector'
   blocksEl.clear()
+  session.blocks = []
   markDirty()
 }
 
@@ -959,6 +1012,24 @@ void (async () => {
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
+  // 窗口尺寸变化时重判侧栏该停靠还是浮层。
+  // 用 rAF 折叠连续事件，避免拖拽窗口时每帧都重排。
+  let resizeTick = false
+  window.addEventListener(
+    'resize',
+    () => {
+      if (resizeTick) return
+      resizeTick = true
+      requestAnimationFrame(() => {
+        resizeTick = false
+        const wasDocked = document.documentElement.classList.contains('sidebar-docked')
+        sidebar.sync()
+        const isDocked = document.documentElement.classList.contains('sidebar-docked')
+        if (wasDocked !== isDocked) renderStatus()
+      })
+    },
+    { passive: true },
+  )
   if (detectEnv() === 'shell') {
     renderEmptyState()
     try {

@@ -11,6 +11,12 @@ export {
 } from './parse.ts'
 export { normalizeBlockRaw, serialize } from './serialize.ts'
 export {
+  countText,
+  formatCount,
+  readingMinutes,
+  type DocStats,
+} from './stats.ts'
+export {
   DEFAULT_SETTINGS,
   isDefaultSettings,
   normalizeSettings,

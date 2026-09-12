@@ -20,10 +20,10 @@
       })()
     </script>
   </head>
-  <body>
-    <!-- 无标题栏：整条顶栏是拖拽区（data-tauri-drag-region 供壳识别，
-         -webkit-app-region 供 WebView 识别），只有按钮与输入是 no-drag。
-         Windows 的三个窗口控件由 chrome.ts 挂载；macOS 用原生红绿灯。 -->
+  <body class="app">
+    <!-- 应用骨架：顶栏通栏 → 侧栏 + 正文 → 状态行通栏。
+         顶栏与状态行是「壳」，与内容在同一层，用留白和发丝线分隔，
+         不靠常驻边框（初版顶栏那条 1px 线在静止时像线稿）。 -->
     <header id="titlebar" data-tauri-drag-region>
       <div class="titlebar-lead">
         <button type="button" class="btn-icon" id="open-btn" title="打开 (⌘O)" aria-label="打开"></button>
@@ -36,7 +36,8 @@
         </span>
       </div>
       <div class="titlebar-actions">
-        <button type="button" class="btn-icon" id="outline-btn" title="大纲 (⌘⇧O)" aria-label="大纲"></button>
+        <button type="button" class="btn-icon" id="outline-btn" title="大纲 (⌘⇧O)" aria-label="大纲" aria-pressed="false"></button>
+        <span class="titlebar-divider" aria-hidden="true"></span>
         <button type="button" class="btn-icon" id="find-btn" title="查找 (⌘F)" aria-label="查找"></button>
         <button type="button" class="btn-icon" id="theme-btn" title="切换主题" aria-label="切换主题"></button>
         <button type="button" class="btn-icon" id="settings-btn" title="设置" aria-label="设置"></button>
@@ -44,6 +45,11 @@
       <div class="window-controls"></div>
     </header>
     <main id="content"></main>
+    <!-- 状态行：文档的一行自述。最弱一级文字，随时可见但不抢正文。 -->
+    <footer id="statusbar">
+      <span class="status-group" id="status-left"></span>
+      <span class="status-group status-right" id="status-right"></span>
+    </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

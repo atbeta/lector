@@ -19,6 +19,22 @@ html {
   text-rendering: optimizeLegibility;
   height: 100%;
 }
+
+/* 应用骨架：一行三列的网格。
+   顶栏与状态行通栏（壳），中间一行 [侧栏 | 正文]。
+   侧栏宽度用 grid 轨道过渡——正文的左右居中随之连续变化，不会瞬移。 */
+body.app {
+  display: grid;
+  grid-template-columns: 0 1fr;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'bar bar'
+    'side content'
+    'status status';
+  height: 100vh;
+  transition: grid-template-columns var(--motion-slow) var(--ease-emphasized);
+}
+html.sidebar-docked body.app { grid-template-columns: 240px 1fr; }
 body {
   margin: 0;
   height: 100%;
@@ -102,8 +118,8 @@ button, a, input, [role='slider'], [role='switch'] {
  * macOS：原生红绿灯浮在内容上（titleBarStyle: Overlay），只需给它们让位。
  * 浏览器预览（data-shell="web"）不画窗口控件，只保留工具按钮。 */
 #titlebar {
-  position: sticky;
-  top: 0;
+  grid-area: bar;
+  position: relative;
   z-index: 60;
   display: flex;
   align-items: center;
@@ -160,6 +176,14 @@ html[data-shell='windows'] .outline-panel { top: 44px; }
   display: flex;
   align-items: center;
   gap: 2px;
+}
+/* 组间分隔：一根 1px 发丝，比留白更能说明「这是两组不同的操作」 */
+.titlebar-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: rgb(var(--border));
+  flex: 0 0 auto;
 }
 /* 标题居中：绝对定位不吃掉两侧空间 */
 .titlebar-center {
@@ -318,12 +342,20 @@ html[data-shell='windows'] .window-controls { display: flex; }
 .btn-icon.active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
 
 /* ───────────── 正文容器 ───────────── */
+/* 滚动发生在正文上（不是整页），顶栏与状态行才能常驻。
+   注意 #content 的直接子节点是「块」，不是整篇 prose——每块的预览各自带
+   .reading-prose 类，所以版心与内边距必须下在这里，不能下在 prose 上。 */
 #content {
-  max-width: var(--reading-max-w);
-  margin: 0 auto;
-  padding: 34px 32px 22vh;
+  grid-area: content;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  max-width: calc(var(--reading-max-w) + 64px);
+  margin-inline: auto;
+  padding: 30px 32px 18vh;
+  width: 100%;
+  box-sizing: border-box;
 }
-#content:empty { padding: 0; }
 
 /* ───────────── 块 ───────────── */
 .block {
@@ -471,28 +503,44 @@ html[data-shell='windows'] .window-controls { display: flex; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ───────────── 大纲浮窗 ─────────────
- * 阅读器不设常驻侧栏：大纲是「看一眼就走」的东西。
- * 关键是它必须看起来「浮在上面」，不能像一条常驻侧栏——正文只有 640px，
- * 在 900px 窗口里贴边通栏的面板会盖住 25% 的正文，读起来像被裁掉。
- * 所以：不贴边、圆角、浮层投影、内容宽度收窄；用浮层语义说明这是临时的。 */
-.outline-panel {
+/* ───────────── 侧栏：当前文档的目录 ─────────────
+ * 停靠而非浮层：大纲属于文档本身，不是临时工具。
+ * 停靠时正文所在的网格轨道变小并重新居中（grid-template-columns 带过渡）。
+ * 窄窗口放不下「正文 640 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
+ * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
+.sidebar {
+  grid-area: side;
+  overflow: hidden auto;
+  min-width: 0;
+  background: rgb(var(--shell));
+  border-right: 1px solid rgb(var(--border-subtle));
+}
+.sidebar[hidden] { display: none; }
+.sidebar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 8px 16px;
+  /* macOS 原生红绿灯占住左上角：侧栏顶部的条目要让开 */
+  padding-top: 12px;
+}
+html[data-shell='macos'] .sidebar-body { padding-top: 12px; }
+
+/* 浮层模式：窄窗口下的退化形态 */
+html.sidebar-overlay .sidebar {
   position: fixed;
-  top: 58px;
-  right: 12px;
-  max-height: min(70vh, calc(100vh - 90px));
-  width: 248px;
-  /* 必须低于顶栏（60）：否则面板会压在右上角那排工具按钮上，按钮点不到 */
+  top: 46px;
+  left: 0;
+  bottom: 34px;
+  width: 240px;
   z-index: 40;
-  padding: 8px;
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-card);
+  border-right: 1px solid rgb(var(--border));
   background: rgb(var(--popover));
   box-shadow: var(--shadow-floating);
-  overflow: auto;
-  animation: outline-in var(--motion-slow) var(--ease-emphasized) both;
+  animation: sidebar-in var(--motion-slow) var(--ease-emphasized) both;
 }
-.outline-panel[hidden] { display: none; }
+html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
+
 .outline-list { display: flex; flex-direction: column; gap: 1px; }
 .outline-row {
   display: flex;
@@ -516,14 +564,47 @@ html[data-shell='windows'] .window-controls { display: flex; }
 .outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
 /* 层级用「字重 + 缩进」双层表达，比只用缩进更抗窄栏 */
 .outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
-.outline-row[data-depth='2'] { padding-left: 22px; }
-.outline-row[data-depth='3'] { padding-left: 34px; }
-.outline-row[data-depth='4'] { padding-left: 46px; }
-.outline-row[data-depth='5'], .outline-row[data-depth='6'] { padding-left: 58px; }
+.outline-row[data-depth='2'] { padding-left: 20px; }
+.outline-row[data-depth='3'] { padding-left: 32px; }
+.outline-row[data-depth='4'] { padding-left: 44px; }
+.outline-row[data-depth='5'], .outline-row[data-depth='6'] { padding-left: 56px; }
 .outline-empty {
-  padding: 14px 10px;
+  padding: 6px 8px;
   color: rgb(var(--subtle-foreground));
   font-size: var(--text-sm);
+}
+
+/* ───────────── 状态行 ─────────────
+ * 文档的一行自述：字数 / 小节 / 阅读时长（左），文件名与保存状态（右）。
+ * 最弱一级文字 + 顶部分隔影，随时可见但不与正文抢注意力。 */
+#statusbar {
+  grid-area: status;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 14px;
+  background: rgb(var(--shell));
+  box-shadow: 0 -1px 0 rgb(var(--border-subtle));
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.status-group { display: flex; align-items: center; gap: 8px; }
+.status-right { margin-left: auto; }
+/* 组内用间隔点分隔，比逐个加边框安静 */
+.status-item + .status-item::before {
+  content: '·';
+  margin-right: 8px;
+  color: rgb(var(--border-strong));
+}
+.status-item[data-strong='true'] { color: rgb(var(--muted-foreground)); }
+
+@keyframes sidebar-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* ───────────── 首屏空态 ───────────── */
