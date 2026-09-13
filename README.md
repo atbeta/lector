@@ -20,14 +20,30 @@
 
 内核切片、编辑器预览/聚焦块、Tauri 壳已在开发中。方案见 [.ai/](./.ai/README.md)。质量门：`bun test` + `bun run typecheck` + `cargo test`。
 
-Windows 包由 GitHub Actions 出（NSIS 只能在 Windows 上打，macOS 开发机打不出来）：
+## 发版
+
+Windows 包只能由 CI 出（NSIS 在 macOS 上打不出来），所以发版是一条命令：
+
+```
+node tools/release.mjs 0.2.0
+```
+
+它改掉四处版本号（`tauri.conf.json` / `clients/tauri/package.json` / `Cargo.toml` / `Cargo.lock`）、
+跑本地质量门（`bun test` + `typecheck` + `design-audit`）、提交、打 tag、推。
+CI 接着在 Windows 上重跑全套检查（含静默安装与注册表校验），然后自动发布：
+
+- `Lector_<版本>_x64-setup.exe` —— 安装器，无需管理员权限，装完带 `.md` / `.markdown` / `.txt` 关联与图标
+- `lector-portable.exe` —— 免安装，双击即用
+- `SHA256SUMS.txt` —— 校验和
+
+tag 与版本号对不上、或哪个文件漏改了，CI 在第一分钟就拦下来，不会发出一个版本号对不上的包。
+带后缀的 tag（`v0.2.0-rc.1`）自动标成预发布。只想拿构建产物不发版：
 
 ```
 gh run download --repo atbeta/lector --name lector-windows-x64
 ```
 
-产物两份：`Lector_<版本>_x64-setup.exe`（安装器，无需管理员，装完带 `.md` 关联与图标）
-和 `lector-portable.exe`（免安装直接跑）。推 `v*` tag 会自动挂到 draft release。
+macOS 版暂不发：签名与公证还没做，先不发未签名的包。
 
 ## License
 

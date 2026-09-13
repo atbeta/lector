@@ -27,6 +27,16 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
 - 最小变更。不提交密钥。`testdata/` 只放自造夹具，不提交别人的私密笔记。
 - Commit messages：Conventional Commits，`type(scope): subject`，简洁英文。
 
+## 发版
+
+- 版本号只有一个入口：`node tools/release.mjs <版本>`——改四处版本号 → 本地质量门 → 提交 → 打 tag → 推。
+  不要手改版本号，也不要手打 tag 后才发现文件没跟。
+- tag 必须等于打包版本号。CI 的 `check` job 第一件事就是查这个：对不上直接失败，
+  否则 Release 里会躺着一个版本号不相符的安装器。
+- `v*` tag 推上去后 CI 自动构建并发布 Windows 包（安装器 + 便携版 + 校验和），不需要人工点确认。
+  分支上的推送只出 artifact，不动 Release。
+- macOS 签名与公证暂不在范围内，也不发未签名的 macOS 包。
+
 ## 目录
 
 ```

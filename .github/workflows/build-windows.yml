@@ -24,6 +24,35 @@ jobs:
           bun-version: 1.3.14
       - name: Install deps
         run: bun install --frozen-lockfile
+      # tag 是发布版本的唯一真相，四个版本号必须跟着它走。
+      # 不查这一条，v0.2.0 的 Release 里会躺着一个 Lector_0.1.0_x64-setup.exe，
+      # 而且要等 Windows job 跑完三分钟才看得出来。
+      - name: Tag matches the packaged version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, sys
+
+          tag = os.environ['TAG'].lstrip('v')
+          root = pathlib.Path('clients/tauri')
+          conf = json.load(open(root / 'src-tauri/tauri.conf.json'))['version']
+          pkg = json.load(open(root / 'package.json'))['version']
+          cargo = re.search(r'^version\s*=\s*"([^"]+)"',
+                            (root / 'src-tauri/Cargo.toml').read_text(), re.M).group(1)
+          lock = re.search(r'\[\[package\]\]\nname = "lector"\nversion = "([^"]+)"',
+                           (root / 'src-tauri/Cargo.lock').read_text()).group(1)
+
+          found = {'tauri.conf.json': conf, 'clients/tauri/package.json': pkg,
+                   'Cargo.toml': cargo, 'Cargo.lock': lock}
+          print(f"tag={tag} " + " ".join(f"{k}={v}" for k, v in found.items()))
+          bad = [f"{k} = {v}" for k, v in found.items() if v != tag]
+          if bad:
+              print(f"tag 是 {tag}，但这些文件不是：{', '.join(bad)}")
+              print("发版请走 tools/release.mjs，它会把四处一起改掉")
+              sys.exit(1)
+          PY
       - name: Installer hook stays in sync with tauri.conf.json
         run: |
           # Tauri 用 fileAssociations[].name 当 Windows 类键；patch 必须盯着同一个名字。
@@ -181,9 +210,54 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  # 发版。tag 一推，构建产物直接进 Release——「自动发版」的意义就在于
+  # 从 tag 到用户能下载中间不需要有人在浏览器里点。
+  #
+  # 分支上的推送只出 artifact，不动 Release：main 上每次提交都发一版会把
+  # 版本历史冲得没人看得懂。
+  release:
+    name: publish release
+    needs: [check, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
-          files: dist-win/*
-          draft: true
+          name: lector-windows-x64
+          path: dist-win
+
+      # 给下载的人一条自证的路：装之前能自己核一手哈希。
+      - name: Checksums
+        run: |
+          cd dist-win
+          sha256sum *.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -l dist-win
+          # v1.2.0-rc.1 这类带后缀的自动标成预发布，不占「最新版」的位置
+          pre=""
+          case "$TAG" in *-*) pre="--prerelease" ;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # 同一个 tag 重跑（构建失败后重试很常见）不该报错，覆盖产物即可
+            echo "release $TAG 已存在，改为覆盖上传"
+            gh release upload "$TAG" dist-win/*.exe dist-win/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" \
+              --title "Lector $TAG" \
+              --notes-file .github/release-notes.md \
+              --generate-notes \
+              $pre \
+              dist-win/*.exe dist-win/SHA256SUMS.txt
+          fi
+          gh release view "$TAG" --json url,name,isPrerelease,assets \
+            --jq '"\(.name) \(.url) prerelease=\(.isPrerelease)", (.assets[].name)'
