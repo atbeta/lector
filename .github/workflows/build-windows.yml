@@ -261,3 +261,22 @@ jobs:
           fi
           gh release view "$TAG" --json url,name,isPrerelease,assets \
             --jq '"\(.name) \(.url) prerelease=\(.isPrerelease)", (.assets[].name)'
+
+      # 发布完必须自证一句：这个 Release 真的挂在 vX.Y.Z 这个 tag 上。
+      #
+      # 这条断言来自一次真实的翻车：删掉远端 tag 再推回来时，GitHub 会把原
+      # Release 变成游离状态（页面 URL 变成 untagged-<hash>），而 `gh release view`
+      # 仍然按名字找得到它——上传照样成功、CI 照样绿，只有点开 Release 的人
+      # 会发现它已经不在 tag 底下了。发布这种事，最后一步得自己检查一遍。
+      - name: Release is attached to the tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag_name=$(gh release view "$TAG" --json tagName --jq .tagName)
+          echo "release tag_name = $tag_name（期望 $TAG）"
+          if [ "$tag_name" != "$TAG" ]; then
+            echo "::error::Release 没有挂在 $TAG 上（tag_name=$tag_name），页面会是 untagged 状态"
+            exit 1
+          fi
