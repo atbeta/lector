@@ -1,15 +1,27 @@
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { keymap, EditorView, highlightWhitespace } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { Prec, type Extension } from '@codemirror/state'
+import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
 
 export interface EditorialConfig {
   autoCharacterPairs: boolean
   showWhitespace: boolean
+  /**
+   * 兜底撤销：这个块的 CM 历史已经空了，块级操作还有可撤的时候调用。
+   * 返回 true 表示真的撤掉了（调用方自己重绘）。
+   */
+  onUndoFallback?: () => boolean
+  /**
+   * 粘贴 HTML 时是否转成 Markdown（默认转）。
+   * 代码块里要关掉：那里要的是代码原文，把网页的 `<pre>` 转成一个新围栏
+   * 塞进已有围栏里，等于在代码里插了一段 Markdown。
+   */
+  pasteHtmlAsMarkdown?: boolean
   /** 返回 true = 处理了该结构键（阻止默认行为）。 */
   structuralKeymap?: {
     Enter?: (view: EditorView) => boolean
@@ -24,6 +36,44 @@ export interface EditorialConfig {
 export interface CmHandle {
   view: EditorView
   destroy: () => void
+}
+
+/** 比较时忽略空白：只看「转出来的是不是还是那堆字」。 */
+function sameIgnoringSpace(a: string, b: string): boolean {
+  return a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * 粘贴：剪贴板里带 HTML 就转成 Markdown 再插入。
+ *
+ * 为什么要管这件事——浏览器的 `text/plain` 只留文字，加粗、链接、清单、表格全丢，
+ * 而本产品的文件就是 Markdown。粘贴是「顺手能改」的第一入口，不该是纯文本漏斗。
+ *
+ * 走正常的 dispatch（`userEvent: 'input.paste'`）：这次粘贴和手打的字一样进
+ * CM 的撤销链，所以块内 ⌘Z 能把它整段撤回，不需要另做一套。
+ *
+ * 返回 false = 交回 CM 的原生粘贴。转换没带来任何增益（或转不出东西）时不要自作主张。
+ */
+function pasteAsMarkdown(event: ClipboardEvent, view: EditorView, enabled: boolean): boolean {
+  if (!enabled) return false
+  const data = event.clipboardData
+  if (!data) return false
+  const html = data.getData('text/html')
+  if (!html) return false
+  const markdown = htmlToMarkdown(html)
+  if (!markdown) return false
+  const plain = data.getData('text/plain')
+  // 转出来跟纯文本一模一样，说明这段 HTML 没有 Markdown 能表达的结构
+  if (plain && sameIgnoringSpace(markdown, plain)) return false
+  const sel = view.state.selection.main
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: markdown },
+    selection: { anchor: sel.from + markdown.length },
+    scrollIntoView: true,
+    userEvent: 'input.paste',
+  })
+  event.preventDefault()
+  return true
 }
 
 // 代码高亮映射 NoteFast token（低饱和），用 CSS 变量取色以适配深浅主题。
@@ -62,6 +112,9 @@ export function mountEditor(
       if (update.docChanged) {
         onChange(update.state.doc.toString())
       }
+    }),
+    EditorView.domEventHandlers({
+      paste: (event, view) => pasteAsMarkdown(event, view, config.pasteHtmlAsMarkdown !== false),
     }),
     EditorView.theme({
       '&': {
@@ -116,6 +169,20 @@ export function mountEditor(
         { key: 'Mod-e', preventDefault: true, run: wrapKey('`') },
         // 中文输入法下 ⌘K 不冲突；链接一律给 url 占位
         { key: 'Mod-k', preventDefault: true, run: wrapKey('[', undefined, 'url') },
+        {
+          key: 'Mod-z',
+          run: (view) => {
+            // 块内打字是 CM 自己的历史，先让它走
+            if (undoDepth(view.state) > 0) return false
+            // 历史见底了才轮到块级撤销：刚插入的空段落、上一次删掉的块、勾错的任务。
+            // 没有这一条，用户在空块里按 ⌘Z 会「什么都没发生」——插入的段落撤不掉。
+            //
+            // 必须等这一记键盘事件走完再动手：撤掉的可能正是当前聚焦的这个块，
+            // 中途销毁 CM 会让它继续在自己已经被拆掉的 DOM 上跑。
+            window.setTimeout(() => config.onUndoFallback?.(), 0)
+            return true
+          },
+        },
         {
           key: 'Enter',
           run: (view) => {

@@ -56,6 +56,7 @@ import {
 import { t } from './i18n.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
+import { createUndoStack } from './undoStack.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import {
   fileToBase64,
@@ -401,6 +402,10 @@ function insertParagraphAfter(id: string): void {
   session.blocks.splice(i + 1, 0, para, gap)
   session.originals.set(para.id, para.raw)
   session.originals.set(gap.id, gap.raw)
+  blockUndoStack.push(t('menuUndoInsert'), () => {
+    const removed = takeBlocks([para.id, gap.id])
+    if (removed.length) forgetBlocks(removed)
+  })
   session.structuralDirty = true
   markDirty()
   render()
@@ -416,6 +421,10 @@ function insertParagraphBefore(id: string): void {
   session.blocks.splice(i, 0, para, gap)
   session.originals.set(para.id, para.raw)
   session.originals.set(gap.id, gap.raw)
+  blockUndoStack.push(t('menuUndoInsert'), () => {
+    const removed = takeBlocks([para.id, gap.id])
+    if (removed.length) forgetBlocks(removed)
+  })
   session.structuralDirty = true
   markDirty()
   render()
@@ -427,31 +436,61 @@ function insertParagraphBefore(id: string): void {
  *
  * 右键菜单能一键删掉整块，而 CodeMirror 的 undo 只管聚焦块内部——
  * 删完就没有后悔药了。对一个「文件是唯一真相」的产品来说这是不能留的风险，
- * 所以删除/剪切把被删的块压栈，⌘Z（且不在编辑器里）时恢复。
+ * 所以删除、插入、勾选都压栈，⌘Z（且不在编辑器里）时撤回。
+ *
+ * 每项是一个「怎么退回去」的闭包而不是快照：闭包带着操作发生时的位置和对象身份，
+ * 退回去时不必猜「当时它是第几块」。
  *
  * 只压结构操作，不压文字编辑（那是 CM 的事）。栈上限 20，够用且不积内存。
  */
-const blockUndoStack: Array<{ from: number; blocks: BlockView[] }> = []
 const BLOCK_UNDO_MAX = 20
+const blockUndoStack = createUndoStack(BLOCK_UNDO_MAX)
 
-function pushBlockUndo(from: number, blocks: BlockView[]): void {
-  if (blocks.length === 0) return
-  blockUndoStack.push({ from, blocks })
-  if (blockUndoStack.length > BLOCK_UNDO_MAX) blockUndoStack.shift()
-}
-
-function undoBlockOp(): boolean {
-  const entry = blockUndoStack.pop()
-  if (!entry) return false
-  const at = Math.min(entry.from, session.blocks.length)
-  session.blocks.splice(at, 0, ...entry.blocks)
-  for (const b of entry.blocks) {
+/** 把一批块插回原位（撤销删除用）。 */
+function restoreBlocks(at: number, blocks: BlockView[]): void {
+  const index = Math.max(0, Math.min(at, session.blocks.length))
+  session.blocks.splice(index, 0, ...blocks)
+  for (const b of blocks) {
     if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
   }
   session.structuralDirty = true
+}
+
+/** 块离开会话后，DOM、聚焦中的 CM、原文缓存都不能留下孤儿。 */
+function forgetBlocks(removed: BlockView[]): void {
+  for (const r of removed) {
+    session.originals.delete(r.id)
+    blocksEl.get(r.id)?.remove()
+    blocksEl.delete(r.id)
+  }
+  if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
+    if (cm) {
+      cm.destroy()
+      cm = null
+    }
+    session.focusedId = null
+  }
+}
+
+/** 按 id 摘块（撤销插入用），其余块保持相对顺序。 */
+function takeBlocks(ids: string[]): BlockView[] {
+  const wanted = new Set(ids)
+  const removed: BlockView[] = []
+  session.blocks = session.blocks.filter((b) => {
+    if (!wanted.has(b.id)) return true
+    removed.push(b)
+    return false
+  })
+  return removed
+}
+
+/** 弹一次撤销并重绘；没有可撤的就返回 false，让 ⌘Z 回到正常路径。 */
+function undoBlockOp(): boolean {
+  const label = blockUndoStack.undo()
+  if (label === null) return false
   markDirty()
   render()
-  showToast(t('menuUndoBlock'))
+  showToast(label)
   return true
 }
 
@@ -476,20 +515,9 @@ function deleteBlock(id: string): void {
     count += 1 // 末块：带走前面的缝
   }
   const removed = session.blocks.splice(from, count)
-  pushBlockUndo(from, removed)
-  for (const r of removed) {
-    session.originals.delete(r.id)
-    blocksEl.get(r.id)?.remove()
-    blocksEl.delete(r.id)
-  }
+  blockUndoStack.push(t('menuUndoBlock'), () => restoreBlocks(from, removed))
+  forgetBlocks(removed)
   session.structuralDirty = true
-  if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
-    session.focusedId = null
-  }
   markDirty()
   render()
 }
@@ -518,8 +546,11 @@ function toggleTaskItem(block: BlockView, itemIndex: number, checked: boolean): 
     const m = lines[i]!.match(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\]\s*)/)
     if (!m) continue
     if (seen === itemIndex) {
+      const before = block.raw
       lines[i] = `${m[1]}${checked ? 'x' : ' '}${m[3]}${lines[i]!.slice(m[0].length)}`
       setBlockRaw(block, lines.join('\n'))
+      // 勾错了要能撤回来。勾选不经过 CM，所以得自己进撤销链。
+      blockUndoStack.push(t('menuUndoCheck'), () => setBlockRaw(block, before))
       render()
       return
     }
@@ -1052,6 +1083,10 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
     const config = {
       autoCharacterPairs: getSettings().autoCharacterPairs,
       showWhitespace: getSettings().showWhitespace,
+      // 块内历史见底后，⌘Z 接着撤块级操作（见 cm.ts 的 Mod-z）
+      onUndoFallback: () => undoBlockOp(),
+      // 代码块里不做 HTML→Markdown：那里要的是代码原文
+      pasteHtmlAsMarkdown: block.kind !== 'code',
       structuralKeymap: {
         Enter: (view: EditorView) => splitBlock(block, view),
         Backspace: (view: EditorView) => mergeBlock(block, view),

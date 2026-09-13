@@ -911,12 +911,202 @@ const summary = {
   summary.shellAt900 = narrow
 }
 
-const order = { error: 0, warn: 1 }
+// ── 交互行为：粘贴转 Markdown 与块级撤销 ──
+//
+// 这两件事都发生在「事件 → 状态」这一层，静态审计和渲染审计都量不到：
+// 只有真的按一次键、真的发一个 paste 事件，才知道接没接上。
+{
+  // 回到 macOS 的宽版式，并把侧栏收起来，避免遮住要点的块
+  await page.setViewportSize({ width: 1200, height: 820 })
+  await page.evaluate(() => {
+    try {
+      window.localStorage.removeItem('lector-sidebar')
+    } catch {
+      /* ignore */
+    }
+  })
+  await page.goto(URL_ARG, { waitUntil: 'networkidle' })
+  await page.waitForSelector('#content .block', { timeout: 10000 })
+
+  const blockCount = () => page.locator('#content .block').count()
+  const toastText = () =>
+    page.evaluate(() => document.getElementById('lector-toast')?.textContent ?? '')
+
+  /**
+   * 右键 target，点菜单里文字匹配 pattern 的那一项。
+   *
+   * 带重试：菜单会在页面滚动时关闭（这是产品行为），而上一步刚聚焦/滚动过，
+   * 补一次滚动事件就可能在右键之后到达——那属于时序，不是缺陷。
+   * 三次都打不开才算失败，失败要显式报出来，不能装作没测。
+   */
+  const menuItem = async (target, pattern, label) => {
+    for (let i = 0; i < 3; i++) {
+      await target.click({ button: 'right' })
+      await page.waitForTimeout(260)
+      const open = await page.evaluate(() => {
+        const m = document.querySelector('.context-menu')
+        return !!m && !m.hidden && m.querySelectorAll('.context-item').length > 0
+      })
+      if (open) {
+        const item = page.locator('.context-menu .context-item', { hasText: pattern }).first()
+        if ((await item.count()) > 0) {
+          await item.click()
+          await page.waitForTimeout(160)
+          return true
+        }
+      }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(120)
+    }
+    note('error', `右键菜单里点不到「${label}」`)
+    return false
+  }
+
+  // 1) 右键「在下方插入段落」→ 在刚聚焦的空块里按 ⌘Z → 段落应当撤回
+  const before = await blockCount()
+  // 只点有内容、看得见的块：块数组里还夹着零高的空行缝
+  await menuItem(page.locator('#content .block:not(.gap)').nth(2), /insert paragraph below|在下方插入段落/i, '在下方插入段落')
+  const inserted = await blockCount()
+  if (inserted <= before) {
+    note('error', `「插入段落」没有新增块：${before} → ${inserted}`)
+  }
+  const focused = await page.evaluate(() => document.querySelectorAll('#content .cm-content').length)
+  if (focused !== 1) {
+    note('error', `插入段落后应当只有一个聚焦块（页面上有 ${focused} 个 CM 编辑器）`)
+  }
+  await page.keyboard.press('Meta+z')
+  await page.waitForTimeout(250)
+  const undone = await blockCount()
+  if (undone !== before) {
+    note('error', `块内 ⌘Z 没有撤回插入的段落：${before} → ${inserted} → ${undone}`)
+  } else {
+    note('info', `块级撤销：插入的段落可撤回（块数回到 ${before}）`)
+  }
+
+  // 2) 粘贴带 HTML 的剪贴板 → 落到块里的是 Markdown
+  // 挑一个不含链接的段落：点在有链接的段落上会被「打开链接」接走，块不会被聚焦
+  await page
+    .locator('#content .block[data-kind="paragraph"]')
+    .filter({ hasNot: page.locator('a') })
+    .first()
+    .click()
+  await page.waitForSelector('#content .cm-content', { timeout: 3000 })
+  // 点块就该进编辑，焦点必须真的落在 CM 上：否则后面的按键打在 body 上，
+  // 撤销看起来「没生效」，其实是没送到——测试会误报。
+  const focusedCm = await page
+    .waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false)
+  if (!focusedCm) {
+    note('error', `点击块后焦点没进编辑器：activeElement=${await page.evaluate(() => document.activeElement?.className ?? null)}`)
+  }
+  const originalText = await page.locator('#content .cm-content').first().innerText()
+  const pasted = await page.evaluate(() => {
+    const dt = new DataTransfer()
+    dt.setData(
+      'text/html',
+      '<p>一句 <strong>加粗</strong> 和 <a href="https://a.com">链接</a></p><ul><li>甲</li><li>乙</li></ul>',
+    )
+    dt.setData('text/plain', '一句 加粗 和 链接 甲 乙')
+    const ev = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+    // Chromium 不接受构造参数里的 clipboardData，只能自己挂一个
+    Object.defineProperty(ev, 'clipboardData', { value: dt })
+    const content = document.querySelector('#content .cm-content')
+    content.dispatchEvent(ev)
+    return content.innerText
+  })
+  const need = ['**加粗**', '[链接](https://a.com)', '- 甲', '- 乙']
+  const missing = need.filter((s) => !pasted.includes(s))
+  if (missing.length) {
+    note('error', `粘贴 HTML 没有转成 Markdown，缺少：${missing.join(' / ')}｜实际：${JSON.stringify(pasted)}`)
+  } else {
+    note('info', '粘贴 HTML：粗体、链接、清单都转成了 Markdown')
+  }
+  // 粘贴走 CM 的正常输入路径，所以块内 ⌘Z 应当把它整段撤回
+  await page.keyboard.press('Meta+z')
+  await page.waitForTimeout(250)
+  const afterUndo = await page.locator('#content .cm-content').first().innerText()
+  if (afterUndo.trim() !== originalText.trim()) {
+    const active = await page.evaluate(() => document.activeElement?.className ?? null)
+    note(
+      'error',
+      `粘贴没有进 CM 的撤销链：⌘Z 后是 ${JSON.stringify(afterUndo)}，原样应为 ${JSON.stringify(originalText)}｜activeElement=${active}`,
+    )
+  } else {
+    note('info', '粘贴进撤销链：块内 ⌘Z 可整段撤回')
+  }
+
+  // 3) 任务勾选也要能撤回（勾选不经过 CM，得自己进撤销链）
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
+  const taskCount = await page.locator('#content li.task').count()
+  if (taskCount > 0) {
+    const checkbox = () => page.locator('#content li.task').first().locator('input[type=checkbox]')
+    const checkedBefore = await checkbox().isChecked()
+    await menuItem(
+      page.locator('#content li.task').first(),
+      /mark as (not )?done|标记为(未)?完成/i,
+      '标记任务完成',
+    )
+    const checkedAfter = await checkbox().isChecked()
+    if (checkedAfter === checkedBefore) {
+      note('error', `任务勾选没有生效：${checkedBefore} → ${checkedAfter}`)
+    }
+    await page.keyboard.press('Meta+z')
+    await page.waitForTimeout(250)
+    const checkedUndone = await checkbox().isChecked()
+    if (checkedUndone !== checkedBefore) {
+      note('error', `任务勾选撤不回来：${checkedBefore} → ${checkedAfter} → ${checkedUndone}`)
+    } else {
+      note('info', `任务勾选可撤回（${checkedBefore} → ${checkedAfter} → ${checkedUndone}）`)
+      note('info', `撤销回执：${JSON.stringify(await toastText())}`)
+    }
+  } else {
+    note('warn', '示例文档里没有任务项，跳过勾选撤销检查')
+  }
+
+  // 4) 代码块里粘贴 HTML **不**转 Markdown：
+  //    把网页的 <pre> 转成一个新围栏塞进已有围栏里，等于在代码里插了一段 Markdown
+  const codeBlock = page.locator('#content .block[data-kind="code"]').first()
+  if ((await codeBlock.count()) > 0) {
+    await codeBlock.click()
+    await page.waitForSelector('#content .cm-content', { timeout: 3000 })
+    const ok = await page
+      .waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!ok) note('error', '点击代码块后焦点没进编辑器')
+    // 全选后粘贴：结果只由这一次粘贴决定，不受光标落点影响
+    await page.keyboard.press('Meta+a')
+    const codeAfterPaste = await page.evaluate(() => {
+      const dt = new DataTransfer()
+      dt.setData('text/html', '<pre><code class="language-js">const a = 1</code></pre>')
+      dt.setData('text/plain', 'const a = 1')
+      const ev = new ClipboardEvent('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(ev, 'clipboardData', { value: dt })
+      const content = document.querySelector('#content .cm-content')
+      content.dispatchEvent(ev)
+      return content.innerText
+    })
+    if (codeAfterPaste.includes('```') || !codeAfterPaste.includes('const a = 1')) {
+      note('error', `代码块里粘贴 HTML 被转成了 Markdown：${JSON.stringify(codeAfterPaste)}`)
+    } else {
+      note('info', '代码块里粘贴 HTML：落进去的是代码原文，没有多出一层围栏')
+    }
+  } else {
+    note('warn', '示例文档里没有代码块，跳过代码块粘贴检查')
+  }
+  summary.behavior = { blocksBefore: before, blocksAfterInsert: inserted, blocksAfterUndo: undone }
+}
+
+// info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
+const order = { error: 0, warn: 1, info: 2 }
 findings.sort((a, b) => order[a.level] - order[b.level])
 for (const f of findings) {
-  console.log(`${f.level === 'error' ? 'ERROR' : 'WARN '} ${f.msg}`)
+  console.log(`${f.level.toUpperCase().padEnd(5)} ${f.msg}`)
 }
 const errors = findings.filter((f) => f.level === 'error').length
-console.log(`\n${errors} error / ${findings.length - errors} warn`)
+const warns = findings.filter((f) => f.level === 'warn').length
+console.log(`\n${errors} error / ${warns} warn / ${findings.length - errors - warns} info`)
 if (process.env.VERIFY_DUMP) console.log(JSON.stringify(summary, null, 2))
 process.exit(errors > 0 ? 1 : 0)

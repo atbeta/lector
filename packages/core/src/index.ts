@@ -24,3 +24,4 @@ export {
   type FontFamily,
   type ThemeMode,
 } from './settings.ts'
+export { decodeEntities, htmlToMarkdown } from './htmlToMarkdown.ts'
