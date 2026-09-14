@@ -1297,6 +1297,14 @@ async function openFromShellOrDialog() {
 }
 
 contentEl.addEventListener('click', (e) => {
+  // 拖选之后松开鼠标：click 事件仍会触发，handler 会跑去 focusBlock()，
+  // 而 focusBlock 会 render()，把选中的节点清掉——视觉上就是「选中瞬间消失」。
+  // mouseup 不会清选区；到 click 触发时 sel 仍是非折叠的，拦下即可。
+  // 真点击（点空白、点链接、点进块）sel 是折叠的，行为不变。
+  const sel = window.getSelection()
+  if (sel && !sel.isCollapsed && sel.toString().length > 0) {
+    return
+  }
   const link = (e.target as HTMLElement).closest('a')
   if (link && !link.closest('.cm-host')) {
     e.preventDefault()
