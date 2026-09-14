@@ -13,7 +13,7 @@
 
 const LS_KEY = 'lector-sidebar'
 /** 侧栏宽度。grid 轨道与 .sidebar 的宽都要与它一致（见 app.css）。 */
-export const SIDEBAR_W = 240
+export const SIDEBAR_W = 288
 /** 低于这个宽度就退化成浮层：侧栏 + 正文 + 两侧留白 */
 const DOCK_MIN = SIDEBAR_W + 640 + 150
 

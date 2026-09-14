@@ -44,6 +44,8 @@ import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
+import { createRailNav } from './railNav.ts'
+import { openTableEditor } from './tableEditor.ts'
 import { mountLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
 import {
@@ -140,6 +142,37 @@ const sidebar = createSidebar({
     outlineBtn.setAttribute('aria-pressed', String(open))
   },
 })
+
+// 右侧阅读导航轨：标题刻度 + 当前位置点。大纲给结构，它给方位。
+const rail = createRailNav({
+  content: contentEl,
+  onJump: (id) => jumpToHeading(id),
+})
+rail.el.setAttribute('aria-label', t('railAria'))
+/** 上次重排刻度时的文档高度：滚动时凭它发现布局变了（改字/缩放/改字号）。 */
+let lastRailScrollHeight = 0
+
+/** 重排刻度纵坐标（刻度集合不变、布局变了时调用）。 */
+function relayoutRail(): void {
+  const contentTop = contentEl.getBoundingClientRect().top
+  const scrollTop = contentEl.scrollTop
+  rail.relayout((id) => {
+    const el = blocksEl.get(id)
+    if (!el) return null
+    return el.getBoundingClientRect().top - contentTop + scrollTop
+  }, contentEl.scrollHeight)
+  lastRailScrollHeight = contentEl.scrollHeight
+}
+
+/** 标题集合变化时重建刻度。刻度位置依赖布局，渲染后等一帧再量。 */
+function renderRail(): void {
+  rail.render(
+    session.blocks
+      .filter((b) => b.kind === 'heading')
+      .map((b) => ({ id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() })),
+  )
+  requestAnimationFrame(() => relayoutRail())
+}
 
 /**
  * 大纲签名：标题的 id / 级别 / 文字。变了就说明大纲该重建。
@@ -250,6 +283,7 @@ function setActiveHeading(id: string | null, opts: { reveal?: boolean } = {}): v
   if (id === activeHeadingId && !opts.reveal) return
   activeHeadingId = id
   applyActiveClasses()
+  rail.setActive(id)
   if (opts.reveal && id) {
     // 大纲很长时，当前项要自动滚进可视区（只滚侧栏，不动正文）
     outlineRows.get(id)?.scrollIntoView({ block: 'nearest' })
@@ -559,6 +593,30 @@ function toggleTaskItem(block: BlockView, itemIndex: number, checked: boolean): 
 }
 
 
+// ───────────── 表格网格编辑 ─────────────
+// 表格是「结构上想网格、存储上要源码」的典型：弹窗管网格，写回走块原文。
+
+/** 网格弹窗的结果写回块原文，并进块级撤销链（表格不经过 CM，得自己进）。 */
+function applyTableMarkdown(block: BlockView, md: string): void {
+  if (md === block.raw) return
+  const before = block.raw
+  setBlockRaw(block, md)
+  blockUndoStack.push(t('menuUndoTable'), () => setBlockRaw(block, before))
+  render()
+}
+
+function openTableForBlock(block: BlockView): void {
+  openTableEditor({
+    source: block.raw,
+    onDone: (md) => applyTableMarkdown(block, md),
+    onEditSource: (md) => {
+      applyTableMarkdown(block, md)
+      // 网格不够用时的退路：写回网格结果后切到该块的源码编辑
+      focusBlock(block.id)
+    },
+  })
+}
+
 // ───────────── 右键菜单 ─────────────
 // 分场景给菜单：读代码的要「复制」，改文档的要「删除/插入」，点了任务的想「勾选」。
 // 同一个菜单套所有场景会让每一项都显得可疑。
@@ -606,8 +664,12 @@ function editorMenuItems(): ContextMenuItem[] {
 function blockMenuItems(block: BlockView, el: HTMLElement): ContextMenuItem[] {
   const preview = el.querySelector('.preview')
   const raw = block.raw
+  const tableItems: ContextMenuItem[] =
+    block.kind === 'table' ? [{ label: t('menuEditTable'), run: () => openTableForBlock(block) }] : []
   return [
+    ...tableItems,
     {
+      separatorBefore: tableItems.length > 0,
       label: t('menuCopyBlock'),
       hint: 'Markdown',
       run: () => void copyText(raw, t('menuCopied')),
@@ -794,6 +856,7 @@ function markDirty() {
   if (sig !== lastOutlineSignature) {
     lastOutlineSignature = sig
     if (sidebar.isOpen()) renderOutline()
+    renderRail()
   }
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
@@ -1249,7 +1312,15 @@ contentEl.addEventListener('click', (e) => {
     return
   }
   const id = target.dataset.blockId
-  if (id) focusBlock(id, { mode: 'coords', x: e.clientX, y: e.clientY })
+  if (!id) return
+  // 表格块点预览 = 打开网格编辑弹窗（改表格在纯文本里太痛苦；
+  // 想直接改源码，弹窗里有「编辑源码」退路）
+  const block = session.blocks.find((b) => b.id === id)
+  if (block?.kind === 'table') {
+    openTableForBlock(block)
+    return
+  }
+  focusBlock(id, { mode: 'coords', x: e.clientX, y: e.clientY })
 })
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024
@@ -1727,6 +1798,12 @@ void (async () => {
       requestAnimationFrame(() => {
         spyTick = false
         updateActiveHeading()
+        // 导航轨的位置点 = 视口中心在全文中的比例
+        rail.setPosition(
+          (contentEl.scrollTop + contentEl.clientHeight / 2) / Math.max(1, contentEl.scrollHeight),
+        )
+        // 编辑/缩放改变了文档高度：刻度纵坐标跟着重排
+        if (contentEl.scrollHeight !== lastRailScrollHeight) relayoutRail()
       })
       scheduleRecordPosition()
     },
@@ -1748,6 +1825,9 @@ void (async () => {
         sidebar.sync()
         const isDocked = document.documentElement.classList.contains('sidebar-docked')
         if (wasDocked !== isDocked) renderStatus()
+        // 窗口/侧栏变了：导航轨贴回正文右缘并重排刻度
+        rail.place()
+        relayoutRail()
       })
     },
     { passive: true },

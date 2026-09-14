@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Lector：Markdown 阅读器。设计语言与 NoteFast 同源：圆角方块纯色底 + 白色极简线条。
+       图形语义：一本打开的书（阅读），左页一个 #（Markdown 的签名符号），右页三条阅读线。 -->
+  <rect width="1024" height="1024" rx="225" fill="#4F5ABA"/>
+  <!-- 书页轮廓：中缝微凹，两页向外展开 -->
+  <path d="M 212 330 Q 362 282 512 336 Q 662 282 812 330 L 812 700 Q 662 652 512 706 Q 362 652 212 700 Z"
+        fill="none" stroke="#fff" stroke-width="46" stroke-linejoin="round"/>
+  <!-- 左页的 #：Markdown 签名 -->
+  <g stroke="#fff" stroke-width="40" stroke-linecap="round">
+    <line x1="330" y1="432" x2="312" y2="598"/>
+    <line x1="420" y1="432" x2="402" y2="598"/>
+    <line x1="282" y1="482" x2="452" y2="482"/>
+    <line x1="268" y1="548" x2="438" y2="548"/>
+  </g>
+  <!-- 右页的阅读线：三条，首条短一点当作小节标题的节奏 -->
+  <g stroke="#fff" stroke-width="38" stroke-linecap="round">
+    <line x1="590" y1="452" x2="700" y2="452"/>
+    <line x1="590" y1="536" x2="742" y2="536"/>
+    <line x1="590" y1="620" x2="712" y2="620"/>
+  </g>
+</svg>

@@ -94,6 +94,18 @@ const zh = {
   codeCopy: '复制',
   codeCopied: '已复制代码',
   codeCopyFailed: '复制失败',
+  // 阅读导航轨与表格编辑
+  railAria: '章节导航',
+  menuEditTable: '编辑表格…',
+  menuUndoTable: '已还原表格修改',
+  tableTitle: '编辑表格',
+  tableEditSource: '编辑源码',
+  tableAddRow: '添加行',
+  tableAddCol: '添加列',
+  tableDelRow: '删除此行',
+  tableDelCol: '删除此列',
+  tableHeaderCell: '表头第 {n} 列',
+  tableBodyCell: '第 {row} 行第 {col} 列',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
@@ -188,6 +200,18 @@ const en: Record<keyof typeof zh, string> = {
   codeCopy: 'Copy',
   codeCopied: 'Code copied',
   codeCopyFailed: 'Copy failed',
+  // Reading rail and table editor
+  railAria: 'Section navigation',
+  menuEditTable: 'Edit table…',
+  menuUndoTable: 'Table edit reverted',
+  tableTitle: 'Edit table',
+  tableEditSource: 'Edit source',
+  tableAddRow: 'Add row',
+  tableAddCol: 'Add column',
+  tableDelRow: 'Delete row',
+  tableDelCol: 'Delete column',
+  tableHeaderCell: 'Header column {n}',
+  tableBodyCell: 'Row {row}, column {col}',
 }
 
 export type MessageKey = keyof typeof zh
