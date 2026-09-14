@@ -64,10 +64,13 @@ import { createUndoStack } from './undoStack.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import {
   fileToBase64,
+  imageContentHash,
   imageMarkdown,
   isImageMime,
   pastedFileName,
   safeDropName,
+  findDedupImage,
+  rememberImage,
 } from './imageInsert.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
@@ -1507,8 +1510,18 @@ async function ingestImageFile(file: File, name: string | null) {
     return
   }
   try {
-    const bytes_base64 = fileToBase64(await file.arrayBuffer())
+    const bytes = await file.arrayBuffer()
+    // 同一张图在本会话内粘 N 次只占一份磁盘：按内容 hash 复用上次返回的路径。
+    // 跨会话的 map 会重置——按 hash 查 image-assets 目录里是下个迭代的事。
+    const hash = await imageContentHash(bytes)
+    const existing = findDedupImage(hash)
+    if (existing) {
+      insertImageMarkdownAtCaret(imageMarkdown(existing))
+      return
+    }
+    const bytes_base64 = fileToBase64(bytes)
     const { relative_path } = await saveImage(session.source.path, name, bytes_base64)
+    rememberImage(hash, relative_path)
     insertImageMarkdownAtCaret(imageMarkdown(relative_path))
   } catch (err) {
     showToast(`${t('imageFailed')}：${String(err)}`)

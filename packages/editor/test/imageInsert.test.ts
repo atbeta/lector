@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  _resetDedupForTests,
   extFromMime,
+  findDedupImage,
+  imageContentHash,
   imageMarkdown,
   insertAt,
   isImageMime,
   pastedFileName,
+  rememberImage,
   safeDropName,
   sidecarRelPath,
 } from '../src/imageInsert.ts'
@@ -44,5 +48,30 @@ describe('插入 markdown', () => {
     expect(isImageMime('image/svg+xml')).toBe(false)
     expect(isImageMime('text/plain')).toBe(false)
     expect(extFromMime('image/webp')).toBe('webp')
+  })
+})
+
+describe('图片内容哈希去重', () => {
+  test('同一份字节算出同一个 12-hex 串', async () => {
+    const bytes = new TextEncoder().encode('hello world').buffer
+    const a = await imageContentHash(bytes)
+    const b = await imageContentHash(bytes)
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[0-9a-f]{12}$/)
+  })
+
+  test('不同字节算出不同 hash', async () => {
+    const a = await imageContentHash(new TextEncoder().encode('foo').buffer)
+    const b = await imageContentHash(new TextEncoder().encode('bar').buffer)
+    expect(a).not.toBe(b)
+  })
+
+  test('记入 map 后能查到;reset 后查不到', () => {
+    _resetDedupForTests()
+    expect(findDedupImage('abc123')).toBeNull()
+    rememberImage('abc123', 'images/foo.png')
+    expect(findDedupImage('abc123')).toBe('images/foo.png')
+    _resetDedupForTests()
+    expect(findDedupImage('abc123')).toBeNull()
   })
 })

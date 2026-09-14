@@ -1,5 +1,31 @@
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'])
 
+// 内容哈希去重缓存：粘贴同一张图多次只占一份磁盘。
+// 跨会话的 map 会重置——未持久化；设计上有意以此为限：手动管理文件的用户
+// 不会惊讶被「跨重启合并」。想要跨会话的下一轮再加 image manifest。
+const contentHashCache = new Map<string, string>() // hash(12 hex) → images/... 相对路径
+
+/** SHA-256 前 6 字节（12 hex 字符），用作去重 key。够用、不算长。 */
+export async function imageContentHash(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const view = new Uint8Array(digest)
+  let s = ''
+  for (let i = 0; i < 6; i++) s += view[i]!.toString(16).padStart(2, '0')
+  return s
+}
+
+export function findDedupImage(hash: string): string | null {
+  return contentHashCache.get(hash) ?? null
+}
+
+export function rememberImage(hash: string, relativePath: string): void {
+  contentHashCache.set(hash, relativePath)
+}
+
+export function _resetDedupForTests(): void {
+  contentHashCache.clear()
+}
+
 const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
