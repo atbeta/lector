@@ -1217,6 +1217,54 @@ function scheduleRecoveryWrite(): void {
   }, 1200)
 }
 
+/**
+ * 磁盘版本与本地改动冲突时的提示条（浮在顶栏下方，不插进正文流）。
+ *
+ * 两个动作对应两种意图，措辞要把后果说清楚：
+ *   - 「加载磁盘版本」= 放弃我的未保存改动
+ *   - 「保留我的改动」= 之后保存会覆盖磁盘上的版本
+ * 不提供第三种「关掉不管」：那条路通向"下次保存时才发现冲突"，
+ * 而那时用户已经想不起自己改了什么。
+ */
+let externalBar: HTMLElement | null = null
+
+function hideExternalBar(): void {
+  externalBar?.remove()
+  externalBar = null
+}
+
+function showExternalChangeBar(mtimeMs: number): void {
+  if (externalBar) return
+  const bar = document.createElement('div')
+  bar.className = 'recover-bar'
+  bar.setAttribute('role', 'alert')
+  const text = document.createElement('span')
+  text.className = 'recover-text'
+  text.textContent = t('externalChangedDirty')
+  const reload = document.createElement('button')
+  reload.type = 'button'
+  reload.className = 'btn btn-primary'
+  reload.textContent = t('externalReload')
+  reload.addEventListener('click', async () => {
+    hideExternalBar()
+    await reloadFromDisk()
+    showToast(t('externalReloaded'))
+  })
+  const keep = document.createElement('button')
+  keep.type = 'button'
+  keep.className = 'btn'
+  keep.textContent = t('externalKeep')
+  keep.addEventListener('click', () => {
+    // 采纳磁盘的 mtime 作为新基准：等于告诉保存流程「这个磁盘版本我知道」，
+    // 于是保存会覆盖它而不是再弹一次冲突确认——用户刚做过这个选择。
+    if (session.source) session.source.mtimeMs = mtimeMs
+    hideExternalBar()
+  })
+  bar.append(text, reload, keep)
+  document.body.appendChild(bar)
+  externalBar = bar
+}
+
 function hideRecoveryBar(): void {
   recoveryBar?.remove()
   recoveryBar = null
@@ -2362,12 +2410,25 @@ function bindShellEvents() {
     loadSession(res.path, res.content, res.mtime_ms)
   })
   // 外部变更（watch 回调）
+  //
+  // 三种情况分开处理，因为「代价」完全不同：
+  //   1. 自己刚保存完 —— 忽略。保存会让文件变化，watcher 也会响，
+  //      没有 mtime 判据的话每次 ⌘S 都会触发一次假的「外部修改」。
+  //   2. 正文干净 —— 直接换成磁盘版本**并说明**。可丢的东西为零，
+  //      静默重载唯一的毛病是用户看到内容自己变了却不知为何。
+  //   3. 正文有未保存改动 —— 绝不自动覆盖，给可操作的选择：
+  //      这是唯一会丢东西的分支，一句 toast 既没说清丢了什么，
+  //      也没给"我要哪个版本"的入口。
   void onFileChanged(async (e) => {
-    if (session.source && e.path === session.source.path && !session.dirty) {
+    const src = session.source
+    if (!src || e.path !== src.path) return
+    if (e.mtime_ms <= (src.mtimeMs ?? 0)) return
+    if (!session.dirty) {
       await reloadFromDisk()
-    } else if (session.source && e.path === session.source.path && session.dirty) {
-      showToast(t('diskChanged'))
+      showToast(t('externalReloaded'))
+      return
     }
+    showExternalChangeBar(e.mtime_ms)
   })
   // 原生菜单
   void onMenu((action) => {
