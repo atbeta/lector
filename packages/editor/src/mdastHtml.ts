@@ -6,7 +6,22 @@ import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
 
 type Node =
-  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; children?: Node[]; position?: unknown }
+  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; children?: Node[]; position?: unknown }
+
+/**
+ * 判断一段行内 $…$ 内容是不是「真的数学公式」。
+ *
+ * micromark-extension-math 没有 Pandoc 的防误判，会把「$5 - $10 之间」这种
+ * 价格/区间也解析成 inlineMath（实测 value=`5 - `、`5-`、`100 到 `）。
+ * 它们不是公式，硬塞给 KaTeX 只会渲染成一行错位的数学（还悄无声息地把 `$` 吃掉）。
+ * 守卫用「是否会含数学记号/变量名」做粗筛：含反斜杠宏、上/下标、花括号、
+ * 或拉丁字母（变量名）才当公式；纯数字/标点/中文本的当普通文本，不渲染成公式。
+ */
+export function looksLikeMath(tex: string): boolean {
+  const t = tex.trim()
+  if (t === '') return false
+  return /[_^{}\\]/.test(t) || /[a-zA-Z]/.test(t)
+}
 
 /**
  * 预渲染缓存：key=`block|inline::tex`,value=已转义 HTML。
@@ -19,17 +34,29 @@ function mathKey(display: boolean, tex: string): string {
   return `${display ? 'block' : 'inline'}::${tex}`
 }
 
-/** 走一块 mdast,找出所有 math / inlineMath,调 katex 渲完后填表。 */
+/** 走一块 mdast,找出所有 math / inlineMath,调 katex 渲完后填表。
+ *  单条公式出错绝不让整篇崩：renderMathToHtml 的 reject 在这里被吃掉，
+ *  把该式的退化原文写进缓存，渲染层读到就按原样显示。 */
 export async function preRenderMath(blocks: ReadonlyArray<{ mdast: unknown }>): Promise<void> {
   const pending: Array<Promise<void>> = []
   for (const b of blocks) {
     visitMath(b.mdast, (tex, display) => {
       const k = mathKey(display, tex)
       if (mathHtmlCache.has(k)) return
+      // 行内非公式（货币/区间等）不渲染成公式——直接略过，inlineNode 再兜底原文
+      if (!display && !looksLikeMath(tex)) return
       pending.push(
-        renderMathToHtml(tex, display).then((html) => {
-          mathHtmlCache.set(k, html)
-        }),
+        renderMathToHtml(tex, display)
+          .then((html) => {
+            mathHtmlCache.set(k, html)
+          })
+          .catch((err) => {
+            console.error('[lector] math render failed:', tex, err)
+            // 行内/块级分开：.math-error 是 display:block，塞进行内会把整行打断，
+            // 行内用 display:inline 的 math-error-inline，勉强可读的退化原文。
+            const cls = display ? 'math-error' : 'math-error-inline'
+            mathHtmlCache.set(k, `<span class="${cls}">${esc(tex)}</span>`)
+          }),
       )
     })
   }
@@ -113,10 +140,26 @@ function inlineNode(n: Node): string {
     case 'image':
       return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
     case 'inlineMath': {
-      const k = mathKey(false, n.value ?? '')
-      const html = mathHtmlCache.get(k) ?? esc(n.value ?? '')
+      const tex = n.value ?? ''
+      // 行内非公式（货币/区间被 micromark 误判成 inlineMath）：按普通文本显示，
+      // 不再进 KaTeX——否则「$5 - $10」会被渲染成一串错位的数学斜体。
+      const k = mathKey(false, tex)
+      const cached = mathHtmlCache.get(k)
+      if (cached !== undefined && cached.startsWith('<span class="math-error')) {
+        return cached
+      }
+      if (!looksLikeMath(tex)) return esc(tex)
+      const html = cached ?? esc(tex)
       return `<span class="math math-inline">${html}</span>`
     }
+    case 'footnoteReference':
+      // 脚注引用：渲染成上标序号并链接到文末定义。锚点统一用 identifier
+      // （mdast 保证它在同一篇内唯一；label 只是源码里的原样代号，可能重复）。
+      {
+        const id = n.identifier ?? n.label ?? ''
+        const shown = n.label ?? n.identifier ?? ''
+        return `<sup class="footnote-ref"><a href="#fn-${esc(id)}">[${esc(shown)}]</a></sup>`
+      }
     case 'break':
       return '<br />'
     case 'html':
@@ -303,6 +346,12 @@ function blockToHtml(n: Node): string {
     }
     case 'yaml':
       return renderFrontmatter(n.value ?? '')
+    case 'footnoteDefinition':
+      // 脚注定义：渲染成带锚点的一段脚注，内容来自 children（paragraph/list 等）。
+      // id 用 identifier，与行内出处链接的 #fn-<id> 对上；label 无则退回 identifier。
+      return `<div class="footnote-definition" id="fn-${esc(n.identifier ?? n.label ?? '')}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span>${(n.children ?? [])
+        .map((c) => blockToHtml(c))
+        .join('')}</div>`
     case 'html':
       // 块级 HTML：安全降级为等宽源码
       return `<pre class="preform">${esc(n.value ?? '')}</pre>`

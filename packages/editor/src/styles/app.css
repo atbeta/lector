@@ -1406,6 +1406,50 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--foreground));
   white-space: pre-wrap;
 }
+/* 行内公式出错：不能 display:block（会把整行打断），蹲在一行的等宽原文 */
+.math-error-inline {
+  display: inline;
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  background: rgb(var(--muted) / 0.25);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: rgb(var(--muted-foreground));
+  white-space: pre-wrap;
+}
+
+/* ───────────── 脚注 ─────────────
+ * 「阅读优先」要能读到注释本身：引用在上标可点，定义在文末可见。
+ * 都只改预览，不动源码，保存仍是 `[^1]` 原文。 */
+.reading-prose .footnote-ref {
+  font-size: 0.8em;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.5em;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+.reading-prose .footnote-ref a {
+  color: rgb(var(--primary));
+  text-decoration: none;
+  font-weight: 500;
+}
+.reading-prose .footnote-ref a:hover { text-decoration: underline; }
+.reading-prose .footnote-definition {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6em;
+  font-size: 0.92em;
+  line-height: var(--reading-line-height);
+  padding-top: 0.5em;
+  scroll-margin-top: 1em;
+}
+.reading-prose .footnote-definition-anchor {
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
+  text-align: right;
+  min-width: 1.6em;
+}
 
 /* ───────────── 右键菜单 ─────────────
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
