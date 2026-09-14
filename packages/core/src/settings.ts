@@ -12,6 +12,20 @@ import {
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type FontFamily = 'system' | 'serif'
 
+/**
+ * 贴图/拖图时的写入策略：
+ * - 'images'  ：写 md 同目录固定 `images/`（今天的行为，DEFAULT 保持不惊吓老用户）；
+ * - 'assets'  ：写常 md、等当前文档同名的 `{filename}.assets`（目录模板可配）；
+ * - 'command' ：先写 assets 本地副本，再跑用户配置的命令上传图床，正文写返回的 URL；
+ *               失败时静默降级为本地相对路径（本地副本永远在，绝不丢图）。
+ */
+export type ImageInsertMode = 'images' | 'assets' | 'command'
+
+/** 命令模式下 argv 的约定：`command [args…] <图片绝对路径>` → stdout 首行 http(s) URL。 */
+export const DEFAULT_IMAGE_TIMEOUT_MS = 30_000
+const IMAGE_TIMEOUT_MIN = 1_000
+const IMAGE_TIMEOUT_MAX = 300_000
+
 export interface EditorSettings {
   /** 主题：跟随系统 / 浅色 / 深色。 */
   theme: ThemeMode
@@ -47,6 +61,18 @@ export interface EditorSettings {
   closeAlwaysConfirmsChanges: boolean
   /** 编辑态显示空白字符。 */
   showWhitespace: boolean
+  /** 贴图/拖图的写入策略（images | assets | command，见 ImageInsertMode）。 */
+  imageMode: ImageInsertMode
+  /** assets/command 模式下的目标目录模板，`{filename}` 会被替换成文档基名（去扩展名）。
+   *  默认 `{filename}.assets`，即 md 同目录下「文档名.assets」。 */
+  imageAssetsDir: string
+  /** command 模式的上传命令：可执行名（PATH 内）或绝对路径，可含前置参数
+   *  （引号感知分词，如 `picgo upload`）。图片路径由 App 追加在最后。 */
+  imageCommand: string
+  /** command 固定的参数列表（追加在 `<命令+前置参数>` 之后、图片路径之前）。 */
+  imageCommandArgs: string[]
+  /** command 超时（毫秒），clamp 到 [1000, 300000]，默认 30s。 */
+  imageCommandTimeoutMs: number
 }
 
 /**
@@ -72,6 +98,11 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
+  imageMode: 'images',
+  imageAssetsDir: '{filename}.assets',
+  imageCommand: '',
+  imageCommandArgs: [],
+  imageCommandTimeoutMs: DEFAULT_IMAGE_TIMEOUT_MS,
 }
 
 const CLAMP = {
@@ -103,6 +134,18 @@ function isFontFamily(v: unknown): v is FontFamily {
   return v === 'system' || v === 'serif'
 }
 
+function isImageMode(v: unknown): v is ImageInsertMode {
+  return v === 'images' || v === 'assets' || v === 'command'
+}
+
+/** 图片目录模板只允许普通字符与 `{filename}` 占位符；不含路径分隔与穿越段。 */
+function normalizeImageAssetsDir(v: unknown): string {
+  const s = String(v ?? '').trim()
+  if (s === '') return DEFAULT_SETTINGS.imageAssetsDir
+  if (s.includes('..') || /[\\/]/.test(s)) return DEFAULT_SETTINGS.imageAssetsDir
+  return s.slice(0, 120)
+}
+
 /**
  * 把任意来源（json / localStorage）规范化为 EditorSettings。
  * 字段缺失 → 默认；类型错误 → 默认；数值越界 → 夹取。
@@ -126,6 +169,18 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     recoverUnsaved: typeof src.recoverUnsaved === 'boolean' ? src.recoverUnsaved : base.recoverUnsaved,
     // 限长：设置文件是被反复读写的小 JSON，不该成为存放整套主题的仓库
     customCss: String(src.customCss ?? base.customCss ?? '').slice(0, 20000),
+    imageMode: isImageMode(src.imageMode) ? src.imageMode : base.imageMode,
+    imageAssetsDir: normalizeImageAssetsDir(src.imageAssetsDir),
+    imageCommand: String(src.imageCommand ?? base.imageCommand ?? '').trim().slice(0, 512),
+    imageCommandArgs: Array.isArray(src.imageCommandArgs)
+      ? src.imageCommandArgs.filter((a): a is string => typeof a === 'string').slice(0, 32).map((a) => a.slice(0, 256))
+      : base.imageCommandArgs,
+    imageCommandTimeoutMs: clampInt(
+      src.imageCommandTimeoutMs,
+      IMAGE_TIMEOUT_MIN,
+      IMAGE_TIMEOUT_MAX,
+      base.imageCommandTimeoutMs,
+    ),
   }
 }
 

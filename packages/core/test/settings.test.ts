@@ -47,4 +47,44 @@ describe('settings schema', () => {
     expect(normalizeSettings({ theme: 'light' }).theme).toBe('light')
     expect(normalizeSettings({ theme: 'dark' }).theme).toBe('dark')
   })
+
+  test('图片设置：默认 images + {filename}.assets 模板', () => {
+    expect(DEFAULT_SETTINGS.imageMode).toBe('images')
+    expect(DEFAULT_SETTINGS.imageAssetsDir).toBe('{filename}.assets')
+    expect(DEFAULT_SETTINGS.imageCommand).toBe('')
+    expect(DEFAULT_SETTINGS.imageCommandTimeoutMs).toBe(30_000)
+    const s = normalizeSettings({})
+    expect(s.imageMode).toBe('images')
+    expect(s.imageAssetsDir).toBe('{filename}.assets')
+  })
+
+  test('图片模式三种合法值，非法回退默认', () => {
+    expect(normalizeSettings({ imageMode: 'assets' }).imageMode).toBe('assets')
+    expect(normalizeSettings({ imageMode: 'command' }).imageMode).toBe('command')
+    expect(normalizeSettings({ imageMode: 'images' }).imageMode).toBe('images')
+    expect(normalizeSettings({ imageMode: 'weird' }).imageMode).toBe('images')
+    expect(normalizeSettings({ imageMode: 7 }).imageMode).toBe('images')
+  })
+
+  test('命令字段：字符串清洗、args 过滤、超时夹取', () => {
+    const s = normalizeSettings({
+      imageMode: 'command',
+      imageCommand: '  /usr/local/bin/picgo upload  ',
+      imageCommandArgs: ['-d', 42, ''], // 非字符串剔除
+      imageCommandTimeoutMs: 999999,
+      imageAssetsDir: ' uploads ',
+    })
+    expect(s.imageCommand).toBe('/usr/local/bin/picgo upload')
+    expect(s.imageCommandArgs).toEqual(['-d', ''])
+    expect(s.imageCommandTimeoutMs).toBe(300_000)
+    expect(normalizeSettings({ imageCommandTimeoutMs: 10 }).imageCommandTimeoutMs).toBe(1_000)
+    expect(normalizeSettings({ imageCommandTimeoutMs: 'x' }).imageCommandTimeoutMs).toBe(30_000)
+  })
+
+  test('目录模板：拒绝路径分隔与穿越', () => {
+    expect(normalizeSettings({ imageAssetsDir: 'docs/images' }).imageAssetsDir).toBe('{filename}.assets')
+    expect(normalizeSettings({ imageAssetsDir: '../evil' }).imageAssetsDir).toBe('{filename}.assets')
+    expect(normalizeSettings({ imageAssetsDir: 'assets folder' }).imageAssetsDir).toBe('assets folder')
+    expect(normalizeSettings({ imageAssetsDir: '' }).imageAssetsDir).toBe('{filename}.assets')
+  })
 })
