@@ -11,12 +11,17 @@ function el(tag: string, className: string): HTMLElement {
   return e
 }
 
-/** 分段选择器：滑块指示器跟随选中项。 */
+/**
+ * 分段选择器：滑块指示器跟随选中项。
+ *
+ * 返回 { root, set }：set 用于**程序化**改值（切换阅读主题会把字体档位一起换掉，
+ * 分段控件必须跟着走），否则用户会看到「主题说用衬线，控件还亮着系统」。
+ */
 export function Segmented<T extends string>(
   value: T,
   options: Array<{ v: T; label: string }>,
   onChange: (v: T) => void,
-): HTMLElement {
+): { root: HTMLElement; set: (v: T) => void } {
   const box = el('div', 'segmented')
   const indicator = el('span', 'seg-indicator')
   box.appendChild(indicator)
@@ -30,14 +35,18 @@ export function Segmented<T extends string>(
     }
   }
 
+  function mark(v: T) {
+    box.querySelectorAll('.seg-item').forEach((b) => b.classList.remove('active'))
+    refs.get(v)?.classList.add('active')
+    placeIndicator()
+  }
+
   for (const opt of options) {
     const btn = el('button', 'seg-item' + (opt.v === value ? ' active' : '')) as HTMLButtonElement
     btn.textContent = opt.label
     btn.dataset.v = opt.v
     btn.addEventListener('click', () => {
-      box.querySelectorAll('.seg-item').forEach((b) => b.classList.remove('active'))
-      btn.classList.add('active')
-      placeIndicator()
+      mark(opt.v)
       onChange(opt.v)
     })
     refs.set(opt.v, btn)
@@ -45,7 +54,7 @@ export function Segmented<T extends string>(
   }
   placeIndicator()
   new ResizeObserver(placeIndicator).observe(box)
-  return box
+  return { root: box, set: mark }
 }
 
 /** 开关。 */
@@ -66,7 +75,12 @@ export function Switch(checked: boolean, onChange: (v: boolean) => void): HTMLEl
   return box
 }
 
-/** 滑块：自绘 track/fill/thumb，支持拖拽与键盘步进。 */
+/**
+ * 滑块：自绘 track/fill/thumb，支持拖拽与键盘步进。
+ *
+ * 返回 { root, readout, set }：set 用于程序化改值（切主题会把标定值写回设置），
+ * 拖拽期间不会被外部调用打断——拖动中的 thumb 属于用户，谁都不能抢。
+ */
 export function Slider(
   value: number,
   min: number,
@@ -74,7 +88,7 @@ export function Slider(
   step: number,
   onChange: (v: number) => void,
   format: (n: number) => string = (n) => String(n),
-): { root: HTMLElement; readout: HTMLElement } {
+): { root: HTMLElement; readout: HTMLElement; set: (v: number) => void } {
   const wrap = el('div', 'slider')
   const readout = el('span', 'slider-value')
   const track = el('div', 'slider-track')
@@ -95,6 +109,11 @@ export function Slider(
     thumb.style.left = `${pct}%`
     readout.textContent = format(v)
     wrap.setAttribute('aria-valuenow', String(v))
+  }
+
+  function set(v: number) {
+    if (dragging) return
+    render(clamp(v, min, max))
   }
 
   function setFrom(clientX: number) {
@@ -128,5 +147,5 @@ export function Slider(
   })
 
   render(value)
-  return { root: wrap, readout }
+  return { root: wrap, readout, set }
 }

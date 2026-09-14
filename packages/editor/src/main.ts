@@ -39,7 +39,7 @@ import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
-import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } from './settings.ts'
+import { initSettings, resetFontSize, stepFontSize, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { redo, undo } from '@codemirror/commands'
@@ -59,6 +59,8 @@ import {
   type PositionMap,
 } from './readingPosition.ts'
 import { t } from './i18n.ts'
+import { mod, modShift } from './keys.ts'
+import { openAppearancePop } from './appearancePop.ts'
 import { chooseConflict, confirmDiscard } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { createUndoStack } from './undoStack.ts'
@@ -102,9 +104,9 @@ const contentEl = document.getElementById('content')!
 const dirtyDot = document.getElementById('dirty-dot')!
 const fileNameEl = document.getElementById('file-name')!
 const openBtn = document.getElementById('open-btn')!
-const saveBtn = document.getElementById('save-btn')!
-const modeToggleBtn = document.getElementById('mode-toggle')!
-const themeBtn = document.getElementById('theme-btn')!
+const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
+const modeSwitchEl = document.getElementById('mode-switch')!
+const appearanceBtn = document.getElementById('appearance-btn')!
 const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
 const findBtn = document.getElementById('find-btn')!
@@ -117,97 +119,136 @@ openBtn.dataset.tip = t('openAria')
 saveBtn.innerHTML = iconSvg('save', 16)
 saveBtn.setAttribute('aria-label', t('saveAria'))
 saveBtn.dataset.tip = t('saveAria')
+// 保存按钮的禁用态由 refreshSaveButton() 按 dirty 维护（见下）。
+saveBtn.disabled = true
 outlineBtn.innerHTML = iconSvg('outline', 16)
 outlineBtn.setAttribute('aria-label', t('outlineAria'))
-outlineBtn.dataset.tip = t('outlineAria')
+outlineBtn.dataset.tip = `${t('outlineAria')} (${modShift('O')})`
 findBtn.innerHTML = iconSvg('search', 16)
 findBtn.setAttribute('aria-label', t('findAria'))
-findBtn.dataset.tip = t('findAria')
-themeBtn.setAttribute('aria-label', t('themeAria'))
-themeBtn.dataset.tip = t('themeAria')
+findBtn.dataset.tip = `${t('findAria')} (${mod('F')})`
+// 「外观」按钮：图标用 Aa（打字/排版），不是月亮/太阳——
+// 它打开的不只是明暗，还有阅读主题。太阳月亮会把功能说小一半。
+appearanceBtn.innerHTML = iconSvg('type', 16)
+appearanceBtn.setAttribute('aria-label', t('themeAria'))
+appearanceBtn.dataset.tip = t('themeAria')
 settingsBtn.innerHTML = iconSvg('settings', 16)
 settingsBtn.setAttribute('aria-label', t('settingsAria'))
-settingsBtn.dataset.tip = t('settingsAria')
+settingsBtn.dataset.tip = `${t('settingsAria')} (${mod(',')})`
+openBtn.dataset.tip = `${t('openAria')} (${mod('O')})`
 dirtyDot.dataset.tip = t('dirtyTitle')
 // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
 // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
 const titlebarEl = document.getElementById('titlebar')
 if (titlebarEl) bindTitlebar(titlebarEl)
 
-function refreshThemeIcon() {
-  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
-  themeBtn.innerHTML = iconSvg(dark ? 'sun' : 'moon', 16)
-}
-refreshThemeIcon()
-const themeObserver = new MutationObserver(() => refreshThemeIcon())
-themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-
-// ───────────── 三视图模式 read / write / split ─────────────
+// ───────────── 三视图模式 read / edit / source ─────────────
 //
-// 默认 read——多数场景是「读」不是「改」。要改点铅笔走 write,再点一次走 split
-// (预览 + click 入块 source 编辑),三态 cycle。状态走 html[data-mode]——
-// 样式 / 点击 / 快捷键都看这个属性,避免到处开变量。
+// 默认 read——多数场景是「读」不是「改」。
 //
-// read:   预览,块点击不调 focusBlock、不动 CM;save 隐藏;mermaid / 图片点放大。
-// write:  源文:每块以等宽源码形式呈现(不走 mdast HTML);点击进 source edit。
-//         mermaid / 图片的放大交互暂不开(那是预览路径的)。
-// split:  预览 + click 进 source edit(原 v0.4.0 的「编辑」)。save 可见。
+// read:   只读预览。点块不进编辑；mermaid / 图片点开放大。
+// edit:   预览 + 点块就地编辑（改哪块点哪块）。这是「顺手能改」的主路径。
+// source: 全篇等宽源码，点块进该块的源码编辑。通读原文 / 批量改格式用。
 //
-// 切换路径:read → write → split → read。
-// 快捷键:⌘1 read,⌘2 write,⌘3 split。
-type ViewMode = 'read' | 'write' | 'split'
+// 三档**常驻**在顶栏右侧的分段控件里，当前档一眼可见。
+// 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要问
+// 「我现在在哪一档」；而且第三档叫「分屏」——屏幕上并没有第二条栏，
+// 名字在承诺一件不存在的事。名字与档位一起改了：阅读 / 编辑 / 源码。
+//
+// 状态走 html[data-mode]——样式 / 点击 / 快捷键都只看这一个属性。
+// 快捷键：⌘1 / ⌘2 / ⌘3 直选，⌘E 循环。
+type ViewMode = 'read' | 'edit' | 'source'
 let viewMode: ViewMode = 'read'
 
-const VIEW_NEXT: Record<ViewMode, ViewMode> = {
-  read: 'write',
-  write: 'split',
-  split: 'read',
+/** 顺序 = 分段控件里的顺序 = ⌘1/⌘2/⌘3 的顺序。 */
+const VIEW_MODES: readonly ViewMode[] = ['read', 'edit', 'source']
+const VIEW_ICON: Record<ViewMode, string> = { read: 'eye', edit: 'pencil', source: 'code' }
+const VIEW_NUM: Record<ViewMode, string> = { read: '1', edit: '2', source: '3' }
+
+function viewLabel(m: ViewMode): string {
+  return m === 'read' ? t('modeLabelRead') : m === 'edit' ? t('modeLabelEdit') : t('modeLabelSource')
 }
 
-const VIEW_TIP: Record<ViewMode, string> = {
-  read: t('modeEnterWrite'),
-  write: t('modeEnterSplit'),
-  split: t('modeEnterRead'),
+function nextViewMode(m: ViewMode): ViewMode {
+  return VIEW_MODES[(VIEW_MODES.indexOf(m) + 1) % VIEW_MODES.length]!
+}
+
+/**
+ * 分段控件：三档常驻，当前档常亮。
+ *
+ * 图标 + 文字都上：只有图标时「哪一档是什么」要靠猜（旧版图标画的还是下一档，
+ * 更猜不出来）；只有文字时顶栏会变成一排字。窄窗口下只留图标，由 CSS 决定。
+ */
+function buildModeSwitch(): void {
+  modeSwitchEl.replaceChildren()
+  modeSwitchEl.setAttribute('role', 'radiogroup')
+  modeSwitchEl.setAttribute('aria-label', t('modeAria'))
+  for (const m of VIEW_MODES) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'mode-opt'
+    btn.dataset.mode = m
+    btn.setAttribute('role', 'radio')
+    btn.dataset.tip = `${viewLabel(m)} (${mod(VIEW_NUM[m])})`
+    const icon = document.createElement('span')
+    icon.className = 'mode-opt-icon'
+    icon.innerHTML = iconSvg(VIEW_ICON[m], 15)
+    const label = document.createElement('span')
+    label.className = 'mode-opt-label'
+    label.textContent = viewLabel(m)
+    btn.append(icon, label)
+    btn.addEventListener('click', () => setViewMode(m))
+    modeSwitchEl.appendChild(btn)
+  }
 }
 
 function applyModeUI(): void {
   document.documentElement.dataset.mode = viewMode
-  // 顶栏按钮在三个模式里总是显示「下一个会变到的模式」的图标+ tip
-  const next = VIEW_NEXT[viewMode]
-  modeToggleBtn.innerHTML = iconSvg(
-    next === 'read' ? 'eye' : next === 'write' ? 'pencil' : 'columns',
-    16,
-  )
-  modeToggleBtn.dataset.tip = VIEW_TIP[viewMode]
-  modeToggleBtn.setAttribute('aria-pressed', String(viewMode !== 'read'))
-  // read 时 save 隐藏:没东西可存;write/split 时显示。
-  saveBtn.hidden = viewMode === 'read'
-  // 状态行右侧「read/write/split」提示
+  for (const btn of modeSwitchEl.querySelectorAll<HTMLButtonElement>('.mode-opt')) {
+    const on = btn.dataset.mode === viewMode
+    btn.classList.toggle('active', on)
+    btn.setAttribute('aria-checked', String(on))
+    // 分段控件是单选组：Tab 落在当前档上
+    btn.tabIndex = on ? 0 : -1
+  }
+  refreshSaveButton()
   renderStatus()
+}
+
+/**
+ * 保存按钮：**始终在位**，只在「确实有东西可存」时点亮。
+ *
+ * 旧版是 read 模式下整个隐藏——于是「编辑过一篇 → ⌘1 切回阅读 → 想存」
+ * 时按钮凭空消失。一个会消失的动作按钮比一个灰着的更让人困惑：
+ * 用户不知道是自己看错了，还是文档没了。
+ *
+ * 可用性只跟 dirty 有关，跟视图模式无关：存盘是写文件，不是视图动作。
+ */
+function refreshSaveButton(): void {
+  const canSave = session.dirty
+  saveBtn.disabled = !canSave
+  saveBtn.dataset.tip = canSave ? `${t('saveAria')} (${mod('S')})` : t('saveNothing')
 }
 
 function setViewMode(next: ViewMode): void {
   if (viewMode === next) return
   const prev = viewMode
   viewMode = next
-  if (next === 'read' && prev !== 'read') {
-    // 退出可编辑态:清 focus,否则那个块仍作为 CM 嵌着,下次回 read 还在
+  if (next === 'read') {
+    // 退出可编辑态：清 focus，否则那个块仍作为 CM 嵌着，下次回 read 还在
     defocus()
   }
   applyModeUI()
-  // write/split 切换时布局变了(预览/源文不同),需要重渲染
-  if (next === 'write' || prev === 'write' || next === 'split' || prev === 'split') {
-    void render()
-  }
+  // 源码与预览是两套渲染，来去都要重画
+  if (next === 'source' || prev === 'source') void render()
 }
 
 function toggleMode(): void {
-  setViewMode(VIEW_NEXT[viewMode])
+  setViewMode(nextViewMode(viewMode))
 }
 
-modeToggleBtn.addEventListener('click', () => toggleMode())
-
-// 初始状态：默认只读。applyModeUI 设好 data-mode / save 隐藏 / 按钮图标。
+buildModeSwitch()
+// 初始状态：默认只读。applyModeUI 设好 data-mode / 分段选中态 / 保存按钮。
 applyModeUI()
 
 // 侧栏 = 当前文档的目录。停靠/浮层两种形态由 sidebar.ts 按窗口宽度决定。
@@ -249,6 +290,7 @@ function renderOutline() {
     })
   sidebar.body.innerHTML = ''
   outlineRows.clear()
+  sidebar.setCount(headings.length)
   if (headings.length === 0) {
     const p = document.createElement('p')
     p.className = 'outline-empty'
@@ -887,8 +929,10 @@ function renderStatus() {
   }
 
   statusRight.replaceChildren()
-  const modeLabel = viewMode === 'read' ? t('modeLabelRead') : viewMode === 'write' ? t('modeLabelWrite') : t('modeLabelSplit')
-  statusRight.append(item(modeLabel, viewMode !== 'read'))
+  // 状态行右侧：当前档 + 保存状态 + 文件名。
+  // 当前档这里只写「编辑 / 源码」，阅读档不写——阅读是默认态，
+  // 给默认态也挂一个标签，等于在每篇文档右下角常驻一个「你在阅读」的噪音。
+  if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
   statusRight.append(item(session.dirty ? t('statUnsaved') : t('statSavedAt'), session.dirty))
   // 保存状态与文件名在同一行：这是「这份文件现在是什么状态」的完整答案
   statusRight.append(item(fileNameEl.textContent ?? ''))
@@ -905,6 +949,8 @@ function markDirty() {
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
   document.documentElement.classList.toggle('dirty', session.dirty)
+  // 保存按钮跟着脏状态亮/灭（见 refreshSaveButton）
+  refreshSaveButton()
   renderStatus()
 }
 
@@ -1031,6 +1077,7 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   restoreReadingPosition()
   // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
   if (sidebar.isOpen()) renderOutline()
+  setDocPresent(true)
   // 通知外框复位（顶栏的滚动分隔影）
   window.dispatchEvent(new Event('lector:doc-changed'))
   if (detectEnv() === 'shell') {
@@ -1206,17 +1253,24 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
         ArrowRight: (view: EditorView) => moveAcrossBlocks(block, view, 'right'),
       },
     }
-    cm = mountEditor(host, block.raw, (text) => liveText.set(block.id, text), config)
+    cm = mountEditor(
+      host,
+      block.raw,
+      (text) => {
+        liveText.set(block.id, text)
+        syncBlockText(block, text)
+      },
+      config,
+    )
     const intent = caretIntent
     requestAnimationFrame(() => {
       if (!cm) return
       cm.view.focus()
       if (intent) placeCaret(cm.view, intent)
     })
-  } else if (viewMode === 'write') {
-    // write 模式:每块以等宽源码形式呈现,不走 mdast HTML。
-    // 走 raw 而不是 raw + 围栏 —— 块内换行靠 white-space:pre-wrap。
-    // mermaid / 图片的渲染是预览路径,write 模式不解释。
+  } else if (viewMode === 'source') {
+    // 源码模式：每块以等宽源码呈现，不走 mdast HTML。
+    // mermaid / 图片的渲染属于预览路径，源码模式不解释。
     const src = document.createElement('pre')
     src.className = 'source-view'
     const code = document.createElement('code')
@@ -1365,6 +1419,21 @@ async function copyText(text: string, okMessage?: string): Promise<void> {
   } catch {
     showToast(t('codeCopyFailed'))
   }
+}
+
+/**
+ * 把编辑器里的文本同步回块，并立刻重算脏状态。
+ *
+ * 打字时就调用，而不是等失焦：
+ *   - 状态行的字数/小节数读的是块文本，失焦才同步等于「打字时数字不动」；
+ *   - 「保存」按钮的可用性也读脏状态——打了半屏字按钮还是灰的，会被读成没响应。
+ * 解析（mdast / kind）仍然留给失焦：那一步贵，且打字过程中没人需要新的大纲。
+ */
+function syncBlockText(block: BlockView, text: string): void {
+  const original = session.originals.get(block.id) ?? block.raw
+  block.raw = text
+  block.dirty = text !== original
+  markDirty()
 }
 
 function finalizeFocused() {
@@ -1638,14 +1707,24 @@ window.addEventListener('keydown', (e) => {
   }
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
     e.preventDefault()
-    saveBtn.click()
+    // 直接走存盘，不通过按钮的 click：
+    // 按钮在「没有未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
+    // 快捷键因此会被自己的禁用态吃掉。存盘是文档级动作，不该受控件状态影响。
+    void persistToDisk()
   }
 })
 
 // Windows / Linux 上不设原生菜单（避免初始化闪现）：原菜单里这些快捷键
 // 由 Web 层接管。macOS 上同名的菜单项仍有这些快捷键，双重注册不冲突——
 // 菜单项是系统级的，这里是 web 级的，各管各的。
+//
+// 第一行的 defaultPrevented 守卫是 Windows 上必须有的：聚焦块里的裸 CM
+// 会接管自己认识的那些键并 preventDefault（Ctrl+E 行内代码、Ctrl+B 粗体…），
+// 而本监听挂在 window 的冒泡阶段——不守卫的话，Windows 用户按 Ctrl+E 会
+// **同时**给选中文字加行内代码并把视图切到源码档。CM 不负责 stopPropagation，
+// 这层守卫是我们自己的责任。
 window.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return
   const mod = e.metaKey || e.ctrlKey
   if (!mod) return
   // ⌘O 打开
@@ -1693,7 +1772,10 @@ window.addEventListener('keydown', (e) => {
 
 openBtn.addEventListener('click', () => void openFromShellOrDialog())
 
-themeBtn.addEventListener('click', () => toggleTheme())
+// 「外观」= 明暗 + 阅读主题。不是一个「切换深浅色」按钮：
+// 那个按钮把两件事（白天/晚上、读起来像什么）压成了一个开关。
+appearanceBtn.addEventListener('click', () => openAppearancePop(appearanceBtn))
+// 再点一次收起（浮层自己处理 toggle），Esc / 点外面也收
 settingsBtn.addEventListener('click', () => openSettingsModal())
 outlineBtn.addEventListener('click', () => toggleOutline())
 
@@ -1726,21 +1808,22 @@ function openFind() {
 
 findBtn.addEventListener('click', () => openFind())
 window.addEventListener('keydown', (e) => {
+  // 同上：块内编辑器已接管的键不再走全局（见上面那段注释）
+  if (e.defaultPrevented) return
   if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
     e.preventDefault()
     openFind()
   }
-  // ⌘E 三态循环 read → write → split → read。保留旧快捷键兼容。
+  // ⌘E 循环 read → edit → source → read
   if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'e') {
     e.preventDefault()
     toggleMode()
     return
   }
-  // ⌘1/2/3 跳具体模式——避免三态循环里走错方向
+  // ⌘1/2/3 直选档位——循环要按很多次才能到位，直选不用
   if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === '1' || e.key === '2' || e.key === '3')) {
     e.preventDefault()
-    const next = e.key === '1' ? 'read' : e.key === '2' ? 'write' : 'split'
-    setViewMode(next)
+    setViewMode(VIEW_MODES[Number(e.key) - 1]!)
     return
   }
 })
@@ -1874,7 +1957,8 @@ function bindShellEvents() {
         openFind()
         break
       case 'theme':
-        toggleTheme()
+        // 菜单里的「外观」与顶栏 Aa 按钮是同一个浮层（原生菜单也走同一条路）
+        openAppearancePop(appearanceBtn)
         break
       case 'outline':
         toggleOutline()
@@ -1923,11 +2007,27 @@ const loadStateDeps = {
 }
 function renderEmptyState(): void {
   session.blocks = []
+  setDocPresent(false)
   renderEmptyStateView(loadStateDeps)
 }
 function renderLoadingState(): void {
   session.blocks = []
+  setDocPresent(false)
   renderLoadingStateView(loadStateDeps)
+}
+
+/**
+ * 「现在有没有文档」——没有文档时侧栏整块下线。
+ *
+ * 初版在空态里仍留着 288px 的侧栏轨道，于是首屏左边是一条空白栏 +
+ * 一条竖线，读起来像「这里本该有内容，加载失败了」。首屏是最贵的一屏，
+ * 该只有一件事：打开一个文件。
+ *
+ * 用类而不是直接改 sidebar 的状态：用户的开合偏好要留着——
+ * 打开文件后侧栏该按他上次的选择回来，而不是被空态改写成「关」。
+ */
+function setDocPresent(present: boolean): void {
+  document.documentElement.classList.toggle('no-doc', !present)
 }
 
 // 预览用的媒体样例：图片放大与代码块复制都要能在这里验

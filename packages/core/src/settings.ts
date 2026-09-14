@@ -2,12 +2,24 @@
 // 借鉴 MarkEdit：可见设置保持极简；schema 严格，非法值回退默认（不静默接受错误类型）。
 // Lector 定位「阅读优先」，设置中心围绕：主题 + 阅读排版 + 编辑保护。
 
+import {
+  DEFAULT_READING_THEME,
+  isReadingThemeId,
+  readingTheme,
+  type ReadingThemeId,
+} from './readingThemes.ts'
+
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type FontFamily = 'system' | 'serif'
 
 export interface EditorSettings {
   /** 主题：跟随系统 / 浅色 / 深色。 */
   theme: ThemeMode
+  /**
+   * 阅读主题：纸墨 + 排版性格 + 标定排版参数（见 readingThemes.ts）。
+   * 与 theme 正交——theme 决定明暗，readingTheme 决定「读起来像什么」。
+   */
+  readingTheme: ReadingThemeId
   /** 阅读字体：系统（Inter+苹方/雅黑）/ 衬线。 */
   fontFamily: FontFamily
   /** 阅读正文字号（px）。 */
@@ -31,6 +43,7 @@ export interface EditorSettings {
  */
 export const DEFAULT_SETTINGS: EditorSettings = {
   theme: 'system',
+  readingTheme: DEFAULT_READING_THEME,
   fontFamily: 'system',
   fontSize: 17,
   lineHeight: 1.75,
@@ -74,6 +87,7 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
   const src = (raw ?? {}) as Record<string, unknown>
   return {
     theme: isTheme(src.theme) ? src.theme : base.theme,
+    readingTheme: isReadingThemeId(src.readingTheme) ? src.readingTheme : base.readingTheme,
     fontFamily: isFontFamily(src.fontFamily) ? src.fontFamily : base.fontFamily,
     fontSize: clampInt(src.fontSize, CLAMP.fontSize.min, CLAMP.fontSize.max, base.fontSize),
     lineHeight: clampFloat(src.lineHeight, CLAMP.lineHeight.min, CLAMP.lineHeight.max, base.lineHeight),
@@ -89,4 +103,34 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
 
 export function isDefaultSettings(s: EditorSettings): boolean {
   return JSON.stringify(s) === JSON.stringify(DEFAULT_SETTINGS)
+}
+
+/**
+ * 套用某款阅读主题的标定排版：返回一份新设置。
+ *
+ * 只覆盖主题标定的四项（字体 / 字号 / 行距 / 栏宽），其余设置不动。
+ * 用户之后逐项微调仍然有效——微调只改设置值，不改主题 id，
+ * 所以画廊里那张卡仍然亮着，只是旁边多了被调过的数值。
+ */
+export function withReadingTheme(s: EditorSettings, id: ReadingThemeId): EditorSettings {
+  const { preset } = readingTheme(id)
+  return {
+    ...s,
+    readingTheme: id,
+    fontFamily: preset.fontFamily,
+    fontSize: preset.fontSize,
+    lineHeight: preset.lineHeight,
+    readingWidth: preset.readingWidth,
+  }
+}
+
+/** 当前设置是否与所选主题的标定值逐项一致（用于画廊里标「已微调」）。 */
+export function matchesReadingThemePreset(s: EditorSettings): boolean {
+  const { preset } = readingTheme(s.readingTheme)
+  return (
+    s.fontFamily === preset.fontFamily &&
+    s.fontSize === preset.fontSize &&
+    s.lineHeight === preset.lineHeight &&
+    s.readingWidth === preset.readingWidth
+  )
 }

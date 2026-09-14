@@ -1,0 +1,529 @@
+/**
+ * Lector 阅读主题：纸墨 + 排版性格
+ *
+ * 与 tokens.css 的分工：
+ *   - tokens.css 定义「默认长什么样」，是唯一的基础层。
+ *   - 本文件只写「某款主题与默认不同的部分」，按 data-reading-theme 生效。
+ *
+ * 主题由两层组成，缺一不可：
+ *   1. 数值层（字号 / 行距 / 栏宽 / 字体）在 core 的 readingThemes.ts 里，
+ *      选主题时套用，之后用户仍可逐项微调——所以**本文件不写这几项**，
+ *      写了就会和设置里的滑块打架（滑块是内联样式，但会让人以为主题没生效）。
+ *   2. 纸墨与排版性格在本文件：颜色、缩进、对齐、标题处理、装饰强弱。
+ *
+ * 选择器为什么成对写：主题既能落在 <html> 上（真实生效），也能落在
+ * .theme-preview 上（设置面板里的预览卡要各自显示自己的纸墨，而预览卡是
+ * html 的后代）。深色一套要同时覆盖这两种情况，所以每个深色块有两个选择器。
+ *
+ * 对比度不是拍脑袋定的：tools/design-audit.mjs 会穷举「主题 × 明暗」量
+ * 正文/次级/链接对纸面的对比度，改这里的任何色值都要重跑它。
+ */
+
+/* ───────────── 默认 Default ─────────────
+ * 默认主题就是 tokens.css 的原始值，本身不需要任何覆盖。这里仍然显式重述一遍，
+ * 只为一个理由：**设置面板里的预览卡要能显示「默认」的样子**。
+ * 预览卡是 <html> 的后代，会继承当前主题（比如米黄）的纸墨——
+ * 不把基线的值重新钉在卡片上，用户看到的就是「米黄的预览卡上写着默认」。
+ *
+ * 重述就有漂移风险，所以 tools/design-audit.mjs 会逐项比对这一块与 tokens.css
+ * 基线：基线改了而这里没跟上，审计直接报错。 */
+[data-reading-theme='default'] {
+  --background: 247 247 248;
+  --shell: 247 247 248;
+  --paper: 255 255 255;
+  --card: 255 255 255;
+  --popover: 255 255 255;
+  --foreground: 16 16 20;
+  --muted: 228 228 233;
+  --muted-foreground: 92 92 102;
+  --subtle-foreground: 122 122 132;
+  --quote-foreground: 70 70 78;
+  --accent: 240 240 241;
+  --secondary: 243 243 245;
+  --primary: 79 90 186;
+  --primary-hover: 62 72 156;
+  --primary-foreground: 255 255 255;
+  --border: 224 224 228;
+  --border-subtle: 218 218 224;
+  --border-strong: 130 130 142;
+  --code-keyword: 79 90 186;
+  --code-string: 15 110 52;
+  --code-comment: 96 100 112;
+  --code-number: 158 68 8;
+  --space-block: 0.95rem;
+  --space-tight: 1rem;
+  --space-section: 2.2rem;
+}
+html[data-theme='dark'][data-reading-theme='default'],
+html[data-theme='dark'] [data-reading-theme='default'] {
+  --background: 13 13 15;
+  --shell: 13 13 15;
+  --paper: 26 26 30;
+  --card: 32 32 37;
+  --popover: 38 38 43;
+  --foreground: 244 244 246;
+  --muted: 44 44 50;
+  --muted-foreground: 158 158 168;
+  --subtle-foreground: 136 136 146;
+  --quote-foreground: 186 186 196;
+  --accent: 45 45 50;
+  --secondary: 39 39 43;
+  --primary: 138 148 250;
+  --primary-hover: 158 168 252;
+  --primary-foreground: 16 18 38;
+  --border: 56 56 63;
+  --border-subtle: 44 44 50;
+  --border-strong: 124 124 138;
+  --code-keyword: 138 148 250;
+  --code-string: 126 226 166;
+  --code-comment: 146 148 158;
+  --code-number: 245 198 92;
+}
+
+/* ───────────── 纸 Paper ─────────────
+ * 像读《纽约客》：暖白纸、衬线正文、窄栏、大行距。杂志长文深读的场景。
+ * 强调色用砖红而非品牌靛蓝——_纽约客_ 的调性是暖的，靛蓝在这里会「凉」得突兀。 */
+[data-reading-theme='paper'] {
+  --background: 248 246 242;
+  --shell: 248 246 242;
+  --paper: 253 251 247;
+  --card: 253 251 247;
+  --popover: 255 253 250;
+  --foreground: 28 25 22;
+  --muted: 238 233 226;
+  --muted-foreground: 104 96 87;
+  --subtle-foreground: 128 120 110;
+  --quote-foreground: 82 73 64;
+  --accent: 240 235 228;
+  --secondary: 243 238 232;
+  --primary: 150 62 45;
+  --primary-hover: 122 50 36;
+  --primary-foreground: 255 255 255;
+  --border: 228 222 213;
+  --border-subtle: 222 215 206;
+  --border-strong: 148 138 126;
+  --code-keyword: 150 62 45;
+  --code-string: 62 106 60;
+  --code-comment: 122 112 100;
+  --code-number: 150 88 24;
+
+  /* 排版性格：段距放宽（窄栏 + 大行距下，段落要更分明）、标题收敛 */
+  --space-block: 1.1rem;
+  --space-tight: 0.85rem;
+  --space-section: 2.4rem;
+}
+
+html[data-theme='dark'][data-reading-theme='paper'],
+html[data-theme='dark'] [data-reading-theme='paper'] {
+  --background: 22 20 18;
+  --shell: 22 20 18;
+  --paper: 32 29 26;
+  --card: 38 34 31;
+  --popover: 44 40 36;
+  --foreground: 238 231 221;
+  --muted: 46 42 38;
+  --muted-foreground: 168 158 146;
+  --subtle-foreground: 142 133 122;
+  --quote-foreground: 200 190 178;
+  --accent: 48 44 40;
+  --secondary: 42 38 34;
+  --primary: 232 156 128;
+  --primary-hover: 242 176 152;
+  --primary-foreground: 30 20 14;
+  --border: 60 55 50;
+  --border-subtle: 48 44 40;
+  --border-strong: 138 128 118;
+  --code-keyword: 232 156 128;
+  --code-string: 150 210 160;
+  --code-comment: 146 136 126;
+  --code-number: 236 190 120;
+}
+
+/* 标题：衬线 + 更松的字重。杂志标题的力气来自字号与留白，不来自 700 的黑。 */
+html[data-reading-theme='paper'] .reading-prose h1 { font-weight: 640; letter-spacing: -0.018em; }
+html[data-reading-theme='paper'] .reading-prose h2 { font-weight: 620; letter-spacing: -0.014em; }
+html[data-reading-theme='paper'] .reading-prose h3 { font-weight: 600; }
+/* 引用：细一档的竖线 + 更大缩进，读起来像「一段被引的话」而不是「一块灰底」 */
+html[data-reading-theme='paper'] .reading-prose blockquote {
+  border-left-width: 2px;
+  padding-left: 1.25em;
+}
+
+/* ───────────── 书 Book ─────────────
+ * 像读一本排好的中文书：首行缩进两字、两端对齐、段间几乎不留白。
+ * 中文书的段落靠**缩进**分段，靠**行距**呼吸——西式的「空一行分段」在这里是错的，
+ * 那会把一页正文切成十几块碎片。 */
+[data-reading-theme='book'] {
+  --background: 246 244 238;
+  --shell: 246 244 238;
+  --paper: 252 250 245;
+  --card: 252 250 245;
+  --popover: 254 252 248;
+  --foreground: 26 24 22;
+  --muted: 236 232 224;
+  --muted-foreground: 98 92 82;
+  --subtle-foreground: 126 118 106;
+  --quote-foreground: 78 72 62;
+  --accent: 239 235 227;
+  --secondary: 242 238 230;
+  --primary: 60 74 128;
+  --primary-hover: 44 56 104;
+  --primary-foreground: 255 255 255;
+  --border: 226 221 211;
+  --border-subtle: 220 214 203;
+  --border-strong: 146 138 124;
+  --code-keyword: 60 74 128;
+  --code-string: 52 100 62;
+  --code-comment: 118 110 98;
+  --code-number: 146 84 22;
+
+  /* 段落贴合：段距压到最小，靠 text-indent 分段 */
+  --space-block: 0.15rem;
+  --space-tight: 0.7rem;
+  --space-section: 2.1rem;
+}
+
+html[data-theme='dark'][data-reading-theme='book'],
+html[data-theme='dark'] [data-reading-theme='book'] {
+  --background: 24 23 21;
+  --shell: 24 23 21;
+  --paper: 34 32 29;
+  --card: 40 38 35;
+  --popover: 46 44 41;
+  --foreground: 236 232 224;
+  --muted: 48 45 41;
+  --muted-foreground: 166 159 146;
+  --subtle-foreground: 140 132 120;
+  --quote-foreground: 198 190 176;
+  --accent: 50 47 43;
+  --secondary: 44 41 37;
+  --primary: 158 174 226;
+  --primary-hover: 178 192 240;
+  --primary-foreground: 20 24 44;
+  --border: 62 58 53;
+  --border-subtle: 50 47 43;
+  --border-strong: 136 128 116;
+  --code-keyword: 158 174 226;
+  --code-string: 150 206 160;
+  --code-comment: 146 138 126;
+  --code-number: 232 188 122;
+}
+
+/* 正文首行缩进两字。只作用于**段落**：列表项、引用、表格里再缩进就是排版事故。 */
+html[data-reading-theme='book'] .reading-prose p {
+  text-indent: 2em;
+  text-align: justify;
+  text-justify: inter-ideograph;
+  text-wrap: wrap; /* justify 与 pretty 抢行尾，中文正排以两端对齐为准 */
+}
+/* 块内首个子元素不缩进（表格说明、图注这类紧跟上级的短段）——留给将来需要时用，
+   当前只在 task-label 里生效，避免列表里的段落被缩进两次。 */
+html[data-reading-theme='book'] .reading-prose li p { text-indent: 0; }
+html[data-reading-theme='book'] .reading-prose blockquote p { text-indent: 2em; }
+html[data-reading-theme='book'] .reading-prose blockquote {
+  border-left-width: 2px;
+  padding-left: 1.1em;
+}
+/* 中文书的标题不居中（居中只用于章名，我们用 h1 表文档名，居中会像封面页） */
+html[data-reading-theme='book'] .reading-prose h1 { font-weight: 640; letter-spacing: -0.01em; }
+html[data-reading-theme='book'] .reading-prose h2 { font-weight: 620; }
+
+/* ───────────── 手册 Manual ─────────────
+ * 像读官方文档：宽栏、紧凑、层级靠横线表达。技术内容场景——表格多、代码多、
+ * 读完要能定位，所以这一款牺牲一点「安静」，换回结构感。 */
+[data-reading-theme='manual'] {
+  --background: 250 250 251;
+  --shell: 250 250 251;
+  --paper: 255 255 255;
+  --card: 255 255 255;
+  --popover: 255 255 255;
+  --foreground: 17 17 20;
+  --muted: 238 239 243;
+  --muted-foreground: 88 92 102;
+  --subtle-foreground: 118 122 132;
+  --quote-foreground: 70 74 84;
+  --accent: 238 238 242;
+  --secondary: 241 241 245;
+  --primary: 37 99 235;
+  --primary-hover: 29 78 216;
+  --primary-foreground: 255 255 255;
+  --border: 222 224 230;
+  --border-subtle: 228 230 236;
+  --border-strong: 130 136 148;
+  --code-keyword: 37 99 235;
+  --code-string: 15 110 52;
+  --code-comment: 96 100 112;
+  --code-number: 158 68 8;
+
+  --space-block: 0.72rem;
+  --space-tight: 0.34rem;
+  --space-section: 1.7rem;
+}
+
+html[data-theme='dark'][data-reading-theme='manual'],
+html[data-theme='dark'] [data-reading-theme='manual'] {
+  --background: 16 17 20;
+  --shell: 16 17 20;
+  --paper: 24 26 30;
+  --card: 30 32 37;
+  --popover: 36 38 44;
+  --foreground: 232 234 238;
+  --muted: 38 41 47;
+  --muted-foreground: 158 163 174;
+  --subtle-foreground: 134 139 150;
+  --quote-foreground: 190 195 205;
+  --accent: 40 43 49;
+  --secondary: 36 39 45;
+  --primary: 122 162 247;
+  --primary-hover: 148 182 250;
+  --primary-foreground: 12 20 40;
+  --border: 52 56 63;
+  --border-subtle: 40 43 49;
+  --border-strong: 122 128 140;
+  --code-keyword: 122 162 247;
+  --code-string: 126 220 162;
+  --code-comment: 142 148 160;
+  --code-number: 240 194 96;
+}
+
+/* 层级用一条下沿线钉住：宽栏里标题离正文远，光靠字号分不出「这一节的开始」 */
+html[data-reading-theme='manual'] .reading-prose h2 {
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid rgb(var(--border));
+}
+html[data-reading-theme='manual'] .reading-prose h1 { letter-spacing: -0.022em; }
+/* 表格：文档里表格是主角，给满宽带线，不用圆角容器 */
+html[data-reading-theme='manual'] .reading-prose th,
+html[data-reading-theme='manual'] .reading-prose td { padding: 7px 10px; }
+html[data-reading-theme='manual'] .reading-prose li { margin-top: 0.16em; margin-bottom: 0.16em; }
+/* 代码块：圆角收小、底色沉一档——文档里代码是「另一层界面」，不该和正文同一质感 */
+html[data-reading-theme='manual'] .reading-prose pre { border-radius: 6px; }
+
+/* ───────────── 专注 Focus ─────────────
+ * 像在安静的房间里读一页素纸：窄栏、大行距、零描边。
+ * 这一款把「装饰」全部拿掉——图片无边框、代码块无边框、分隔线消失。
+ * 剩下的只有字、留白和一条极淡的码片底。 */
+[data-reading-theme='focus'] {
+  --background: 249 249 250;
+  --shell: 249 249 250;
+  --paper: 254 254 255;
+  --card: 255 255 255;
+  --popover: 255 255 255;
+  --foreground: 24 24 26;
+  --muted: 241 241 243;
+  --muted-foreground: 108 108 116;
+  --subtle-foreground: 134 134 142;
+  --quote-foreground: 84 84 92;
+  --accent: 240 240 242;
+  --secondary: 243 243 245;
+  --primary: 79 90 186;
+  --primary-hover: 62 72 156;
+  --primary-foreground: 255 255 255;
+  --border: 234 234 237;
+  --border-subtle: 238 238 241;
+  --border-strong: 152 152 160;
+
+  --space-block: 1.3rem;
+  --space-tight: 0.9rem;
+  --space-section: 2.8rem;
+}
+
+html[data-theme='dark'][data-reading-theme='focus'],
+html[data-theme='dark'] [data-reading-theme='focus'] {
+  --background: 14 14 16;
+  --shell: 14 14 16;
+  --paper: 24 24 27;
+  --card: 28 28 32;
+  --popover: 34 34 38;
+  --foreground: 240 240 242;
+  --muted: 36 36 40;
+  --muted-foreground: 160 160 170;
+  --subtle-foreground: 138 138 148;
+  --quote-foreground: 194 194 204;
+  --accent: 40 40 45;
+  --secondary: 36 36 40;
+  --primary: 148 158 250;
+  --primary-hover: 168 178 252;
+  --primary-foreground: 16 18 38;
+  --border: 48 48 53;
+  --border-subtle: 40 40 45;
+  --border-strong: 128 128 138;
+}
+
+/* 零描边：图片、代码块、表格容器都不要边框，只用底色与留白区分 */
+html[data-reading-theme='focus'] .reading-prose img { border: 0; border-radius: 6px; }
+html[data-reading-theme='focus'] .reading-prose pre { border: 0; border-radius: 8px; }
+html[data-reading-theme='focus'] .table-wrap { border: 0; }
+html[data-reading-theme='focus'] .reading-prose th { border-bottom-color: rgb(var(--border-subtle)); }
+/* 分隔线不是「装饰」而是「切分」——专注款里用留白切分，不用线 */
+html[data-reading-theme='focus'] .reading-prose hr {
+  height: 0;
+  max-width: none;
+  background: none;
+}
+/* 引用：去掉竖线，改用缩进 + 更松的字距，读起来像「声音变了」而不是「换了个盒子」 */
+html[data-reading-theme='focus'] .reading-prose blockquote {
+  border-left: 0;
+  padding-left: 1.6em;
+  font-style: italic;
+}
+html[data-reading-theme='focus'] .reading-prose h1 { font-weight: 620; letter-spacing: -0.03em; }
+html[data-reading-theme='focus'] .reading-prose h2 { font-weight: 600; letter-spacing: -0.024em; }
+
+/* ───────────── 米黄 Sepia ─────────────
+ * 像读一份旧剪报：暖纸、褐墨、低对比。长时间阅读的场景——
+ * 白纸黑字在夜里连读两小时是会累的，把纸降一点、墨暖一点，眼睛能多撑一会儿。
+ * 注意对比度仍然按 AA 守（正文 ~12:1），「护眼」不等于「发灰看不清」。 */
+[data-reading-theme='sepia'] {
+  --background: 240 231 213;
+  --shell: 240 231 213;
+  --paper: 246 238 222;
+  --card: 247 240 226;
+  --popover: 249 243 230;
+  --foreground: 58 47 33;
+  --muted: 232 220 198;
+  --muted-foreground: 118 102 80;
+  --subtle-foreground: 136 120 98;
+  --quote-foreground: 92 76 55;
+  --accent: 236 225 205;
+  --secondary: 234 223 202;
+  --primary: 138 74 40;
+  --primary-hover: 116 60 32;
+  --primary-foreground: 255 255 255;
+  --border: 219 205 181;
+  --border-subtle: 226 213 191;
+  --border-strong: 150 133 108;
+  --code-keyword: 138 74 40;
+  --code-string: 72 100 52;
+  --code-comment: 122 106 84;
+  --code-number: 140 82 20;
+
+  --space-block: 0.95rem;
+  --space-tight: 0.9rem;
+  --space-section: 2.2rem;
+}
+
+html[data-theme='dark'][data-reading-theme='sepia'],
+html[data-theme='dark'] [data-reading-theme='sepia'] {
+  --background: 32 27 20;
+  --shell: 32 27 20;
+  --paper: 42 36 27;
+  --card: 48 41 31;
+  --popover: 54 46 35;
+  --foreground: 232 220 200;
+  --muted: 56 48 36;
+  --muted-foreground: 176 160 136;
+  --subtle-foreground: 150 136 114;
+  --quote-foreground: 204 190 166;
+  --accent: 58 50 38;
+  --secondary: 52 45 34;
+  --primary: 226 168 110;
+  --primary-hover: 238 186 134;
+  --primary-foreground: 38 26 14;
+  --border: 66 56 42;
+  --border-subtle: 54 46 35;
+  --border-strong: 140 122 96;
+  --code-keyword: 226 168 110;
+  --code-string: 168 206 152;
+  --code-comment: 152 138 116;
+  --code-number: 232 190 130;
+}
+
+/* ───────────── 主题预览卡（设置面板与顶栏浮层共用） ─────────────
+ * 预览卡自己带 data-reading-theme，所以上面的纸墨与「排版性格」会自动落到卡里——
+ * 卡片显示的就是选中后的样子，不是另画一张示意图。
+ * 这里只写「一张卡长什么样」，不写任何主题特有值。
+ *
+ * 字号底线 12px：卡里的规格行是给人读的数字（18px · 1.9 行距），
+ * 压到 11px 省下的那点高度不值得让人眯眼。 */
+.theme-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0; /* 允许被网格压窄（见 .theme-grid 的注释） */
+  padding: 10px 12px 11px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: rgb(var(--paper));
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.theme-preview:hover { border-color: rgb(var(--border-strong) / 0.55); }
+.theme-preview[aria-pressed='true'] {
+  border-color: rgb(var(--primary));
+  box-shadow: 0 0 0 1px rgb(var(--primary));
+}
+/* 样例行：一张卡要能同时看出标题（粗）、正文、链接（主色）、行内码（等宽底） */
+.theme-preview-sample {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 9px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  color: rgb(var(--foreground));
+  overflow: hidden;
+  white-space: nowrap;
+}
+.theme-preview-sample b { font-weight: 620; }
+.theme-preview-sample i {
+  font-style: normal;
+  color: rgb(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.theme-preview-sample code {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  padding: 0.1em 0.32em;
+  border-radius: 3px;
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+.theme-preview-name {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: rgb(var(--foreground));
+  overflow: hidden;
+}
+.theme-preview-name b { font-weight: 600; white-space: nowrap; }
+.theme-preview-en {
+  font-size: 11px;
+  color: rgb(var(--subtle-foreground));
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.theme-preview-tagline {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-2xs);
+  color: rgb(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-preview-badge {
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgb(var(--primary) / 0.12);
+  color: rgb(var(--primary));
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.theme-preview-spec {
+  margin-top: 4px;
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  color: rgb(var(--subtle-foreground));
+  font-variant-numeric: tabular-nums;
+}

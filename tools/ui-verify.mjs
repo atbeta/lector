@@ -12,6 +12,11 @@
 import { chromium } from 'playwright'
 
 const URL_ARG = process.argv[2] ?? 'http://localhost:5199/'
+
+// 平台修饰键：块内 CM 的 Mod- 绑定在非 macOS 上是 Ctrl。
+// 脚本里硬写 Meta+ 会在 Linux/Windows（CI 与本地预览）上整段静默失效——
+// 按下去什么都没发生，断言却报「功能没生效」，指向完全错误的方向。
+const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
 const findings = []
 const note = (level, msg) => findings.push({ level, msg })
 
@@ -637,6 +642,35 @@ const summary = {
   await page.waitForTimeout(200)
 
   // 3.6) 编辑与阅读能力：快捷键、代码复制、图片放大
+  //
+  // 注意：默认档是「阅读」，点块不会进编辑。这一段要测的是编辑路径，
+  // 所以先切到「编辑」档——v0.5.0 换默认档时这一段整段失效（超时失败），
+  // 而失败信息只说「等 .cm-content 超时」，完全指向不到真因。
+  await page.evaluate(() => document.querySelector('.mode-opt[data-mode="edit"]')?.click())
+  await page.waitForTimeout(400)
+  {
+    const modeUi = await page.evaluate(() => {
+      const opts = [...document.querySelectorAll('.mode-switch .mode-opt')]
+      return {
+        count: opts.length,
+        modes: opts.map((o) => o.dataset.mode),
+        labels: opts.map((o) => o.querySelector('.mode-opt-label')?.textContent ?? ''),
+        activeCount: opts.filter((o) => o.classList.contains('active')).length,
+        active: document.querySelector('.mode-opt.active')?.dataset.mode ?? null,
+        aria: opts.filter((o) => o.getAttribute('aria-checked') === 'true').length,
+        htmlMode: document.documentElement.dataset.mode,
+      }
+    })
+    if (modeUi.count !== 3) note('error', `视图模式控件有 ${modeUi.count} 档（期望 3：阅读/编辑/源码）`)
+    if (modeUi.labels.some((l) => !l.trim())) note('error', `视图模式有档位没有文字标签：${JSON.stringify(modeUi.labels)}`)
+    if (modeUi.activeCount !== 1) note('error', `视图模式同时有 ${modeUi.activeCount} 档处于选中态`)
+    if (modeUi.aria !== 1) note('error', '视图模式的分段控件没有正确的 aria-checked（键盘/读屏拿不到当前档）')
+    if (modeUi.active !== modeUi.htmlMode) {
+      note('error', `分段控件亮的是 ${modeUi.active}，html[data-mode] 是 ${modeUi.htmlMode}（两处真相打架）`)
+    }
+    note('info', `视图模式：${modeUi.modes.join(' / ')}，当前 ${modeUi.active}`)
+    summary.modeSwitch = modeUi
+  }
   {
     const keys = await page.evaluate(() => {
       const block = [...document.querySelectorAll('#content .block')].find((b) => b.dataset.kind === 'paragraph')
@@ -658,9 +692,9 @@ const summary = {
         await page.waitForSelector('.cm-content', { timeout: 5000 })
         await page.waitForTimeout(200)
         await page.locator('.cm-content').first().click()
-        await page.keyboard.press('Meta+a')
+        await page.keyboard.press(`${MOD}+a`)
         await page.keyboard.type('x y')
-        await page.keyboard.press('Meta+a')
+        await page.keyboard.press(`${MOD}+a`)
         await page.keyboard.press(key)
         await page.waitForTimeout(200)
         return page.evaluate(() =>
@@ -668,15 +702,15 @@ const summary = {
         )
       }
       const cases = [
-        ['Meta+b', '**x y**', '⌘B 粗体'],
-        ['Meta+i', '*x y*', '⌘I 斜体'],
-        ['Meta+e', '`x y`', '⌘E 行内代码'],
+        [`${MOD}+b`, '**x y**', '⌘B 粗体'],
+        [`${MOD}+i`, '*x y*', '⌘I 斜体'],
+        [`${MOD}+e`, '`x y`', '⌘E 行内代码'],
       ]
       for (const [key, want, label] of cases) {
         const got = await press(key)
         if (got !== want) note('error', `${label} 没生效：得到 ${JSON.stringify(got)}，期望 ${JSON.stringify(want)}`)
       }
-      const link = await press('Meta+k')
+      const link = await press(`${MOD}+k`)
       if (!/^\[x y\]\(.+\)$/.test(link)) {
         note('error', `⌘K 链接没生效：得到 ${JSON.stringify(link)}`)
       }
@@ -824,7 +858,7 @@ const summary = {
     if (afterDelete !== before - 1) {
       note('error', `删除块后块数 ${before} → ${afterDelete}，期望少 1`)
     }
-    await page.keyboard.press('Meta+z')
+    await page.keyboard.press(`${MOD}+z`)
     await page.waitForTimeout(400)
     const afterUndo = await countBlocks()
     if (afterUndo !== before) {
@@ -833,7 +867,96 @@ const summary = {
     note('info', `右键菜单：块 ${blockMenu.length} 项，删除+⌘Z 恢复 ${before}→${afterDelete}→${afterUndo}`)
   }
 
-  // 3.7) 顶栏几何：导航对齐正文列、标题对齐正文中心、操作区贴右
+  // 3.8) 阅读主题：纸墨与标定排版必须真的上屏
+  //
+  // 主题是「一套纸墨 + 一套标定排版」，两者都要验：
+  //   - 纸墨：body 的实际背景色随主题变（改了 data-reading-theme 但 CSS 没命中，
+  //     是这一层最常见的事故——属性对了、页面没变）；
+  //   - 标定排版：字号/行距/栏宽要落到 --reading-* 上（画廊说「18px · 1.9 行距」，
+  //     上屏就得是 18px / 1.9）。
+  {
+    /** 打开浮层（已经开着就别再点——这个按钮是 toggle，无脑点会把面板关掉）。 */
+    const openPop = () =>
+      page.evaluate(() => {
+        if (!document.querySelector('.appearance-pop')) document.getElementById('appearance-btn')?.click()
+      })
+    const closePop = () =>
+      page.evaluate(() => {
+        if (document.querySelector('.appearance-pop')) document.getElementById('appearance-btn')?.click()
+      })
+
+    const pick = async (id) => {
+      await openPop()
+      await page.waitForTimeout(260)
+      const exists = await page.evaluate(
+        (tid) => !!document.querySelector(`.theme-preview[data-reading-theme="${tid}"]`),
+        id,
+      )
+      if (!exists) {
+        await closePop()
+        return null
+      }
+      await page.evaluate(
+        (tid) => document.querySelector(`.theme-preview[data-reading-theme="${tid}"]`)?.click(),
+        id,
+      )
+      await page.waitForTimeout(320)
+      const state = await page.evaluate(() => ({
+        attr: document.documentElement.dataset.readingTheme,
+        paper: getComputedStyle(document.body).backgroundColor,
+        font: getComputedStyle(document.documentElement).getPropertyValue('--reading-font-size').trim(),
+        lh: getComputedStyle(document.documentElement).getPropertyValue('--reading-line-height').trim(),
+        w: getComputedStyle(document.documentElement).getPropertyValue('--reading-max-w').trim(),
+        selected: document.querySelector('.theme-preview[aria-pressed="true"]')?.dataset.readingTheme ?? null,
+      }))
+      return state
+    }
+
+    await openPop()
+    await page.waitForTimeout(300)
+    const cards = await page.evaluate(() => document.querySelectorAll('.theme-preview').length)
+    await closePop()
+    await page.waitForTimeout(200)
+    if (cards < 6) note('error', `阅读主题画廊只有 ${cards} 张卡（期望 ≥6：默认 + 新增 5 款）`)
+
+    const before = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+    const manual = await pick('manual')
+    if (!manual) {
+      note('error', '画廊里找不到「手册」主题卡')
+    } else {
+      if (manual.attr !== 'manual') note('error', `点了手册主题，html[data-reading-theme] 是 ${manual.attr}`)
+      if (manual.selected !== 'manual') note('error', '点了手册主题，卡片没有变成选中态')
+      if (manual.paper === before) note('error', `切换主题后纸面色没变（都是 ${before}）：主题只改了属性没改纸墨`)
+      if (manual.font !== '16px' || !manual.lh.startsWith('1.68') || manual.w !== '760px') {
+        note('error', `手册主题的标定排版没落上屏：字号 ${manual.font} / 行距 ${manual.lh} / 栏宽 ${manual.w}`)
+      }
+      note('info', `手册主题：纸面 ${manual.paper}，${manual.font} · ${manual.lh} · ${manual.w}`)
+    }
+
+    const book = await pick('book')
+    if (book) {
+      // 「书」这个主题的价值全在排版性格：首行缩进 + 两端对齐。
+      // 颜色换了而缩进没上，等于没有这个主题。
+      const indent = await page.evaluate(() => {
+        const p = document.querySelector('.reading-prose p')
+        if (!p) return null
+        const cs = getComputedStyle(p)
+        return { indent: cs.textIndent, align: cs.textAlign }
+      })
+      if (!indent || Number.parseFloat(indent.indent) < 16) {
+        note('error', `「书」主题的段落首行缩进没有生效：text-indent = ${indent ? indent.indent : '找不到段落'}`)
+      }
+      if (indent && indent.align !== 'justify') {
+        note('error', `「书」主题的正文没有两端对齐：text-align = ${indent.align}`)
+      }
+      if (book.paper === before) note('error', '「书」主题的纸面色与默认相同')
+    } else {
+      note('error', '画廊里找不到「书」主题卡')
+    }
+    await closePop()
+    summary.readingTheme = { manual, book }
+  }
+
   const barGeo = await page.evaluate(() => {
     const r = (sel) => {
       const el = document.querySelector(sel)
@@ -927,6 +1050,11 @@ const summary = {
   })
   await page.goto(URL_ARG, { waitUntil: 'networkidle' })
   await page.waitForSelector('#content .block', { timeout: 10000 })
+  // 整段交互都建立在「点块能进源码编辑」之上，所以加载完先切到编辑档。
+  // 阅读档（默认）点块不聚焦——少了这一步，这一段会在「等 .cm-content」上超时，
+  // 而报错完全指向不到真因（2026-09 就是这么坏的）。
+  await page.evaluate(() => document.querySelector('.mode-opt[data-mode="edit"]')?.click())
+  await page.waitForTimeout(400)
 
   const blockCount = () => page.locator('#content .block').count()
   const toastText = () =>
@@ -974,7 +1102,7 @@ const summary = {
   if (focused !== 1) {
     note('error', `插入段落后应当只有一个聚焦块（页面上有 ${focused} 个 CM 编辑器）`)
   }
-  await page.keyboard.press('Meta+z')
+  await page.keyboard.press(`${MOD}+z`)
   await page.waitForTimeout(250)
   const undone = await blockCount()
   if (undone !== before) {
@@ -1023,7 +1151,7 @@ const summary = {
     note('info', '粘贴 HTML：粗体、链接、清单都转成了 Markdown')
   }
   // 粘贴走 CM 的正常输入路径，所以块内 ⌘Z 应当把它整段撤回
-  await page.keyboard.press('Meta+z')
+  await page.keyboard.press(`${MOD}+z`)
   await page.waitForTimeout(250)
   const afterUndo = await page.locator('#content .cm-content').first().innerText()
   if (afterUndo.trim() !== originalText.trim()) {
@@ -1052,7 +1180,7 @@ const summary = {
     if (checkedAfter === checkedBefore) {
       note('error', `任务勾选没有生效：${checkedBefore} → ${checkedAfter}`)
     }
-    await page.keyboard.press('Meta+z')
+    await page.keyboard.press(`${MOD}+z`)
     await page.waitForTimeout(250)
     const checkedUndone = await checkbox().isChecked()
     if (checkedUndone !== checkedBefore) {
@@ -1077,7 +1205,7 @@ const summary = {
       .catch(() => false)
     if (!ok) note('error', '点击代码块后焦点没进编辑器')
     // 全选后粘贴：结果只由这一次粘贴决定，不受光标落点影响
-    await page.keyboard.press('Meta+a')
+    await page.keyboard.press(`${MOD}+a`)
     const codeAfterPaste = await page.evaluate(() => {
       const dt = new DataTransfer()
       dt.setData('text/html', '<pre><code class="language-js">const a = 1</code></pre>')

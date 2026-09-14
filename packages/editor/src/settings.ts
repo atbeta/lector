@@ -1,7 +1,9 @@
 import {
   DEFAULT_SETTINGS,
   normalizeSettings,
+  withReadingTheme,
   type EditorSettings,
+  type ReadingThemeId,
   type ThemeMode,
 } from '@lector/core'
 import { loadSettings, saveSettings } from '@lector/shell-web'
@@ -22,6 +24,9 @@ function applyVars(s: EditorSettings) {
   root.style.setProperty('--reading-line-height', `${s.lineHeight}`)
   root.style.setProperty('--reading-max-w', `${s.readingWidth}px`)
   root.classList.toggle('font-serif', s.fontFamily === 'serif')
+  // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
+  // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。
+  root.setAttribute('data-reading-theme', s.readingTheme)
 }
 
 export function notify(handler: (s: EditorSettings) => void): () => void {
@@ -45,6 +50,21 @@ export function setSettings(next: EditorSettings, persist = true) {
 
 export function resetSettings() {
   setSettings(DEFAULT_SETTINGS, true)
+}
+
+/**
+ * 选一款阅读主题：套用它的标定排版 + 切纸墨。
+ *
+ * 用户之后动字号/行距/栏宽仍然有效——那些改动只改设置值，不动 readingTheme，
+ * 所以画廊里那张卡依然亮着（设置面板会给它标一句「已微调」）。
+ */
+export function setReadingTheme(id: ReadingThemeId) {
+  setSettings(withReadingTheme(current, id))
+}
+
+/** 在当前明暗下切换明暗（顶栏浮层与菜单共用）。 */
+export function setThemeMode(mode: ThemeMode) {
+  setSettings({ ...current, theme: mode })
 }
 
 /**

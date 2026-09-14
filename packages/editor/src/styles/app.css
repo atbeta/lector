@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import './reading-themes.css';
 
 /* 阅读排版可配置变量（设置面板覆写，defaults 见下） */
 :root {
@@ -42,9 +43,13 @@ body {
   margin: 0;
   height: 100%;
   /* 正文只有 42rem，宽窗口下两侧会是「空白」而不是「底色」。
-     极淡的中心环境光让纸面像有光源，而不是被裁掉的一块白。 */
+     极淡的天光让纸面像有光源，而不是被裁掉的一块白。
+     用「从顶边淡出」而不是椭圆：椭圆在空态（没有正文遮住它）会显出一个
+     有边界的灰斑，看起来像没擦干净的选区。线性渐隐没有闭合轮廓。
+     光色跟主题的墨色走（不是写死的冷灰）：米黄/纸主题下，一束冷光会把
+     整张暖纸染脏——那是「没做完」最典型的痕迹。 */
   background:
-    radial-gradient(1200px 620px at 50% 0%, rgb(24 24 27 / 0.022), transparent 70%),
+    linear-gradient(to bottom, rgb(var(--foreground) / 0.018), transparent 280px),
     rgb(var(--background));
   background-repeat: no-repeat;
   color: rgb(var(--foreground));
@@ -57,7 +62,7 @@ body {
 }
 html[data-theme='dark'] body {
   background:
-    radial-gradient(1200px 620px at 50% 0%, rgb(255 255 255 / 0.035), transparent 70%),
+    linear-gradient(to bottom, rgb(var(--foreground) / 0.05), transparent 280px),
     rgb(var(--background));
   background-repeat: no-repeat;
 }
@@ -180,6 +185,71 @@ button, a, input, [role='slider'], [role='switch'] {
   margin-left: auto;
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
+}
+
+/* ───────────── 视图模式分段控件 ─────────────
+ * 三档常驻 + 当前档常亮。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
+ * 和旁边的图标按钮是同一类东西（控制），而左侧留给文件动作（打开 / 保存）。
+ *
+ * 为什么不是三个图标按钮：图标说不出「阅读 / 编辑 / 源码」这三件事的区别，
+ * 用户第一次用只能一个个点过去看。文字是这里唯一够用的信息密度。
+ * 窗口窄到装不下时，文字先让位（只留图标 + tooltip）——缩到无处可缩为止。 */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgb(var(--secondary));
+  -webkit-app-region: no-drag;
+}
+.mode-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.mode-opt:hover { color: rgb(var(--foreground)); }
+.mode-opt-icon { display: inline-flex; align-items: center; }
+.mode-opt-icon svg { display: block; }
+/* 选中档：抬成纸面（比容器亮一档）+ 发丝边。这是 iOS/Linear 那套分段控件的
+   语言：选中 = 从槽里「浮起来」，而不是「换一个底色」。 */
+.mode-opt.active {
+  color: rgb(var(--foreground));
+  background: rgb(var(--paper));
+  border-color: rgb(var(--border));
+  box-shadow: 0 1px 2px rgb(var(--foreground) / 0.07);
+}
+/* 编辑 / 源码档额外点一点主色：这三档不是平级的「三个视图」，
+   后两档会改文档，值得一眼看出「我现在在可写状态」。 */
+html[data-mode='edit'] .mode-opt[data-mode='edit'],
+html[data-mode='source'] .mode-opt[data-mode='source'] { color: rgb(var(--primary)); }
+html[data-mode='edit'] .mode-opt[data-mode='edit'] .mode-opt-icon,
+html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: rgb(var(--primary)); }
+
+html[data-shell='windows'] .mode-opt { height: 24px; }
+html[data-shell='windows'] .mode-switch { border-radius: 7px; }
+
+/* 窄窗口：文字让位。1080px 以下顶栏还要放标题和四个图标按钮，
+   先牺牲文字（图标 + tooltip 仍然可用），而不是把标题挤没。 */
+@media (max-width: 1080px) {
+  .mode-opt-label { display: none; }
+  .mode-opt { padding: 0 7px; }
+  .mode-switch { gap: 0; }
 }
 .titlebar-center {
   position: absolute;
@@ -376,8 +446,14 @@ html[data-shell='windows'] .window-controls { display: flex; }
     background var(--motion-fast) var(--ease-standard);
 }
 .btn-icon svg { display: block; }
-.btn-icon:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
-.btn-icon:active { background: rgb(var(--secondary)); }
+.btn-icon:hover:not(:disabled) { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+.btn-icon:active:not(:disabled) { background: rgb(var(--secondary)); }
+/* 禁用态：保存按钮在「没有未保存改动」时就是这个样子。
+   只降不透明度会让它看起来像加载中；再压掉 hover 与光标，才读得出「暂时没用」。 */
+.btn-icon:disabled {
+  color: rgb(var(--subtle-foreground) / 0.6);
+  cursor: default;
+}
 .btn-icon.active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
 /* 「编辑中」高亮：进入编辑模式后 mode-toggle 按钮跟随 primary 色，不误以为是普通按钮 */
 .btn-icon-toggle[aria-pressed='true'] {
@@ -571,6 +647,11 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   border-right: 1px solid rgb(var(--border-subtle));
 }
 .sidebar[hidden] { display: none; }
+/* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
+   保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。
+   只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
+html.no-doc body.app { grid-template-columns: 0 1fr; }
+html.no-doc .sidebar { display: none; }
 .sidebar-body {
   display: flex;
   flex-direction: column;
@@ -578,6 +659,26 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   padding: 10px 8px 16px;
   /* macOS 原生红绿灯占住左上角：侧栏顶部的条目要让开 */
   padding-top: 12px;
+}
+/* 侧栏标题：一列目录需要一句话说明它是什么。初版没有任何标题，
+   288px 的白栏里直接开始列条目，看起来像加载了一半。 */
+.sidebar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 8px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.sidebar-count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: 0;
 }
 html[data-shell='macos'] .sidebar-body { padding-top: 12px; }
 
@@ -839,7 +940,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .reading-prose pre {
   font-family: var(--font-mono);
-  font-size: 13px;
+  /* 与行内码同尺寸：同一段里「块内代码 13px、行内码 14.6px」是会被一眼看出来的
+     ——读者不会说为什么别扭，但会说「不精致」。两边都用 0.86em，随正文字号走。 */
+  font-size: 0.86em;
   line-height: 1.62;
   padding: 14px 16px;
   background: rgb(var(--muted));
@@ -1137,27 +1240,36 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 阅读里的图片：可点开放大，光标要说明这件事 */
 .reading-prose img { cursor: zoom-in; }
 
-/* ───────────── write 模式:块以等宽源码呈现 ─────────────
- * 跟 mermaid-source 同族: 静、亮以 paper 为背、不取预览类的 prose 样式。
- * pre-wrap:让块内换行保留(不是接一行);滚动靠 overflow-x:auto。
- * hover 让边界出现 —— 表明「点这里能进 source edit」,但默认不在主路径上。 */
+/* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
+ * 关键取舍：**不画卡片**。
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的是一篇文档的
+ * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
+ * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
+ * 发丝线表示「这段可以点进去改」。
+ *
+ * pre-wrap 保留块内换行；overflow-x:auto 兜住超长行。 */
 .source-view {
   margin: 0;
-  padding: 8px 12px;
-  background: rgb(var(--paper));
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
+  padding: 3px 10px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: 1.5;
+  font-size: 0.86em;
+  line-height: 1.72;
   color: rgb(var(--foreground));
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
-  transition: border-color var(--motion-fast) var(--ease-standard);
+  transition: background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
 }
-.source-view:hover { border-color: rgb(var(--border)); }
+.source-view:hover {
+  background: var(--block-hover-bg);
+  border-left-color: rgb(var(--border-strong) / 0.5);
+}
 .source-view code {
   background: transparent;
   padding: 0;
@@ -1349,6 +1461,59 @@ html.lightbox-open #content { overflow: hidden; }
   letter-spacing: -0.015em;
 }
 .modal-header .btn-icon { margin-left: auto; }
+.modal-body { padding: 0; }
+
+/* ───────────── 外观浮层（顶栏 Aa 按钮） ─────────────
+ * 浮层而不是弹窗：换主题是「读着读着顺手换一下」的动作，不该把正文整块遮住——
+ * 用户要一边看着自己的文章一边试主题。 */
+.appearance-pop {
+  position: fixed;
+  z-index: 90;
+  width: 520px;
+  max-width: calc(100vw - 24px);
+  max-height: min(72vh, 620px);
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  border-radius: var(--radius-xl);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-base) var(--ease-emphasized) both;
+}
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+}
+.appearance-label { font-size: var(--text-base); color: rgb(var(--foreground)); }
+.appearance-group-label {
+  margin: 14px 0 8px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.theme-grid {
+  /* minmax(0, 1fr) 而不是 1fr：网格项的默认最小宽度是 min-content，
+     卡片里的样例行是 nowrap，min-content 会很宽——两列一起把浮层顶破，
+     右列的卡直接被裁在面板外面。所有参与网格的可收缩盒子都要显式 min-width: 0。 */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.appearance-hint {
+  margin: 10px 2px 0;
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+  color: rgb(var(--subtle-foreground));
+}
+/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高矮不一，
+   反而比多滚动一屏更难看。 */
+.settings-gallery { padding: 4px 0 6px; }
+
 .settings-section { padding: 6px 18px 10px; }
 /* 分组标签：小、大写、淡。分组一眼可见，又不抢正文。 */
 .settings-row-label {

@@ -197,6 +197,113 @@ for (const sel of required) {
   }
 }
 
+// ── 8. 阅读主题：两侧不漏、基线与对比度 ──
+//
+// 阅读主题是手写的 12 套纸墨（6 款 × 明暗）。手工配的色值不设机器门，
+// 下一个人改一处 --muted 就可能把某款主题的正文压到 3:1 而没人发现——
+// 主题是「读起来像什么」，可读性塌了，主题就白做了。
+const THEMES_CSS = readFileSync(join(ROOT, 'packages/editor/src/styles/reading-themes.css'), 'utf8')
+const THEMES_TS = readFileSync(join(ROOT, 'packages/core/src/readingThemes.ts'), 'utf8')
+
+/** 解析 reading-themes.css 里所有 [data-reading-theme='x'] 块（这些块里没有嵌套大括号）。 */
+function parseThemeBlocks(css) {
+  const out = {}
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sel = m[1]
+    if (!/data-reading-theme/.test(sel)) continue
+    const ids = [...sel.matchAll(/data-reading-theme='([\w-]+)'/g)].map((x) => x[1])
+    const dark = /data-theme='dark'/.test(sel)
+    const vars = {}
+    for (const line of m[2].split('\n')) {
+      const t = line.match(/^\s*(--[\w-]+):\s*([^;]+);/)
+      if (t) vars[t[1]] = t[2].trim()
+    }
+    for (const id of new Set(ids)) {
+      out[id] ??= { light: {}, dark: {} }
+      Object.assign(out[id][dark ? 'dark' : 'light'], vars)
+    }
+  }
+  return out
+}
+
+const themeBlocks = parseThemeBlocks(THEMES_CSS)
+const declaredIds = [...THEMES_TS.matchAll(/\n\s+id: '([\w-]+)',/g)].map((m) => m[1])
+if (declaredIds.length < 6) note('error', `阅读主题清单只有 ${declaredIds.length} 款（期望 ≥6）`)
+
+// 两侧不漏：清单里声明的必须有样式，样式里有的必须在清单里。
+// 少一边的后果都是静默的——用户选了主题，页面什么都不变。
+for (const id of declaredIds) {
+  if (!themeBlocks[id]) {
+    note('error', `阅读主题「${id}」在 readingThemes.ts 里声明了，reading-themes.css 里没有对应规则（选了它不会有任何变化）`)
+  }
+}
+for (const id of Object.keys(themeBlocks)) {
+  if (!declaredIds.includes(id)) {
+    note('error', `reading-themes.css 里的「${id}」不在主题清单里（用户永远选不到它）`)
+  }
+}
+
+// default 块是 tokens.css 基线的副本（为了让预览卡在别的主题下仍显示「默认」的样子）。
+// 副本就会漂移，所以逐项比对：基线改了而这里没跟上，直接报错。
+{
+  const base = themeBlocks.default
+  if (!base) {
+    note('error', '缺少 default 主题块：预览卡会继承当前主题的纸墨，「默认」那张显示的是别人')
+  } else {
+    let drift = 0
+    for (const [mode, table] of [
+      ['light', tokens.light],
+      ['dark', tokens.dark],
+    ]) {
+      for (const [k, v] of Object.entries(base[mode])) {
+        if (table[k] !== v) {
+          drift++
+          if (drift <= 3) note('error', `default 主题 ${mode} 的 ${k} = ${v}，与 tokens.css 基线 ${table[k]} 不一致`)
+        }
+      }
+    }
+    if (drift > 3) note('error', `default 主题与基线共 ${drift} 处不一致（只列出前 3 处）`)
+    if (drift === 0) note('ok', `default 主题与 tokens.css 基线完全一致（${Object.keys(base.light).length} 项）`)
+  }
+}
+
+// 每款主题 × 明暗：正文 / 次级 / 最弱 / 链接 对纸面的对比度。
+// 门槛与上面第 1 节同源（都是 WCAG AA），只是这里逐主题穷举。
+for (const id of declaredIds) {
+  const block = themeBlocks[id]
+  if (!block) continue
+  for (const mode of ['light', 'dark']) {
+    // 主题只覆盖它关心的那几个变量，其余继承基线——所以要合并后再算
+    const merged = { ...tokens[mode], ...tokens.light, ...block.light, ...block[mode] }
+    const pick = (name) => resolveColor(merged[`--${name}`], mode)
+    const paper = pick('paper')
+    if (!paper) {
+      note('warn', `${id}/${mode}: 找不到 --paper`)
+      continue
+    }
+    const checks = [
+      ['foreground', '正文', 4.5],
+      ['muted-foreground', '次级信息', 4.5],
+      ['subtle-foreground', '最弱一级', 3.0],
+      ['primary', '链接/选中', 4.5],
+    ]
+    const line = []
+    for (const [name, label, min] of checks) {
+      const c = pick(name)
+      if (!c) {
+        note('warn', `${id}/${mode}: 缺少 --${name}`)
+        continue
+      }
+      const ratio = contrast(c, paper)
+      line.push(`${label} ${ratio}`)
+      if (ratio < min) {
+        note('error', `${id}/${mode} ${label} --${name} 对纸面 ${ratio}:1 < ${min}:1`)
+      }
+    }
+    note('info', `主题 ${id}/${mode} 对纸面：${line.join(' · ')}`)
+  }
+}
+
 // ── 输出 ──
 const order = { error: 0, warn: 1, ok: 2, info: 3 }
 findings.sort((a, b) => order[a.level] - order[b.level])

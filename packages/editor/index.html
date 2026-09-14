@@ -41,7 +41,6 @@
       <div class="titlebar-lead">
         <button type="button" class="btn-icon" id="open-btn" data-tip="打开 (⌘O)" aria-label="打开"></button>
         <button type="button" class="btn-icon" id="save-btn" data-tip="保存 (⌘S)" aria-label="保存"></button>
-        <button type="button" class="btn-icon btn-icon-toggle" id="mode-toggle" aria-label="切换编辑模式" aria-pressed="false"></button>
       </div>
       <div class="titlebar-center">
         <span class="titlebar-title">
@@ -50,10 +49,14 @@
         </span>
       </div>
       <div class="titlebar-actions">
-        <button type="button" class="btn-icon" id="outline-btn" data-tip="大纲 (⌘⇧O)" aria-label="大纲" aria-pressed="false"></button>
+        <!-- 视图模式：三档常驻的分段控件。放在右侧操作区而不是左上角——
+             它决定「这块屏幕现在是什么」，属于控制，和图标按钮们是一类；
+             左侧留给文件动作（打开/保存）。 -->
+        <div class="mode-switch" id="mode-switch"></div>
         <span class="titlebar-divider" aria-hidden="true"></span>
+        <button type="button" class="btn-icon" id="outline-btn" data-tip="大纲 (⌘⇧O)" aria-label="大纲" aria-pressed="false"></button>
         <button type="button" class="btn-icon" id="find-btn" data-tip="查找 (⌘F)" aria-label="查找"></button>
-        <button type="button" class="btn-icon" id="theme-btn" data-tip="切换主题" aria-label="切换主题"></button>
+        <button type="button" class="btn-icon" id="appearance-btn" data-tip="外观" aria-label="外观" aria-haspopup="dialog"></button>
         <button type="button" class="btn-icon" id="settings-btn" data-tip="设置" aria-label="设置"></button>
       </div>
       <div class="window-controls"></div>

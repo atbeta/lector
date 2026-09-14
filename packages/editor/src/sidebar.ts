@@ -11,6 +11,8 @@
 //
 // 开合状态存 localStorage：这是查看偏好，不是文档内容，不进设置 schema。
 
+import { t } from './i18n.ts'
+
 const LS_KEY = 'lector-sidebar'
 /** 侧栏宽度。grid 轨道与 .sidebar 的宽都要与它一致（见 app.css）。 */
 export const SIDEBAR_W = 288
@@ -27,6 +29,8 @@ export interface Sidebar {
   toggle(): void
   mode(): SidebarMode
   sync(): void
+  /** 侧栏标题右侧的小节计数（0 时留空，不显示「0 节」这种废话）。 */
+  setCount(n: number): void
 }
 
 function readPref(): boolean | null {
@@ -52,9 +56,18 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   el.id = 'sidebar'
   el.setAttribute('aria-label', '大纲')
 
+  // 标题行：一列目录要有名字。初版直接从条目开始，288px 的白栏看起来像没加载完。
+  const head = document.createElement('div')
+  head.className = 'sidebar-head'
+  const headLabel = document.createElement('span')
+  headLabel.textContent = t('outlineTitle')
+  const headCount = document.createElement('span')
+  headCount.className = 'sidebar-count'
+  head.append(headLabel, headCount)
+
   const body = document.createElement('div')
   body.className = 'sidebar-body'
-  el.appendChild(body)
+  el.append(head, body)
 
   // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态行（见 index.html 注释）
   const content = document.getElementById('content')
@@ -127,5 +140,8 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     toggle: () => setOpen(!open),
     mode,
     sync: apply,
+    setCount: (n) => {
+      headCount.textContent = n > 0 ? String(n) : ''
+    },
   }
 }

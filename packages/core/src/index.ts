@@ -19,9 +19,19 @@ export {
 export {
   DEFAULT_SETTINGS,
   isDefaultSettings,
+  matchesReadingThemePreset,
   normalizeSettings,
+  withReadingTheme,
   type EditorSettings,
   type FontFamily,
   type ThemeMode,
 } from './settings.ts'
+export {
+  DEFAULT_READING_THEME,
+  READING_THEMES,
+  isReadingThemeId,
+  readingTheme,
+  type ReadingTheme,
+  type ReadingThemeId,
+} from './readingThemes.ts'
 export { decodeEntities, htmlToMarkdown } from './htmlToMarkdown.ts'
