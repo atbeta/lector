@@ -1,18 +1,42 @@
 // Mermaid 图表渲染（懒加载，单例缓存）
 //
 // 模式参考 notefast：首个 mermaid 块才拉取库，避免撑大主包。
-// 每个 render 给唯一 id：mermaid 内部维护 id 缓存，重复会拿到上一次的 SVG 串。
 //
-// 与 notefast 的差异：lector 是单文件视图，不需要 React；
-// renderMermaidSvg 返回字符串，由调用方决定插到哪个 DOM。
+// 缓存：按 `theme::code` 键值保留最近 MAX_CACHE_ENTRIES 张 SVG。
+// - 同主题同源码的重复渲染（如主题来回切换、光标拖动导致 reconcile 重渲）
+//   走 O(1) map 命中，绕过 mermaid.render 重计算。
+// - 主题切换不需要 invalidate——不同主题是不同 key，同时存在也没问题。
+// - LRU：Map 保持插入序，超限丢第一个。代码量与内存都在控。
+//   （不依赖 LRU 库是为了零依赖；lector 其他地方如 imageBase64Cache 也是手写 LRU 风格。）
 
 import type mermaidApi from 'mermaid'
 
 type Mermaid = typeof mermaidApi
 
+const MAX_CACHE_ENTRIES = 200
+
 let mermaidPromise: Promise<Mermaid> | null = null
 let lastTheme: 'default' | 'dark' | null = null
 let renderSeq = 0
+
+const svgCache = new Map<string, string>()
+
+function cacheGet(key: string): string | undefined {
+  const v = svgCache.get(key)
+  if (v === undefined) return undefined
+  // LRU bump：删了重插，键就跑到末尾
+  svgCache.delete(key)
+  svgCache.set(key, v)
+  return v
+}
+
+function cachePut(key: string, svg: string): void {
+  if (svgCache.size >= MAX_CACHE_ENTRIES) {
+    const firstKey = svgCache.keys().next().value
+    if (firstKey !== undefined) svgCache.delete(firstKey)
+  }
+  svgCache.set(key, svg)
+}
 
 function getMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
@@ -59,8 +83,18 @@ export async function renderMermaidSvg(
   theme: 'light' | 'dark',
   id = nextMermaidId(),
 ): Promise<string> {
+  const key = `${theme}::${code}`
+  const hit = cacheGet(key)
+  if (hit !== undefined) return hit
+
   const mermaid = await getMermaid()
   applyTheme(mermaid, theme)
   const { svg } = await mermaid.render(id, code.trim())
+  cachePut(key, svg)
   return svg
+}
+
+/** 测试钩子：清空缓存。生产代码不要调。 */
+export function _resetCacheForTests(): void {
+  svgCache.clear()
 }
