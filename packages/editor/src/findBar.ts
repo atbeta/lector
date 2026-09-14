@@ -27,11 +27,11 @@ export function findBar(host: FindHost) {
   bar.innerHTML = `
     <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
     <span class="find-count"></span>
-    <button class="btn-icon find-prev" title="${t('findPrev')}" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
-    <button class="btn-icon find-next" title="${t('findNext')}" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
+    <button class="btn-icon find-prev" data-tip="${t('findPrev')}" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
+    <button class="btn-icon find-next" data-tip="${t('findNext')}" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
     <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
     <button class="btn find-replaceall">${t('replaceAll')}</button>
-    <button class="find-close btn-icon" title="${t('close')}" aria-label="${t('close')}">${iconSvg('close')}</button>
+    <button class="find-close btn-icon" data-tip="${t('close')}" aria-label="${t('close')}">${iconSvg('close')}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!

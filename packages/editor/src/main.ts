@@ -46,6 +46,7 @@ import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
+import { mountTip } from './tip.ts'
 import { mountLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
 import {
@@ -1905,6 +1906,7 @@ void (async () => {
   mountWindowControls()
   mountHeaderScrollState()
   mountLightbox()
+  mountTip()
   // 右键菜单：capture 阶段接管，避免被块自身的点击处理先吃掉
   document.addEventListener('contextmenu', onContextMenu)
   // 视图切换（换文档、点空白）时收起菜单

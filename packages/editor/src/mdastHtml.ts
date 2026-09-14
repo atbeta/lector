@@ -46,7 +46,7 @@ function inlineNode(n: Node): string {
     case 'link': {
       const href = safeHref(n.url ?? '')
       if (!href) return `<span>${inline(n.children)}</span>`
-      return `<a href="${esc(href)}"${n.title ? ` title="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
+      return `<a href="${esc(href)}"${n.title ? ` data-tip="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
     }
     case 'image':
       return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
