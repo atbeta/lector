@@ -28,27 +28,27 @@
  * 重述就有漂移风险，所以 tools/design-audit.mjs 会逐项比对这一块与 tokens.css
  * 基线：基线改了而这里没跟上，审计直接报错。 */
 [data-reading-theme='default'] {
-  --background: 247 247 248;
-  --shell: 247 247 248;
+  --background: 248 247 245;
+  --shell: 248 247 245;
   --paper: 255 255 255;
   --card: 255 255 255;
   --popover: 255 255 255;
-  --foreground: 16 16 20;
-  --muted: 228 228 233;
-  --muted-foreground: 92 92 102;
-  --subtle-foreground: 122 122 132;
-  --quote-foreground: 70 70 78;
-  --accent: 240 240 241;
-  --secondary: 243 243 245;
-  --primary: 79 90 186;
-  --primary-hover: 62 72 156;
+  --foreground: 26 25 22;
+  --muted: 232 230 226;
+  --muted-foreground: 105 103 97;
+  --subtle-foreground: 122 119 113;
+  --quote-foreground: 74 71 66;
+  --accent: 241 240 237;
+  --secondary: 244 243 240;
+  --primary: 90 116 176;
+  --primary-hover: 78 100 152;
   --primary-foreground: 255 255 255;
-  --border: 224 224 228;
-  --border-subtle: 218 218 224;
-  --border-strong: 130 130 142;
-  --code-keyword: 79 90 186;
+  --border: 230 229 225;
+  --border-subtle: 222 220 215;
+  --border-strong: 140 136 128;
+  --code-keyword: 90 116 176;
   --code-string: 15 110 52;
-  --code-comment: 96 100 112;
+  --code-comment: 101 98 91;
   --code-number: 158 68 8;
   --space-block: 0.95rem;
   --space-tight: 1rem;
@@ -56,27 +56,27 @@
 }
 html[data-theme='dark'][data-reading-theme='default'],
 html[data-theme='dark'] [data-reading-theme='default'] {
-  --background: 13 13 15;
-  --shell: 13 13 15;
-  --paper: 26 26 30;
-  --card: 32 32 37;
-  --popover: 38 38 43;
-  --foreground: 244 244 246;
-  --muted: 44 44 50;
-  --muted-foreground: 158 158 168;
-  --subtle-foreground: 136 136 146;
-  --quote-foreground: 186 186 196;
-  --accent: 45 45 50;
-  --secondary: 39 39 43;
-  --primary: 138 148 250;
-  --primary-hover: 158 168 252;
-  --primary-foreground: 16 18 38;
-  --border: 56 56 63;
-  --border-subtle: 44 44 50;
-  --border-strong: 124 124 138;
-  --code-keyword: 138 148 250;
+  --background: 15 14 13;
+  --shell: 15 14 13;
+  --paper: 27 26 24;
+  --card: 33 32 30;
+  --popover: 39 38 36;
+  --foreground: 240 239 236;
+  --muted: 45 44 41;
+  --muted-foreground: 162 159 152;
+  --subtle-foreground: 138 135 129;
+  --quote-foreground: 187 184 177;
+  --accent: 46 45 42;
+  --secondary: 41 40 37;
+  --primary: 149 164 198;
+  --primary-hover: 169 184 214;
+  --primary-foreground: 25 25 25;
+  --border: 57 56 52;
+  --border-subtle: 45 44 41;
+  --border-strong: 126 123 116;
+  --code-keyword: 149 164 198;
   --code-string: 126 226 166;
-  --code-comment: 146 148 158;
+  --code-comment: 147 144 137;
   --code-number: 245 198 92;
 }
 

@@ -682,6 +682,8 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 .find-bar .find-input { width: 168px; }
 .find-bar .find-replace { width: 148px; }
+/* 「全部替换」四字不许折行：折行会让浮层高一倍、整排按钮错位 */
+.find-bar .find-replaceall { white-space: nowrap; }
 .find-count {
   min-width: 52px;
   padding: 0 4px;

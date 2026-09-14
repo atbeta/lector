@@ -11,6 +11,9 @@
  *  4. 阴影是顶光定向：发丝边 + 下偏近影 + 远雾。禁止各向同性软团、禁止彩色投影。
  *  5. 动效只有一个来源（下面的 motion token），禁止就地写时长与缓动。
  *
+ * 中性灰的色相取向：偏暖一档（向 NoteFast 的 55 53 47 墨色看齐），不用纯蓝灰。
+ * 纯蓝灰在大面积留白上显「冷」、显廉价；暖灰在阅读器上更接近纸。
+ *
  * 阅读器特有：正文是主角，所以 --reading-* 独立成组，由设置面板覆写。
  */
 
@@ -32,38 +35,38 @@
      下一档，留给将来的卡片与浮层，值已经和 SolBoard 对齐，别再自己配。 */
   /* 阅读器不设侧栏，但顶栏要能「浮」在正文之上，所以仍然需要三档：
      纸 = 正文与卡片；画布 = 正文之外的底；壳 = 顶栏与浮层。 */
-  --background: 247 247 248;    /* 画布：略沉的纸灰，与纸拉开一档 */
+  --background: 248 247 245;    /* 画布：略沉的暖纸灰，与纸拉开一档 */
   --paper: 255 255 255;         /* 纸：正文与卡片 */
   --card: 255 255 255;
-  --card-foreground: 20 20 24;
+  --card-foreground: 26 25 22;
   --popover: 255 255 255;
-  --popover-foreground: 20 20 24;
-  --shell: 247 247 248;         /* 顶栏 */
+  --popover-foreground: 26 25 22;
+  --shell: 248 247 245;         /* 顶栏 */
 
   /* ───────────── 文字 ───────────── */
-  --foreground: 16 16 20;       /* 墨色，正文。阅读器正文要到 ~17:1，不用通用的 18 24 27 */
-  /* --muted 是「码片 / 代码块」的底。原来 243 与画布 247 只差 1.03:1，
-     等于没有面；压到 236 才是看得见的一档（对纸面 ~1.22:1）。 */
-  --muted: 228 228 233;
-  --muted-foreground: 92 92 102;    /* 次级信息（表头、元数据） */
-  --subtle-foreground: 122 122 132; /* 时间戳 / 图注，比 muted 再淡一档；≥4.4:1 */
+  --foreground: 26 25 22;       /* 墨色，正文。阅读器正文要到 ~17:1，偏暖不偏蓝 */
+  /* --muted 是「码片 / 代码块」的底。与画布（248）只差一档会看不见面；
+     压到这里才是「看得见但不吵」（对纸面 ~1.2:1）。 */
+  --muted: 232 230 226;
+  --muted-foreground: 105 103 97;   /* 次级信息（表头、元数据），对纸面 ~5.7:1 */
+  --subtle-foreground: 122 119 113; /* 时间戳 / 图注，比 muted 再淡一档；≥4.4:1 */
   /* 引用块专用：引用是正文，不能和图标/边框共用一个灰，
      否则整页只剩一种灰、没有焦点。目标 ~11:1。 */
-  --quote-foreground: 70 70 78;
-  --accent: 240 240 241;
-  --accent-foreground: 16 16 20;
-  --secondary: 243 243 245;
-  --secondary-foreground: 16 16 20;
+  --quote-foreground: 74 71 66;
+  --accent: 241 240 237;
+  --accent-foreground: 26 25 22;
+  --secondary: 244 243 240;
+  --secondary-foreground: 26 25 22;
 
-  /* ───────────── 主色：青灰靛蓝 ───────────── */
-  /* #5E6AD2（SolBoard 默认）。饱和但不荧光，与警示红/绿/黄都错开色相。 */
-  --primary: 79 90 186;         /* 比 #5E6AD2 深一档：文字用主色时必须过 4.5:1 */
+  /* ───────────── 主色：石板靛蓝（低饱和） ───────────── */
+  /* #5A74B0（NoteFast 同款）。比 SolBoard 的 #5E6AD2 更灰一档：
+     阅读器里蓝色只做指路（链接 / 选中 / 焦点环），灰一点才压得住纸面。 */
+  --primary: 90 116 176;        /* 文字用主色时必须过 4.5:1（此值 ≈4.6:1，贴线，别再加灰） */
   --primary-foreground: 255 255 255;
-  --primary-hover: 62 72 156;
+  --primary-hover: 78 100 152;  /* #4E6498 */
   --primary-soft: rgb(var(--primary) / 0.10);
   --primary-softer: rgb(var(--primary) / 0.05);
   --selection: rgb(var(--primary) / 0.16);
-  --brand-gradient: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary-hover)));
 
   /* ───────────── 墨色按钮（最强行动色） ───────────── */
   /* 墨色：toast、跳转高亮这类「最强、不带品牌色」的动作 */
@@ -84,18 +87,18 @@
      subtle = 仅作极轻分区（表格行）
      border = 发丝边（卡片、输入框）
      strong = 必须被看见的结构线（引用条、复选框、分隔线、表头下沿） */
-  --border: 224 224 228;
-  --border-strong: 130 130 142;
-  /* 表格行线。原值 232 对纸面只有 1.14:1，肉眼不可见，等于表格没有网格；
-     218 约 1.5:1，是「看得见但不吵」的位置。 */
-  --border-subtle: 218 218 224;
-  --input: 224 224 228;
+  --border: 230 229 225;
+  --border-strong: 140 136 128;
+  /* 表格行线。太浅（≈232）对纸面只有 1.1:1，肉眼不可见，等于表格没有网格；
+     压到 ~1.5:1 是「看得见但不吵」的位置。 */
+  --border-subtle: 222 220 215;
+  --input: 230 229 225;
   --ring: var(--primary);
 
   /* ───────────── 编辑器 ───────────── */
   /* 聚焦块的极淡衬底：让人知道「这块在编辑」，但不打断阅读节奏 */
   --block-focus-bg: rgb(var(--primary) / 0.035);
-  --block-hover-bg: rgb(24 24 27 / 0.022);
+  --block-hover-bg: rgb(26 25 22 / 0.022);
 
   /* ───────────── 半径 ───────────── */
   --radius: 6px;
@@ -132,11 +135,11 @@
 
   /* ───────────── 阴影：顶光定向（发丝边 + 下偏近影 + 远雾） ───────────── */
   /* 光从 12 点来。浅色纸面已是纯白，高光 inset 看不见，靠影子下偏表达体积。 */
-  --shadow-card: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(24 24 27 / 0.04),
-    0 6px 16px rgb(24 24 27 / 0.05);
-  --shadow-floating: 0 0 0 1px rgb(var(--border)), 0 8px 28px rgb(24 24 27 / 0.12),
-    0 20px 40px rgb(24 24 27 / 0.06);
-  --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(24 24 27 / 0.12);
+  --shadow-card: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(26 25 22 / 0.04),
+    0 6px 16px rgb(26 25 22 / 0.05);
+  --shadow-floating: 0 0 0 1px rgb(var(--border)), 0 8px 28px rgb(26 25 22 / 0.12),
+    0 20px 40px rgb(26 25 22 / 0.06);
+  --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(26 25 22 / 0.12);
   /* 顶栏滚动后浮现的分隔影，代替常驻边框 */
   --shadow-header: 0 1px 0 rgb(var(--border));
   /* 注意：没有通用的 --shadow-btn。按钮用 --shadow-btn-primary（靛蓝投影），
@@ -145,9 +148,9 @@
   /* ───────────── 代码高亮（低饱和，贴合极简） ───────────── */
   /* 代码高亮四色都要过 AA（≥4.5:1）：原来的注释色只有 2.81:1，
      代码块里最该被忽略的一类反而最看不清。 */
-  --code-keyword: 79 90 186;
+  --code-keyword: 90 116 176;
   --code-string: 15 110 52;
-  --code-comment: 96 100 112;
+  --code-comment: 101 98 91;
   --code-number: 158 68 8;
 
   /* ───────────── Motion（全站唯一缓动来源） ───────────── */
@@ -160,7 +163,7 @@
   --motion-enter: 12px;      /* 浮层入场位移，配 opacity 使用 */
 
   /* 弹层遮罩：禁止裸 black */
-  --overlay: 24 24 27;
+  --overlay: 26 25 22;
   --overlay-alpha: 0.28;
   --overlay-blur: 4px;
   /* 遮罩之上的前景（放大浮层的关闭键）。遮罩永远是暗的，所以这盏「灯」始终亮——
@@ -173,35 +176,36 @@
  * 人眼在暗端对亮度差不敏感：浅色里 12 档 RGB 能分开的槽，暗色里 4 档会糊成一块。
  * 台阶：近黑画布 → 略亮纸 → 抬起的浮层。卡边用白发丝，黑影在暗底抬不起来。 */
 html[data-theme='dark'] {
-  /* 暗端与浅色不同：档距要更大才看得出房间。画布近黑 → 纸抬一档 → 浮层再抬 */
-  --background: 13 13 15;
-  --paper: 26 26 30;
-  --card: 32 32 37;
-  --card-foreground: 244 244 246;
-  --popover: 38 38 43;
-  --popover-foreground: 244 244 246;
-  --shell: 13 13 15;
+  /* 暗端与浅色不同：档距要更大才看得出房间。画布近黑 → 纸抬一档 → 浮层再抬。
+     与浅色同取向：灰阶偏暖一档，不做蓝黑。 */
+  --background: 15 14 13;
+  --paper: 27 26 24;
+  --card: 33 32 30;
+  --card-foreground: 240 239 236;
+  --popover: 39 38 36;
+  --popover-foreground: 240 239 236;
+  --shell: 15 14 13;
 
-  --foreground: 244 244 246;
-  --muted: 44 44 50;
-  --muted-foreground: 158 158 168;
-  --subtle-foreground: 136 136 146;
-  --quote-foreground: 186 186 196;
-  --accent: 45 45 50;
-  --accent-foreground: 244 244 246;
-  --secondary: 39 39 43;
-  --secondary-foreground: 244 244 246;
+  --foreground: 240 239 236;
+  --muted: 45 44 41;
+  --muted-foreground: 162 159 152;
+  --subtle-foreground: 138 135 129;
+  --quote-foreground: 187 184 177;
+  --accent: 46 45 42;
+  --accent-foreground: 240 239 236;
+  --secondary: 41 40 37;
+  --secondary-foreground: 240 239 236;
 
-  /* 靛蓝在深底提亮，主按钮用深字，选中文字仍走 --primary */
-  --primary: 138 148 250;       /* 深底提亮，同样保证 ≥4.5:1 */
-  --primary-foreground: 16 18 38;
-  --primary-hover: 158 168 252;
+  /* 石板靛蓝在深底提亮，主按钮用深字，选中文字仍走 --primary */
+  --primary: 149 164 198;       /* 深底提亮（对纸面 ~7:1），与浅色同一色相族 */
+  --primary-foreground: 25 25 25;
+  --primary-hover: 169 184 214;
   --primary-soft: rgb(var(--primary) / 0.18);
   --primary-softer: rgb(var(--primary) / 0.10);
   --selection: rgb(var(--primary) / 0.34);
 
   --ink: 240 238 235;
-  --ink-foreground: 24 24 27;
+  --ink-foreground: 26 25 22;
 
   --success: 74 186 108;
   --success-soft: rgb(var(--success) / 0.18);
@@ -211,10 +215,10 @@ html[data-theme='dark'] {
   --destructive-foreground: 255 255 255;
   --destructive-soft: rgb(var(--destructive) / 0.18);
 
-  --border: 56 56 63;
-  --border-strong: 124 124 138;
-  --border-subtle: 44 44 50;
-  --input: 62 62 70;
+  --border: 57 56 52;
+  --border-strong: 126 123 116;
+  --border-subtle: 45 44 41;
+  --input: 62 60 56;
 
   --block-focus-bg: rgb(var(--primary) / 0.08);
   --block-hover-bg: rgb(255 255 255 / 0.028);
@@ -225,9 +229,9 @@ html[data-theme='dark'] {
   --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.20), 0 4px 14px rgb(var(--primary) / 0.26);
   --shadow-header: 0 1px 0 rgb(255 255 255 / 0.06);
 
-  --code-keyword: 138 148 250;
+  --code-keyword: 149 164 198;
   --code-string: 126 226 166;
-  --code-comment: 146 148 158;
+  --code-comment: 147 144 137;
   --code-number: 245 198 92;
 
   --overlay: 0 0 0;
