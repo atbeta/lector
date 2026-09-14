@@ -1137,6 +1137,34 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 阅读里的图片：可点开放大，光标要说明这件事 */
 .reading-prose img { cursor: zoom-in; }
 
+/* ───────────── write 模式:块以等宽源码呈现 ─────────────
+ * 跟 mermaid-source 同族: 静、亮以 paper 为背、不取预览类的 prose 样式。
+ * pre-wrap:让块内换行保留(不是接一行);滚动靠 overflow-x:auto。
+ * hover 让边界出现 —— 表明「点这里能进 source edit」,但默认不在主路径上。 */
+.source-view {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgb(var(--paper));
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgb(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+.source-view:hover { border-color: rgb(var(--border)); }
+.source-view code {
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
 /* ───────────── KaTeX 数学公式 ─────────────
  * KaTeX 本身的样式从 katex/dist/katex.min.css 加载(进 :where(.katex) 作用域,
  * 不会泄露到公式以外)。这里只调校讲/预览列里的布局与间距。

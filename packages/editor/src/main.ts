@@ -141,44 +141,67 @@ refreshThemeIcon()
 const themeObserver = new MutationObserver(() => refreshThemeIcon())
 themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 
-// ───────────── 只读 / 编辑 双模式 ─────────────
+// ───────────── 三视图模式 read / write / split ─────────────
 //
-// 默认只读——像技术文档 / 别人写的笔记，不该是“打开就能改”。要改的话点标题栏的
-// 铅笔进入编辑；改完或不想改了，点锁或 esc 退回只读。状态在 html 上走 data-mode，
-// 样式 / 点击 / 快捷键都看这个属性——避免到处开变量。
+// 默认 read——多数场景是「读」不是「改」。要改点铅笔走 write,再点一次走 split
+// (预览 + click 入块 source 编辑),三态 cycle。状态走 html[data-mode]——
+// 样式 / 点击 / 快捷键都看这个属性,避免到处开变量。
 //
-// read:
-//   - 块点击不调 focusBlock、不动 CM
-//   - 顶部 save 按钮隐藏（没东西可存）
-//   - mermaid / 图片点击走 lightbox 放大
-// edit:
-//   - 行为与之前一致
-//   - save 按钮可见、有修改时高亮
-let editorMode: 'read' | 'edit' = 'read'
+// read:   预览,块点击不调 focusBlock、不动 CM;save 隐藏;mermaid / 图片点放大。
+// write:  源文:每块以等宽源码形式呈现(不走 mdast HTML);点击进 source edit。
+//         mermaid / 图片的放大交互暂不开(那是预览路径的)。
+// split:  预览 + click 进 source edit(原 v0.4.0 的「编辑」)。save 可见。
+//
+// 切换路径:read → write → split → read。
+// 快捷键:⌘1 read,⌘2 write,⌘3 split。
+type ViewMode = 'read' | 'write' | 'split'
+let viewMode: ViewMode = 'read'
+
+const VIEW_NEXT: Record<ViewMode, ViewMode> = {
+  read: 'write',
+  write: 'split',
+  split: 'read',
+}
+
+const VIEW_TIP: Record<ViewMode, string> = {
+  read: t('modeEnterWrite'),
+  write: t('modeEnterSplit'),
+  split: t('modeEnterRead'),
+}
 
 function applyModeUI(): void {
-  document.documentElement.dataset.mode = editorMode
-  modeToggleBtn.innerHTML = iconSvg(editorMode === 'read' ? 'pencil' : 'lock', 16)
-  modeToggleBtn.dataset.tip = editorMode === 'read' ? t('modeEnterEdit') : t('modeExitEdit')
-  modeToggleBtn.setAttribute('aria-pressed', String(editorMode === 'edit'))
-  // 只读时 save 按钮隐藏：没东西可存。改完进入只读也不会丢——只读会调 defocus
-  saveBtn.hidden = editorMode === 'read'
-  // 状态行右侧「只读/编辑」提示
+  document.documentElement.dataset.mode = viewMode
+  // 顶栏按钮在三个模式里总是显示「下一个会变到的模式」的图标+ tip
+  const next = VIEW_NEXT[viewMode]
+  modeToggleBtn.innerHTML = iconSvg(
+    next === 'read' ? 'eye' : next === 'write' ? 'pencil' : 'columns',
+    16,
+  )
+  modeToggleBtn.dataset.tip = VIEW_TIP[viewMode]
+  modeToggleBtn.setAttribute('aria-pressed', String(viewMode !== 'read'))
+  // read 时 save 隐藏:没东西可存;write/split 时显示。
+  saveBtn.hidden = viewMode === 'read'
+  // 状态行右侧「read/write/split」提示
   renderStatus()
 }
 
-function setEditorMode(next: 'read' | 'edit'): void {
-  if (editorMode === next) return
-  editorMode = next
-  if (next === 'read') {
-    // 退出编辑：清 focus，否则那个块仍作为 CM 嵌着，下次回 read 还在
+function setViewMode(next: ViewMode): void {
+  if (viewMode === next) return
+  const prev = viewMode
+  viewMode = next
+  if (next === 'read' && prev !== 'read') {
+    // 退出可编辑态:清 focus,否则那个块仍作为 CM 嵌着,下次回 read 还在
     defocus()
   }
   applyModeUI()
+  // write/split 切换时布局变了(预览/源文不同),需要重渲染
+  if (next === 'write' || prev === 'write' || next === 'split' || prev === 'split') {
+    void render()
+  }
 }
 
 function toggleMode(): void {
-  setEditorMode(editorMode === 'read' ? 'edit' : 'read')
+  setViewMode(VIEW_NEXT[viewMode])
 }
 
 modeToggleBtn.addEventListener('click', () => toggleMode())
@@ -863,6 +886,8 @@ function renderStatus() {
   }
 
   statusRight.replaceChildren()
+  const modeLabel = viewMode === 'read' ? t('modeLabelRead') : viewMode === 'write' ? t('modeLabelWrite') : t('modeLabelSplit')
+  statusRight.append(item(modeLabel, viewMode !== 'read'))
   statusRight.append(item(session.dirty ? t('statUnsaved') : t('statSavedAt'), session.dirty))
   // 保存状态与文件名在同一行：这是「这份文件现在是什么状态」的完整答案
   statusRight.append(item(fileNameEl.textContent ?? ''))
@@ -1187,6 +1212,16 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
       cm.view.focus()
       if (intent) placeCaret(cm.view, intent)
     })
+  } else if (viewMode === 'write') {
+    // write 模式:每块以等宽源码形式呈现,不走 mdast HTML。
+    // 走 raw 而不是 raw + 围栏 —— 块内换行靠 white-space:pre-wrap。
+    // mermaid / 图片的渲染是预览路径,write 模式不解释。
+    const src = document.createElement('pre')
+    src.className = 'source-view'
+    const code = document.createElement('code')
+    code.textContent = block.raw
+    src.appendChild(code)
+    el.appendChild(src)
   } else {
     const preview = document.createElement('div')
     preview.className = 'preview reading-prose'
@@ -1422,7 +1457,7 @@ contentEl.addEventListener('click', (e) => {
   }
   // 只读模式：块点击不抢 focus，只在末车是「点上」时（mermaid 容器、表格预览）交给各自处理。
   // 表格预览在只读下不打开（想改就进编辑模式），别在读路径上引另一个跳转。
-  if (editorMode === 'read') {
+  if (viewMode === 'read') {
     return
   }
   const target = (e.target as HTMLElement).closest<HTMLElement>('.block:not(.gap)')
@@ -1694,10 +1729,18 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault()
     openFind()
   }
-  // ⌘E 切换只读 / 编辑。菜单上没有的快捷键（这不是菜单项）
+  // ⌘E 三态循环 read → write → split → read。保留旧快捷键兼容。
   if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'e') {
     e.preventDefault()
     toggleMode()
+    return
+  }
+  // ⌘1/2/3 跳具体模式——避免三态循环里走错方向
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === '1' || e.key === '2' || e.key === '3')) {
+    e.preventDefault()
+    const next = e.key === '1' ? 'read' : e.key === '2' ? 'write' : 'split'
+    setViewMode(next)
+    return
   }
 })
 

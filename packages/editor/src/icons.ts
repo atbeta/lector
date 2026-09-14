@@ -15,6 +15,10 @@ const PATHS: Record<string, string> = {
   chevronDown: `<polyline points="6 9 12 15 18 9"/>`,
   // 编辑模式：铅笔
   pencil: `<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>`,
+  // 只读模式：眼睛
+  eye: `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`,
+  // 分屏预览：两根竖线
+  columns: `<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/>`,
   // 回到只读：锁
   lock: `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
   // 放大镜（供 mermaid 放大提示用）
