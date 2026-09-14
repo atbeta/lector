@@ -32,10 +32,10 @@ jobs:
           python3 - <<'PY'
           import json, pathlib, re, sys
 
-          conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json'))
+          conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json', encoding='utf-8'))
           names = sorted({a['name'] for a in conf['bundle']['fileAssociations']})
           exts = sorted({e for a in conf['bundle']['fileAssociations'] for e in a['ext']})
-          hooks = pathlib.Path('clients/tauri/src-tauri/windows/nsis-hooks.nsh').read_text()
+          hooks = pathlib.Path('clients/tauri/src-tauri/windows/nsis-hooks.nsh').read_text(encoding='utf-8')
 
           m = re.search(r'!define\s+LECTOR_FILE_CLASS\s+"([^"]+)"', hooks)
           hook_class = m.group(1) if m else None

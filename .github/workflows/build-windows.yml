@@ -50,12 +50,14 @@ jobs:
 
           tag = os.environ['TAG'].lstrip('v')
           root = pathlib.Path('clients/tauri')
-          conf = json.load(open(root / 'src-tauri/tauri.conf.json'))['version']
-          pkg = json.load(open(root / 'package.json'))['version']
+          # Windows runner Python 默认 cp1252,JSON 里的中文注释读出来会爆。
+          # 显式 UTF-8 跨平台一致。
+          conf = json.load(open(root / 'src-tauri/tauri.conf.json', encoding='utf-8'))['version']
+          pkg = json.load(open(root / 'package.json', encoding='utf-8'))['version']
           cargo = re.search(r'^version\s*=\s*"([^"]+)"',
-                            (root / 'src-tauri/Cargo.toml').read_text(), re.M).group(1)
+                            (root / 'src-tauri/Cargo.toml').read_text(encoding='utf-8'), re.M).group(1)
           lock = re.search(r'\[\[package\]\]\nname = "lector"\nversion = "([^"]+)"',
-                           (root / 'src-tauri/Cargo.lock').read_text()).group(1)
+                           (root / 'src-tauri/Cargo.lock').read_text(encoding='utf-8')).group(1)
 
           found = {'tauri.conf.json': conf, 'clients/tauri/package.json': pkg,
                    'Cargo.toml': cargo, 'Cargo.lock': lock}
