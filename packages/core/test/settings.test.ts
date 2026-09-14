@@ -39,7 +39,7 @@ describe('settings schema', () => {
     expect(normalizeSettings({ fontSize: 100 }).fontSize).toBe(32)
     expect(normalizeSettings({ fontSize: 2 }).fontSize).toBe(11)
     expect(normalizeSettings({ lineHeight: 5 }).lineHeight).toBe(2.6)
-    expect(normalizeSettings({ readingWidth: 2000 }).readingWidth).toBe(1200)
+    expect(normalizeSettings({ readingWidth: 2000 }).readingWidth).toBe(1600)
   })
 
   test('theme 三种合法值', () => {

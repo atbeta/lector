@@ -177,7 +177,7 @@ export function mountTitlebarInset(): () => void {
   //
   // 两个观察点，缺一不可：
   //  - 窗口缩放：ResizeObserver 盯正文容器（宽度会变）
-  //  - 侧栏开合：**容器尺寸不变**（变的是网格轨道，正文本就固定 640px 宽），
+  //  - 侧栏开合：**容器尺寸不变**（变的是网格轨道，正文本就固定那么宽），
   //    所以 ResizeObserver 收不到。这时只有 class 会变，用 MutationObserver 盯它。
   //    早期版本只盯容器，结果侧栏一开一合，标题夹取区间还是旧值（实测偏 131px）。
   const ro = new ResizeObserver(schedule)

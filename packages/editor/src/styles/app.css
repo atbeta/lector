@@ -637,12 +637,21 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 /* ───────────── 侧栏：当前文档的目录 ─────────────
  * 停靠而非浮层：大纲属于文档本身，不是临时工具。
  * 停靠时正文所在的网格轨道变小并重新居中（grid-template-columns 带过渡）。
- * 窄窗口放不下「正文 640 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
+ * 窄窗口放不下「正文列 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
  * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
 .sidebar {
   grid-area: side;
-  overflow: hidden auto;
+  /* 三件套：定位锚点（宽度把手要绝对定位）、列向布局、不外溢。
+     滚动下放到 .sidebar-body——标题行要常驻，滚目录时不能让「大纲」两个字滚走。 */
+  position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  /* border-box：本仓库没有全局 reset，默认的 content-box 会让 1px 右边框
+     加在网格轨道之外——侧栏永远比 --sidebar-w 宽 1px，宽度的唯一真相就不唯一了，
+     顶栏与状态行按正文列对齐时也会跟着差这一像素。 */
+  box-sizing: border-box;
+  overflow: hidden;
   background: rgb(var(--shell));
   border-right: 1px solid rgb(var(--border-subtle));
 }
@@ -652,13 +661,43 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
    只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
 html.no-doc body.app { grid-template-columns: 0 1fr; }
 html.no-doc .sidebar { display: none; }
+/* 宽度把手：贴在右边缘的一条 7px 热区。
+   平时只是一条发丝线（侧栏悬停才显形），拖起来才点成主色——
+   它得能被发现，但不能在静态视觉里跟目录条目抢注意力。 */
+.sidebar-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  z-index: 2;
+  cursor: col-resize;
+  outline-offset: -2px;
+}
+.sidebar-grip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.sidebar:hover .sidebar-grip::after { background: rgb(var(--border)); }
+.sidebar-grip:hover::after,
+.sidebar-grip:focus-visible::after,
+html.sidebar-resizing .sidebar-grip::after { background: rgb(var(--primary)); }
+/* 拖拽中：光标与选区全局锁住，否则会选中侧栏文字 */
+html.sidebar-resizing { cursor: col-resize; user-select: none; }
 .sidebar-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 10px 8px 16px;
-  /* macOS 原生红绿灯占住左上角：侧栏顶部的条目要让开 */
-  padding-top: 12px;
+  padding: 0 8px 16px;
 }
 /* 侧栏标题：一列目录需要一句话说明它是什么。初版没有任何标题，
    288px 的白栏里直接开始列条目，看起来像加载了一半。 */
@@ -667,7 +706,7 @@ html.no-doc .sidebar { display: none; }
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 8px 8px;
+  padding: 12px 8px 8px;
   font-size: var(--text-2xs);
   font-weight: 600;
   text-transform: uppercase;
@@ -697,12 +736,46 @@ html.sidebar-overlay .sidebar {
 }
 html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
+/* ── 树形大纲 ──
+ * 层级用**结构**表达（子节点容器缩进 12px），不再给每一级写一条 padding 规则。
+ * 这样层级再深也不用改 CSS，而扁平列表的做法（depth=1..6 各一条）在
+ * 「同一级要对齐」这件事上永远差一点点——因为行首还有三角占位。 */
 .outline-list { display: flex; flex-direction: column; gap: 1px; }
+.outline-node { display: block; }
+.outline-kids { margin-left: 12px; }
+.outline-node[data-collapsed='true'] > .outline-kids { display: none; }
+.outline-line { display: flex; align-items: stretch; }
+/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty），
+   否则同一级的标题会因为「有没有子节」而左右错开。 */
+.outline-twisty {
+  flex: 0 0 auto;
+  width: 18px;
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.outline-twisty svg {
+  display: block;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+/* 收起时三角指右（展开时指下）：方向即状态，不用另加标记 */
+.outline-node[data-collapsed='true'] > .outline-line > .outline-twisty svg { transform: rotate(-90deg); }
+.outline-twisty:hover { color: rgb(var(--foreground)); background: var(--primary-softer); }
+.outline-twisty-empty { visibility: hidden; pointer-events: none; }
 .outline-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 5px 8px;
   border: 0;
   border-radius: var(--radius-btn);
@@ -737,19 +810,13 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: 2px;
   background: rgb(var(--primary));
 }
-/* 二级及以下的当前项，指示条跟着缩进走，读者才知道是哪一级 */
-.outline-row.active[data-depth='2'] { padding-left: 20px; }
-.outline-row.active[data-depth='2']::before { left: 12px; }
-.outline-row.active[data-depth='3']::before { left: 24px; }
-.outline-row.active[data-depth='4']::before { left: 36px; }
-.outline-row.active[data-depth='5']::before,
-.outline-row.active[data-depth='6']::before { left: 48px; }
-/* 层级用「字重 + 缩进」双层表达，比只用缩进更抗窄栏 */
+/* 层级用「字重」再补一层：缩进管位置，字重管「这是第几级」。
+   窄侧栏被拖到 200px 时缩进会被挤没，字重还在。 */
 .outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
-.outline-row[data-depth='2'] { padding-left: 20px; }
-.outline-row[data-depth='3'] { padding-left: 32px; }
-.outline-row[data-depth='4'] { padding-left: 44px; }
-.outline-row[data-depth='5'], .outline-row[data-depth='6'] { padding-left: 56px; }
+.outline-row[data-depth='3'],
+.outline-row[data-depth='4'],
+.outline-row[data-depth='5'],
+.outline-row[data-depth='6'] { font-size: var(--text-2xs); }
 .outline-empty {
   padding: 6px 8px;
   color: rgb(var(--subtle-foreground));
@@ -1205,10 +1272,16 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .mermaid-diagram .mermaid-svg {
   display: block;
+  width: 100%;
   max-width: 100%;
 }
+/* mermaid 只设 max-width（useMaxWidth），小图就按自然尺寸渲染成一两百 px，
+   贴在 640px 的正文列里显得又小又孤。这里是矢量，撑满正文列才是阅读该有的样子——
+   尺寸这件事交给栏宽，读者不需要为每张图单独放大一次。
+   !important 是必须的：mermaid 会把 max-width 写在 svg 的行内 style 上。 */
 .mermaid-diagram .mermaid-svg svg {
-  max-width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
   height: auto;
   /* mermaid 的 svg 本身是字体描边调过的，与页面 reading-font 不同；这里不覆写。 */
 }
@@ -1257,8 +1330,11 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: 0.86em;
-  line-height: 1.72;
+  /* 字号与行距跟阅读/编辑态完全一致。
+     源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
+     读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
+  font-size: var(--reading-font-size);
+  line-height: var(--reading-line-height);
   color: rgb(var(--foreground));
   white-space: pre-wrap;
   word-break: break-word;
@@ -1356,25 +1432,50 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   background: rgb(var(--border-subtle));
 }
 
-/* ───────────── 图片放大（lightbox） ───────────── */
+/* ───────────── 图片放大（lightbox） ─────────────
+ * 两层：遮罩（暗掉页面）+ 舞台（图与它下面那张纸）。
+ * 舞台必须垫纸：mermaid 的 SVG 没有背景矩形，直接放在半透明遮罩上，
+ * 放大后就是一张悬空的线条图，看着像背景丢了。垫一层随主题走的纸（浅色白、深色深灰），
+ * 顺带给照片一个画框。 */
 .lightbox {
   position: fixed;
   inset: 0;
   z-index: 200;
   display: grid;
   place-items: center;
-  padding: 5vh 5vw;
+  padding: 4vmin;
   background: rgb(var(--overlay) / 0.72);
   backdrop-filter: blur(6px);
   animation: fade-in var(--motion-fast) var(--ease-enter) both;
   cursor: zoom-out;
 }
 .lightbox[hidden] { display: none; }
-.lightbox-img {
+.lightbox-stage {
+  display: grid;
+  place-items: center;
   max-width: 100%;
   max-height: 100%;
+  padding: 10px;
   border-radius: var(--radius-card);
+  background: rgb(var(--paper));
   box-shadow: var(--shadow-floating);
+}
+/* 矢量（mermaid 图）：铺满舞台，按屏幕大小给足，
+   否则默认那一两百 px 的渲染尺寸放大后依然读不清小字标注。 */
+.lightbox[data-kind='vector'] .lightbox-stage {
+  width: min(1280px, 100%);
+  height: min(820px, 100%);
+}
+.lightbox[data-kind='vector'] .lightbox-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.lightbox-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
   /* 点图不关闭，光标也不该显示成「可关闭」 */
   cursor: default;
   animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
@@ -1389,12 +1490,16 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.12);
-  color: rgb(255 255 255 / 0.85);
+  background: rgb(var(--overlay-foreground) / 0.14);
+  color: rgb(var(--overlay-foreground) / 0.85);
   cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-standard);
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
-.lightbox-close:hover { background: rgb(255 255 255 / 0.22); color: #fff; }
+.lightbox-close:hover {
+  background: rgb(var(--overlay-foreground) / 0.26);
+  color: rgb(var(--overlay-foreground));
+}
 /* 浮层打开时锁住正文滚动 */
 html.lightbox-open #content { overflow: hidden; }
 

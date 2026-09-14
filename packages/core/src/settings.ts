@@ -38,7 +38,12 @@ export interface EditorSettings {
 
 /**
  * 默认阅读排版。这三个值与 packages/editor 的 --reading-* 标定一致：
- * 640px / 17px / 1.75 ≈ 中文每行 37 字、Latin ~85 字符，是本项目认定的舒适栏宽。
+ * 760px / 17px / 1.75 ≈ 中文每行 45 字、Latin ~95 字符。
+ *
+ * 宽度是这一版上调过的：原来的 640px 是按「一行 37 字」的保守栏宽定的，
+ * 但今天的屏幕至少 1080p、常见 2K，640px 在 1600px 的正文区里只占 40%，
+ * 读起来像一张贴在墙上的窄纸条。放宽到 45 字/行——仍在上限内（>48 字眼睛会丢行），
+ * 但更贴合现在的屏幕。
  * 改这里等于改默认阅读体验，必须同时跑 tools/ui-verify.mjs 复核版心。
  */
 export const DEFAULT_SETTINGS: EditorSettings = {
@@ -47,7 +52,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   fontFamily: 'system',
   fontSize: 17,
   lineHeight: 1.75,
-  readingWidth: 640,
+  readingWidth: 760,
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
@@ -56,7 +61,8 @@ export const DEFAULT_SETTINGS: EditorSettings = {
 const CLAMP = {
   fontSize: { min: 11, max: 32 },
   lineHeight: { min: 1.2, max: 2.6 },
-  readingWidth: { min: 480, max: 1200 },
+  // 上限 1600：2K 屏（2560）扣掉侧栏还有 2200px，1200 的天花板会在最需要它的屏幕上先撞到
+  readingWidth: { min: 480, max: 1600 },
 } as const
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {

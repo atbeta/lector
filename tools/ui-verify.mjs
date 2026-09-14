@@ -605,6 +605,159 @@ const summary = {
     }
   }
 
+  // 3.45) 侧栏宽度可调 + 树形大纲
+  //
+  // 顺序有讲究：先验树形大纲，再验拖宽度。
+  // 拖宽会把侧栏形态推到浮层（1200px 窗口 + 760px 栏宽本来就贴着停靠阈值），
+  // 浮层进出有过渡，后续断言点到「正在移动的侧栏」会假失败。
+  // 所以把会改变形态的操作放最后。
+  {
+    /** 侧栏确实开着（可见、宽度 > 0）。浮层模式或动画中间态都算没开。 */
+    const sidebarOpen = () =>
+      page.evaluate(() => {
+        const el = document.getElementById('sidebar')
+        return !!el && !el.hidden && el.getBoundingClientRect().width > 0
+      })
+    const ensureOpen = async () => {
+      if (await sidebarOpen()) return true
+      await page.click('#outline-btn')
+      await page.waitForTimeout(450)
+      return sidebarOpen()
+    }
+
+    if (!(await ensureOpen())) {
+      note('error', '侧栏打不开，跳过宽度与大纲结构检查')
+    } else {
+      const tree = await page.evaluate(() => ({
+        nested: !!document.querySelector('.outline-kids .outline-row'),
+        twisty: document.querySelectorAll('.outline-twisty:not(.outline-twisty-empty)').length,
+        empty: document.querySelectorAll('.outline-twisty-empty').length,
+      }))
+      if (!tree.nested) note('error', '大纲不是树：子级标题没有嵌在 .outline-kids 里')
+      if (tree.twisty === 0) note('error', '大纲没有可点的收起三角（分层了却收不起来）')
+      if (tree.twisty > 0) {
+        const first = page.locator('.outline-twisty:not(.outline-twisty-empty)').first()
+        await first.click()
+        await page.waitForTimeout(260)
+        const collapsed = await page.evaluate(() => {
+          const n = document.querySelector(".outline-node[data-collapsed='true']")
+          return {
+            count: document.querySelectorAll(".outline-node[data-collapsed='true']").length,
+            hidden: n ? getComputedStyle(n.querySelector('.outline-kids')).display === 'none' : false,
+            stored: !!localStorage.getItem('lector-outline-collapsed'),
+          }
+        })
+        if (collapsed.count !== 1 || !collapsed.hidden) {
+          note('error', `收起三角点了没用：折叠节点 ${collapsed.count} 个，子容器隐藏=${collapsed.hidden}`)
+        }
+        await first.click()
+        await page.waitForTimeout(240)
+        if (await page.evaluate(() => document.querySelectorAll(".outline-node[data-collapsed='true']").length) !== 0) {
+          note('error', '再点一次没有展开')
+        }
+        note('info', `大纲：树形（${tree.twisty} 个可折叠 / ${tree.empty} 个叶子），收起与展开都生效`)
+      }
+
+      // 宽度：放到最后，因为它可能把侧栏推进浮层形态
+      const widthNow = () =>
+        page.evaluate(() => ({
+          css: Number.parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w')),
+          real: Math.round(document.getElementById('sidebar').getBoundingClientRect().width),
+        }))
+      const w0 = await widthNow()
+      const grip = await page.locator('.sidebar-grip').boundingBox()
+      if (!grip) {
+        note('error', '侧栏没有宽度把手（.sidebar-grip），宽度不可调')
+      } else {
+        await page.mouse.move(grip.x + 3, grip.y + 160)
+        await page.mouse.down()
+        await page.mouse.move(grip.x + 3 + 80, grip.y + 160, { steps: 6 })
+        await page.mouse.up()
+        await page.waitForTimeout(300)
+        const w1 = await widthNow()
+        if (w1.css <= w0.css + 40) note('error', `拖宽度把手后 --sidebar-w 没变：${w0.css} → ${w1.css}`)
+        if (w1.css !== w1.real) {
+          note('error', `侧栏宽度的两处真相不一致：--sidebar-w=${w1.css}，实际 ${w1.real}（差 ${w1.real - w1.css}px）`)
+        }
+        const grip2 = await page.locator('.sidebar-grip').boundingBox()
+        if (grip2) {
+          await page.mouse.dblclick(grip2.x + 3, grip2.y + 160)
+          await page.waitForTimeout(300)
+          const w2 = await widthNow()
+          if (Math.abs(w2.css - 288) > 1) note('error', `双击把手没有复位到默认 288：${w2.css}`)
+          note('info', `侧栏宽度：${w0.css} → 拖到 ${w1.css} → 双击复位 ${w2.css}px`)
+        }
+      }
+      await ensureOpen()
+      await page.waitForTimeout(250)
+    }
+  }
+
+  // 3.46) 空白处右键：不能漏出浏览器菜单（刷新 / 另存为 / 打印）
+  {
+    const gapMenu = await page.evaluate(() => {
+      const gap = document.querySelector('#content .block.gap')
+      if (!gap) return { missing: true }
+      const r = gap.getBoundingClientRect()
+      const ev = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: Math.round(r.left + 30),
+        clientY: Math.round(r.top + 2),
+      })
+      gap.dispatchEvent(ev)
+      return { prevented: ev.defaultPrevented, items: document.querySelectorAll('.context-item').length }
+    })
+    if (gapMenu.missing) note('warn', '样本文档里没有空白缝，跳过空白处右键检查')
+    else if (!gapMenu.prevented || gapMenu.items === 0) {
+      note('error', `段间空白右键没有接管：prevented=${gapMenu.prevented}，菜单项 ${gapMenu.items}（会漏出浏览器菜单）`)
+    } else {
+      note('info', `段间空白右键：拦掉系统菜单 + ${gapMenu.items} 项自定义菜单`)
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+  }
+
+  // 3.47) 源码档：字号与阅读态一致；表格块点进去是源码，不弹网格面板
+  {
+    await page.evaluate(() => document.querySelector('.mode-opt[data-mode="source"]')?.click())
+    await page.waitForTimeout(600)
+    const src = await page.evaluate(() => {
+      const s = document.querySelector('.source-view')
+      return {
+        size: s ? getComputedStyle(s).fontSize : null,
+        reading: getComputedStyle(document.documentElement).getPropertyValue('--reading-font-size').trim(),
+        tables: document.querySelectorAll('.reading-prose table').length,
+      }
+    })
+    if (src.size !== src.reading) {
+      note('error', `源码档字号 ${src.size} 与阅读字号 ${src.reading} 不一致（同一份文本的两种呈现，字号不该跳）`)
+    }
+    if (src.tables > 0) note('error', `源码档里仍有 ${src.tables} 个块渲染成了表格（源码档应当全是源码）`)
+    const clicked = await page.evaluate(async () => {
+      const blk = [...document.querySelectorAll('#content .block')].find((b) => b.dataset.kind === 'table')
+      if (!blk) return { missing: true }
+      blk.click()
+      await new Promise((r) => setTimeout(r, 500))
+      return {
+        editor: !!document.querySelector('.table-editor-card'),
+        cm: document.querySelectorAll('.cm-host').length,
+      }
+    })
+    if (!clicked.missing && (clicked.editor || clicked.cm !== 1)) {
+      note(
+        'error',
+        `源码档点表格：网格面板${clicked.editor ? '弹出了' : '没弹'}，块内编辑器 ${clicked.cm} 个（期望：无面板 + 1 个编辑器）`,
+      )
+    } else if (!clicked.missing) {
+      note('info', '源码档：点表格进块内源码编辑，没有弹网格面板')
+    }
+    await page.keyboard.press('Escape')
+    // 后面的交互都假设处于可编辑状态
+    await page.evaluate(() => document.querySelector('.mode-opt[data-mode="edit"]')?.click())
+    await page.waitForTimeout(300)
+  }
+
   // 3.5) 滚动归属：正文自己滚，顶栏与状态行常驻（骨架的核心约束）
   // 先把滚动位置清零再滚，避免上一次断言留下的位置让 .scrolled 已经是真
   await page.evaluate(() => {
@@ -828,7 +981,19 @@ const summary = {
       b?.click()
     })
     await page.waitForTimeout(350)
-    await page.locator('.cm-content').first().click({ button: 'right' })
+    // 先滚进视口并等滚动停下，再右键。
+    // playwright 的 click() 会自己 scrollIntoViewIfNeeded，而正文滚动会关闭右键菜单
+    // （产品行为：菜单跟着内容走）；那一下滚动若落在菜单弹出之后，菜单立刻被关。
+    // 另外这里用显式的鼠标序列而不是 locator.click({button:'right'})：
+    // 实测后者在某些页面状态下不会产生 contextmenu 事件（菜单自然也就没有），
+    // 断言会报「编辑器右键没有标准编辑项」，而真因是事件根本没发出来。
+    const cmBox = await page.locator('.cm-content').first()
+    await cmBox.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    const cmRect = await cmBox.boundingBox()
+    await page.mouse.move(cmRect.x + 24, cmRect.y + 12)
+    await page.mouse.down({ button: 'right' })
+    await page.mouse.up({ button: 'right' })
     await page.waitForTimeout(220)
     const editorMenu = await menuItems()
     if (!editorMenu.some((l) => l.includes('撤销') || l.includes('Undo'))) {
@@ -927,7 +1092,7 @@ const summary = {
       if (manual.attr !== 'manual') note('error', `点了手册主题，html[data-reading-theme] 是 ${manual.attr}`)
       if (manual.selected !== 'manual') note('error', '点了手册主题，卡片没有变成选中态')
       if (manual.paper === before) note('error', `切换主题后纸面色没变（都是 ${before}）：主题只改了属性没改纸墨`)
-      if (manual.font !== '16px' || !manual.lh.startsWith('1.68') || manual.w !== '760px') {
+      if (manual.font !== '16px' || !manual.lh.startsWith('1.68') || manual.w !== '920px') {
         note('error', `手册主题的标定排版没落上屏：字号 ${manual.font} / 行距 ${manual.lh} / 栏宽 ${manual.w}`)
       }
       note('info', `手册主题：纸面 ${manual.paper}，${manual.font} · ${manual.lh} · ${manual.w}`)
@@ -1225,6 +1390,63 @@ const summary = {
     note('warn', '示例文档里没有代码块，跳过代码块粘贴检查')
   }
   summary.behavior = { blocksBefore: before, blocksAfterInsert: inserted, blocksAfterUndo: undone }
+}
+
+// ── 4) mermaid 与图片放大 ──
+//
+// 图默认撑满栏宽、放大后按屏幕尺寸铺开、浮层背景跟主题走。
+// 这三条都只有真的渲染出 SVG、真的点开浮层才量得到，所以要换到带 mermaid 的样例。
+{
+  await page.goto(`${URL_ARG}?doc=mermaid`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(2600)
+  const mmd = await page.evaluate(() => {
+    const svg = document.querySelector('.mermaid-diagram .mermaid-svg svg')
+    const box = document.querySelector('.mermaid-diagram .mermaid-svg')
+    const col = document.querySelector('#content .block:not(.gap)')
+    if (!svg || !box || !col) return { missing: true }
+    return {
+      svgW: Math.round(svg.getBoundingClientRect().width),
+      boxW: Math.round(box.getBoundingClientRect().width),
+      colW: Math.round(col.getBoundingClientRect().width),
+    }
+  })
+  if (mmd.missing) {
+    note('warn', 'mermaid 样例没有渲染出图，跳过尺寸检查')
+  } else {
+    if (Math.abs(mmd.svgW - mmd.boxW) > 2 || mmd.boxW < mmd.colW * 0.9) {
+      note('error', `mermaid 图没有撑满正文栏：svg ${mmd.svgW}px / 容器 ${mmd.boxW}px / 栏宽 ${mmd.colW}px`)
+    }
+    await page.click('.mermaid-diagram')
+    await page.waitForTimeout(500)
+    const lb = await page.evaluate(() => {
+      const o = document.querySelector('.lightbox')
+      const st = document.querySelector('.lightbox-stage')
+      const img = document.querySelector('.lightbox-img')
+      if (!o || !st || !img) return { missing: true }
+      const norm = (c) => c.replace(/[ ,]+/g, ',')
+      return {
+        kind: o.dataset.kind,
+        imgW: Math.round(img.getBoundingClientRect().width),
+        imgH: Math.round(img.getBoundingClientRect().height),
+        vw: window.innerWidth,
+        vh: window.innerHeight,
+        stageBg: norm(getComputedStyle(st).backgroundColor),
+        paper: norm(`rgb(${getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()})`),
+      }
+    })
+    if (lb.missing) note('error', '点 mermaid 图没有打开放大浮层')
+    else {
+      if (lb.kind !== 'vector') note('error', `放大浮层的图类型是 ${lb.kind}（mermaid 应当按矢量处理）`)
+      if (lb.imgW < lb.vw * 0.5 || lb.imgH > lb.vh) {
+        note('error', `放大后的尺寸不对：图 ${lb.imgW}×${lb.imgH}，屏幕 ${lb.vw}×${lb.vh}`)
+      }
+      if (lb.stageBg !== lb.paper) {
+        note('error', `放大浮层的背景没有跟主题：舞台 ${lb.stageBg}，纸面 ${lb.paper}`)
+      }
+      note('info', `mermaid：默认 ${mmd.svgW}px（栏宽 ${mmd.colW}px），放大后 ${lb.imgW}×${lb.imgH}，背景 ${lb.stageBg}`)
+    }
+    await page.keyboard.press('Escape')
+  }
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病

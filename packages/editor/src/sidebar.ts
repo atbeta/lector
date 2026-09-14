@@ -14,10 +14,12 @@
 import { t } from './i18n.ts'
 
 const LS_KEY = 'lector-sidebar'
-/** 侧栏宽度。grid 轨道与 .sidebar 的宽都要与它一致（见 app.css）。 */
+/** 侧栏宽度的默认值。必须与 app.css 的 `--sidebar-w` 初值一致。 */
 export const SIDEBAR_W = 288
-/** 低于这个宽度就退化成浮层：侧栏 + 正文 + 两侧留白 */
-const DOCK_MIN = SIDEBAR_W + 640 + 150
+/** 宽度可调区间：窄到 200 还能读标题，宽到 420 之后再宽就只剩空白了。 */
+const W_MIN = 200
+const W_MAX = 420
+const W_KEY = 'lector-sidebar-w'
 
 export type SidebarMode = 'docked' | 'overlay' | 'hidden'
 
@@ -50,11 +52,66 @@ function writePref(open: boolean): void {
   }
 }
 
+function clampW(n: number): number {
+  return Math.min(W_MAX, Math.max(W_MIN, Math.round(n)))
+}
+
+function readWidthPref(): number {
+  try {
+    const v = Number.parseInt(localStorage.getItem(W_KEY) ?? '', 10)
+    return Number.isFinite(v) ? clampW(v) : SIDEBAR_W
+  } catch {
+    return SIDEBAR_W
+  }
+}
+
+function writeWidthPref(w: number): void {
+  try {
+    localStorage.setItem(W_KEY, String(w))
+  } catch {
+    /* 忽略持久化失败 */
+  }
+}
+
 export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {}): Sidebar {
   const el = document.createElement('aside')
   el.className = 'sidebar'
   el.id = 'sidebar'
   el.setAttribute('aria-label', '大纲')
+
+  // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
+  // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。
+  // 宽度先于下边的把手初始化：把手一建出来就要把当前值写进 aria-valuenow。
+  const pref = readPref()
+  let width = readWidthPref()
+  let open = pref ?? window.innerWidth >= dockMin()
+
+  function applyWidth(w: number): void {
+    width = clampW(w)
+    document.documentElement.style.setProperty('--sidebar-w', `${width}px`)
+  }
+  applyWidth(width)
+
+  /**
+   * 停靠所需的最小窗口宽度：侧栏 + 正文列 + 两侧留白。
+   *
+   * 必须按**当前**侧栏宽算，不能按默认 288 写死：用户把侧栏拖到 420 之后，
+   * 900px 的窗口就真的放不下了（正文会被挤到 400px 出头），那时该退化成浮层。
+   */
+  function dockMin(): number {
+    // 正文列宽从 CSS 变量读，而不是写死 640：用户可以把栏宽拖到 1600，
+    // 那时「放得下吗」的答案完全变了，写死的阈值会让侧栏在放不下时还硬撑着停靠。
+    const reading = Number.parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--reading-max-w'),
+      10,
+    )
+    return width + (Number.isFinite(reading) && reading > 0 ? reading : 760) + 150
+  }
+
+  function mode(): SidebarMode {
+    if (!open) return 'hidden'
+    return window.innerWidth >= dockMin() ? 'docked' : 'overlay'
+  }
 
   // 标题行：一列目录要有名字。初版直接从条目开始，288px 的白栏看起来像没加载完。
   const head = document.createElement('div')
@@ -69,19 +126,71 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   body.className = 'sidebar-body'
   el.append(head, body)
 
+  // ───────────── 宽度把手 ─────────────
+  // 侧栏宽度是「这份文档要看多少目录」的偏好，一个固定值总有一半人嫌宽或嫌窄，
+  // 所以做成可拖拽。范围 200–420：再窄标题读不全，再宽正文就被推出去了。
+  // 双击复位、方向键微调（键盘可达），宽度存 localStorage。
+  const grip = document.createElement('div')
+  grip.className = 'sidebar-grip'
+  grip.setAttribute('role', 'separator')
+  grip.setAttribute('aria-orientation', 'vertical')
+  grip.setAttribute('aria-label', t('sidebarResizeTip'))
+  grip.setAttribute('aria-valuemin', String(W_MIN))
+  grip.setAttribute('aria-valuemax', String(W_MAX))
+  grip.tabIndex = 0
+  grip.dataset.tip = t('sidebarResizeTip')
+  el.appendChild(grip)
+
+  let dragStartX = 0
+  let dragStartW = 0
+
+  const onGripDown = (e: PointerEvent) => {
+    dragStartX = e.clientX
+    dragStartW = width
+    grip.setPointerCapture(e.pointerId)
+    document.documentElement.classList.add('sidebar-resizing')
+    e.preventDefault()
+  }
+  const onGripMove = (e: PointerEvent) => {
+    if (!grip.hasPointerCapture(e.pointerId)) return
+    applyWidth(dragStartW + (e.clientX - dragStartX))
+    // 拖宽之后「放不下」的判定会变，形态可能要跟着在停靠/浮层之间切换
+    apply()
+  }
+  const onGripUp = (e: PointerEvent) => {
+    if (grip.hasPointerCapture(e.pointerId)) grip.releasePointerCapture(e.pointerId)
+    document.documentElement.classList.remove('sidebar-resizing')
+    writeWidthPref(width)
+    apply()
+  }
+  const onGripKey = (e: KeyboardEvent) => {
+    const step = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0
+    if (step === 0) return
+    e.preventDefault()
+    applyWidth(width + step)
+    writeWidthPref(width)
+    grip.setAttribute('aria-valuenow', String(width))
+    apply()
+  }
+  const onGripReset = () => {
+    applyWidth(SIDEBAR_W)
+    writeWidthPref(width)
+    grip.setAttribute('aria-valuenow', String(width))
+    apply()
+  }
+  grip.addEventListener('pointerdown', onGripDown)
+  grip.addEventListener('pointermove', onGripMove)
+  grip.addEventListener('pointerup', onGripUp)
+  grip.addEventListener('pointercancel', onGripUp)
+  grip.addEventListener('keydown', onGripKey)
+  grip.addEventListener('dblclick', onGripReset)
+  grip.setAttribute('aria-valuenow', String(width))
+
   // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态行（见 index.html 注释）
   const content = document.getElementById('content')
   content?.parentElement?.insertBefore(el, content)
 
-  // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
-  // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。
-  const pref = readPref()
-  let open = pref ?? window.innerWidth >= DOCK_MIN
-
-  function mode(): SidebarMode {
-    if (!open) return 'hidden'
-    return window.innerWidth >= DOCK_MIN ? 'docked' : 'overlay'
-  }
+  // 初始形态见文件上方（width / open / dockMin 都在 el 建好之后紧跟着算）
 
   /** 浮层模式的「点外关闭 / Esc 关闭」解绑句柄 */
   let detachOverlay: (() => void) | null = null
@@ -118,6 +227,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     el.toggleAttribute('hidden', !open)
     el.setAttribute('aria-hidden', String(!open))
     applyOverlayClose(m === 'overlay')
+    grip.setAttribute('aria-valuenow', String(width))
   }
 
   function setOpen(next: boolean): void {

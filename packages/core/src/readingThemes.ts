@@ -35,49 +35,54 @@ export interface ReadingTheme {
  *
  * 命名取自读者熟悉的东西，不取自参数（「窄栏」不是主题名，「纸」才是）。
  * 规格行的数字必须与实际 preset 一致——它们会被渲染在产品里给用户看。
+ *
+ * 栏宽是按 1080p / 2K 屏重新标定过的（原值在 560–760，现在是 680–920）：
+ * 每款仍然守住「一行 38–58 字」这个可读区间，数字本身跟着字号走。
  */
 export const READING_THEMES: readonly ReadingTheme[] = [
   {
     id: 'default',
     name: { zh: '默认', en: 'Default' },
     tagline: { zh: '无衬线，中性纸面', en: 'Sans, neutral paper' },
-    spec: { zh: '中性纸面 · 17px · 1.75 行距 · 640px 栏宽', en: 'Neutral · 17px · 1.75 leading · 640px' },
-    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.75, readingWidth: 640 },
+    spec: { zh: '中性纸面 · 17px · 1.75 行距 · 760px 栏宽', en: 'Neutral · 17px · 1.75 leading · 760px' },
+    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.75, readingWidth: 760 },
   },
   {
     id: 'paper',
     name: { zh: '纸', en: 'Paper' },
     tagline: { zh: '像读《纽约客》', en: 'Like reading The New Yorker' },
-    spec: { zh: '衬线报刊 · 18px · 1.9 行距 · 620px 栏宽', en: 'Serif · 18px · 1.9 leading · 620px' },
-    preset: { fontFamily: 'serif', fontSize: 18, lineHeight: 1.9, readingWidth: 620 },
+    spec: { zh: '衬线报刊 · 18px · 1.9 行距 · 720px 栏宽', en: 'Serif · 18px · 1.9 leading · 720px' },
+    preset: { fontFamily: 'serif', fontSize: 18, lineHeight: 1.9, readingWidth: 720 },
   },
   {
     id: 'book',
     name: { zh: '书', en: 'Book' },
     tagline: { zh: '像读一本排好的中文书', en: 'Like a typeset Chinese book' },
-    spec: { zh: '首行缩进 2 字 · 18px · 1.95 行距 · 660px 栏宽', en: '2em indent · 18px · 1.95 leading · 660px' },
-    preset: { fontFamily: 'serif', fontSize: 18, lineHeight: 1.95, readingWidth: 660 },
+    spec: { zh: '首行缩进 2 字 · 18px · 1.95 行距 · 780px 栏宽', en: '2em indent · 18px · 1.95 leading · 780px' },
+    preset: { fontFamily: 'serif', fontSize: 18, lineHeight: 1.95, readingWidth: 780 },
   },
   {
     id: 'manual',
     name: { zh: '手册', en: 'Manual' },
     tagline: { zh: '像读官方文档', en: 'Like reading the docs' },
-    spec: { zh: '标题带下沿 · 16px · 1.68 行距 · 760px 栏宽', en: 'Ruled headings · 16px · 1.68 leading · 760px' },
-    preset: { fontFamily: 'system', fontSize: 16, lineHeight: 1.68, readingWidth: 760 },
+    spec: { zh: '标题带下沿 · 16px · 1.68 行距 · 920px 栏宽', en: 'Ruled headings · 16px · 1.68 leading · 920px' },
+    // 文档场景本来就该更宽：表格、代码、参数表都要一行放得下
+    preset: { fontFamily: 'system', fontSize: 16, lineHeight: 1.68, readingWidth: 920 },
   },
   {
     id: 'focus',
     name: { zh: '专注', en: 'Focus' },
     tagline: { zh: '像在安静的房间里读一页素纸', en: 'Like one clean sheet, nothing else' },
-    spec: { zh: '零描边 · 18px · 2.05 行距 · 560px 栏宽', en: 'No rules · 18px · 2.05 leading · 560px' },
-    preset: { fontFamily: 'system', fontSize: 18, lineHeight: 2.05, readingWidth: 560 },
+    spec: { zh: '零描边 · 18px · 2.05 行距 · 680px 栏宽', en: 'No rules · 18px · 2.05 leading · 680px' },
+    // 这一款故意最窄：它的价值就是「一眼只装得下一段话」，但仍比原来的 560 宽
+    preset: { fontFamily: 'system', fontSize: 18, lineHeight: 2.05, readingWidth: 680 },
   },
   {
     id: 'sepia',
     name: { zh: '米黄', en: 'Sepia' },
     tagline: { zh: '像读一份旧剪报', en: 'Like an old clipping' },
-    spec: { zh: '暖纸护眼 · 17px · 1.85 行距 · 640px 栏宽', en: 'Warm paper · 17px · 1.85 leading · 640px' },
-    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.85, readingWidth: 640 },
+    spec: { zh: '暖纸护眼 · 17px · 1.85 行距 · 780px 栏宽', en: 'Warm paper · 17px · 1.85 leading · 780px' },
+    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.85, readingWidth: 780 },
   },
 ] as const
 

@@ -117,7 +117,7 @@ export function openSettingsModal(onClose?: () => void) {
   const wSlider = Slider(
     getSettings().readingWidth,
     480,
-    1200,
+    1600,
     16,
     (v) => apply((s) => ({ ...s, readingWidth: v })),
     (n) => `${n}px`,

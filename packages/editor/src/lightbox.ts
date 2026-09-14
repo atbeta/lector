@@ -1,7 +1,7 @@
 // 图片放大查看（lightbox）。
 //
-// 阅读技术文档时，架构图、截图、表格图经常需要放大看细节；正文列只有 640px，
-// 图被压到看不清。做法参考 ~/Projects/notefast 的 ImageZoom：
+// 阅读技术文档时，架构图、截图、表格图经常需要放大看细节；正文列再宽也装不下
+// 一张图的细节（而且图上往往有大量小字），放大是读图的基本动作。
 // 阅读页任意图片点击即全屏查看，而不是让用户去系统里打开原图。
 //
 // 边界都要处理干净，否则「浮层关不掉」比没有这个功能更糟：
@@ -40,6 +40,14 @@ export function mountLightbox(): () => void {
   img.className = 'lightbox-img'
   img.alt = ''
 
+  // 舞台：图外面垫一层「纸」，并决定「多大算合适」。
+  // 不垫纸的话，mermaid 的 SVG 本身没有背景矩形，放大后就是一张浮在半透明遮罩上的
+  // 线条图——看着像背景丢了。垫一层随主题走的纸，浅色是白、深色是深灰，
+  // 既补上背景，也顺手给照片一个画框。
+  const stage = document.createElement('div')
+  stage.className = 'lightbox-stage'
+  stage.appendChild(img)
+
   const close = document.createElement('button')
   close.type = 'button'
   close.className = 'lightbox-close'
@@ -47,7 +55,7 @@ export function mountLightbox(): () => void {
   close.innerHTML =
     '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
 
-  overlay.append(img, close)
+  overlay.append(stage, close)
   document.body.appendChild(overlay)
 
   function show(src: string, alt: string): void {
@@ -56,6 +64,11 @@ export function mountLightbox(): () => void {
     lastFocus = document.activeElement as HTMLElement | null
     img.src = src
     img.alt = alt
+    // 矢量与位图分开摆：
+    //  - 矢量（mermaid 渲染出的 SVG）没有「自然尺寸」的概念，按屏幕大小铺开最好看；
+    //  - 位图有自然像素，放大只会糊，所以只缩不放。
+    // 早前只有一套规则，结果小图放大后线条糊、大图又撑出屏幕。
+    overlay.dataset.kind = /^data:image\/svg\+xml/.test(src) ? 'vector' : 'raster'
     overlay.hidden = false
     // 锁滚动：浮层是模态的，背景跟着滚会让人失去位置感
     document.documentElement.classList.add('lightbox-open')
@@ -83,9 +96,10 @@ export function mountLightbox(): () => void {
     show((target as HTMLImageElement).src, (target as HTMLImageElement).alt)
   }
 
-  // 点背景关闭；点图片本身不关（正在看细节）
+  // 点背景关闭；点图片本身不关（正在看细节）。舞台也算背景——
+  // 图外面那圈「纸」是画框，不是内容，点它该关。
   const onOverlayClick = (e: MouseEvent) => {
-    if (e.target === overlay) hide()
+    if (e.target === overlay || e.target === stage) hide()
   }
 
   const onKey = (e: KeyboardEvent) => {

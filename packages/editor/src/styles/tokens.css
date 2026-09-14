@@ -125,7 +125,7 @@
 
   /* ───────────── 阅读版心 / 节奏 ───────────── */
   /* 42rem ≈ 672px：中文一行 38–42 字，接近书籍栏宽；再宽眼睛会丢行。 */
-  --reading-max-w: 40rem;      /* ≈640px：中文 37 字、Latin ~85 字符，两头都不难受 */
+  --reading-max-w: 47.5rem;    /* ≈760px：中文 45 字、Latin ~95 字符——1080p/2K 屏上的合适栏宽 */
   --space-block: 0.95rem;      /* 相邻正文块之间的默认间距 */
   --space-tight: 1rem;         /* 标题与其正文之间的紧间距（≥ 半个行高，否则读成粘连） */
   --space-section: 2.2rem;     /* 分隔线两侧的呼吸 */
@@ -163,6 +163,10 @@
   --overlay: 24 24 27;
   --overlay-alpha: 0.28;
   --overlay-blur: 6px;
+  /* 遮罩之上的前景（放大浮层的关闭键）。遮罩永远是暗的，所以这盏「灯」始终亮——
+     不跟 --foreground 走：深色主题里 --foreground 也是亮的，浅色主题里它却是黑的，
+     拿它当遮罩上的颜色，浅色主题下关闭键会黑底黑字。 */
+  --overlay-foreground: 255 255 255;
 }
 
 /* ───────────── 暗色主题 ─────────────
@@ -229,4 +233,5 @@ html[data-theme='dark'] {
   --overlay: 0 0 0;
   --overlay-alpha: 0.48;
   --overlay-blur: 8px;
+  --overlay-foreground: 238 238 242;
 }
