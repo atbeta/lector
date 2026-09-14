@@ -88,6 +88,8 @@ pub fn run() {
       io::save_settings,
       io::bind_document,
       io::save_image,
+      io::run_image_command,
+      io::test_image_command,
       io::recent_list,
     ])
     .build(tauri::generate_context!())

@@ -29,6 +29,7 @@ import {
   bindDocument,
   recentList,
   saveImage,
+  runImageCommand,
   onOpen,
   onFileChanged,
   onMenu,
@@ -76,6 +77,8 @@ import {
   isImageMime,
   pastedFileName,
   safeDropName,
+  splitUploadCommand,
+  expandImageDir,
   findDedupImage,
   rememberImage,
 } from './imageInsert.ts'
@@ -2061,7 +2064,7 @@ function insertImageMarkdownAtCaret(md: string) {
   appendImageParagraph(md)
 }
 
-async function ingestImageFile(file: File, name: string | null) {
+async function ingestImageFile(file: File, name: string | null, insertRef?: { type: 'caret'; } | { type: 'afterBlock'; blockId: string } | null) {
   if (!name) return
   if (file.size > MAX_IMAGE_BYTES) {
     showToast(t('imageTooLarge'))
@@ -2078,16 +2081,92 @@ async function ingestImageFile(file: File, name: string | null) {
     const hash = await imageContentHash(bytes)
     const existing = findDedupImage(hash)
     if (existing) {
-      insertImageMarkdownAtCaret(imageMarkdown(existing))
+      insertImage(insertRef, imageMarkdown(existing))
       return
     }
     const bytes_base64 = fileToBase64(bytes)
-    const { relative_path } = await saveImage(session.source.path, name, bytes_base64)
-    rememberImage(hash, relative_path)
-    insertImageMarkdownAtCaret(imageMarkdown(relative_path))
+
+    // 模式 → 落盘子目录：images（旧行为）/ assets 模板 / command 时也先落 assets 副本。
+    const s = getSettings()
+    let subdir: string | null = null
+    let local: { relative_path: string; abs_path: string | null } | null = null
+    if (s.imageMode === 'command' || s.imageMode === 'assets') {
+      const stem = docStem(session.source.path)
+      const expanded = expandImageDir(s.imageAssetsDir, stem) ?? 'images'
+      local = await saveImage(session.source.path, name, bytes_base64, expanded)
+      if (s.imageMode === 'command') {
+        // 命令模式：本地副本已在 assets 里，传图床拿 URL，失败静默回退本地。
+        const { command, preArgs } = splitUploadCommand(s.imageCommand)
+        let insertedLocal = local.relative_path
+        if (command && local.abs_path) {
+          const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], local.abs_path, s.imageCommandTimeoutMs).catch(() => null)
+          if (res?.ok && res.url) {
+            rememberImage(hash, res.url)
+            insertImage(insertRef, imageMarkdown(res.url))
+            return
+          }
+          showToast(`${t('imageUploadFailed')}：${res?.error ?? 'unknown'}`)
+        }
+        rememberImage(hash, insertedLocal)
+        insertImage(insertRef, imageMarkdown(insertedLocal))
+        return
+      }
+    } else {
+      // 缺省 / images：保持老的 images/ 目录。
+      local = await saveImage(session.source.path, name, bytes_base64, 'images')
+    }
+    const rel = local!.relative_path
+    rememberImage(hash, rel)
+    insertImage(insertRef, imageMarkdown(rel))
   } catch (err) {
     showToast(`${t('imageFailed')}：${String(err)}`)
   }
+}
+
+/** doc 路径 → 基名去扩展名（供 {filename} 模板）。 */
+function docStem(path: string): string {
+  const base = path.split(/[\\/]/).pop() ?? 'untitled'
+  return base.replace(/\.(md|markdown|txt)$/i, '') || 'untitled'
+}
+
+/** 按拖放/粘贴落点插图：光标处、某块之后、或文末。 */
+function insertImage(insertRef: { type: 'caret' } | { type: 'afterBlock'; blockId: string } | null | undefined, md: string) {
+  if (insertRef?.type === 'afterBlock') {
+    insertAfterBlock(insertRef.blockId, md)
+    return
+  }
+  insertImageMarkdownAtCaret(md)
+}
+
+/** 在某一块之后追加一个图片段落（专门给「拖到文档中间」用）。 */
+function insertAfterBlock(blockId: string, md: string) {
+  const i = session.blocks.findIndex((b) => b.id === blockId)
+  if (i < 0) return insertImageMarkdownAtCaret(md)
+  const gapId = nextId()
+  session.blocks.splice(i + 1, 0, {
+    id: gapId,
+    kind: 'unknown',
+    start: 0,
+    end: 0,
+    raw: '\n\n',
+    mdast: null,
+    dirty: true,
+  })
+  session.originals.set(gapId, '')
+  const para: BlockView = {
+    id: nextId(),
+    kind: 'paragraph',
+    start: 0,
+    end: 0,
+    raw: md,
+    mdast: parseOne(md),
+    dirty: true,
+  }
+  session.blocks.splice(i + 2, 0, para)
+  session.originals.set(para.id, '')
+  session.structuralDirty = true
+  markDirty()
+  render()
 }
 
 function imageFilesFromList(list: FileList | DataTransferItemList | undefined | null): File[] {
@@ -2114,26 +2193,67 @@ window.addEventListener(
     e.preventDefault()
     void (async () => {
       for (const f of files) {
-        await ingestImageFile(f, pastedFileName(new Date(), f.type) ?? safeDropName(f.name))
+        await ingestImageFile(f, pastedFileName(new Date(), f.type) ?? safeDropName(f.name), { type: 'caret' })
       }
     })()
   },
   true,
 )
 
+// 拖放反馈：没给一个「松手就落这」的提示，用户会以为没拖中。
+// 读到图片就加一个全窗 overlay，松开/离开就摘掉。不拦 md 或非图片文件的 drop。
+let dropOverlayEl: HTMLElement | null = null
+function showDropOverlay(): void {
+  if (dropOverlayEl) return
+  const el = document.createElement('div')
+  el.className = 'drop-overlay'
+  el.textContent = t('dropImageHint')
+  document.body.appendChild(el)
+  dropOverlayEl = el
+}
+function hideDropOverlay(): void {
+  dropOverlayEl?.remove()
+  dropOverlayEl = null
+}
+
+/** 落点所在的块 id：用 elementFromPoint 命中 `.block:not(.gap)`。 */
+function blockIdUnderPoint(x: number, y: number): { blockId: string; index: number } | null {
+  const el = document.elementFromPoint(x, y)
+  const blockEl = el?.closest<HTMLElement>('.block:not(.gap)')
+  if (!blockEl) return null
+  const id = blockEl.dataset.blockId
+  if (!id) return null
+  const index = session.blocks.findIndex((b) => b.id === id)
+  if (index < 0) return null
+  return { blockId: id, index }
+}
+
 window.addEventListener('dragover', (e) => {
-  if (imageFilesFromList(e.dataTransfer?.files).length > 0 || e.dataTransfer?.types.includes('Files')) {
+  const hasImage = imageFilesFromList(e.dataTransfer?.files).length > 0
+  if (hasImage) {
     e.preventDefault()
+    showDropOverlay()
   }
 })
 
+window.addEventListener('dragleave', (e) => {
+  // 离开窗口 / 进入子元素才算结束；用 relatedTarget 判是否还在文档内
+  const related = e.relatedTarget as Node | null
+  if (!related || !document.body.contains(related)) hideDropOverlay()
+})
+
 window.addEventListener('drop', (e) => {
+  hideDropOverlay()
   const files = imageFilesFromList(e.dataTransfer?.files)
   if (files.length === 0) return
   e.preventDefault()
+  const hit = blockIdUnderPoint(e.clientX, e.clientY)
+  const insertRef: Parameters<typeof ingestImageFile>[2] = hit
+    ? { type: 'afterBlock', blockId: hit.blockId }
+    : { type: 'caret' }
   void (async () => {
     for (const f of files) {
-      await ingestImageFile(f, safeDropName(f.name) ?? pastedFileName(new Date(), f.type))
+      await ingestImageFile(f, safeDropName(f.name) ?? pastedFileName(new Date(), f.type), insertRef)
     }
   })()
 })

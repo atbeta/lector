@@ -2281,6 +2281,22 @@ tr:hover .table-editor-op { opacity: 1; }
   font-size: var(--text-xs);
   line-height: 1.6;
 }
+.settings-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+.settings-input:focus {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
 .settings-empty { padding: 24px 4px; font-size: var(--text-base); color: rgb(var(--muted-foreground)); }
 
 /* ───────────── 未保存草稿提示 ─────────────
@@ -2349,4 +2365,22 @@ tr:hover .table-editor-op { opacity: 1; }
   white-space: nowrap;
   font-size: var(--text-2xs);
   color: rgb(var(--subtle-foreground));
+}
+
+/* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
+   只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80; /* 在 #statusbar(默认) 之上、modal(90) 之下 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--primary) / 0.07);
+  pointer-events: none; /* 不能挡 drop 事件本身 */
+  font-size: var(--text-h3);
+  font-weight: 600;
+  color: rgb(var(--primary));
+  border: 2px dashed rgb(var(--primary) / 0.6);
+  border-radius: 8px;
 }

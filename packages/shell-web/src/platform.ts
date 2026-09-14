@@ -176,13 +176,50 @@ export async function saveImage(
   docPath: string,
   filename: string,
   bytesBase64: string,
-): Promise<{ relative_path: string }> {
+  subdir?: string | null,
+): Promise<{ relative_path: string; abs_path: string | null }> {
   const { invoke } = await tauriApi()
-  return invoke<{ relative_path: string }>('save_image', {
+  return invoke<{ relative_path: string; abs_path: string | null }>('save_image', {
     doc_path: docPath,
     filename,
     bytes_base64: bytesBase64,
+    subdir: subdir ?? null,
   })
+}
+
+export interface ImageCommandOutcome {
+  ok: boolean
+  url?: string | null
+  error?: string | null
+  stdout?: string
+  stderr?: string
+  exit_code?: number | null
+}
+
+/** 执行用户配置的图床上传命令：`executable [args…] <image_path>`。 */
+export async function runImageCommand(
+  executable: string,
+  args: string[],
+  imagePath: string,
+  timeoutMs: number,
+): Promise<ImageCommandOutcome> {
+  const { invoke } = await tauriApi()
+  return invoke<ImageCommandOutcome>('run_image_command', {
+    executable,
+    args,
+    image_path: imagePath,
+    timeout_ms: timeoutMs,
+  })
+}
+
+/** 设置面板「测试命令」：喂一个内置 1×1 PNG，看它吐不吐 URL。 */
+export async function testImageCommand(
+  executable: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<ImageCommandOutcome> {
+  const { invoke } = await tauriApi()
+  return invoke<ImageCommandOutcome>('test_image_command', { executable, args, timeout_ms: timeoutMs })
 }
 
 const SETTINGS_LS_KEY = 'lector-settings'

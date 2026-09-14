@@ -350,6 +350,24 @@ pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Res
 #[derive(Serialize)]
 pub struct SaveImageResult {
   relative_path: String,
+  /// 落盘的绝对路径：命令模式要把这张图的路径交给用户命令，壳端返回真实盘符。
+  abs_path: Option<String>,
+}
+
+/// 图片子目录只允许单段（无 `/` `\`）、非空、非 `..`、非绝对路径。
+/// 与 editor 的 expandImageDir 是同一判据；壳侧再验一次，双保险。
+fn sanitize_image_subdir(s: &str) -> Option<String> {
+  let t = s.trim();
+  if t.is_empty() || t.contains('/') || t.contains('\\') || t.contains("..") {
+    return None;
+  }
+  if t.contains(':') {
+    return None; // 拒绝盘符 / 兜底
+  }
+  if t.len() > 120 {
+    return None;
+  }
+  Some(t.to_string())
 }
 
 #[tauri::command]
@@ -358,6 +376,7 @@ pub fn save_image(
   doc_path: String,
   filename: String,
   bytes_base64: String,
+  subdir: Option<String>,
 ) -> Result<SaveImageResult, String> {
   let canon = canonical(&doc_path).ok_or_else(|| "document path not found".to_string())?;
   let registry = app.state::<WindowRegistry>();
@@ -367,7 +386,12 @@ pub fn save_image(
   }
   let name = sanitize_image_name(&filename).ok_or_else(|| "invalid image name".to_string())?;
   let parent = canon.parent().ok_or_else(|| "no parent dir".to_string())?;
-  let dir = parent.join("images");
+  // 目标子目录：缺省 `images`（老行为）；传了就校验为单段相对路径。
+  let sub = match &subdir {
+    None => "images".to_string(),
+    Some(s) => sanitize_image_subdir(s).ok_or_else(|| "invalid image subdir".to_string())?,
+  };
+  let dir = parent.join(&sub);
   fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let dest = unique_path(&dir, &name);
   let bytes = decode_base64(&bytes_base64)?;
@@ -383,7 +407,8 @@ pub fn save_image(
     .map(|s| s.to_string_lossy().into_owned())
     .unwrap_or(name);
   Ok(SaveImageResult {
-    relative_path: format!("images/{file}").replace('\\', "/"),
+    relative_path: format!("{sub}/{file}").replace('\\', "/"),
+    abs_path: dest.to_string_lossy().into_owned(),
   })
 }
 
@@ -587,6 +612,129 @@ pub fn watch_file(app: &AppHandle, path: &str) {
   }
   let store = app.state::<WatcherStore>();
   store.0.lock().unwrap().insert(target, w);
+}
+
+// ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
+// 契约：`executable [args…] <图片绝对路径>` → stdout 每行一个 http(s) URL。
+// 注意：这是「用户显式配置要执行什么」的退路，不是 Web 层可随手调用的任意 shell。
+// 所以故意不用 shell（Command 直接 spawn，不解析 `;` `&&` `$(...)`），
+// 也不传额外环境变量，只把图片路径追加在最后。
+
+#[derive(Serialize, Default)]
+pub struct ImageCommandResult {
+  ok: bool,
+  url: Option<String>,
+  error: Option<String>,
+  stdout: String,
+  stderr: String,
+  exit_code: Option<i32>,
+}
+
+/// 执行用户配置的图床上传命令：`executable [args…] <image_path>`。
+/// std 没有 wait_timeout，所以用轮询实现超时（每 100ms 探一次，到时 kill）。
+fn run_command(executable: &str, args: &[String], image_path: &str, timeout_ms: u64) -> ImageCommandResult {
+  use std::process::{Command as StdCommand, Stdio};
+
+  let mut res = ImageCommandResult::default();
+  if executable.trim().is_empty() {
+    res.error = Some("empty image command".into());
+    return res;
+  }
+  let mut cmd = StdCommand::new(executable);
+  cmd.args(args).arg(image_path).stdin(Stdio::null());
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW：别让截图工具的命令窗口在旁边闪现
+  }
+  let mut child = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+    Ok(c) => c,
+    Err(e) => {
+      res.error = Some(format!("spawn failed: {e}"));
+      return res;
+    }
+  };
+
+  let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+  loop {
+    match child.try_wait() {
+      Ok(Some(status)) => {
+        res.exit_code = status.code();
+        break;
+      }
+      Ok(None) => {
+        if std::time::Instant::now() >= deadline {
+          let _ = child.kill();
+          res.error = Some(format!("timed out after {timeout_ms}ms"));
+          return res;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+      }
+      Err(e) => {
+        res.error = Some(format!("wait failed: {e}"));
+        return res;
+      }
+    }
+  }
+
+  let output = match child.wait_with_output() {
+    Ok(o) => o,
+    Err(e) => {
+      res.error = Some(format!("read output failed: {e}"));
+      return res;
+    }
+  };
+  res.stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+  res.stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+  if let Some(code) = res.exit_code {
+    if code != 0 {
+      res.error = Some(format!("exit code {code}"));
+      return res;
+    }
+  }
+  // 契约：非零退出/超时/无 URL 都算失败；stdout 首个 http(s) URL 才算成功。
+  let url = res
+    .stdout
+    .split('\n')
+    .map(|l| l.trim())
+    .find(|l| l.starts_with("http://") || l.starts_with("https://"));
+  match url {
+    Some(u) => {
+      res.ok = true;
+      res.url = Some(u.to_string());
+    }
+    None => {
+      res.error = Some("command succeeded but no http(s) URL on stdout".into());
+    }
+  }
+  res
+}
+
+#[tauri::command]
+pub async fn run_image_command(
+  executable: String,
+  args: Vec<String>,
+  image_path: String,
+  timeout_ms: u64,
+) -> ImageCommandResult {
+  run_command(&executable, &args, &image_path, timeout_ms)
+}
+
+/// 设置面板「测试命令」：喂一个内置 1×1 PNG，看它吐不吐 URL。不落任何库。
+#[tauri::command]
+pub fn test_image_command(executable: String, args: Vec<String>, timeout_ms: u64) -> ImageCommandResult {
+  static PIXEL: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+    0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+    0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8,
+    0xCF, 0xC0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x01, 0x3D, 0x3C, 0x3B, 0x78, 0x00,
+    0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  ];
+  let tmp = std::env::temp_dir().join("lector-test-pixel.png");
+  let _ = std::fs::write(&tmp, PIXEL);
+  let r = run_command(&executable, &args, tmp.to_string_lossy().as_ref(), timeout_ms);
+  let _ = std::fs::remove_file(&tmp);
+  r
 }
 
 #[cfg(test)]

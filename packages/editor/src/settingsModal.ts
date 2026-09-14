@@ -25,6 +25,8 @@ import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
 import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
+import { splitUploadCommand } from './imageInsert.ts'
+import { testImageCommand, runImageCommand } from '@lector/shell-web'
 
 let root: HTMLElement | null = null
 
@@ -232,6 +234,91 @@ export function openSettingsModal(onClose?: () => void) {
       t('recoverUnsavedHint'),
     ),
   )
+
+  // ── 图片 ──
+  // 策略 + 资源目录模板 + 上传命令。三档单选决定落盘位置与是否调用图床命令。
+  const images = makeSection('images', t('images'))
+  const imageMode = Segmented(
+    getSettings().imageMode,
+    [
+      { v: 'images', label: t('imageModeImages') },
+      { v: 'assets', label: t('imageModeAssets') },
+      { v: 'command', label: t('imageModeCommand') },
+    ],
+    (v) => apply((s) => ({ ...s, imageMode: v as EditorSettings['imageMode'] })),
+  )
+  images.appendChild(
+    row(
+      t('imageModeTitle'),
+      imageMode.root,
+      getSettings().imageMode === 'images'
+        ? t('imageModeImagesHint')
+        : getSettings().imageMode === 'assets'
+          ? t('imageModeAssetsHint')
+          : t('imageModeCommandHint'),
+    ),
+  )
+
+  const dirInput = h('input', 'settings-input') as HTMLInputElement
+  dirInput.type = 'text'
+  dirInput.spellcheck = false
+  dirInput.value = getSettings().imageAssetsDir
+  dirInput.placeholder = '{filename}.assets'
+  dirInput.addEventListener('input', () => apply((s) => ({ ...s, imageAssetsDir: dirInput.value })))
+  images.appendChild(row(t('imageAssetsDir'), dirInput, t('imageAssetsDirHint')))
+
+  const cmdInput = h('input', 'settings-input') as HTMLInputElement
+  cmdInput.type = 'text'
+  cmdInput.spellcheck = false
+  cmdInput.value = getSettings().imageCommand
+  cmdInput.placeholder = 'picgo upload'
+  cmdInput.addEventListener('input', () => apply((s) => ({ ...s, imageCommand: cmdInput.value })))
+  images.appendChild(row(t('imageCommand'), cmdInput, t('imageCommandHint')))
+
+  const argsInput = h('input', 'settings-input') as HTMLInputElement
+  argsInput.type = 'text'
+  argsInput.spellcheck = false
+  argsInput.value = getSettings().imageCommandArgs.join(' ')
+  argsInput.placeholder = '-d -v'
+  argsInput.addEventListener('input', () =>
+    apply((s) => ({ ...s, imageCommandArgs: argsInput.value.split(/\s+/).filter(Boolean) })),
+  )
+  images.appendChild(row(t('imageCommandArgs'), argsInput))
+
+  const timeoutSlider = Slider(
+    Math.round(getSettings().imageCommandTimeoutMs / 1000),
+    1,
+    300,
+    1,
+    (v) => apply((s) => ({ ...s, imageCommandTimeoutMs: v * 1000 })),
+    (n) => `${n}s`,
+  )
+  images.appendChild(cellRow(t('imageCommandTimeoutSec'), timeoutSlider))
+
+  // 测试命令按钮：用未保存草稿跑一次上传，看 stdout 是否有 URL。
+  const testBtn = h('button', 'btn') as HTMLButtonElement
+  testBtn.type = 'button'
+  testBtn.textContent = t('imageTestCommand')
+  const testResult = h('div', 'settings-row-hint') as HTMLDivElement
+  testResult.textContent = ''
+  testBtn.addEventListener('click', () => {
+    void (async () => {
+      testBtn.disabled = true
+      try {
+        const draft = getSettings()
+        const { command, preArgs } = splitUploadCommand(draft.imageCommand)
+        const res = await testImageCommand(command, [...preArgs, ...draft.imageCommandArgs], draft.imageCommandTimeoutMs)
+        if (res.ok && res.url) testResult.textContent = t('imageTestOk').replace('{url}', res.url)
+        else testResult.textContent = t('imageTestFailed') + (res.error ?? '')
+      } finally {
+        testBtn.disabled = false
+      }
+    })()
+  })
+  const testHost = h('div', 'settings-row-stack')
+  testHost.appendChild(testBtn)
+  testHost.appendChild(testResult)
+  images.appendChild(testHost)
 
   // ── 高级 ──
   const advanced = makeSection('advanced', t('advanced'))

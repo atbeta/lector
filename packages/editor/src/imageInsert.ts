@@ -110,7 +110,9 @@ export function splitUploadCommand(input: string): { command: string; preArgs: s
 }
 
 export function imageMarkdown(relPath: string, alt = ''): string {
-  return `![${alt}](${relPath})`
+  // 目录模板可能含空格（`My Notes.assets`），CommonMark 的 []() 目标遇空格会错位，
+  // 这里统一把空格百分号编码（协议侧会解码回去），中文/其他字符原样保留。
+  return `![${alt}](${relPath.replace(/ /g, '%20')})`
 }
 
 export function insertAt(text: string, offset: number, chunk: string): { text: string; caret: number } {
