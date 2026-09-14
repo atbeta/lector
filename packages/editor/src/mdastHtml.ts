@@ -3,9 +3,59 @@
 
 import { resolveImageSrc } from './asset.ts'
 import { highlightCode } from './highlight.ts'
+import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
 
 type Node =
   | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; children?: Node[]; position?: unknown }
+
+/**
+ * 预渲染缓存：key=`block|inline::tex`,value=已转义 HTML。
+ * preRenderMath(allBlocks) 填表,blockToHtml / inlineNode 同步读。
+ * 依赖调用顺序: render() 头里先调一次 preRenderMath(blocks),下面再 renderBlockHtml。
+ * 缓存 miss（理论不会发生,会在 preRenderMath 阶段全部填好）走原文。
+ */
+const mathHtmlCache = new Map<string, string>()
+function mathKey(display: boolean, tex: string): string {
+  return `${display ? 'block' : 'inline'}::${tex}`
+}
+
+/** 走一块 mdast,找出所有 math / inlineMath,调 katex 渲完后填表。 */
+export async function preRenderMath(blocks: ReadonlyArray<{ mdast: unknown }>): Promise<void> {
+  const pending: Array<Promise<void>> = []
+  for (const b of blocks) {
+    visitMath(b.mdast, (tex, display) => {
+      const k = mathKey(display, tex)
+      if (mathHtmlCache.has(k)) return
+      pending.push(
+        renderMathToHtml(tex, display).then((html) => {
+          mathHtmlCache.set(k, html)
+        }),
+      )
+    })
+  }
+  await Promise.all(pending)
+}
+
+function visitMath(
+  mdast: unknown,
+  cb: (tex: string, display: boolean) => void,
+): void {
+  const n = mdast as Node | Node[] | null | undefined
+  if (!n) return
+  if (Array.isArray(n)) {
+    for (const c of n) visitMath(c, cb)
+    return
+  }
+  if (n.type === 'math' && typeof n.value === 'string') cb(n.value, true)
+  else if (n.type === 'inlineMath' && typeof n.value === 'string') cb(n.value, false)
+  else if (n.children) visitMath(n.children, cb)
+}
+
+/** 测试钩子:清空预渲染缓存。 */
+export function _resetMathHtmlCacheForTests(): void {
+  mathHtmlCache.clear()
+  _resetMathCache()
+}
 
 function esc(s: string): string {
   return s
@@ -50,6 +100,11 @@ function inlineNode(n: Node): string {
     }
     case 'image':
       return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
+    case 'inlineMath': {
+      const k = mathKey(false, n.value ?? '')
+      const html = mathHtmlCache.get(k) ?? esc(n.value ?? '')
+      return `<span class="math math-inline">${html}</span>`
+    }
     case 'break':
       return '<br />'
     case 'html':
@@ -202,6 +257,12 @@ function blockToHtml(n: Node): string {
     }
     case 'thematicBreak':
       return '<hr />'
+    case 'math': {
+      // 块级 KaTeX：preRenderMath 阶段已把 katex HTML 填到 mathHtmlCache
+      const k = mathKey(true, n.value ?? '')
+      const html = mathHtmlCache.get(k) ?? esc(n.value ?? '')
+      return `<div class="math math-block">${html}</div>`
+    }
     case 'table': {
       const rows = n.children ?? []
       const head = rows[0]

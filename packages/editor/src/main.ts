@@ -36,7 +36,7 @@ import {
 } from '@lector/shell-web'
 import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
-import { renderBlockHtml, safeHref } from './mdastHtml.ts'
+import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } from './settings.ts'
@@ -1013,7 +1013,10 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   }
 }
 
-function render() {
+async function render() {
+  // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
+  // 文档无 math 节点时,这步 0 开销。
+  await preRenderMath(session.blocks)
   const desired: HTMLElement[] = []
   const seen = new Set<string>()
   for (const block of session.blocks) {

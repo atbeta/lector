@@ -21,6 +21,7 @@ export type BlockKind =
   | 'html'
   | 'yaml'
   | 'table'
+  | 'math'
   | 'unknown'
 
 export interface BlockView {

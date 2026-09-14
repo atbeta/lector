@@ -1,8 +1,10 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { gfm } from 'micromark-extension-gfm'
+import { math } from 'micromark-extension-math'
 import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
+import { mathFromMarkdown } from 'mdast-util-math'
 import type { BlockKind, BlockView } from './types.ts'
 
 /** mdast node.type → BlockKind；未识别归 unknown（整段当一块 raw 预览降级）。 */
@@ -16,13 +18,16 @@ const KIND_MAP: Record<string, BlockKind> = {
   html: 'html',
   yaml: 'yaml',
   table: 'table',
+  math: 'math',
 }
 
 /** 是否启用某扩展（v1.1 起可开表等，日程见 04-bootstrap）。 */
 const ENABLE_GFM = true
 
-const extensions = ENABLE_GFM ? [gfm(), frontmatter()] : [frontmatter()]
-const mdastExtensions = ENABLE_GFM ? [gfmFromMarkdown(), frontmatterFromMarkdown()] : [frontmatterFromMarkdown()]
+const extensions = ENABLE_GFM ? [gfm(), math(), frontmatter()] : [math(), frontmatter()]
+const mdastExtensions = ENABLE_GFM
+  ? [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown()]
+  : [mathFromMarkdown(), frontmatterFromMarkdown()]
 
 function makeUnknownBlock(start: number, end: number, text: string): BlockView {
   return {

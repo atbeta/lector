@@ -244,4 +244,33 @@ describe('块语义（v1 关键行为）', () => {
   })
 })
 
+describe('数学公式', () => {
+  test('块级 $$...$$ 切成 math 块', () => {
+    const blocks = parseBlocks('$$\nE = mc^2\n$$\n')
+    const math = blocks.find((b) => b.kind === 'math')
+    expect(math).toBeTruthy()
+    // 块级公式也包括定界符——round-trip 恒等
+    expect(math!.raw).toContain('$$')
+  })
+
+  test('行内 $...$ 是 paragraph 里的 inlineMath 子节点,paragraph 块完整', () => {
+    const text = '质能方程 $E=mc^2$ 与勾股 $a^2+b^2=c^2$。\n'
+    const blocks = parseBlocks(text)
+    const para = blocks.find((b) => b.kind === 'paragraph')
+    expect(para).toBeTruthy()
+    const paraNode = (para as unknown as { mdast: { children?: Array<{ type: string }> } }).mdast
+    const inlineMathNodes = (paraNode.children ?? []).filter((c) => c.type === 'inlineMath')
+    expect(inlineMathNodes.length).toBe(2)
+    // raw 是行内原文字节(去掉行尾换行,换行缝不进块)——未改的公式与定界符都还在
+    expect(para!.raw).toBe('质能方程 $E=mc^2$ 与勾股 $a^2+b^2=c^2$。')
+  })
+
+  test('math 块未编辑保存后字节级恒等', async () => {
+    const text = '前文。\n\n$$\nx^2 + y^2 = z^2\n$$\n\n后文。\n'
+    const path = writeFixture('math-idem.md', text)
+    const out = await roundTrip(path)
+    expect(out).toBe(text)
+  })
+})
+
 export type { SourceDocument }

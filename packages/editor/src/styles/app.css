@@ -1137,6 +1137,35 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 阅读里的图片：可点开放大，光标要说明这件事 */
 .reading-prose img { cursor: zoom-in; }
 
+/* ───────────── KaTeX 数学公式 ─────────────
+ * KaTeX 本身的样式从 katex/dist/katex.min.css 加载(进 :where(.katex) 作用域,
+ * 不会泄露到公式以外)。这里只调校讲/预览列里的布局与间距。
+ * 块级公式上下要喘气,行内公式以 baseline 衡接正文。 */
+.math-block {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.math-block .katex-display {
+  margin: 0;
+  padding: 0.25em 0;
+}
+.math-inline .katex {
+  /* KaTeX 默认 有 vertical-align,放进中文里会出色:换个 baseline 衡接 */
+  font-size: 1.05em;
+}
+/* 块级公式有错误时(解析失败)仍能走原文:用 pre 包一下 */
+.math-error {
+  display: block;
+  padding: 8px 12px;
+  background: rgb(var(--muted) / 0.3);
+  border-radius: var(--radius-btn);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: rgb(var(--foreground));
+  white-space: pre-wrap;
+}
+
 /* ───────────── 右键菜单 ─────────────
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
  * 视觉上按「浮层」处理：圆角、浮层投影、比正文更紧的行距。 */
