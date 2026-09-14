@@ -1,6 +1,6 @@
 [package]
 name = "lector"
-version = "0.11.2"
+version = "0.12.0"
 description = "Lector — a reading-first Markdown editor"
 authors = ["Lector"]
 edition = "2021"
