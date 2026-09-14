@@ -67,39 +67,50 @@ html[data-theme='dark'] body {
 }
 
 /* ───────────── 滚动条 ─────────────
- * 全平台统一自绘：细、圆角、半透明，静止时几乎隐形，悬停才加深。
- * 放弃 macOS 原生 overlay 的原因：外接鼠标 / 「始终显示滚动条」的系统设置下，
- * 原生会退成 15px 的经典粗条，和阅读界面完全不搭；自绘在所有环境下长相一致。
+ * notefast 风格：默认完全隐形，悬停祖先时才浮现，500ms 后渐隐。
+ * 之所以从「默认就显一截」改成「完全不显」：长文阅读时静态视觉里多一根
+ * 半透明条会跟文字抢层级，安静状态下越少越好。
  *
- * 代价是 WebKit 会从 overlay 切成经典滚动条，占少量布局宽度。
- * 用透明边框把滑块视觉收到 4px、抓握区保持 10px，把这点代价压到最小。
+ * 形状参数：8px 总宽 + 2px 透明边框 = 4px 视觉滑块（够点击、够细）。
+ * 颜色用 --foreground / 0.12（hover 容器时）和 0.22（hover 滑块本身），
+ * 跟主题绑定，不另设 token。
  *
  * 标准属性（scrollbar-width / scrollbar-color）与 ::-webkit-scrollbar 同时写是
  * 安全的：Chromium 在有标准属性时忽略伪元素，老引擎反过来——正好互为兜底。 */
 html {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--border-strong) / 0.45) transparent;
+  scrollbar-color: transparent transparent;
 }
+/* :hover 沿祖先链传播——悬停容器内任意位置即显现其滑块 */
 html *:hover {
-  scrollbar-color: rgb(var(--border-strong) / 0.7) transparent;
+  scrollbar-color: rgb(var(--foreground) / 0.14) transparent;
 }
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--border-strong) / 0.45);
+  background: transparent;
   border-radius: 99px;
-  /* 用透明边框把滑块收细到 4px：视觉上是细条，抓握区域仍有 10px */
-  border: 3px solid transparent;
   background-clip: content-box;
+  border: 2px solid transparent;
+  /* 离开 500ms 后才渐隐——Chromium 对伪元素 transition 支持不稳，退化为立即隐藏也成立 */
+  transition: background-color 0.2s ease 0.5s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.12);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--border-strong) / 0.75);
+  background: rgb(var(--foreground) / 0.22);
   background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
