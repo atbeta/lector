@@ -1552,6 +1552,55 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
+// Windows / Linux 上不设原生菜单（避免初始化闪现）：原菜单里这些快捷键
+// 由 Web 层接管。macOS 上同名的菜单项仍有这些快捷键，双重注册不冲突——
+// 菜单项是系统级的，这里是 web 级的，各管各的。
+window.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey
+  if (!mod) return
+  // ⌘O 打开
+  if (!e.shiftKey && e.key === 'o') {
+    e.preventDefault()
+    openBtn.click()
+    return
+  }
+  // ⌘R 从磁盘重载
+  if (!e.shiftKey && e.key === 'r') {
+    e.preventDefault()
+    void reloadFromDisk()
+    return
+  }
+  // ⌘⇧O 大纲
+  if (e.shiftKey && e.key.toLowerCase() === 'o') {
+    e.preventDefault()
+    outlineBtn.click()
+    return
+  }
+  // ⌘, 设置
+  if (!e.shiftKey && e.key === ',') {
+    e.preventDefault()
+    settingsBtn.click()
+    return
+  }
+  // ⌘0 恢复默认字号（⌘0 在部分键盘上与 ⌘) 同位）
+  if (!e.shiftKey && (e.key === '0' || e.key === ')')) {
+    e.preventDefault()
+    resetFontSize()
+    return
+  }
+  // ⌘= / ⌘+ 放大，⌘- 缩小。⌘= 是主键（不用 Shift 也能按到）
+  if (!e.shiftKey && (e.key === '=' || e.key === '+')) {
+    e.preventDefault()
+    stepFontSize(1)
+    return
+  }
+  if (!e.shiftKey && e.key === '-') {
+    e.preventDefault()
+    stepFontSize(-1)
+    return
+  }
+})
+
 openBtn.addEventListener('click', () => void openFromShellOrDialog())
 
 themeBtn.addEventListener('click', () => toggleTheme())

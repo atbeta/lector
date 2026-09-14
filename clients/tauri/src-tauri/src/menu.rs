@@ -16,6 +16,11 @@ use crate::io;
 ///   由 Web 层处理——壳不认识文档状态，不该替 Web 做决定。
 /// - 最近打开由壳直接协调窗口（打开或聚焦已有窗口），不经 Web。
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
+  // Windows / Linux 上不设菜单：默认菜单会闪一下再被我们覆掉，
+  // 不设就没闪。快捷键另由 Web 层接管（见 packages/editor/src/main.ts）。
+  if !cfg!(target_os = "macos") {
+    return Ok(());
+  }
   // ── 文件 ──
   let open = MenuItem::with_id(app, "file-open", "打开…", true, Some("CmdOrCtrl+O"))?;
   let save = MenuItem::with_id(app, "file-save", "保存", true, Some("CmdOrCtrl+S"))?;
