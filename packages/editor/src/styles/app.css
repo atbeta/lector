@@ -917,33 +917,62 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   min-height: 62vh;
+  padding: 40px 24px;
   color: rgb(var(--muted-foreground));
   text-align: center;
   animation: fade-in var(--motion-slow) var(--ease-enter) both;
 }
-.empty-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-xl);
+/* 子元素错峰入场：整屏同时淡入像一张贴图，错开 45ms 才有「长出来」的感觉 */
+.empty-state > * { animation: empty-in var(--motion-slow) var(--ease-enter) both; }
+.empty-state > *:nth-child(2) { animation-delay: 45ms; }
+.empty-state > *:nth-child(3) { animation-delay: 90ms; }
+.empty-state > *:nth-child(4) { animation-delay: 135ms; }
+.empty-state > *:nth-child(5) { animation-delay: 180ms; }
+@keyframes empty-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.empty-hero {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
   display: grid;
   place-items: center;
-  color: rgb(var(--primary));
-  background: var(--primary-soft);
-  margin-bottom: 10px;
+  color: rgb(var(--primary-foreground));
+  background: var(--brand-gradient);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 10px 28px rgb(var(--primary) / 0.30);
+  margin-bottom: 16px;
 }
 .empty-state h2 {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-h2);
   font-weight: 600;
   letter-spacing: -0.02em;
   color: rgb(var(--foreground));
 }
-.empty-state p {
-  margin: 4px 0 16px;
+.empty-tagline {
+  margin: 6px 0 24px;
   font-size: var(--text-base);
   color: rgb(var(--subtle-foreground));
+}
+.empty-open {
+  gap: 8px;
+  padding: 9px 12px 9px 16px;
+  font-size: var(--text-md);
+  border-radius: var(--radius-card);
+}
+/* 快捷键角标叠在主按钮上：半透明白底白边，不另起色 */
+.empty-open kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  background: rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24);
 }
 
 /* ───────────── Tip 浮层 ─────────────
@@ -2324,42 +2353,94 @@ tr:hover .table-editor-op { opacity: 1; }
 
 /* ───────────── 空态的「最近打开」 ─────────────
  * 空态只回答「打开什么」，所以这一块是按钮的补充而不是并列的另一屏：
- * 标题轻、条目等宽、目录弱化成第二行。 */
+ * 标题轻、条目卡片化、目录弱化成第二行；右上角留一个安静的「清空」。 */
 .recent-block {
-  margin-top: 26px;
+  margin-top: 32px;
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   text-align: left;
 }
+.recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .recent-label {
-  margin-bottom: 6px;
   font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgb(var(--subtle-foreground));
 }
-.recent-list { display: flex; flex-direction: column; gap: 2px; }
-.recent-item {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  width: 100%;
-  padding: 6px 10px;
+.recent-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
   border: 0;
   border-radius: var(--radius-btn);
   background: transparent;
-  color: rgb(var(--muted-foreground));
+  color: rgb(var(--subtle-foreground));
+  font: inherit;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.recent-clear:hover {
+  background: var(--destructive-soft);
+  color: rgb(var(--destructive));
+}
+.recent-list { display: flex; flex-direction: column; gap: 6px; }
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: rgb(var(--paper));
+  box-shadow: 0 0 0 1px rgb(var(--border));
   font: inherit;
   font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  transition: box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
-.recent-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
-.recent-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-dir {
+.recent-item:hover {
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.45), 0 2px 8px rgb(24 24 27 / 0.06);
+  transform: translateY(-1px);
+}
+/* 按压回位：浮起是悬停语义，按下就该落回去 */
+.recent-item:active { transform: none; }
+html[data-theme='dark'] .recent-item:hover {
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+.recent-badge {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--primary));
+  background: var(--primary-softer);
+}
+.recent-text {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--foreground));
+}
+.recent-dir {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

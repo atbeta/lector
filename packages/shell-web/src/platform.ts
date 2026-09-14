@@ -166,6 +166,19 @@ export async function recentList(): Promise<string[]> {
   return invoke<string[]>('recent_list')
 }
 
+/**
+ * 清空「最近打开」。写入只在壳里发生；预览模式没有这份数据，
+ * 就把测试注入的那份清掉，让空态的「清空」按钮在浏览器里也能走完整流程。
+ */
+export async function recentClear(): Promise<void> {
+  if (detectEnv() !== 'shell') {
+    ;(globalThis as { __lectorTestRecent?: string[] }).__lectorTestRecent = []
+    return
+  }
+  const { invoke } = await tauriApi()
+  await invoke('recent_clear')
+}
+
 export async function bindDocument(path: string): Promise<void> {
   if (detectEnv() !== 'shell') return
   const { invoke } = await tauriApi()

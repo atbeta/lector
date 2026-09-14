@@ -17,6 +17,8 @@ interface LoadStateDeps {
   /** 最近打开（新在前）。空数组 = 不显示这一块。 */
   recentFiles?: string[]
   onOpenRecent?: (path: string) => void | Promise<void>
+  /** 清空最近打开。不给就不渲染清空按钮。 */
+  onClearRecent?: () => void | Promise<void>
 }
 
 /** 标题栏副标题 / document.title / session 标题占位:三处保持一致。 */
@@ -46,7 +48,7 @@ function dirName(path: string): string {
  * 放在空态里，是因为空态本来就是「你还没打开任何东西」的那一屏，
  * 唯一该回答的问题是「那我打开什么」——最近打开过的文件是这个问题最可能的答案。
  * 之前这份数据只有 macOS 的原生菜单够得着（Windows/Linux 不建原生菜单），
- * 等于壳在维护一份谁也看不到的清单。
+ * 等于壳在维护一份谁也看不到的清单；现在 Windows 也能在这里读，也要能在这里清。
  *
  * 只列 5 条：多了就变成"又一个要滚动的列表"，而它只是空态的一个旁支。
  */
@@ -55,9 +57,22 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
   if (files.length === 0 || !deps.onOpenRecent) return null
   const box = document.createElement('div')
   box.className = 'recent-block'
+  const head = document.createElement('div')
+  head.className = 'recent-head'
   const label = document.createElement('div')
   label.className = 'recent-label'
   label.textContent = t('recentTitle')
+  head.appendChild(label)
+  if (deps.onClearRecent) {
+    const clear = document.createElement('button')
+    clear.type = 'button'
+    clear.className = 'recent-clear'
+    clear.dataset.tip = t('clearRecentTitle')
+    clear.setAttribute('aria-label', t('clearRecentTitle'))
+    clear.innerHTML = `${iconSvg('trash', 13)}<span>${t('clearRecent')}</span>`
+    clear.addEventListener('click', () => void deps.onClearRecent?.())
+    head.appendChild(clear)
+  }
   const list = document.createElement('div')
   list.className = 'recent-list'
   for (const path of files.slice(0, 5)) {
@@ -66,37 +81,49 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
     item.className = 'recent-item'
     item.dataset.path = path
     item.dataset.tip = path
+    const badge = document.createElement('span')
+    badge.className = 'recent-badge'
+    badge.innerHTML = iconSvg('fileText', 15)
+    const text = document.createElement('span')
+    text.className = 'recent-text'
     const name = document.createElement('span')
     name.className = 'recent-name'
     name.textContent = baseName(path)
     const dir = document.createElement('span')
     dir.className = 'recent-dir'
     dir.textContent = dirName(path)
-    item.append(name, dir)
+    text.append(name, dir)
+    item.append(badge, text)
     item.addEventListener('click', () => void deps.onOpenRecent?.(path))
     list.appendChild(item)
   }
-  box.append(label, list)
+  box.append(head, list)
   return box
 }
 
-/** 空态:中央放书图标 + 标题 + 提示 + 「打开文件」按钮（+ 最近打开）。 */
+/** 打开按钮上的快捷键角标：macOS 用 ⌘O，其余 Ctrl O。 */
+function openShortcut(): string {
+  return /mac/i.test(navigator.userAgent) ? '⌘O' : 'Ctrl O'
+}
+
+/** 空态:品牌区（图标 + 名 + 定位语）+ 主按钮（+ 最近打开）。 */
 export function renderEmptyState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
   const wrap = document.createElement('div')
   wrap.className = 'empty-state'
-  const icon = document.createElement('div')
-  icon.className = 'empty-icon'
-  icon.innerHTML = iconSvg('book', 24)
+  const hero = document.createElement('div')
+  hero.className = 'empty-hero'
+  hero.innerHTML = iconSvg('book', 30)
   const title = document.createElement('h2')
   title.textContent = t('emptyTitle')
-  const p = document.createElement('p')
-  p.textContent = t('emptyHint')
+  const tagline = document.createElement('p')
+  tagline.className = 'empty-tagline'
+  tagline.textContent = t('emptyTagline')
   const btn = document.createElement('button')
-  btn.className = 'btn btn-primary'
-  btn.innerHTML = `${iconSvg('folder', 16)} ${t('openFile')}`
+  btn.className = 'btn btn-primary empty-open'
+  btn.innerHTML = `${iconSvg('folder', 16)}<span>${t('openFile')}</span><kbd>${openShortcut()}</kbd>`
   btn.addEventListener('click', () => void deps.onOpen())
-  wrap.append(icon, title, p, btn)
+  wrap.append(hero, title, tagline, btn)
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)

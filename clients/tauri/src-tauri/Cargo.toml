@@ -26,3 +26,7 @@ tauri-plugin-single-instance = "2"
 # 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。
 tauri-plugin-window-state = "2"
 notify = "8.0.0"
+
+# 仅 Windows 用：向 DWM 申请无边框窗口圆角（io.rs::apply_platform_window_tweaks）。
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }

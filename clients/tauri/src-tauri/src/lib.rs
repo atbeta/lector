@@ -91,6 +91,7 @@ pub fn run() {
       io::run_image_command,
       io::test_image_command,
       io::recent_list,
+      io::recent_clear,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");

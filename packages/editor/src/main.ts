@@ -28,6 +28,7 @@ import {
   takePendingOpen,
   bindDocument,
   recentList,
+  recentClear,
   saveImage,
   runImageCommand,
   onOpen,
@@ -66,7 +67,7 @@ import {
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
 import { openAppearancePop } from './appearancePop.ts'
-import { chooseConflict, confirmDiscard } from './dialog.ts'
+import { chooseConflict, confirmDiscard, showDialog } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { createUndoStack } from './undoStack.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
@@ -2617,6 +2618,28 @@ const loadStateDeps = {
   onOpen: () => openFromShellOrDialog(),
   recentFiles: [] as string[],
   onOpenRecent: (path: string) => openRecent(path),
+  onClearRecent: () => clearRecentList(),
+}
+
+/**
+ * 清空「最近打开」：先确认（只是清列表、不动磁盘文件），再让壳落盘。
+ * 清空后空态还在屏幕上就把列表就地拿掉，不重新拉取——刚清完又异步塞回来
+ * 会显得「没清掉」。
+ */
+async function clearRecentList(): Promise<void> {
+  const id = await showDialog({
+    title: t('clearRecentTitle'),
+    body: t('clearRecentBody'),
+    actions: [
+      { id: 'cancel', label: t('cancel'), primary: true },
+      { id: 'clear', label: t('clearRecent'), danger: true },
+    ],
+  })
+  if (id !== 'clear') return
+  await recentClear()
+  loadStateDeps.recentFiles = []
+  if (session.blocks.length === 0) renderEmptyStateView(loadStateDeps)
+  showToast(t('recentCleared'))
 }
 
 /**

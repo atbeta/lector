@@ -199,14 +199,20 @@ fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(dir.join("lector-recent.json"))
 }
 
-/// 最近打开列表（**读**接口，新在前）。
+/// 最近打开列表（读接口，新在前）。
 ///
 /// 壳一直在维护 lector-recent.json，但之前只喂给原生菜单；而 Windows/Linux 不建原生菜单
 /// （避开初始化闪现），那份列表在界面上完全没有入口——数据在，用户够不着。
-/// 这里只加读：写入路径不变，Web 层依旧拿不到写权限。
 #[tauri::command]
 pub fn recent_list(app: AppHandle) -> Vec<String> {
   load_recent(&app)
+}
+
+/// 清空「最近打开」。空态列表给了 Web 层「清空」入口（Windows/Linux 没有原生菜单，
+/// 只读不给清等于耍流氓）；写入仍只在壳里发生，Web 拿到的只是这一个动作。
+#[tauri::command]
+pub fn recent_clear(app: AppHandle) {
+  clear_recent(&app);
 }
 
 /// 读「最近打开」列表（新在前）。文件缺失或损坏都当空表。
@@ -510,6 +516,32 @@ pub const fn window_chrome() -> WindowChrome {
   WindowChrome { decorations: false }
 }
 
+/// 平台级的窗口观感微调，在窗口创建后、显示前调用。
+///
+/// Windows：向 DWM 显式申请圆角（DWMWA_WINDOW_CORNER_PREFERENCE = ROUND）。
+/// 无边框窗口不保证吃到 Win11 的默认圆角——本应用就是反例；Win10 没有这个
+/// 属性，调用失败静默忽略即可。macOS 原生边框自带圆角，无此事。
+#[cfg(target_os = "windows")]
+fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
+  use windows_sys::Win32::Graphics::Dwm::{
+    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
+  };
+  const DWMWCP_ROUND: u32 = 2;
+  let Ok(hwnd) = win.hwnd() else { return };
+  let preference: u32 = DWMWCP_ROUND;
+  unsafe {
+    let _ = DwmSetWindowAttribute(
+      hwnd.0 as windows_sys::Win32::Foundation::HWND,
+      DWMWA_WINDOW_CORNER_PREFERENCE as _,
+      &preference as *const u32 as *const _,
+      std::mem::size_of::<u32>() as u32,
+    );
+  }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_platform_window_tweaks(_win: &tauri::WebviewWindow) {}
+
 /// 主窗口也必须由此函数创建，不能交给 tauri.conf.json 的 app.windows。
 ///
 /// 原因：config 里的 window 配置会覆盖 builder，而且是**所有平台共用**的。
@@ -565,6 +597,8 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
       .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
   }
   let win = builder.build()?;
+  // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
+  apply_platform_window_tweaks(&win);
   // 恢复上次的尺寸/位置/最大化，然后才让它露面。
   // 顺序是必须的：window-state 的自动恢复发生在窗口就绪之后，若此刻窗口已可见，
   // 用户会看到「小窗口闪一下 → 跳到最大化」。显式调用把顺序钉死（restore 与 show
