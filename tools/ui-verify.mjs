@@ -1622,6 +1622,127 @@ const summary = {
     )
   }
 
+  // 3.11) 查找选项与正则：三个开关、危险正则被拒、**计数与高亮必须一致**
+  //
+  // 这一组守的是「三处匹配实现不许走偏」。计数说 6 处、只标出 4 个，
+  // 是只有用户能发现的错（而且字符串模式下永远看不出来）。
+  {
+    await page.goto(URL_ARG, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(600)
+    await page.click('#find-btn')
+    await page.waitForSelector('.find-bar input', { timeout: 3000 })
+    const toggles = await page.evaluate(() => document.querySelectorAll('.find-toggle').length)
+    if (toggles !== 3) note('error', `查找选项开关 ${toggles} 个（期望 3：区分大小写 / 全词 / 正则）`)
+
+    // 正则：计数与高亮数量必须相等
+    await page.fill('.find-bar input', '\\d+')
+    await page.evaluate(() => document.querySelector('.find-regex')?.click())
+    await page.waitForTimeout(400)
+    const rx = await page.evaluate(() => {
+      const label = document.querySelector('.find-count')?.textContent ?? ''
+      // 计数文案两种语言两种形状（「第 1 处 / 共 6 处」/「1 of 6」），
+      // 所以不匹配固定句式，只取「最后一个数字 = 总数」。
+      const nums = (label.match(/\d+/g) ?? []).map(Number)
+      return {
+        label,
+        total: nums.length ? nums[nums.length - 1] : 0,
+        marks: document.querySelectorAll('mark.find-hit').length,
+        current: document.querySelectorAll('mark.find-hit--current').length,
+      }
+    })
+    if (rx.total <= 0) note('error', `正则 \\d+ 没有报出命中：${JSON.stringify(rx.label)}`)
+    else if (rx.total !== rx.marks) {
+      note('error', `查找的计数与高亮不一致：报 ${rx.total} 处，高亮 ${rx.marks} 个`)
+    }
+    if (rx.current !== 1) note('error', `当前命中标记 ${rx.current} 个（期望 1 个）`)
+
+    // 危险正则与语法错必须当场给出可读提示，而不是卡住/静默
+    await page.fill('.find-bar input', '(a+)+')
+    await page.waitForTimeout(350)
+    const risky = await page.evaluate(() => ({
+      text: document.querySelector('.find-count')?.textContent ?? '',
+      marks: document.querySelectorAll('mark.find-hit').length,
+    }))
+    if (!/复杂|risky|danger|complex/i.test(risky.text)) note('error', `嵌套量词正则没有被拒：${JSON.stringify(risky.text)}`)
+    if (risky.marks !== 0) note('error', '被拒的正则仍然标了高亮')
+
+    await page.fill('.find-bar input', '([')
+    await page.waitForTimeout(350)
+    const bad = await page.evaluate(() => document.querySelector('.find-count')?.textContent ?? '')
+    if (!/无效|invalid/i.test(bad)) note('error', `语法错的正则没有提示无效：${JSON.stringify(bad)}`)
+
+    // 区分大小写：同一个词，开/关要给出不同结果
+    await page.fill('.find-bar input', '')
+    await page.evaluate(() => document.querySelector('.find-regex')?.click())
+    await page.waitForTimeout(200)
+    await page.fill('.find-bar input', 'lector')
+    await page.waitForTimeout(350)
+    const loose = await page.evaluate(() => document.querySelector('.find-count')?.textContent ?? '')
+    await page.evaluate(() => document.querySelector('.find-case')?.click())
+    await page.waitForTimeout(350)
+    const strict = await page.evaluate(() => ({
+      text: document.querySelector('.find-count')?.textContent ?? '',
+      pressed: document.querySelector('.find-case')?.getAttribute('aria-pressed'),
+    }))
+    if (loose === strict.text) {
+      note('warn', `区分大小写开关没有改变结果（loose=${JSON.stringify(loose)} strict=${JSON.stringify(strict.text)}）：样本文档里可能恰好没有大小写差异`)
+    }
+    if (strict.pressed !== 'true') note('error', '区分大小写开关没有把 aria-pressed 置为 true')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+    note('info', `查找选项：${toggles} 个开关；正则 \\d+ 报 ${rx.total} 处、高亮 ${rx.marks} 个；危险/语法错均有提示`)
+  }
+
+  // 3.12) mermaid 调色板必须绑在主题 token 上
+  //
+  // 判据用「节点描边 == --primary 的计算值」而不是截图：这条错误是**配色不搭**，
+  // 看截图只能说"感觉不对"，而计算值是硬证据。曾经它整张图走 mermaid 自带调色板
+  // （浅色下 mediumpurple 描边 + #333 文字），背景跟了但整套配色没跟。
+  {
+    await page.goto(`${URL_ARG}?doc=mermaid`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(1400)
+    const pal = await page.evaluate(() => {
+      const svg = document.querySelector('.mermaid-svg svg')
+      const shape = svg?.querySelector('.node rect, .node polygon, .node path, rect.basic')
+      const stroke = shape ? getComputedStyle(shape).stroke : ''
+      const label = svg?.querySelector('.nodeLabel, .node text, text')
+      const fill = label ? getComputedStyle(label).fill : ''
+      const token = (n) => {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(n).trim()
+        return v ? `rgb(${v.split(/\s+/).join(', ')})` : ''
+      }
+      return { stroke, fill, primary: token('--primary'), fg: token('--foreground') }
+    })
+    if (!pal.stroke) note('warn', 'mermaid 图里没找到节点形状，跳过调色板检查')
+    else {
+      if (pal.stroke.startsWith('rgb') && pal.stroke !== pal.primary) {
+        note('error', `mermaid 节点描边 ${pal.stroke} ≠ 主题 --primary ${pal.primary}（调色板又回到 mermaid 自带了）`)
+      }
+      if (pal.fill.startsWith('rgb') && pal.fill !== pal.fg) {
+        note('error', `mermaid 节点文字 ${pal.fill} ≠ 主题 --foreground ${pal.fg}`)
+      }
+    }
+    note('info', `mermaid 配色：描边 ${pal.stroke || '—'} / 文字 ${pal.fill || '—'}（主题 primary ${pal.primary}，foreground ${pal.fg}）`)
+  }
+
+  // 3.13) 表格数字列右对齐
+  {
+    await page.goto(URL_ARG, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(700)
+    const cell = await page.evaluate(() => {
+      const td = document.querySelector(".reading-prose td[data-align='right']")
+      if (!td) return { missing: true, total: document.querySelectorAll('.reading-prose td').length }
+      return { align: getComputedStyle(td).textAlign, text: (td.textContent ?? '').trim() }
+    })
+    if (cell.missing) {
+      note('warn', `样本文档里没有数字单元格（共 ${cell.total} 个 td），跳过右对齐检查`)
+    } else if (cell.align !== 'right') {
+      note('error', `数字单元格 data-align 是 right，但计算样式是 ${cell.align}`)
+    } else {
+      note('info', `表格数字列右对齐生效：「${cell.text}」text-align=${cell.align}`)
+    }
+  }
+
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
