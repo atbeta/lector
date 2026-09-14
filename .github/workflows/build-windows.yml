@@ -40,6 +40,8 @@ jobs:
       # 不查这一条，v0.2.0 的 Release 里会躺着一个 Lector_0.1.0_x64-setup.exe，
       # 而且要等 Windows job 跑完三分钟才看得出来。
       - name: Tag matches the packaged version
+        # windows-latest 默认 shell=pwsh,不认 bash 的 `<<` heredoc。显式走 Git Bash。
+        shell: bash
         env:
           TAG: ${{ github.ref_name }}
         run: |
