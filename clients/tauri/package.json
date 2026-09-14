@@ -1,6 +1,6 @@
 {
   "name": "@lector/tauri",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Lector Tauri 2 薄壳（macOS + Windows）：单进程多窗口，文件关联，lector-file 协议"
