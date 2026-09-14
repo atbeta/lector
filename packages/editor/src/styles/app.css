@@ -809,13 +809,10 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: 2px;
   background: rgb(var(--primary));
 }
-/* 层级用「字重」再补一层：缩进管位置，字重管「这是第几级」。
-   窄侧栏被拖到 200px 时缩进会被挤没，字重还在。 */
+/* 大纲每一级**同字号**。曾经给 3 级及以下写过一条 --text-2xs（12px）的规则，
+   结果三级小节比一级还小——层级由缩进和字重表达就够了，字号一变小，
+   深处的标题反而更看不清，和「大纲是给人快速定位的」正好相反。 */
 .outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
-.outline-row[data-depth='3'],
-.outline-row[data-depth='4'],
-.outline-row[data-depth='5'],
-.outline-row[data-depth='6'] { font-size: var(--text-2xs); }
 .outline-empty {
   padding: 6px 8px;
   color: rgb(var(--subtle-foreground));
