@@ -67,12 +67,12 @@ html[data-theme='dark'] body {
 }
 
 /* ───────────── 滚动条 ─────────────
- * notefast 风格：默认完全隐形，悬停祖先时才浮现，500ms 后渐隐。
- * 之所以从「默认就显一截」改成「完全不显」：长文阅读时静态视觉里多一根
+ * 默认隐形，仅在「正在滚动」时短暂露出（main.ts 翻 html.is-scrolling 类，
+ * 停 600ms 后移除）。不悬停显、不常驻——长文阅读时静态视觉里多一根
  * 半透明条会跟文字抢层级，安静状态下越少越好。
  *
- * 形状参数：8px 总宽 + 2px 透明边框 = 4px 视觉滑块（够点击、够细）。
- * 颜色用 --foreground / 0.12（hover 容器时）和 0.22（hover 滑块本身），
+ * 形状参数：8px 总宽 + 2px 透明边框 = 4px 视觉滑块。
+ * 颜色用 --foreground / 0.3（滚动时显出）+ 0.4（鼠标在滑块上），
  * 跟主题绑定，不另设 token。
  *
  * 标准属性（scrollbar-width / scrollbar-color）与 ::-webkit-scrollbar 同时写是
@@ -81,9 +81,8 @@ html {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-/* :hover 沿祖先链传播——悬停容器内任意位置即显现其滑块 */
-html *:hover {
-  scrollbar-color: rgb(var(--foreground) / 0.14) transparent;
+html.is-scrolling {
+  scrollbar-color: rgb(var(--foreground) / 0.3) transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
@@ -97,20 +96,17 @@ html *:hover {
   border-radius: 99px;
   background-clip: content-box;
   border: 2px solid transparent;
-  /* 离开 500ms 后才渐隐——Chromium 对伪元素 transition 支持不稳，退化为立即隐藏也成立 */
-  transition: background-color 0.2s ease 0.5s;
+  transition: background-color 0.2s ease;
 }
-*:hover::-webkit-scrollbar-thumb {
-  background: rgb(var(--foreground) / 0.12);
+html.is-scrolling ::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.3);
   background-clip: content-box;
   border: 2px solid transparent;
-  transition-delay: 0s;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--foreground) / 0.22);
+  background: rgb(var(--foreground) / 0.45);
   background-clip: content-box;
   border: 2px solid transparent;
-  transition-delay: 0s;
 }
 ::-webkit-scrollbar-corner {
   background: transparent;

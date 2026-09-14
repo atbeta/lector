@@ -1879,10 +1879,20 @@ void (async () => {
   // 视图切换（换文档、点空白）时收起菜单
   window.addEventListener('lector:doc-changed', hideContextMenu)
   // 阅读位置 → 大纲高亮。挂在正文容器上（骨架里滚动发生在正文里）。
+  // 同步在滚动中给 html 加 is-scrolling 类，滚动停后 600ms 移除——
+  // 滚动条只在「正在滚」时短暂露出，其他时候隐形，干净。
   let spyTick = false
+  let scrollIdleTimer: number | null = null
   contentEl.addEventListener(
     'scroll',
     () => {
+      document.documentElement.classList.add('is-scrolling')
+      if (scrollIdleTimer !== null) clearTimeout(scrollIdleTimer)
+      scrollIdleTimer = window.setTimeout(() => {
+        document.documentElement.classList.remove('is-scrolling')
+        scrollIdleTimer = null
+      }, 600)
+
       if (spyTick) return
       spyTick = true
       requestAnimationFrame(() => {
