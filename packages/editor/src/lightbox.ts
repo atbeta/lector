@@ -64,11 +64,25 @@ function build(): void {
 }
 
 export function showInLightbox(src: string, alt: string): void {
+  openLightbox((z) => z.show(src, alt))
+}
+
+/**
+ * 图表（mermaid）放大：内联 SVG 标记，不转 data URL。
+ * 转成 <img src="data:image/svg+xml,..."> 看着等价，实则差一层：
+ * SVG 没有固有尺寸时 <img> 只能猜（浏览器会退到 300×150 那一档），
+ * 内联的 SVG 才能按 viewBox 精确适配，也才谈得上缩放。
+ */
+export function showSvgInLightbox(markup: string, label: string): void {
+  openLightbox((z) => z.showSvg(markup, label))
+}
+
+function openLightbox(paint: (z: ZoomView) => void): void {
   build()
   if (!overlay || !zoom || open) return
   open = true
   restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  zoom.show(src, alt)
+  paint(zoom)
   overlay.hidden = false
   // 锁滚动：浮层是模态的，背景跟着滚会让人失去位置感
   document.documentElement.classList.add('lightbox-open')

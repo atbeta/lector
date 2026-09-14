@@ -1408,20 +1408,38 @@ const summary = {
       svgW: Math.round(svg.getBoundingClientRect().width),
       boxW: Math.round(box.getBoundingClientRect().width),
       colW: Math.round(col.getBoundingClientRect().width),
+      // mermaid 把自然宽度写在 svg 的 inline max-width 上，用它判断「该图是否被压过」
+      natural: Number.parseFloat(/max-width:\s*([\d.]+)px/.exec(svg.getAttribute('style') ?? '')?.[1] ?? '0'),
     }
   })
   if (mmd.missing) {
     note('warn', 'mermaid 样例没有渲染出图，跳过尺寸检查')
   } else {
-    if (Math.abs(mmd.svgW - mmd.boxW) > 2 || mmd.boxW < mmd.colW * 0.9) {
-      note('error', `mermaid 图没有撑满正文栏：svg ${mmd.svgW}px / 容器 ${mmd.boxW}px / 栏宽 ${mmd.colW}px`)
+    // 正文里的图按 mermaid 的自然尺寸渲染（与 notefast 一致），只加「不超过栏宽」的上限。
+    // 所以这里不能要求「撑满栏宽」——那会把两个节点的图拉成一整屏；
+    // 要验的是「不溢出栏宽」且「不是小得看不清」。
+    if (mmd.boxW > mmd.colW + 2) {
+      note('error', `mermaid 图溢出正文栏：svg ${mmd.svgW}px / 容器 ${mmd.boxW}px / 栏宽 ${mmd.colW}px`)
+    }
+    if (mmd.svgW < 120) {
+      note('error', `mermaid 图小得离谱（${mmd.svgW}px）：多半是尺寸算错而不是图本身小`)
+    }
+    // 回归守卫：svg 的 width="100%" 需要有确定的父级宽度才有意义。
+    // 曾经中间层是 flex 项（宽度 = max-content），百分比失效，838px 的流程图被浏览器
+    // 退回 300px 的默认尺寸——图看着「莫名很小」，而 CSS 里查不出任何一条规则是错的。
+    if (mmd.natural > mmd.colW && mmd.svgW < mmd.colW * 0.95) {
+      note(
+        'error',
+        `宽图被压成 ${mmd.svgW}px（自然 ${mmd.natural}px > 栏宽 ${mmd.colW}px）：svg 的 width=100% 没有确定宽度可依`,
+      )
     }
     await page.click('.mermaid-diagram')
     await page.waitForTimeout(500)
     const lb = await page.evaluate(() => {
       const o = document.querySelector('.lightbox')
       const st = document.querySelector('.lb-media')
-      const img = document.querySelector('.lb-img')
+      // 图表走内联 SVG（notefast 同款），位图才是 <img>
+      const img = document.querySelector('.lb-media svg') ?? document.querySelector('.lb-img')
       const canvas = document.querySelector('.lb-canvas')
       if (!o || !st || !img || !canvas) return { missing: true }
       const norm = (c) => c.replace(/[ ,]+/g, ',')
@@ -1463,7 +1481,7 @@ const summary = {
       await page.waitForTimeout(300)
       const zoomed = await page.evaluate(() => ({
         readout: document.querySelector('.lb-zoom-readout')?.textContent,
-        w: Math.round(document.querySelector('.lb-img').getBoundingClientRect().width),
+        w: Math.round((document.querySelector('.lb-media svg') ?? document.querySelector('.lb-img')).getBoundingClientRect().width),
         fitVisible: !document.querySelector('.lb-tool--fit')?.hidden,
       }))
       const pct = Number.parseInt(zoomed.readout ?? '0', 10)
@@ -1497,7 +1515,7 @@ const summary = {
       if (fit !== '100%') note('error', `点「适应窗口」没回到 100%：${fit}`)
       note(
         'info',
-        `mermaid：默认 ${mmd.svgW}px（栏宽 ${mmd.colW}px）；放大后 ${lb.imgW}×${lb.imgH} 适配画布 ${lb.vw}×${lb.vh}；缩放→${zoomed.readout}→可拖动→复位`,
+        `mermaid：正文内 ${mmd.svgW}px（栏宽 ${mmd.colW}px）；放大后 ${lb.imgW}×${lb.imgH} 适配画布 ${lb.vw}×${lb.vh}；缩放→${zoomed.readout}→可拖动→复位`,
       )
     }
     await page.keyboard.press('Escape')

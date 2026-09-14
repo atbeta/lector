@@ -1264,20 +1264,26 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .mermaid-diagram:hover {
   border-color: rgb(var(--border-strong) / 0.6);
 }
+/* 外层 .mermaid-diagram 是 flex（居中 + 空态占位），所以这一层**必须显式撑满**：
+   flex 项的宽度默认是 max-content，而里面的 svg 写的是 width="100%"——
+   百分比遇到「宽度由内容决定」的父级会变成不确定，浏览器只能退回 300×150 那档
+   默认尺寸（实测：838px 宽的流程图被渲染成 300px，两个节点的图反倒正常 168px）。
+   给它 flex: 1 1 auto + min-width: 0，宽度就变成确定的，svg 的百分比才有意义。 */
 .mermaid-diagram .mermaid-svg {
-  display: block;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 100%;
+  overflow-x: auto;
 }
-/* mermaid 只设 max-width（useMaxWidth），小图就按自然尺寸渲染成一两百 px，
-   贴在 640px 的正文列里显得又小又孤。这里是矢量，撑满正文列才是阅读该有的样子——
-   尺寸这件事交给栏宽，读者不需要为每张图单独放大一次。
-   !important 是必须的：mermaid 会把 max-width 写在 svg 的行内 style 上。 */
+/* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
+   svg 上是 width="100%" + inline `max-width: 自然宽度`，两者合起来就是
+   min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
+   不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
 .mermaid-diagram .mermaid-svg svg {
-  width: 100% !important;
-  max-width: 100% !important;
+  max-width: 100%;
   height: auto;
-  /* mermaid 的 svg 本身是字体描边调过的，与页面 reading-font 不同；这里不覆写。 */
+  /* 自然尺寸小于栏宽时居中，而不是贴左 */
+  margin: 0 auto;
 }
 .mermaid-status {
   color: rgb(var(--subtle-foreground));

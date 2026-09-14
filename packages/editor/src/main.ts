@@ -48,7 +48,7 @@ import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from 
 import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
 import { mountTip } from './tip.ts'
-import { mountLightbox, showInLightbox } from './lightbox.ts'
+import { mountLightbox, showInLightbox, showSvgInLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
 import { renderEmptyState as renderEmptyStateView, renderLoadingState as renderLoadingStateView } from './loadState.ts'
 import {
@@ -1562,15 +1562,13 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
     host.appendChild(bar)
     host.appendChild(diagram)
 
-    // 点击放大：与 notefast 一样,点 mermaid 走 lightbox(渲染为 data:image/svg+xml;
-    // 不加 zoom 提示按钮,本身就是交互元素)。停上后由 outer-content click 统一处理返回。
+    // 点击放大：与 notefast 一致，把**内联的 SVG 标记**交给灯箱（不转 data URL）。
+    // 停上后由 outer-content click 统一处理返回。
     diagram.addEventListener('click', (e) => {
       e.stopPropagation()
       const svgEl = diagram.querySelector('svg')
       if (!svgEl) return
-      const svgString = new XMLSerializer().serializeToString(svgEl)
-      const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`
-      showInLightbox(dataUrl, 'mermaid')
+      showSvgInLightbox(new XMLSerializer().serializeToString(svgEl), 'mermaid')
     })
 
     const theme: 'light' | 'dark' =

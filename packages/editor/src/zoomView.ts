@@ -82,10 +82,18 @@ export interface ZoomViewOptions {
 
 export interface ZoomView {
   readonly root: HTMLElement
+  /** 位图：按 src 显示（含 data URL） */
   show(src: string, alt: string): void
+  /**
+   * 矢量：直接把 SVG 标记内联进来。
+   * 不转 data URL 塞 <img>——那样得到的是「一张图片」，SVG 会被当成没有固有尺寸
+   * 的图去猜尺寸，而内联的 SVG 才能按 viewBox 精确缩放（也才能让 mermaid 的
+   * inline max-width 被显式解开）。notefast 的灯箱同样是内联注入。
+   */
+  showSvg(markup: string, label: string): void
   /** 复位到「适配视口」（用户倍率 1.0） */
   reset(): void
-  /** 关闭时清掉 src 并复位 */
+  /** 关闭时清掉内容并复位 */
   clear(): void
   zoomBy(steps: number): void
   zoomed(): boolean
@@ -161,9 +169,27 @@ export function createZoomView(opts: ZoomViewOptions): ZoomView {
     root.dataset.zoomed = String(isZoomed)
   }
 
+  /** 从 svg 元素读设计尺寸：viewBox 优先，再非百分比 width/height，最后才用 layout 矩形。 */
+  function readSvgElementSize(svgEl: SVGSVGElement): { w: number; h: number } | null {
+    const vb = svgEl.viewBox?.baseVal
+    if (vb && vb.width > 0 && vb.height > 0) return { w: vb.width, h: vb.height }
+    const w = Number.parseFloat(svgEl.getAttribute('width') ?? '')
+    const h = Number.parseFloat(svgEl.getAttribute('height') ?? '')
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) return { w, h }
+    const r = svgEl.getBoundingClientRect()
+    return r.width > 0 && r.height > 0 ? { w: r.width, h: r.height } : null
+  }
+
   /** 重新测自然尺寸并重算适配倍率。开箱、换图、容器尺寸变化都要走一遍。 */
   function measure(): void {
-    const fromSource = svgNaturalSizeFromSource(img.src)
+    const svgEl = media.querySelector('svg')
+    if (svgEl) {
+      natural = readSvgElementSize(svgEl)
+      base = natural ? fitScale(natural.w, natural.h, root.clientWidth, root.clientHeight) : 1
+      apply()
+      return
+    }
+    const fromSource = svgNaturalSizeFromSource(img.getAttribute('src') ?? '')
     if (fromSource) {
       natural = fromSource
       base = fitScale(natural.w, natural.h, root.clientWidth, root.clientHeight)
@@ -194,6 +220,30 @@ export function createZoomView(opts: ZoomViewOptions): ZoomView {
         { once: true },
       )
     }
+  }
+
+  /**
+   * 内联一个 SVG 作为灯箱内容。
+   *
+   * 为什么不解开 mermaid 写的 inline max-width 就没法用：
+   * mermaid 会在 <svg style="max-width: Npx"> 上写明它的自然宽度（防止正文里撑破版心）。
+   * 灯箱按 viewBox 放大外框时，这条规则会把图形钉死在左上角，右边和下边全是空白。
+   * notefast 的 unlockSvgMaxSize 是同一件事。
+   */
+  function mountSvg(markup: string): SVGSVGElement | null {
+    const tmp = document.createElement('div')
+    tmp.innerHTML = markup
+    const svgEl = tmp.querySelector('svg')
+    if (!svgEl) return null
+    svgEl.setAttribute('width', '100%')
+    svgEl.setAttribute('height', '100%')
+    svgEl.style.setProperty('max-width', 'none', 'important')
+    svgEl.style.setProperty('max-height', 'none', 'important')
+    svgEl.style.setProperty('width', '100%', 'important')
+    svgEl.style.setProperty('height', '100%', 'important')
+    svgEl.style.display = 'block'
+    media.replaceChildren(svgEl)
+    return svgEl
   }
 
   const ro = new ResizeObserver(() => {
@@ -265,9 +315,10 @@ export function createZoomView(opts: ZoomViewOptions): ZoomView {
     apply()
   }
 
-  /** 关闭时清掉 src：data URL 可能是几百 KB 的 SVG 文本，留在 DOM 里没必要 */
+  /** 关闭 / 换内容时清掉 DOM，别把几百 KB 的 SVG 留在页面里 */
   function clear(): void {
     img.removeAttribute('src')
+    media.replaceChildren()
     natural = null
     zoom = 1
     root.scrollTop = 0
@@ -281,7 +332,19 @@ export function createZoomView(opts: ZoomViewOptions): ZoomView {
       zoom = 1
       natural = null
       img.alt = alt
+      media.replaceChildren(img)
       img.src = src
+      measure()
+      apply()
+      root.scrollTop = 0
+      root.scrollLeft = 0
+    },
+    showSvg(markup, label) {
+      zoom = 1
+      natural = null
+      img.removeAttribute('src')
+      img.alt = label
+      mountSvg(markup)
       measure()
       apply()
       root.scrollTop = 0
