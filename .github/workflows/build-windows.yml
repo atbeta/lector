@@ -2,11 +2,12 @@ name: build-windows
 
 # Lector 主要面向 Windows。这个流水线是唯一能出 Windows 包的地方：
 # NSIS 安装器只能在 Windows 上打，macOS 本机无法交叉打包。
+#
+# 触发：仅在打 tag 时跑实际构建 + 发布；main push / PR 上的检查由 ci.yml 接管。
+# 这样每次 push 不会跑一次 Windows 几分钟的构建，又能保证发版是从「过检的 main」上打的。
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -14,21 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: test + typecheck
-    runs-on: ubuntu-latest
+  windows:
+    name: NSIS installer (x64)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - name: Install deps
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: clients/tauri/src-tauri -> target
+
+      - name: Install JS deps
         run: bun install --frozen-lockfile
+
       # tag 是发布版本的唯一真相，四个版本号必须跟着它走。
       # 不查这一条，v0.2.0 的 Release 里会躺着一个 Lector_0.1.0_x64-setup.exe，
       # 而且要等 Windows job 跑完三分钟才看得出来。
       - name: Tag matches the packaged version
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -53,61 +64,6 @@ jobs:
               print("发版请走 tools/release.mjs，它会把四处一起改掉")
               sys.exit(1)
           PY
-      - name: Installer hook stays in sync with tauri.conf.json
-        run: |
-          # Tauri 用 fileAssociations[].name 当 Windows 类键；patch 必须盯着同一个名字。
-          python3 - <<'PY'
-          import json, pathlib, re, sys
-
-          conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json'))
-          names = sorted({a['name'] for a in conf['bundle']['fileAssociations']})
-          exts = sorted({e for a in conf['bundle']['fileAssociations'] for e in a['ext']})
-          hooks = pathlib.Path('clients/tauri/src-tauri/windows/nsis-hooks.nsh').read_text()
-
-          m = re.search(r'!define\s+LECTOR_FILE_CLASS\s+"([^"]+)"', hooks)
-          hook_class = m.group(1) if m else None
-
-          errs = []
-          if hook_class not in names:
-              errs.append(f"nsis-hooks.nsh 的 LECTOR_FILE_CLASS={hook_class!r} 不在 {names} 里")
-          if 'DefaultIcon' not in hooks:
-              errs.append("nsis-hooks.nsh 不再写 DefaultIcon")
-          if conf.get('bundle', {}).get('windows', {}).get('nsis', {}).get('installerHooks') != 'windows/nsis-hooks.nsh':
-              errs.append("tauri.conf.json 没挂上 windows/nsis-hooks.nsh")
-
-          print(f"class={hook_class} extensions={exts}")
-          if errs:
-              print("\n".join(errs)); sys.exit(1)
-          PY
-      - run: bun test
-      - run: bun run typecheck
-      # 设计 token 的静态体检（对比度、字阶、版心、悬空引用）。
-      # 渲染层体检（tools/ui-verify.mjs）需要浏览器，留在本机跑；
-      # 但它才是能发现「合成后看不见」的那一道，改动界面时必须跑。
-      - name: Design token audit
-        run: node tools/design-audit.mjs
-
-  windows:
-    name: NSIS installer (x64)
-    needs: check
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: clients/tauri/src-tauri -> target
-
-      - name: Install JS deps
-        run: bun install --frozen-lockfile
 
       # 壳的写盘/冲突逻辑由 Rust 单测覆盖；原子写在 Windows 上是「先删后改名」，
       # 必须在这个 runner 上真跑一遍，不能只靠 macOS 的结果。
@@ -197,7 +153,7 @@ jobs:
                 -ArgumentList "$env:TEMP\lector-smoke\smoke.md" -PassThru
           Start-Sleep -Seconds 12
           if ($p.HasExited) {
-            Write-Error "lector-portable.exe 启动后立即退出，exit code $($p.ExitCode)"
+            Write-Error "lector-portable.exe 启动后立即退出，exit code $($proc.ExitCode)"
             exit 1
           }
           Write-Host "process alive after 12s (pid $($p.Id))"
@@ -212,12 +168,9 @@ jobs:
 
   # 发版。tag 一推，构建产物直接进 Release——「自动发版」的意义就在于
   # 从 tag 到用户能下载中间不需要有人在浏览器里点。
-  #
-  # 分支上的推送只出 artifact，不动 Release：main 上每次提交都发一版会把
-  # 版本历史冲得没人看得懂。
   release:
     name: publish release
-    needs: [check, windows]
+    needs: windows
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

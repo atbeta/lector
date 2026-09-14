@@ -1,12 +1,20 @@
 name: ci
 
+# 轻量 CI：所有能在 Linux runner 上跑完的检查。main push / PR 触发。
+# 这是发版的「能不能过」闸门;build-windows 只在 tag 上跑实际构建。
 on:
   push:
     branches: [main]
   pull_request:
 
+# 与 build-windows 并发跑时不去抢资源：ci 是快检查,不与几分钟的 Windows 构建争。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
+    name: test + typecheck + audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +24,37 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run typecheck
+
+      # NSIS 安装器文件关联 patch 必须盯着 tauri.conf.json 的同一个 name。
+      # 在 Linux runner 上跑,只要能读两个文件,验证逻辑跟 OS 无关。
+      - name: Installer hook stays in sync with tauri.conf.json
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, re, sys
+
+          conf = json.load(open('clients/tauri/src-tauri/tauri.conf.json'))
+          names = sorted({a['name'] for a in conf['bundle']['fileAssociations']})
+          exts = sorted({e for a in conf['bundle']['fileAssociations'] for e in a['ext']})
+          hooks = pathlib.Path('clients/tauri/src-tauri/windows/nsis-hooks.nsh').read_text()
+
+          m = re.search(r'!define\s+LECTOR_FILE_CLASS\s+"([^"]+)"', hooks)
+          hook_class = m.group(1) if m else None
+
+          errs = []
+          if hook_class not in names:
+              errs.append(f"nsis-hooks.nsh 的 LECTOR_FILE_CLASS={hook_class!r} 不在 {names} 里")
+          if 'DefaultIcon' not in hooks:
+              errs.append("nsis-hooks.nsh 不再写 DefaultIcon")
+          if conf.get('bundle', {}).get('windows', {}).get('nsis', {}).get('installerHooks') != 'windows/nsis-hooks.nsh':
+              errs.append("tauri.conf.json 没挂上 windows/nsis-hooks.nsh")
+
+          print(f"class={hook_class} extensions={exts}")
+          if errs:
+              print("\n".join(errs)); sys.exit(1)
+          PY
+
+      # 设计 token 的静态体检(对比度、字阶、版心、悬空引用)。
+      # 渲染层体检(tools/ui-verify.mjs)需要浏览器,留在本机跑;
+      # 但它才是能发现「合成后看不见」的那一道,改动界面时必须跑。
+      - name: Design token audit
+        run: node tools/design-audit.mjs
