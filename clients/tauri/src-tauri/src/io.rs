@@ -534,7 +534,7 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
   // 顺序是必须的：window-state 的自动恢复发生在窗口就绪之后，若此刻窗口已可见，
   // 用户会看到「小窗口闪一下 → 跳到最大化」。显式调用把顺序钉死（restore 与 show
   // 在同一个同步块里，中间不会插进一次绘制），与插件的自动恢复幂等。
-  let _ = win.restore_state(StateFlags::all());
+  let _ = win.restore_state(StateFlags::all() & !StateFlags::MAXIMIZED);
   let _ = win.show();
   Ok(win)
 }

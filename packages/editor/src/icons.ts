@@ -28,6 +28,8 @@ const PATHS: Record<string, string> = {
   // 外观（排版）：大 A 小 a 的抽象，比太阳/月亮更贴近「明暗 + 阅读主题」这件事
   type: `<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>`,
   // 选中：对勾
+  // 复制：两张叠起来的纸（feather 同款）
+  copy: `<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>`,
   check: `<polyline points="20 6 9 17 4 12"/>`,
   // 回到只读：锁
   lock: `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,

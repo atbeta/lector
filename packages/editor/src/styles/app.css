@@ -160,7 +160,7 @@ button, a, input, [role='slider'], [role='switch'] {
 #titlebar.scrolled {
   box-shadow: var(--shadow-header);
   background: color-mix(in srgb, rgb(var(--shell)) 82%, transparent);
-  backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(7px) saturate(1.15);
 }
 
 /* ───────────── 顶栏三段：导航 / 标题 / 操作 ─────────────
@@ -780,7 +780,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: var(--radius-btn);
   background: transparent;
   color: rgb(var(--muted-foreground));
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -1073,15 +1073,21 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   line-height: 1.6;
 }
 .reading-prose th, .reading-prose td {
-  padding: 9px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgb(var(--border-subtle));
   text-align: left;
 }
+/* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
+   灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
+   而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
+   层级交给底色与字重，线只负责分隔，统一用 border。 */
 .reading-prose th {
   font-weight: 600;
   font-size: var(--text-xs);
-  color: rgb(var(--muted-foreground));
-  border-bottom: 1px solid rgb(var(--border-strong));
+  color: rgb(var(--foreground));
+  background: rgb(var(--muted) / 0.55);
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid rgb(var(--border));
 }
 .reading-prose tbody tr:last-child td { border-bottom: none; }
 .reading-prose tbody tr:hover { background: rgb(var(--muted) / 0.35); }
@@ -1211,29 +1217,36 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 0;
+  /* 头部行：真实高度、真实内边距，而不是「0 高度 + top 位移」贴在代码第一行上。
+     旧写法高度为 0、靠 top: 8px 把语言标和复制按钮压在代码上，块一窄它们就被挤出框。
+     现在它自己占一行，语言在左、复制在右，不再和代码抢位置。 */
+  height: 26px;
   padding: 0 2px;
   position: relative;
-  top: 8px;
   justify-content: flex-end;
-  opacity: 0;
+  opacity: 1;
   transition: opacity var(--motion-fast) var(--ease-standard);
-  pointer-events: none;
+  pointer-events: auto;
 }
 .block:hover .code-bar,
 .block.focused .code-bar { opacity: 1; pointer-events: auto; }
 .code-lang {
   margin-right: auto;
-  padding-left: 12px;
+  padding: 1px 8px;
   color: rgb(var(--subtle-foreground));
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   letter-spacing: 0.02em;
   text-transform: lowercase;
+  background: rgb(var(--muted) / 0.6);
+  border-radius: 99px;
 }
 .code-copy {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
   height: 22px;
-  padding: 0 8px;
+  padding: 0;
   border: 1px solid rgb(var(--border));
   border-radius: 99px;
   background: rgb(var(--popover));
@@ -1250,8 +1263,8 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-color: rgb(var(--border-strong) / 0.6);
   background: rgb(var(--accent));
 }
-/* 代码块上沿留出工具条的位置，避免悬停时浮层压住第一行代码 */
-.block[data-kind='code'] .reading-prose pre { margin-top: 6px; }
+/* 头部行已经占位，代码不再需要额外的上边距来避让 */
+.block[data-kind='code'] .reading-prose pre { margin-top: 0; }
 
 /* ───────────── Mermaid 图表 ─────────────
  * 走常规的 code-bar + diagram 两层结构：工具条还是复制/标语言，
