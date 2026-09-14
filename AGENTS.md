@@ -15,7 +15,7 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
 
 - **内核 = 源码切片 IR**：micromark/mdast 解析（带 `position`），块级切片；未聚焦块自绘预览 DOM，聚焦块挂一个**裸 CodeMirror 6**（禁 `Decoration.replace` widget）只编该块源码。
 - **禁止**：整页 CM 装饰（HyperMD 老路）、ProseMirror/Milkdown 当文档模型、Vditor 当内核、默认整篇 `remark-stringify`、Rust/GPUI 重写内核。
-- **壳 = Tauri 2 双端**（macOS + Windows）。壳只做：文件对话框、文件关联、窗口管理、拖放、原子写盘、外部变更监听。文件 IO 走壳 IPC，Web 层不能读任意路径。
+- **壳 = Tauri 2 双端**（macOS + Windows）。壳只做：文件对话框、文件关联、窗口管理、拖放、原子写盘、外部变更监听、以及**执行用户配置的图床上传命令**（图片命令模式专用；std::process::Command 不过 shell、不传额外环境变量、stdout 首个 http(s) URL 视为结果、失败静默降级本地副本）。文件 IO 走壳 IPC，Web 层不能读任意路径。
 - Windows 关联文件图标用 NSIS 安装脚本写注册表 `HKCR\<ProgID>\DefaultIcon` 解决（Tauri 官方不支持，自行补丁）。
 - 相对图片只允许已打开文件的目录树内（防路径穿越）；预览不执行 md 里的 HTML/script。
 
@@ -54,4 +54,4 @@ lector/
 1. 应用已在跑时双击普通 md，看见正文 < 300ms；冷启动 < 1.5s（做不到就先纯文本降级再切 IR）。
 2. ⌘S / Ctrl+S 写回同一路径，未改段落字节级一致。
 3. 中文 IME 段落内输入不丢字、候选窗跟光标。
-4. 粘贴/拖入图片写 md 同目录或 `./images/`，正文插相对路径，不进任何库。
+4. 粘贴/拖入图片写 md 同目录或 `./images/`（默认模式）/ `./<文档名>.assets/`（assets 模式），正文插相对路径；图床命令模式则把命令返回的 http(s) URL 写进正文，但本地副本始终在 `assets/` 兜底——任何模式下都不进任何库。

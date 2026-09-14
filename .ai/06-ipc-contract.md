@@ -117,13 +117,39 @@ invoke('bind_document', { path: string }) → boolean
 
 ### `save_image`
 
-把位图写到该文档同目录 `images/`，返回正斜杠相对路径。仅当 `path` 已 bind / 在路径表中。文件名由壳再消毒；重名自动加 `-2`。
+把位图写到该文档同目录的子目录下，返回正斜杠相对路径和落盘绝对路径。仅当 `path` 已 bind / 在路径表中。文件名由壳再消毒；重名自动加 `-2`。
+`subdir` 缺省 `images`（保持老行为）；指定时必须是单段相对路径——拒 `..`、分隔符、盘符。
 
 ```ts
-invoke('save_image', { docPath: string, filename: string, bytesBase64: string }) → {
-  relative_path: string
+invoke('save_image', {
+  docPath: string,
+  filename: string,
+  bytesBase64: string,
+  subdir?: string | null,   // 单一子目录，缺省 'images'
+}) → {
+  relative_path: string,   // 永远正斜杠，便于直接写进 md
+  abs_path: string | null,  // 给命令模式用：把图床命令的 <image_path> 指着这里
 }
 ```
+
+### `run_image_command`（图片命令模式专用）
+
+**不是 Web 层随手可调的任意 shell**：这条命令是用户在「图片 → 命令模式」里**显式**配置的退路，所以壳只给它一条很窄的输入：可执行名 + 固定参数 + 图片绝对路径，没有环境变量、没有 shell。
+
+契约：`executable [args…] <image_path>` → stdout 首行 http(s) URL 视为结果；非零退出/超时/无 URL 都算失败。失败由 Web 端静默降级为本地副本，正文写相对路径。Windows `CREATE_NO_WINDOW` 隐藏命令窗口。
+
+```ts
+invoke('run_image_command', {
+  executable: string, args: string[], image_path: string, timeout_ms: number,
+}) → {
+  ok: boolean, url: string | null, error: string | null,
+  stdout: string, stderr: string, exit_code: number | null,
+}
+```
+
+### `test_image_command`
+
+设置面板「测试命令」按钮：壳生成一个 1×1 PNG 喂给命令，看 stdout 能否拿到 URL，不落任何库。参数同上，不传 `image_path`。
 
 ### `load_settings` / `save_settings`
 
