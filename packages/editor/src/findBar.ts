@@ -1,6 +1,7 @@
 import type { BlockView } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
+import { applyFindHighlight, clearFindHighlight, focusFindHit } from './findHighlight.ts'
 
 export interface FindHost {
   getBlocks: () => BlockView[]
@@ -52,21 +53,71 @@ export function findBar(host: FindHost) {
       .filter((m) => m.count > 0)
   }
 
-  function refresh() {
-    const ms = matches()
-    const total = ms.reduce((a, m) => a + m.count, 0)
-    count.textContent = total === 0 ? t('noResults') : t('matchCount', { n: total })
-    for (const m of ms) host.scrollTo(m.id)
+  /**
+   * 命中展开成「按处」的列表：{块, 块内第几个}。
+   *
+   * 旧版是按**块**跳转的——一个块里有 5 处命中，翻页时却只跳一次，
+   * 用户按下一处会「卡住不动」；而且计数只报总数，看不出现在是第几处。
+   * 查找的最小单位是「一处命中」，不是「一个块」。
+   */
+  function occurrences(): Array<{ id: string; nth: number }> {
+    const out: Array<{ id: string; nth: number }> = []
+    for (const m of matches()) {
+      for (let i = 0; i < m.count; i++) out.push({ id: m.id, nth: i })
+    }
+    return out
   }
 
-  function goto(dir: 1 | -1) {
+  /** 正文容器：高亮只落在正文区，不碰顶栏/侧栏/浮层 */
+  const contentRoot = (): HTMLElement => document.getElementById('content') ?? document.body
+
+  function blockEl(id: string): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`#content .block[data-block-id="${id}"]`)
+  }
+
+  /** 高亮 + 把第 cursor 处标成当前（找不到就退回第 0 处） */
+  function paint(list: Array<{ id: string; nth: number }>): void {
+    applyFindHighlight(contentRoot(), q.value)
+    const target = list[cursor]
+    if (!target) return
+    const el = blockEl(target.id)
+    if (el) focusFindHit(el, target.nth)
+  }
+
+  function updateCount(total: number): void {
+    if (total === 0) {
+      count.textContent = t('noResults')
+      return
+    }
+    // 「第几处 / 共几处」：只有总数时，用户不知道自己走到哪了
+    count.textContent = t('matchPosition', { i: cursor + 1, n: total })
+  }
+
+  function refresh(): void {
     const ms = matches()
-    if (ms.length === 0) {
+    const total = ms.reduce((a, m) => a + m.count, 0)
+    if (cursor >= total) cursor = 0
+    updateCount(total)
+    for (const m of ms) host.scrollTo(m.id)
+    // 空查询时先把上一轮的标记拆干净（否则残留在正文里）
+    if (total === 0) clearFindHighlight(contentRoot())
+    else paint(occurrences())
+  }
+
+  function goto(dir: 1 | -1): void {
+    const list = occurrences()
+    if (list.length === 0) {
       refresh()
       return
     }
-    cursor = (cursor + dir + ms.length) % ms.length
-    host.scrollTo(ms[cursor]!.id)
+    cursor = (cursor + dir + list.length) % list.length
+    updateCount(list.length)
+    const target = list[cursor]!
+    host.scrollTo(target.id)
+    const el = blockEl(target.id)
+    if (el) focusFindHit(el, target.nth)
+    // scrollTo 会触发重绘时标记会被清掉，重画一次兜住
+    paint(list)
   }
 
   q.addEventListener('input', () => {
@@ -86,6 +137,8 @@ export function findBar(host: FindHost) {
     refresh()
   })
   close.addEventListener('click', () => {
+    // 关掉查找就把标记拆干净：留在正文里的黄色块会让人以为文档里真有高亮
+    clearFindHighlight(contentRoot())
     bar.remove()
     document.removeEventListener('keydown', onKey)
   })

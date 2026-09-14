@@ -527,7 +527,14 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
       // x=20 是 macOS 惯例（第一颗按钮距左边缘 20pt），顶栏左内边距留了 80px 给它。
       .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
   }
-  builder.build()
+  let win = builder.build()?;
+  // 恢复上次的尺寸/位置/最大化，然后才让它露面。
+  // 顺序是必须的：window-state 的自动恢复发生在窗口就绪之后，若此刻窗口已可见，
+  // 用户会看到「小窗口闪一下 → 跳到最大化」。显式调用把顺序钉死，
+  // 与插件的自动恢复幂等，不会重复应用。
+  let _ = win.restore_state(tauri_plugin_window_state::StateFlags::all());
+  let _ = win.show();
+  Ok(win)
 }
 
 /// 监听文件所在目录，变化时 emit lector:file-changed。

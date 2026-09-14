@@ -1704,6 +1704,20 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-header .btn-icon { margin-left: auto; }
 .modal-body { padding: 0; }
 
+/* ───────────── 查找命中 ─────────────
+ * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
+.find-hit {
+  border-radius: 2px;
+  padding: 0 1px;
+  background: rgb(var(--primary) / 0.18);
+  color: inherit;
+}
+.find-hit--current {
+  background: rgb(var(--primary) / 0.42);
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.5);
+}
+
 /* ───────────── 选区浮条（编辑态） ─────────────
  * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，
  * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），

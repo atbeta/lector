@@ -104,7 +104,10 @@ export async function save(
 ): Promise<SaveResult> {
   if (detectEnv() === 'shell') {
     const { invoke } = await tauriApi()
-    return invoke<SaveResult>('write_file', { path, content, mtime_ms, force })
+    // 参数名必须 camelCase：Tauri v2 的命令参数默认按 camelCase 反序列化，
+    // 传 mtime_ms 会得到「invalid args `mtimeMs` for command `write_file`」——
+    // 报错里说的是 Rust 期望的名字（camelCase），所以看到 mtime_ms 反而以为是对的。
+    return invoke<SaveResult>('write_file', { path, content, mtimeMs: mtime_ms, force })
   }
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)

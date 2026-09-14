@@ -102,7 +102,9 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, uiZoom: v })),
     (n) => `${n}%`,
   )
-  appearance.appendChild(row(t('uiZoom'), zoomSlider.root))
+  // 必须用 cellRow：滑块的读数是与 root 平级的独立元素（见 ui.ts 的 Slider），
+  // 用 row() 只挂 root，百分比就永远不显示——用户完全看不出线停在哪一档。
+  appearance.appendChild(cellRow(t('uiZoom'), zoomSlider))
   appearance.appendChild(row(t('readingFont'), font.root))
 
   const fontSlider = Slider(
