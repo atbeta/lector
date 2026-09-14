@@ -62,6 +62,53 @@ export function sidecarRelPath(fileName: string): string {
   return `images/${fileName}`
 }
 
+/**
+ * 展开图片目录模板为「相对文档目录」的一块路径（单段，无分隔符）。
+ * 支持 `{filename}`（文档基名去扩展名）；其余原样保留。
+ * 模板非法（空/含路径分隔/穿越段/纯 `{filename}` 展开后为空）→ null，调用方回退 images/。
+ */
+export function expandImageDir(
+  template: string,
+  mdStem: string | null,
+): string | null {
+  const t = template?.trim() ?? ''
+  if (t === '' || t.includes('..') || /[\\/]/.test(t)) return null
+  const expanded = t
+    .replace(/\{filename\}/g, mdStem?.trim() ? mdStem.trim() : 'untitled')
+    .replace(/[^ \w.\u4e00-\u9fff-]+/gu, '')
+  if (expanded.trim() === '' || expanded.includes('..') || /[\\/]/.test(expanded)) return null
+  return expanded
+}
+
+/**
+ * 引号感知地拆分用户填的「完整命令」：`picgo upload` 或 `"D:\My Tools\x.exe" -d`。
+ * 返回可执行名 + 前置参数（图片路径由调用方追加在最后）。
+ */
+export function splitUploadCommand(input: string): { command: string; preArgs: string[] } {
+  const trimmed = input.trim()
+  if (!trimmed) return { command: '', preArgs: [] }
+  const parts: string[] = []
+  let cur = ''
+  let inQuote = false
+  for (const ch of trimmed) {
+    if (ch === '"') {
+      inQuote = !inQuote
+      continue
+    }
+    if (ch === ' ' && !inQuote) {
+      if (cur) {
+        parts.push(cur)
+        cur = ''
+      }
+      continue
+    }
+    cur += ch
+  }
+  if (cur) parts.push(cur)
+  if (parts.length === 0) return { command: '', preArgs: [] }
+  return { command: parts[0] as string, preArgs: parts.slice(1) }
+}
+
 export function imageMarkdown(relPath: string, alt = ''): string {
   return `![${alt}](${relPath})`
 }
@@ -71,16 +118,23 @@ export function insertAt(text: string, offset: number, chunk: string): { text: s
   return { text: text.slice(0, o) + chunk + text.slice(o), caret: o + chunk.length }
 }
 
-/** 拖入文件只留 basename；空格改成 -；拒绝非图片扩展与逃逸。 */
+/** 拖入文件只留 basename；空格/非法字符改成 -；拒绝非图片扩展与逃逸。
+ *  与旧版只认 `[A-Za-z0-9._-]` 的差异：保留中文/全角字符——生活里拖进来最多的
+ *  就是「截图_2026.png」这种名字，硬把中文全剔掉会得到 `pasted-<时间戳>.png`。 */
 export function safeDropName(original: string): string | null {
   const base = original.replace(/\\/g, '/').split('/').pop() ?? ''
   const trimmed = base.trim()
   if (!trimmed || trimmed === '.' || trimmed === '..') return null
   const dot = trimmed.lastIndexOf('.')
   if (dot <= 0) return null
-  const stem = trimmed.slice(0, dot).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
   const ext = trimmed.slice(dot + 1).toLowerCase()
-  if (!stem || !IMAGE_EXT.has(ext)) return null
+  if (!IMAGE_EXT.has(ext)) return null
+  // 保留：拉丁、数字、CJK 等非 ASCII Letter、`-._`；其余（空格、符号）→ `-`。
+  const stem = trimmed
+    .slice(0, dot)
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+  if (!stem) return null
   return `${stem}.${ext}`
 }
 
