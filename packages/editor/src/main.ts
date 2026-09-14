@@ -24,6 +24,7 @@ import {
   read,
   save,
   watch,
+  type SaveResult,
   takePendingOpen,
   bindDocument,
   saveImage,
@@ -1689,7 +1690,17 @@ async function persistToDisk(force = false): Promise<boolean> {
   finalizeFocused()
   const normalized = serialize(session.blocks)
   const finalText = applyEncoding(session.source, normalized)
-  const res = await save(session.source.path, finalText, session.source.mtimeMs, force)
+  let res: SaveResult
+  try {
+    res = await save(session.source.path, finalText, session.source.mtimeMs, force)
+  } catch (err) {
+    // 壳「权限拒绝 / 磁盘满 / 文件被占用」等错误不包不能废——
+    // 错误字符串原样透传过来（shell-web ADR-1 语义：reject 原样抛），会进 toString。
+    // 这里只在原来吞掉 void() 路径上加一层人看的提示。
+    console.error('[lector] save failed', err)
+    showToast(`${t('saveFailed')}：${String(err)}`)
+    return false
+  }
   if (res.conflict) {
     const choice = await chooseConflict()
     if (choice === 'reload') {
@@ -1753,7 +1764,7 @@ async function saveAsFlow() {
     showToast(t('saved'))
   } catch (err) {
     console.error('[lector] save-as failed', err)
-    showToast(t('saveFailed'))
+    showToast(`${t('saveFailed')}：${String(err)}`)
   }
 }
 
