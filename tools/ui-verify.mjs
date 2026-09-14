@@ -1420,30 +1420,85 @@ const summary = {
     await page.waitForTimeout(500)
     const lb = await page.evaluate(() => {
       const o = document.querySelector('.lightbox')
-      const st = document.querySelector('.lightbox-stage')
-      const img = document.querySelector('.lightbox-img')
-      if (!o || !st || !img) return { missing: true }
+      const st = document.querySelector('.lb-media')
+      const img = document.querySelector('.lb-img')
+      const canvas = document.querySelector('.lb-canvas')
+      if (!o || !st || !img || !canvas) return { missing: true }
       const norm = (c) => c.replace(/[ ,]+/g, ',')
       return {
-        kind: o.dataset.kind,
         imgW: Math.round(img.getBoundingClientRect().width),
         imgH: Math.round(img.getBoundingClientRect().height),
-        vw: window.innerWidth,
-        vh: window.innerHeight,
+        vw: canvas.clientWidth,
+        vh: canvas.clientHeight,
         stageBg: norm(getComputedStyle(st).backgroundColor),
         paper: norm(`rgb(${getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()})`),
+        readout: document.querySelector('.lb-zoom-readout')?.textContent,
+        tools: document.querySelectorAll('.lb-tool').length,
       }
     })
-    if (lb.missing) note('error', '点 mermaid 图没有打开放大浮层')
+    if (lb.missing) note('error', '点 mermaid 图没有打开放大浮层（.lb-canvas / .lb-media / .lb-img 缺一）')
     else {
-      if (lb.kind !== 'vector') note('error', `放大浮层的图类型是 ${lb.kind}（mermaid 应当按矢量处理）`)
-      if (lb.imgW < lb.vw * 0.5 || lb.imgH > lb.vh) {
-        note('error', `放大后的尺寸不对：图 ${lb.imgW}×${lb.imgH}，屏幕 ${lb.vw}×${lb.vh}`)
+      // 默认必须「适配视口」。判据是**至少一维**吃满 88% 填充率，另一维按比例即可：
+      // 宽高比 4:1 的流程图适配后本来就该是「宽度铺满、高度只有两百多」——
+      // 用「两维都要占一半」去卡，会把正确的适配判成失败（宽图必然不满足）。
+      const fill = Math.max(lb.imgW / lb.vw, lb.imgH / lb.vh)
+      if (fill < 0.85) {
+        note('error', `放大后没有适配视口（最大填充率 ${fill.toFixed(2)}）：图 ${lb.imgW}×${lb.imgH}，画布 ${lb.vw}×${lb.vh}`)
+      }
+      if (lb.imgW > lb.vw || lb.imgH > lb.vh) {
+        note('error', `放大后超出画布：图 ${lb.imgW}×${lb.imgH}，画布 ${lb.vw}×${lb.vh}`)
       }
       if (lb.stageBg !== lb.paper) {
-        note('error', `放大浮层的背景没有跟主题：舞台 ${lb.stageBg}，纸面 ${lb.paper}`)
+        note('error', `放大浮层的背景没有跟主题：媒体框 ${lb.stageBg}，纸面 ${lb.paper}`)
       }
-      note('info', `mermaid：默认 ${mmd.svgW}px（栏宽 ${mmd.colW}px），放大后 ${lb.imgW}×${lb.imgH}，背景 ${lb.stageBg}`)
+      if (lb.readout !== '100%') note('error', `打开时应是 100%（= 适配视口），读到 ${lb.readout}`)
+      if (lb.tools < 3) note('error', `缩放工具条不全：只有 ${lb.tools} 个控件`)
+
+      // 缩放 + 平移：Ctrl/⌘+滚轮改倍率，拖动改滚动位置
+      const canvasBox = await page.locator('.lb-canvas').boundingBox()
+      await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2)
+      await page.keyboard.down('Control')
+      await page.mouse.wheel(0, -240)
+      await page.keyboard.up('Control')
+      await page.waitForTimeout(300)
+      const zoomed = await page.evaluate(() => ({
+        readout: document.querySelector('.lb-zoom-readout')?.textContent,
+        w: Math.round(document.querySelector('.lb-img').getBoundingClientRect().width),
+        fitVisible: !document.querySelector('.lb-tool--fit')?.hidden,
+      }))
+      const pct = Number.parseInt(zoomed.readout ?? '0', 10)
+      if (!(pct > 100)) note('error', `Ctrl+滚轮没有放大：读数 ${zoomed.readout}`)
+      if (zoomed.w <= lb.imgW) note('error', `放大后图片宽度没变：${lb.imgW} → ${zoomed.w}`)
+      if (!zoomed.fitVisible) note('error', '放大后没有出现「适应窗口」按钮（回不去了）')
+
+      const before = await page.evaluate(() => ({
+        x: document.querySelector('.lb-canvas').scrollLeft,
+        y: document.querySelector('.lb-canvas').scrollTop,
+      }))
+      await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(canvasBox.x + canvasBox.width / 2 - 120, canvasBox.y + canvasBox.height / 2 - 60, { steps: 8 })
+      await page.mouse.up()
+      await page.waitForTimeout(250)
+      const after = await page.evaluate(() => ({
+        x: document.querySelector('.lb-canvas').scrollLeft,
+        y: document.querySelector('.lb-canvas').scrollTop,
+        open: !document.querySelector('.lightbox')?.hidden,
+      }))
+      if (!after.open) note('error', '拖动之后浮层被误关了（拖动的终点不该当成「点空白」）')
+      else if (after.x === before.x && after.y === before.y) {
+        note('error', `拖动没有平移画布：scroll ${before.x},${before.y} 没变`)
+      }
+
+      // 复位
+      await page.click('.lb-tool--fit')
+      await page.waitForTimeout(250)
+      const fit = await page.evaluate(() => document.querySelector('.lb-zoom-readout')?.textContent)
+      if (fit !== '100%') note('error', `点「适应窗口」没回到 100%：${fit}`)
+      note(
+        'info',
+        `mermaid：默认 ${mmd.svgW}px（栏宽 ${mmd.colW}px）；放大后 ${lb.imgW}×${lb.imgH} 适配画布 ${lb.vw}×${lb.vh}；缩放→${zoomed.readout}→可拖动→复位`,
+      )
     }
     await page.keyboard.press('Escape')
   }

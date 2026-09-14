@@ -31,8 +31,6 @@ export interface Sidebar {
   toggle(): void
   mode(): SidebarMode
   sync(): void
-  /** 侧栏标题右侧的小节计数（0 时留空，不显示「0 节」这种废话）。 */
-  setCount(n: number): void
 }
 
 function readPref(): boolean | null {
@@ -118,9 +116,9 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   head.className = 'sidebar-head'
   const headLabel = document.createElement('span')
   headLabel.textContent = t('outlineTitle')
-  const headCount = document.createElement('span')
-  headCount.className = 'sidebar-count'
-  head.append(headLabel, headCount)
+  // 标题右侧原本挂了一个「节数」。它没有信息量：一列目录里的条目是看得见的，
+  // 数一遍就能数出来，而这个数字既不能点也不能筛选，只是常驻的噪音——去掉。
+  head.append(headLabel)
 
   const body = document.createElement('div')
   body.className = 'sidebar-body'
@@ -250,8 +248,5 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     toggle: () => setOpen(!open),
     mode,
     sync: apply,
-    setCount: (n) => {
-      headCount.textContent = n > 0 ? String(n) : ''
-    },
   }
 }

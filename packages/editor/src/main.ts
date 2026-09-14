@@ -399,7 +399,6 @@ function renderOutline() {
   sidebar.body.innerHTML = ''
   outlineRows.clear()
   outlineNodes.clear()
-  sidebar.setCount(headings.length)
   if (headings.length === 0) {
     const p = document.createElement('p')
     p.className = 'outline-empty'

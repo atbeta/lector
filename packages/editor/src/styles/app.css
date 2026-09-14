@@ -713,12 +713,6 @@ html.sidebar-resizing { cursor: col-resize; user-select: none; }
   letter-spacing: 0.06em;
   color: rgb(var(--subtle-foreground));
 }
-.sidebar-count {
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-transform: none;
-  letter-spacing: 0;
-}
 html[data-shell='macos'] .sidebar-body { padding-top: 12px; }
 
 /* 浮层模式：窄窗口下的退化形态 */
@@ -1432,54 +1426,181 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   background: rgb(var(--border-subtle));
 }
 
-/* ───────────── 图片放大（lightbox） ─────────────
- * 两层：遮罩（暗掉页面）+ 舞台（图与它下面那张纸）。
- * 舞台必须垫纸：mermaid 的 SVG 没有背景矩形，直接放在半透明遮罩上，
- * 放大后就是一张悬空的线条图，看着像背景丢了。垫一层随主题走的纸（浅色白、深色深灰），
- * 顺带给照片一个画框。 */
+/* ───────────── 滚动条：细、默认隐形、悬停才现身 ─────────────
+ * 浏览器默认滚动条（十几 px、常驻、带轨道）在阅读器里是一道持续的竖线，
+ * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出现。
+ * 可见宽度 = 8px 轨道减掉两侧各 2px 透明边框 = 4px——像纸边的一根细线，但仍好抓。
+ * Chromium 对滚动条伪元素的 transition 支持不稳，退化成「立即隐藏」也成立。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+/* :hover 沿祖先链传播：悬停容器内任意位置即显现它的滑块（Firefox 即时切换，不可过渡） */
+*:hover {
+  scrollbar-color: rgb(var(--foreground) / 0.14) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition: background-color 0.2s ease 0.5s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.12);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--foreground) / 0.22);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ───────────── 图片 / 图表放大（lightbox） ─────────────
+ * 两层职责：
+ *   遮罩（.lightbox）= 暗掉页面 + 承载 HUD 与工具条；
+ *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
+ * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
+ * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
+ * 于是「小图居中、大图可拖」是同一段 CSS 的结果。详见 zoomView.ts。 */
 .lightbox {
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: grid;
-  place-items: center;
-  padding: 4vmin;
   background: rgb(var(--overlay) / 0.72);
   backdrop-filter: blur(6px);
   animation: fade-in var(--motion-fast) var(--ease-enter) both;
-  cursor: zoom-out;
 }
 .lightbox[hidden] { display: none; }
-.lightbox-stage {
-  display: grid;
-  place-items: center;
-  max-width: 100%;
-  max-height: 100%;
-  padding: 10px;
+.lb-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  /* 滚动条出现时不要挤压画布，否则打开瞬间图会跳一下 */
+  scrollbar-gutter: stable;
+}
+.lb-canvas.lb-grabbing { cursor: grabbing; }
+.lb-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 4vmin;
+  box-sizing: border-box;
+}
+/* 媒体外框：垫一层随主题走的纸。
+   mermaid 的 SVG 本身没有背景矩形，直接浮在半透明遮罩上看着像背景丢了；
+   垫纸既补背景，也顺手给照片一个画框。 */
+.lb-media {
+  flex: 0 0 auto;
   border-radius: var(--radius-card);
   background: rgb(var(--paper));
   box-shadow: var(--shadow-floating);
+  overflow: hidden;
 }
-/* 矢量（mermaid 图）：铺满舞台，按屏幕大小给足，
-   否则默认那一两百 px 的渲染尺寸放大后依然读不清小字标注。 */
-.lightbox[data-kind='vector'] .lightbox-stage {
-  width: min(1280px, 100%);
-  height: min(820px, 100%);
-}
-.lightbox[data-kind='vector'] .lightbox-img {
+/* 量不出自然尺寸时的退路：撑满画布，至少还能看 */
+.lb-media--auto {
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
+}
+.lb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 外框尺寸已由 zoomView 精确算好，图片层不能再自我限制，
+     否则 mermaid 写在 svg 上的 max-width 会把图形钉死在左上角 */
+  max-width: none;
+  max-height: none;
   object-fit: contain;
 }
-.lightbox-img {
-  display: block;
+.lb-media--auto .lb-img {
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
-  border-radius: 6px;
-  /* 点图不关闭，光标也不该显示成「可关闭」 */
-  cursor: default;
-  animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
 }
+
+/* 左上角：缩放读数 + 手势提示 */
+.lb-hud {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.lb-zoom-readout {
+  padding: 3px 8px;
+  border-radius: var(--radius-btn);
+  background: rgb(var(--overlay-foreground) / 0.12);
+  color: rgb(var(--overlay-foreground) / 0.9);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.lb-zoom-hint {
+  color: rgb(var(--overlay-foreground) / 0.6);
+  font-size: var(--text-2xs);
+}
+@media (max-width: 720px) {
+  .lb-zoom-hint { display: none; }
+}
+
+/* 右下角：缩放控制。只在缩放后出现「适应窗口」——没缩放时它是个空动作。 */
+.lb-tools {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--overlay-foreground) / 0.12);
+  backdrop-filter: blur(8px);
+}
+.lb-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--overlay-foreground) / 0.85);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.lb-tool:hover { background: rgb(var(--overlay-foreground) / 0.18); color: rgb(var(--overlay-foreground)); }
+.lb-tool--icon { font-size: 15px; line-height: 1; }
+.lb-tool[hidden] { display: none; }
 .lightbox-close {
   position: absolute;
   top: 18px;
