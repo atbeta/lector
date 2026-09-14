@@ -14,6 +14,9 @@ interface LoadStateDeps {
   fileNameEl: HTMLElement
   blocksEl: { clear: () => void }
   onOpen: () => void | Promise<void>
+  /** 最近打开（新在前）。空数组 = 不显示这一块。 */
+  recentFiles?: string[]
+  onOpenRecent?: (path: string) => void | Promise<void>
 }
 
 /** 标题栏副标题 / document.title / session 标题占位:三处保持一致。 */
@@ -23,7 +26,61 @@ function resetTitle(fileNameEl: HTMLElement): void {
   document.title = 'Lector'
 }
 
-/** 空态:中央放书图标 + 标题 + 提示 + 「打开文件」按钮。 */
+/** 只取文件名部分：列表里主标题是文件名，目录名做次要信息。 */
+function baseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
+}
+
+/** 目录部分（含末尾分隔符），用于在文件名下面标出处。 */
+function dirName(path: string): string {
+  const parts = path.split(/[\\/]/)
+  parts.pop()
+  if (parts.length === 0) return ''
+  const joined = parts.join('/')
+  return joined.length > 42 ? `…${joined.slice(-41)}` : joined
+}
+
+/**
+ * 最近打开列表。
+ *
+ * 放在空态里，是因为空态本来就是「你还没打开任何东西」的那一屏，
+ * 唯一该回答的问题是「那我打开什么」——最近打开过的文件是这个问题最可能的答案。
+ * 之前这份数据只有 macOS 的原生菜单够得着（Windows/Linux 不建原生菜单），
+ * 等于壳在维护一份谁也看不到的清单。
+ *
+ * 只列 5 条：多了就变成"又一个要滚动的列表"，而它只是空态的一个旁支。
+ */
+function recentBlock(deps: LoadStateDeps): HTMLElement | null {
+  const files = deps.recentFiles ?? []
+  if (files.length === 0 || !deps.onOpenRecent) return null
+  const box = document.createElement('div')
+  box.className = 'recent-block'
+  const label = document.createElement('div')
+  label.className = 'recent-label'
+  label.textContent = t('recentTitle')
+  const list = document.createElement('div')
+  list.className = 'recent-list'
+  for (const path of files.slice(0, 5)) {
+    const item = document.createElement('button')
+    item.type = 'button'
+    item.className = 'recent-item'
+    item.dataset.path = path
+    item.dataset.tip = path
+    const name = document.createElement('span')
+    name.className = 'recent-name'
+    name.textContent = baseName(path)
+    const dir = document.createElement('span')
+    dir.className = 'recent-dir'
+    dir.textContent = dirName(path)
+    item.append(name, dir)
+    item.addEventListener('click', () => void deps.onOpenRecent?.(path))
+    list.appendChild(item)
+  }
+  box.append(label, list)
+  return box
+}
+
+/** 空态:中央放书图标 + 标题 + 提示 + 「打开文件」按钮（+ 最近打开）。 */
 export function renderEmptyState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
   const wrap = document.createElement('div')
@@ -40,6 +97,8 @@ export function renderEmptyState(deps: LoadStateDeps): void {
   btn.innerHTML = `${iconSvg('folder', 16)} ${t('openFile')}`
   btn.addEventListener('click', () => void deps.onOpen())
   wrap.append(icon, title, p, btn)
+  const recent = recentBlock(deps)
+  if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)
   resetTitle(deps.fileNameEl)
   deps.blocksEl.clear()

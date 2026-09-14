@@ -2208,3 +2208,49 @@ tr:hover .table-editor-op { opacity: 1; }
   animation: fade-in var(--motion-fast) var(--ease-enter) both;
 }
 .recover-text { font-size: var(--text-base); color: rgb(var(--foreground)); }
+
+
+/* ───────────── 空态的「最近打开」 ─────────────
+ * 空态只回答「打开什么」，所以这一块是按钮的补充而不是并列的另一屏：
+ * 标题轻、条目等宽、目录弱化成第二行。 */
+.recent-block {
+  margin-top: 26px;
+  width: 100%;
+  max-width: 380px;
+  text-align: left;
+}
+.recent-label {
+  margin-bottom: 6px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--subtle-foreground));
+}
+.recent-list { display: flex; flex-direction: column; gap: 2px; }
+.recent-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.recent-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+.recent-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-dir {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+}

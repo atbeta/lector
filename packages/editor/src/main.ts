@@ -27,6 +27,7 @@ import {
   type SaveResult,
   takePendingOpen,
   bindDocument,
+  recentList,
   saveImage,
   onOpen,
   onFileChanged,
@@ -2494,11 +2495,42 @@ const loadStateDeps = {
   fileNameEl,
   blocksEl,
   onOpen: () => openFromShellOrDialog(),
+  recentFiles: [] as string[],
+  onOpenRecent: (path: string) => openRecent(path),
 }
+
+/**
+ * 从「最近打开」里开一个：路径已经知道，所以只差读取与绑定。
+ * 与 pickAndRead 之后那段走同一条路（读 → 绑定窗口 → 监听 → loadSession），
+ * 不另开一条平行的打开路径——两条路径早晚会在脏检查、监听、标题上走出差异。
+ */
+async function openRecent(path: string): Promise<void> {
+  if (!(await confirmOpenIfDirty())) return
+  try {
+    const res = await read(path)
+    void bindDocument(res.path)
+    void watch(res.path)
+    loadSession(res.path, res.content, res.mtime_ms)
+  } catch (err) {
+    // 文件被移动/删除是「最近打开」最常见的失败——必须说出来，不能静默什么都不发生
+    console.error('[lector] open recent', err)
+    const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path
+    showToast(t('openRecentFailed', { name }))
+  }
+}
+
 function renderEmptyState(): void {
   session.blocks = []
   setDocPresent(false)
   renderEmptyStateView(loadStateDeps)
+  // 最近打开是异步来的（壳里读文件、预览里恒空），先渲染空态再补列表：
+  // 首屏不该为一个次要区块等一次 IPC。
+  void recentList().then((paths) => {
+    // 期间可能已经打开了别的文件——那就别再往已经消失的空态里塞列表
+    if (session.blocks.length > 0) return
+    loadStateDeps.recentFiles = paths
+    renderEmptyStateView(loadStateDeps)
+  })
 }
 function renderLoadingState(): void {
   session.blocks = []

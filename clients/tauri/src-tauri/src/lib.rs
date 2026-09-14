@@ -88,6 +88,7 @@ pub fn run() {
       io::save_settings,
       io::bind_document,
       io::save_image,
+      io::recent_list,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");

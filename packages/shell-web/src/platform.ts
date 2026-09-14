@@ -150,6 +150,22 @@ export async function takePendingOpen(): Promise<string | null> {
   return invoke<string | null>('take_pending_open')
 }
 
+/**
+ * 最近打开（新在前）。
+ *
+ * 非壳环境返回空表——浏览器预览里没有这份数据。
+ * 但留了一个**测试缝**：预览里允许测试注入一份，好让空态列表的渲染也能进常态门。
+ * 没有这个缝，这条 UI 路径就只有真机能验（而"只有真机能验"的路径已经丢过好几次）。
+ */
+export async function recentList(): Promise<string[]> {
+  if (detectEnv() !== 'shell') {
+    const injected = (globalThis as { __lectorTestRecent?: string[] }).__lectorTestRecent
+    return Array.isArray(injected) ? injected : []
+  }
+  const { invoke } = await tauriApi()
+  return invoke<string[]>('recent_list')
+}
+
 export async function bindDocument(path: string): Promise<void> {
   if (detectEnv() !== 'shell') return
   const { invoke } = await tauriApi()

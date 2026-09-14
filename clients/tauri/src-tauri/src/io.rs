@@ -199,6 +199,16 @@ fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(dir.join("lector-recent.json"))
 }
 
+/// 最近打开列表（**读**接口，新在前）。
+///
+/// 壳一直在维护 lector-recent.json，但之前只喂给原生菜单；而 Windows/Linux 不建原生菜单
+/// （避开初始化闪现），那份列表在界面上完全没有入口——数据在，用户够不着。
+/// 这里只加读：写入路径不变，Web 层依旧拿不到写权限。
+#[tauri::command]
+pub fn recent_list(app: AppHandle) -> Vec<String> {
+  load_recent(&app)
+}
+
 /// 读「最近打开」列表（新在前）。文件缺失或损坏都当空表。
 pub fn load_recent(app: &AppHandle) -> Vec<String> {
   let Ok(path) = recent_file(app) else {

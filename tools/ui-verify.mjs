@@ -1743,6 +1743,43 @@ const summary = {
     }
   }
 
+  // 3.14) 空态的「最近打开」
+  {
+    await page.addInitScript(() => {
+      window.__lectorTestRecent = [
+        '/Users/beta/docs/设计语言单一真相源.md',
+        '/Users/beta/notes/lector-优化清单.md',
+      ]
+    })
+    await page.goto(`${URL_ARG}?doc=empty`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+    const recent = await page.evaluate(() => {
+      const items = [...document.querySelectorAll('.recent-item')]
+      return {
+        label: document.querySelector('.recent-label')?.textContent ?? '',
+        count: items.length,
+        names: items.map((i) => i.querySelector('.recent-name')?.textContent ?? ''),
+        dirs: items.map((i) => i.querySelector('.recent-dir')?.textContent ?? ''),
+        hasPath: items.every((i) => !!i.dataset.path),
+      }
+    })
+    if (recent.count !== 2) note('error', `空态「最近打开」应有 2 条，实际 ${recent.count}（注入缝失效？）`)
+    if (!recent.names[0]?.includes('设计语言')) note('error', `最近打开第一条文件名不对：${JSON.stringify(recent.names)}`)
+    if (!recent.dirs[0]?.includes('docs')) note('error', `最近打开没有显示所在目录：${JSON.stringify(recent.dirs)}`)
+    if (!recent.hasPath) note('error', '最近打开条目没有带路径（点了不知道开哪个）')
+
+    // 点一条不存在的路径：必须给出可读提示，而不是静默什么都不发生
+    if (recent.count > 0) {
+      await page.locator('.recent-item').first().click()
+      await page.waitForTimeout(700)
+      const toast = await page.evaluate(() => document.body.textContent ?? '')
+      if (!/打开失败|Could not open/.test(toast)) {
+        note('error', '点了打不开的最近文件后没有任何提示（静默失败）')
+      }
+    }
+    note('info', `最近打开：${recent.count} 条，首条「${recent.names[0] ?? '—'}」目录「${recent.dirs[0] ?? '—'}」`)
+  }
+
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
