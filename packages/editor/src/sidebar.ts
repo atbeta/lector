@@ -75,7 +75,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   const el = document.createElement('aside')
   el.className = 'sidebar'
   el.id = 'sidebar'
-  el.setAttribute('aria-label', '大纲')
+  el.setAttribute('aria-label', t('outlineTitle'))
 
   // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
   // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。

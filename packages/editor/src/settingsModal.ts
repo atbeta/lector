@@ -337,7 +337,10 @@ export function openSettingsModal(onClose?: () => void) {
   const footer = h('div', 'modal-footer')
   const reset = h('button', 'btn')
   reset.textContent = t('resetDefaults')
-  reset.addEventListener('click', () => resetSettings())
+  reset.addEventListener('click', () => {
+    // 危险动作：清主题/排版/自定义样式都不可逆
+    if (window.confirm(t('resetConfirm'))) resetSettings()
+  })
   const done = h('button', 'btn btn-primary')
   done.textContent = t('done')
   done.addEventListener('click', () => close())

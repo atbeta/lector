@@ -408,7 +408,7 @@ pub fn save_image(
     .unwrap_or(name);
   Ok(SaveImageResult {
     relative_path: format!("{sub}/{file}").replace('\\', "/"),
-    abs_path: dest.to_string_lossy().into_owned(),
+    abs_path: Some(dest.to_string_lossy().into_owned()),
   })
 }
 
@@ -868,5 +868,39 @@ mod tests {
     let next = unique_path(&dir, "shot.png");
     assert_eq!(next.file_name().unwrap().to_string_lossy(), "shot-2.png");
     let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn sanitize_image_subdir_rejects_evil_input() {
+    // 合法
+    assert_eq!(sanitize_image_subdir("images"), Some("images".into()));
+    assert_eq!(sanitize_image_subdir("读书笔记.assets"), Some("读书笔记.assets".into()));
+    // 拒：穿越
+    assert_eq!(sanitize_image_subdir(".."), None);
+    assert_eq!(sanitize_image_subdir("../evil"), None);
+    assert_eq!(sanitize_image_subdir("a/../b"), None);
+    // 拒：路径分隔
+    assert_eq!(sanitize_image_subdir("a/b"), None);
+    assert_eq!(sanitize_image_subdir("a\\b"), None);
+    // 拒：盘符
+    assert_eq!(sanitize_image_subdir("C:evil"), None);
+    // 拒：空
+    assert_eq!(sanitize_image_subdir(""), None);
+    assert_eq!(sanitize_image_subdir("   "), None);
+  }
+
+  #[test]
+  fn run_command_rejects_empty_executable() {
+    let r = run_command("", &[], "/tmp/x.png", 1000);
+    assert!(!r.ok);
+    assert!(r.error.as_deref().unwrap().contains("empty"));
+  }
+
+  #[test]
+  fn run_command_spawn_failure_is_error_not_panic() {
+    // 不存在的可执行：spawn 直接返回 Err，不应 panic；结果 ok=false、有 error。
+    let r = run_command("/this/does/not/exist/__nope__", &[], "/tmp/x.png", 1000);
+    assert!(!r.ok);
+    assert!(r.error.is_some());
   }
 }

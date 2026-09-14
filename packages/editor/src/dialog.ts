@@ -39,6 +39,7 @@ export function showDialog(opts: {
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = a.primary ? 'btn btn-primary' : 'btn'
+      if (a.danger) btn.classList.add('btn-danger')
       btn.textContent = a.label
       btn.addEventListener('click', () => finish(a.id))
       footer.appendChild(btn)
@@ -50,7 +51,12 @@ export function showDialog(opts: {
     })
     document.addEventListener('keydown', onKey)
     document.body.appendChild(backdrop)
-    footer.querySelector<HTMLButtonElement>('button:last-child')?.focus()
+    // 默认焦点：危险动作（danger: true）绝不能默认获焦，否则回车即毁数据。
+    // 没有危险动作时：先 primary（语义上的「确认」），再第一个普通按钮。
+    const buttons = [...footer.querySelectorAll<HTMLButtonElement>('button')]
+    const safe = (b: HTMLButtonElement) => !b.classList.contains('btn-danger')
+    const initial = buttons.find(safe) ?? buttons[0]
+    initial?.focus()
   })
 }
 
@@ -59,8 +65,8 @@ export async function confirmDiscard(): Promise<boolean> {
     title: t('discardTitle'),
     body: t('discardBody'),
     actions: [
-      { id: 'cancel', label: t('cancel') },
-      { id: 'discard', label: t('discardConfirm'), primary: true },
+      { id: 'cancel', label: t('cancel'), primary: true },
+      { id: 'discard', label: t('discardConfirm'), danger: true },
     ],
   })
   return id === 'discard'
@@ -71,9 +77,9 @@ export async function chooseConflict(): Promise<'overwrite' | 'reload' | null> {
     title: t('conflictTitle'),
     body: t('conflictBody'),
     actions: [
-      { id: 'cancel', label: t('cancel') },
+      { id: 'cancel', label: t('cancel'), primary: true },
       { id: 'reload', label: t('conflictReload') },
-      { id: 'overwrite', label: t('conflictOverwrite'), primary: true },
+      { id: 'overwrite', label: t('conflictOverwrite'), danger: true },
     ],
   })
   if (id === 'overwrite' || id === 'reload') return id
