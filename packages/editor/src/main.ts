@@ -36,6 +36,7 @@ import {
 import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref } from './mdastHtml.ts'
+import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, resetFontSize, stepFontSize, toggleTheme, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
@@ -1185,6 +1186,72 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
   const code = preview.querySelector('pre code')
   if (!code) return
   const lang = (code.className.match(/language-([\w+#-]+)/)?.[1] ?? '').toLowerCase()
+
+  // mermaid 走另一条路径：拆 <pre><code>，改挂 mermaid-diagram 容器；
+  // 拷贝按钮复用，复制的是源码。
+  if (lang === 'mermaid') {
+    const source = code.textContent ?? ''
+    const pre = code.parentElement
+    const host = pre?.parentElement
+    if (!host) return
+
+    const bar = document.createElement('div')
+    bar.className = 'code-bar'
+    const label = document.createElement('span')
+    label.className = 'code-lang'
+    label.textContent = 'mermaid'
+    bar.appendChild(label)
+    const copy = document.createElement('button')
+    copy.type = 'button'
+    copy.className = 'code-copy'
+    copy.textContent = t('codeCopy')
+    copy.addEventListener('click', (e) => {
+      e.stopPropagation()
+      void copyText(source, t('codeCopied'))
+    })
+    bar.appendChild(copy)
+
+    const diagram = document.createElement('div')
+    diagram.className = 'mermaid-diagram'
+    const status = document.createElement('div')
+    status.className = 'mermaid-status'
+    status.textContent = t('mermaidLoading')
+    diagram.appendChild(status)
+
+    if (pre) pre.remove()
+    host.appendChild(bar)
+    host.appendChild(diagram)
+
+    const theme: 'light' | 'dark' =
+      document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+    let cancelled = false
+    renderMermaidSvg(source, theme)
+      .then((svg) => {
+        if (cancelled) return
+        diagram.replaceChildren()
+        const inner = document.createElement('div')
+        inner.className = 'mermaid-svg'
+        inner.innerHTML = svg
+        diagram.appendChild(inner)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        const msg = err instanceof Error ? err.message : String(err)
+        diagram.replaceChildren()
+        const errBox = document.createElement('div')
+        errBox.className = 'mermaid-error'
+        errBox.textContent = t('mermaidFailedWith', { error: msg })
+        const fallback = document.createElement('pre')
+        fallback.className = 'mermaid-source'
+        const fallbackCode = document.createElement('code')
+        fallbackCode.textContent = source
+        fallback.appendChild(fallbackCode)
+        diagram.appendChild(errBox)
+        diagram.appendChild(fallback)
+      })
+
+    return
+  }
 
   const bar = document.createElement('div')
   bar.className = 'code-bar'

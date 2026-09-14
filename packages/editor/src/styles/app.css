@@ -1012,6 +1012,55 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 代码块上沿留出工具条的位置，避免悬停时浮层压住第一行代码 */
 .block[data-kind='code'] .reading-prose pre { margin-top: 6px; }
 
+/* ───────────── Mermaid 图表 ─────────────
+ * 走常规的 code-bar + diagram 两层结构：工具条还是复制/标语言，
+ * diagram 占下方的画布区域。懒加载,渲染失败时给错误 + 源码回退。 */
+.mermaid-diagram {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius);
+  background: rgb(var(--muted) / 0.3);
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+}
+.mermaid-diagram .mermaid-svg {
+  display: block;
+  max-width: 100%;
+}
+.mermaid-diagram .mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+  /* mermaid 的 svg 本身是字体描边调过的，与页面 reading-font 不同；这里不覆写。 */
+}
+.mermaid-status {
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-sm);
+}
+.mermaid-error {
+  color: rgb(var(--danger, var(--muted-foreground)));
+  font-size: var(--text-sm);
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mermaid-source {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgb(var(--paper));
+  border-radius: var(--radius-btn);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgb(var(--foreground));
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* 阅读里的图片：可点开放大，光标要说明这件事 */
 .reading-prose img { cursor: zoom-in; }
 

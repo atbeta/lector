@@ -94,6 +94,8 @@ const zh = {
   codeCopy: '复制',
   codeCopied: '已复制代码',
   codeCopyFailed: '复制失败',
+  mermaidLoading: '渲染中…',
+  mermaidFailedWith: 'Mermaid 渲染失败：{error}',
   // 阅读导航轨与表格编辑
   railAria: '章节导航',
   menuEditTable: '编辑表格…',
@@ -200,6 +202,8 @@ const en: Record<keyof typeof zh, string> = {
   codeCopy: 'Copy',
   codeCopied: 'Code copied',
   codeCopyFailed: 'Copy failed',
+  mermaidLoading: 'Rendering…',
+  mermaidFailedWith: 'Mermaid render failed: {error}',
   // Reading rail and table editor
   railAria: 'Section navigation',
   menuEditTable: 'Edit table…',
