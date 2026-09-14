@@ -1806,10 +1806,9 @@ void (async () => {
       requestAnimationFrame(() => {
         spyTick = false
         updateActiveHeading()
-        // 导航轨的位置点 = 视口中心在全文中的比例
-        rail.setPosition(
-          (contentEl.scrollTop + contentEl.clientHeight / 2) / Math.max(1, contentEl.scrollHeight),
-        )
+        // 导航轨位置条 = 视口顶端在全文中的比例 + 视口高度占比
+        const scrollH = Math.max(1, contentEl.scrollHeight)
+        rail.setPosition(contentEl.scrollTop / scrollH, contentEl.clientHeight / scrollH)
         // 编辑/缩放改变了文档高度：刻度纵坐标跟着重排
         if (contentEl.scrollHeight !== lastRailScrollHeight) relayoutRail()
       })

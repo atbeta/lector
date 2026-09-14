@@ -1323,18 +1323,49 @@ html.lightbox-open #content { overflow: hidden; }
 }
 
 /* ───────────── 右侧阅读导航轨 ─────────────
- * 标题刻度：线长表达层级（h1 最长），纵向位置表达在全文中的位置；
- * 点击刻度跳到那一节。圆点是视口中心当前所在的位置。
- * 静止时半隐，悬停才完全显现——它是方位感，不是控件。 */
-.rail-nav {
+ * LibreChat 风格：顶/底三角 + 中间一道带刻度的轨 + 视口位置条。
+ * 顶/底三角点 = 跳首/尾；刻度 = 各标题位置（线长表达层级）；位置条 = 视口在全文中的位置与高度。
+ * 静止时半隐（遵不抢位原则），悬停才完全显现——这是方位感，不是控件。 */
+.reader-rail {
   position: fixed;
   z-index: 30;
   width: 24px;
-  opacity: 0.45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0.5;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
-.rail-nav[hidden] { display: none; }
-.rail-nav:hover { opacity: 1; }
+.reader-rail[hidden] { display: none; }
+.reader-rail:hover { opacity: 1; }
+.rail-arrow {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgb(var(--muted-foreground) / 0.65);
+  border-radius: 99px;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.rail-arrow:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--muted) / 0.6);
+}
+.rail-track {
+  position: relative;
+  flex: 1 1 auto;
+  width: 8px;
+  margin: 4px 0;
+  /* 轨本身不画线：刻度与位置条自己表达内容 */
+  background: transparent;
+}
 .rail-tick {
   position: absolute;
   right: 0;
@@ -1342,33 +1373,34 @@ html.lightbox-open #content { overflow: hidden; }
   padding: 0;
   border: 0;
   border-radius: 2px;
-  background: rgb(var(--muted-foreground) / 0.45);
+  background: rgb(var(--muted-foreground) / 0.35);
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-standard),
     width var(--motion-fast) var(--ease-standard);
+  transform: translateY(-50%);
 }
 /* 2px 的线谁都点不中：热区向上下扩到 14px，视觉不变 */
 .rail-tick::before {
   content: '';
   position: absolute;
-  inset: -6px -2px;
+  inset: -6px -4px;
 }
 .rail-tick[data-depth='1'] { width: 20px; }
-.rail-tick[data-depth='2'] { width: 15px; }
-.rail-tick[data-depth='3'] { width: 11px; }
+.rail-tick[data-depth='2'] { width: 16px; }
+.rail-tick[data-depth='3'] { width: 12px; }
 .rail-tick[data-depth='4'] { width: 8px; }
-.rail-tick:hover { background: rgb(var(--foreground) / 0.8); }
+.rail-tick:hover { background: rgb(var(--foreground) / 0.7); }
 .rail-tick.active { background: rgb(var(--primary)); }
-.rail-dot {
+.rail-pill {
   position: absolute;
   right: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  width: 6px;
+  border-radius: 99px;
   background: rgb(var(--muted-foreground) / 0.55);
-  transform: translateY(-50%);
+  transition: background var(--motion-fast) var(--ease-standard);
   pointer-events: none;
 }
+.reader-rail:hover .rail-pill { background: rgb(var(--foreground) / 0.5); }
 
 /* ───────────── 表格编辑弹窗 ─────────────
  * 网格管结构、源码管存储：单元格是自适应高度的 textarea，

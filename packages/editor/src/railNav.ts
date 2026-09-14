@@ -1,9 +1,8 @@
-// 右侧阅读导航轨：标题刻度 + 当前位置点。
+// 右侧阅读导航轨：LibreChat 风格——顶/底三角 + 标题刻度 + 视口位置条。
 //
-// 为什么大纲之外还要一条轨：大纲给「结构」，这条轨给「方位」。
-// 刻度的长短表达层级（h1 最长），纵向位置表达它在文档里的位置；
-// 阅读时余光扫一眼就知道「我在全文的哪里」，点一下刻度就跳到那一节。
-// 它不说话、不抢焦点，静止时半隐——但一直在那里。
+// 为什么不做成「另一个滚动条」：原生滚动条已经够了（且现已隐藏按需浮现），
+// 这条轨要提供的是「方位感」——余光扫一眼就知道「我在全文的哪里、上下还剩多少」。
+// 顶/底三角 = 跳到首/尾；标题刻度 = 跳到对应节；中间圆角条 = 当前视口位置与高度。
 //
 // 几何：轨贴正文容器右缘（32px 右内边距里，滚动条内侧），
 // 顶底与正文容器对齐，所以窗口/侧栏/平台外框变化时只要重读 content 的 rect。
@@ -22,8 +21,12 @@ export interface RailNav {
   relayout(getTop: (id: string) => number | null, scrollHeight: number): void
   /** 高亮当前小节对应的刻度。 */
   setActive(id: string | null): void
-  /** 移动当前位置点（0..1，视口中心在全文中的比例）。 */
-  setPosition(fraction: number): void
+  /**
+   * 移动视口条。
+   * @param top 视口顶端在全文中的比例 (0..1)
+   * @param ratio 视口高度 / 全文高度 (0..1)
+   */
+  setPosition(top: number, ratio: number): void
   /** 把轨贴回正文容器右缘（窗口尺寸、侧栏开合后调用）。 */
   place(): void
 }
@@ -33,13 +36,39 @@ export function createRailNav(opts: {
   onJump: (id: string) => void
 }): RailNav {
   const el = document.createElement('nav')
-  el.className = 'rail-nav'
+  el.className = 'reader-rail'
   el.hidden = true
 
-  const dot = document.createElement('div')
-  dot.className = 'rail-dot'
-  el.appendChild(dot)
+  const upBtn = document.createElement('button')
+  upBtn.type = 'button'
+  upBtn.className = 'rail-arrow rail-up'
+  upBtn.setAttribute('aria-label', '跳到顶部')
+  upBtn.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 8 L6 4 L10 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+  const track = document.createElement('div')
+  track.className = 'rail-track'
+
+  const pill = document.createElement('div')
+  pill.className = 'rail-pill'
+  track.appendChild(pill)
+
+  const downBtn = document.createElement('button')
+  downBtn.type = 'button'
+  downBtn.className = 'rail-arrow rail-down'
+  downBtn.setAttribute('aria-label', '跳到底部')
+  downBtn.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 4 L6 8 L10 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
+  el.appendChild(upBtn)
+  el.appendChild(track)
+  el.appendChild(downBtn)
   document.body.appendChild(el)
+
+  upBtn.addEventListener('click', () => {
+    opts.content.scrollTo({ top: 0, behavior: 'smooth' })
+  })
+  downBtn.addEventListener('click', () => {
+    opts.content.scrollTo({ top: opts.content.scrollHeight, behavior: 'smooth' })
+  })
 
   const ticks = new Map<string, HTMLButtonElement>()
   let activeId: string | null = null
@@ -68,20 +97,22 @@ export function createRailNav(opts: {
         const tick = document.createElement('button')
         tick.type = 'button'
         tick.className = 'rail-tick'
-        // 层级只分四档线长：h4 以下再细分就没人分得清了
         tick.dataset.depth = String(Math.min(Math.max(h.depth, 1), 4))
         tick.title = h.text
         tick.setAttribute('aria-label', h.text)
-        tick.addEventListener('click', () => opts.onJump(h.id))
+        tick.addEventListener('click', (e) => {
+          e.stopPropagation()
+          opts.onJump(h.id)
+        })
         ticks.set(h.id, tick)
-        el.appendChild(tick)
+        track.appendChild(tick)
       }
       setActive(activeId)
       place()
     },
     relayout(getTop: (id: string) => number | null, scrollHeight: number): void {
       if (ticks.size === 0) return
-      const h = el.clientHeight
+      const h = track.clientHeight
       if (h <= 0 || scrollHeight <= 0) return
       for (const [id, tick] of ticks) {
         const top = getTop(id)
@@ -90,10 +121,19 @@ export function createRailNav(opts: {
       }
     },
     setActive,
-    setPosition(fraction: number): void {
-      const h = el.clientHeight
-      if (h <= 0) return
-      dot.style.top = `${Math.min(1, Math.max(0, fraction)) * h}px`
+    setPosition(top: number, ratio: number): void {
+      const h = track.clientHeight
+      if (h <= 0) {
+        pill.style.display = 'none'
+        return
+      }
+      const clampedTop = Math.min(1, Math.max(0, top))
+      const clampedRatio = Math.min(1, Math.max(0, ratio))
+      const pillH = Math.max(8, clampedRatio * h)
+      const maxTop = Math.max(0, h - pillH)
+      pill.style.display = ''
+      pill.style.height = `${pillH}px`
+      pill.style.top = `${clampedTop * maxTop}px`
     },
     place,
   }
