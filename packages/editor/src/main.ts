@@ -1320,12 +1320,20 @@ async function confirmOpenIfDirty(): Promise<boolean> {
 
 async function openFromShellOrDialog() {
   if (!(await confirmOpenIfDirty())) return
+  // 立刻进入加载态（不是空态）——不让「点打开」之后中间看到「打开文件」按钮
+  renderLoadingState()
   try {
     const picked = await pickAndRead()
-    if (picked) loadSession(picked.path, picked.content, picked.mtime_ms)
+    if (picked) {
+      loadSession(picked.path, picked.content, picked.mtime_ms)
+    } else {
+      // 用户取消选文件：退回空态
+      renderEmptyState()
+    }
   } catch (err) {
     console.error('[lector] open failed', err)
     showToast(`${t('openFailed')}：${String(err)}`)
+    renderEmptyState()
   }
 }
 
@@ -1787,7 +1795,30 @@ function renderEmptyState() {
   document.title = 'Lector'
   blocksEl.clear()
   session.blocks = []
-  markDirty()
+  // 取消 loading：如果从加载态退回（用户取消选文件），把这个类也清掉
+  document.documentElement.classList.remove('is-loading')
+}
+
+/**
+ * 加载中间态：「点打开」/「冷启动带 argv」时显示——这时不该有「打开文件」按钮
+ * 等空态 UI（会让人误以为可以重复点），也不该闪「正在读取」文字之外的元素。
+ * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退回 renderEmptyState。
+ */
+function renderLoadingState(): void {
+  contentEl.innerHTML = ''
+  const wrap = document.createElement('div')
+  wrap.className = 'loading-state'
+  const label = document.createElement('div')
+  label.className = 'loading-spinner'
+  label.setAttribute('aria-label', t('loading'))
+  wrap.appendChild(label)
+  contentEl.appendChild(wrap)
+  fileNameEl.textContent = 'Lector'
+  fileNameEl.dataset.untitled = 'true'
+  document.title = 'Lector'
+  blocksEl.clear()
+  session.blocks = []
+  document.documentElement.classList.add('is-loading')
 }
 
 // 预览用的媒体样例：图片放大与代码块复制都要能在这里验
@@ -1924,15 +1955,20 @@ void (async () => {
     { passive: true },
   )
   if (detectEnv() === 'shell') {
-    renderEmptyState()
+    // 冷启动时不默认走空态——壳可能有 argv 要打开文件。先进加载态，
+    // 有 pending 才走 loadSession，没有 pending 才回空态。
+    renderLoadingState()
     try {
       const pending = await takePendingOpen()
       if (pending) {
         const res = await read(pending)
         loadSession(res.path, res.content, res.mtime_ms)
+      } else {
+        renderEmptyState()
       }
     } catch (err) {
       console.error('[lector] pending open', err)
+      renderEmptyState()
     }
   } else {
     // 浏览器预览（vite dev）：默认载入内置样例，方便脱离壳调版式。

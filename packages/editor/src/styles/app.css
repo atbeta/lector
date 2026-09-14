@@ -713,6 +713,31 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--subtle-foreground));
 }
 
+/* ───────────── 加载中间态 ─────────────
+ * 「点打开」/「冷启动带 argv」期间：不是空态（不该看见「打开文件」按钮），
+ * 也不是内容（还没读到）。就一个转圈 + 文字，告诉用户「还在走」就够了。 */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62vh;
+  animation: fade-in var(--motion-base) var(--ease-enter) both;
+}
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--border) / 0.6);
+  border-top-color: rgb(var(--muted-foreground) / 0.7);
+  animation: loading-spin 0.8s linear infinite;
+}
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner { animation-duration: 2s; }
+}
+
 /* ───────────── 阅读排版 ───────────── */
 .reading-prose {
   font-family: var(--reading-font);
