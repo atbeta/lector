@@ -379,6 +379,15 @@ html[data-shell='windows'] .window-controls { display: flex; }
 .btn-icon:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
 .btn-icon:active { background: rgb(var(--secondary)); }
 .btn-icon.active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+/* 「编辑中」高亮：进入编辑模式后 mode-toggle 按钮跟随 primary 色，不误以为是普通按钮 */
+.btn-icon-toggle[aria-pressed='true'] {
+  color: rgb(var(--primary));
+  background: color-mix(in srgb, rgb(var(--primary)) 14%, transparent);
+}
+.btn-icon-toggle[aria-pressed='true']:hover {
+  color: rgb(var(--primary));
+  background: color-mix(in srgb, rgb(var(--primary)) 22%, transparent);
+}
 
 /* ───────────── 正文容器 ───────────── */
 /* 滚动发生在正文上（不是整页），顶栏与状态行才能常驻。
@@ -406,6 +415,10 @@ html[data-shell='windows'] .window-controls { display: flex; }
   border-radius: var(--radius);
   transition: background var(--motion-fast) var(--ease-standard);
 }
+/* 只读模式下：光标不说「能点入」，说「这是一块文字」 */
+html[data-mode='read'] .block:not(.gap) { cursor: default; }
+/* 只读模式下悬停去掉背景：不像「可点的控件」 */
+html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 /* 悬停提示「这块可点」；聚焦块给极淡靛蓝衬底，替代以前的重边框 */
 .block:not(.gap):hover { background: var(--block-hover-bg); }
 .block.focused { background: var(--block-focus-bg); }
@@ -1081,6 +1094,11 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   justify-content: center;
   align-items: center;
   min-height: 80px;
+  cursor: zoom-in;
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+.mermaid-diagram:hover {
+  border-color: rgb(var(--border-strong) / 0.6);
 }
 .mermaid-diagram .mermaid-svg {
   display: block;

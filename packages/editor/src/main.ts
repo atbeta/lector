@@ -47,7 +47,7 @@ import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from 
 import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
 import { mountTip } from './tip.ts'
-import { mountLightbox } from './lightbox.ts'
+import { mountLightbox, showInLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
 import {
   getPosition,
@@ -98,6 +98,7 @@ const dirtyDot = document.getElementById('dirty-dot')!
 const fileNameEl = document.getElementById('file-name')!
 const openBtn = document.getElementById('open-btn')!
 const saveBtn = document.getElementById('save-btn')!
+const modeToggleBtn = document.getElementById('mode-toggle')!
 const themeBtn = document.getElementById('theme-btn')!
 const settingsBtn = document.getElementById('settings-btn')!
 const outlineBtn = document.getElementById('outline-btn')!
@@ -107,22 +108,22 @@ const statusRight = document.getElementById('status-right')!
 
 openBtn.innerHTML = iconSvg('folder', 16)
 openBtn.setAttribute('aria-label', t('openAria'))
-openBtn.title = t('openAria')
+openBtn.dataset.tip = t('openAria')
 saveBtn.innerHTML = iconSvg('save', 16)
 saveBtn.setAttribute('aria-label', t('saveAria'))
-saveBtn.title = t('saveAria')
+saveBtn.dataset.tip = t('saveAria')
 outlineBtn.innerHTML = iconSvg('outline', 16)
 outlineBtn.setAttribute('aria-label', t('outlineAria'))
-outlineBtn.title = t('outlineAria')
+outlineBtn.dataset.tip = t('outlineAria')
 findBtn.innerHTML = iconSvg('search', 16)
 findBtn.setAttribute('aria-label', t('findAria'))
-findBtn.title = t('findAria')
+findBtn.dataset.tip = t('findAria')
 themeBtn.setAttribute('aria-label', t('themeAria'))
-themeBtn.title = t('themeAria')
+themeBtn.dataset.tip = t('themeAria')
 settingsBtn.innerHTML = iconSvg('settings', 16)
 settingsBtn.setAttribute('aria-label', t('settingsAria'))
-settingsBtn.title = t('settingsAria')
-dirtyDot.title = t('dirtyTitle')
+settingsBtn.dataset.tip = t('settingsAria')
+dirtyDot.dataset.tip = t('dirtyTitle')
 // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
 // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
 const titlebarEl = document.getElementById('titlebar')
@@ -135,6 +136,51 @@ function refreshThemeIcon() {
 refreshThemeIcon()
 const themeObserver = new MutationObserver(() => refreshThemeIcon())
 themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
+// ───────────── 只读 / 编辑 双模式 ─────────────
+//
+// 默认只读——像技术文档 / 别人写的笔记，不该是“打开就能改”。要改的话点标题栏的
+// 铅笔进入编辑；改完或不想改了，点锁或 esc 退回只读。状态在 html 上走 data-mode，
+// 样式 / 点击 / 快捷键都看这个属性——避免到处开变量。
+//
+// read:
+//   - 块点击不调 focusBlock、不动 CM
+//   - 顶部 save 按钮隐藏（没东西可存）
+//   - mermaid / 图片点击走 lightbox 放大
+// edit:
+//   - 行为与之前一致
+//   - save 按钮可见、有修改时高亮
+let editorMode: 'read' | 'edit' = 'read'
+
+function applyModeUI(): void {
+  document.documentElement.dataset.mode = editorMode
+  modeToggleBtn.innerHTML = iconSvg(editorMode === 'read' ? 'pencil' : 'lock', 16)
+  modeToggleBtn.dataset.tip = editorMode === 'read' ? t('modeEnterEdit') : t('modeExitEdit')
+  modeToggleBtn.setAttribute('aria-pressed', String(editorMode === 'edit'))
+  // 只读时 save 按钮隐藏：没东西可存。改完进入只读也不会丢——只读会调 defocus
+  saveBtn.hidden = editorMode === 'read'
+  // 状态行右侧「只读/编辑」提示
+  renderStatus()
+}
+
+function setEditorMode(next: 'read' | 'edit'): void {
+  if (editorMode === next) return
+  editorMode = next
+  if (next === 'read') {
+    // 退出编辑：清 focus，否则那个块仍作为 CM 嵌着，下次回 read 还在
+    defocus()
+  }
+  applyModeUI()
+}
+
+function toggleMode(): void {
+  setEditorMode(editorMode === 'read' ? 'edit' : 'read')
+}
+
+modeToggleBtn.addEventListener('click', () => toggleMode())
+
+// 初始状态：默认只读。applyModeUI 设好 data-mode / save 隐藏 / 按钮图标。
+applyModeUI()
 
 // 侧栏 = 当前文档的目录。停靠/浮层两种形态由 sidebar.ts 按窗口宽度决定。
 const sidebar = createSidebar({
@@ -1189,6 +1235,17 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
     host.appendChild(bar)
     host.appendChild(diagram)
 
+    // 点击放大：与 notefast 一样,点 mermaid 走 lightbox(渲染为 data:image/svg+xml;
+    // 不加 zoom 提示按钮,本身就是交互元素)。停上后由 outer-content click 统一处理返回。
+    diagram.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const svgEl = diagram.querySelector('svg')
+      if (!svgEl) return
+      const svgString = new XMLSerializer().serializeToString(svgEl)
+      const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`
+      showInLightbox(dataUrl, 'mermaid')
+    })
+
     const theme: 'light' | 'dark' =
       document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
     let cancelled = false
@@ -1354,6 +1411,11 @@ contentEl.addEventListener('click', (e) => {
     if (href && /^(https?:|mailto:)/i.test(href)) {
       window.open(href, '_blank', 'noopener,noreferrer')
     }
+    return
+  }
+  // 只读模式：块点击不抢 focus，只在末车是「点上」时（mermaid 容器、表格预览）交给各自处理。
+  // 表格预览在只读下不打开（想改就进编辑模式），别在读路径上引另一个跳转。
+  if (editorMode === 'read') {
     return
   }
   const target = (e.target as HTMLElement).closest<HTMLElement>('.block:not(.gap)')
@@ -1614,6 +1676,11 @@ window.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
     e.preventDefault()
     openFind()
+  }
+  // ⌘E 切换只读 / 编辑。菜单上没有的快捷键（这不是菜单项）
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'e') {
+    e.preventDefault()
+    toggleMode()
   }
 })
 

@@ -9,9 +9,25 @@
 // - 打开时锁住正文滚动（背景不该跟着滚）
 // - 关闭后把焦点还给原来的图片
 // - 图片本身不触发点击关闭（看细节时误点不该退出）
+//
+// 同时复用为 mermaid / 其他 SVG 放大：调用方把 SVG 序列化为 data URL 传进来。
 
 let open = false
 let lastFocus: HTMLElement | null = null
+
+
+/**
+ * 在 lightbox 中显示一张可加载的图（普通 URL 或 data:image/...）。
+ * 供 mermaid 等其他来源复用。
+ */
+export function showInLightbox(src: string, alt: string): void {
+  if (open) return
+  if (!currentShow) return
+  currentShow(src, alt)
+}
+
+let currentShow: ((src: string, alt: string) => void) | null = null
+let onClickRef: ((e: MouseEvent) => void) | null = null
 
 export function mountLightbox(): () => void {
   const overlay = document.createElement('div')
@@ -45,6 +61,7 @@ export function mountLightbox(): () => void {
     document.documentElement.classList.add('lightbox-open')
     close.focus()
   }
+  currentShow = show
 
   function hide(): void {
     if (!open) return
@@ -57,7 +74,7 @@ export function mountLightbox(): () => void {
   }
 
   // 正文里的图片：点击放大。用事件委托，块重建后依然有效。
-  const onClick = (e: MouseEvent) => {
+  onClickRef = (e: MouseEvent) => {
     const target = e.target as HTMLElement | null
     if (!target || target.tagName !== 'IMG') return
     if (!target.closest('.reading-prose')) return
@@ -79,15 +96,17 @@ export function mountLightbox(): () => void {
     }
   }
 
-  document.addEventListener('click', onClick, true)
+  document.addEventListener('click', onClickRef, true)
   overlay.addEventListener('click', onOverlayClick)
   close.addEventListener('click', hide)
   // 捕获阶段：抢在编辑器/大纲的 Esc 处理之前关掉浮层
   document.addEventListener('keydown', onKey, true)
 
   return () => {
-    document.removeEventListener('click', onClick, true)
+    document.removeEventListener('click', onClickRef as (e: MouseEvent) => void, true)
     document.removeEventListener('keydown', onKey, true)
     overlay.remove()
+    currentShow = null
+    onClickRef = null
   }
 }
