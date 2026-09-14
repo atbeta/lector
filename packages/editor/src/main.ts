@@ -45,7 +45,6 @@ import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
-import { createRailNav } from './railNav.ts'
 import { openTableEditor } from './tableEditor.ts'
 import { mountLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
@@ -143,37 +142,6 @@ const sidebar = createSidebar({
     outlineBtn.setAttribute('aria-pressed', String(open))
   },
 })
-
-// 右侧阅读导航轨：标题刻度 + 当前位置点。大纲给结构，它给方位。
-const rail = createRailNav({
-  content: contentEl,
-  onJump: (id) => jumpToHeading(id),
-})
-rail.el.setAttribute('aria-label', t('railAria'))
-/** 上次重排刻度时的文档高度：滚动时凭它发现布局变了（改字/缩放/改字号）。 */
-let lastRailScrollHeight = 0
-
-/** 重排刻度纵坐标（刻度集合不变、布局变了时调用）。 */
-function relayoutRail(): void {
-  const contentTop = contentEl.getBoundingClientRect().top
-  const scrollTop = contentEl.scrollTop
-  rail.relayout((id) => {
-    const el = blocksEl.get(id)
-    if (!el) return null
-    return el.getBoundingClientRect().top - contentTop + scrollTop
-  }, contentEl.scrollHeight)
-  lastRailScrollHeight = contentEl.scrollHeight
-}
-
-/** 标题集合变化时重建刻度。刻度位置依赖布局，渲染后等一帧再量。 */
-function renderRail(): void {
-  rail.render(
-    session.blocks
-      .filter((b) => b.kind === 'heading')
-      .map((b) => ({ id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() })),
-  )
-  requestAnimationFrame(() => relayoutRail())
-}
 
 /**
  * 大纲签名：标题的 id / 级别 / 文字。变了就说明大纲该重建。
@@ -284,7 +252,6 @@ function setActiveHeading(id: string | null, opts: { reveal?: boolean } = {}): v
   if (id === activeHeadingId && !opts.reveal) return
   activeHeadingId = id
   applyActiveClasses()
-  rail.setActive(id)
   if (opts.reveal && id) {
     // 大纲很长时，当前项要自动滚进可视区（只滚侧栏，不动正文）
     outlineRows.get(id)?.scrollIntoView({ block: 'nearest' })
@@ -857,7 +824,6 @@ function markDirty() {
   if (sig !== lastOutlineSignature) {
     lastOutlineSignature = sig
     if (sidebar.isOpen()) renderOutline()
-    renderRail()
   }
   session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
@@ -1922,11 +1888,6 @@ void (async () => {
       requestAnimationFrame(() => {
         spyTick = false
         updateActiveHeading()
-        // 导航轨位置条 = 视口顶端在全文中的比例 + 视口高度占比
-        const scrollH = Math.max(1, contentEl.scrollHeight)
-        rail.setPosition(contentEl.scrollTop / scrollH, contentEl.clientHeight / scrollH)
-        // 编辑/缩放改变了文档高度：刻度纵坐标跟着重排
-        if (contentEl.scrollHeight !== lastRailScrollHeight) relayoutRail()
       })
       scheduleRecordPosition()
     },
@@ -1948,9 +1909,6 @@ void (async () => {
         sidebar.sync()
         const isDocked = document.documentElement.classList.contains('sidebar-docked')
         if (wasDocked !== isDocked) renderStatus()
-        // 窗口/侧栏变了：导航轨贴回正文右缘并重排刻度
-        rail.place()
-        relayoutRail()
       })
     },
     { passive: true },
