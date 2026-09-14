@@ -317,6 +317,11 @@ html[data-shell='macos'] #titlebar,
 html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 14px)); }
 
 
+.titlebar-ext {
+  /* 扩展名弱化：它总是 .md，密度不该和主名一样 */
+  color: rgb(var(--subtle-foreground));
+  font-weight: 400;
+}
 .titlebar-title {
   display: flex;
   align-items: center;
@@ -818,7 +823,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 
 /* ───────────── 状态行 ─────────────
- * 文档的一行自述：字数 / 小节 / 阅读时长（左），文件名与保存状态（右）。
+ * 窗口右下角的一行自述：字数 / 小节 / 阅读时长 / 保存状态，整组右对齐。
  * 最弱一级文字 + 顶部分隔影，随时可见但不与正文抢注意力。 */
 #statusbar {
   grid-area: status;
@@ -827,10 +832,14 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   align-items: center;
   gap: 10px;
   height: 34px;
-  /* 左端与正文列对齐（同顶栏导航），右端与正文列右沿对齐：
-     状态行因此和正文列完全重合，而不是贴窗口边——
-     贴边会让同一屏出现三条不同的竖线。 */
-  padding: 0 var(--band-inset-right, 14px) 0 var(--band-inset, 14px);
+  /* 贴窗口右下角，不与正文列对齐。
+     状态行是**窗口**的元信息（字数、状态），不是文档排版的一部分；
+     跟着正文列走会让同一屏出现三条互相较劲的竖线，而正文列居中时左边那条
+     还给空着。整组右对齐到窗口边缘，视线扫右下角就能拿到全部信息。 */
+  justify-content: flex-end;
+  /* 两侧都用窗口边距（14px），不用 --band-inset-right：
+     那个值是「与正文列右沿对齐」用的，用它会让状态行又贴回正文列上去。 */
+  padding: 0 14px;
   background: rgb(var(--shell));
   box-shadow: 0 -1px 0 rgb(var(--border-subtle));
   color: rgb(var(--subtle-foreground));

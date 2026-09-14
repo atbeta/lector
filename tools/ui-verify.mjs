@@ -442,7 +442,7 @@ const summary = {
         position: cs.position,
         statusH: Math.round(bar.getBoundingClientRect().height),
         statusBottom: Math.round(bar.getBoundingClientRect().bottom),
-        statusText: (document.getElementById('status-left')?.textContent ?? '').trim(),
+        statusText: (document.getElementById('statusbar')?.textContent ?? '').trim(),
       }
     })
 
@@ -482,20 +482,19 @@ const summary = {
   const reopened = await shell()
   if (reopened.mode !== 'docked') note('error', '再次点击后侧栏没有恢复停靠')
 
-  // 3) 窄窗口：必须退化成浮层，且能点外关闭
+  // 3) 窄窗口：**不允许浮在正文上**
+  //
+  // 旧行为是「放不下就变成覆盖正文的抽屉」，实测这是最差的一种：为了看一眼目录，
+  // 代价是刚读到的那段被挡住——阅读器里正文是主角。
+  // 现行规则：要么停靠（和正文一起挤，正文列本来就有 max-width），要么收起，
+  // 任何宽度下都不得盖住正文。
   await page.setViewportSize({ width: 900, height: 720 })
   await page.waitForTimeout(420)
   const narrow = await shell()
-  if (narrow.mode !== 'overlay') {
-    note('error', `900px 宽下侧栏形态是 ${narrow.mode}（期望 overlay：放不下就该变成抽屉）`)
-  } else if (narrow.position !== 'fixed') {
-    note('error', '窄窗口的侧栏没有脱离文档流（position 应为 fixed）')
-  }
-  await page.mouse.click(760, 400)
-  await page.waitForTimeout(280)
-  const afterOutsideClick = await shell()
-  if (afterOutsideClick.mode !== 'hidden') {
-    note('error', '窄窗口浮层模式下点击正文没有关闭侧栏')
+  if (narrow.mode === 'overlay') {
+    note('error', '窄窗口下侧栏浮在正文上：会挡住正在读的内容（应停靠或收起）')
+  } else {
+    note('info', `窄窗口（900px）侧栏形态：${narrow.mode}（不允许浮层，只能是停靠或收起）`)
   }
   await page.setViewportSize({ width: 1200, height: 820 })
   await page.waitForTimeout(300)
@@ -1146,9 +1145,8 @@ const summary = {
       barRight: Math.round(document.getElementById('titlebar').getBoundingClientRect().right),
     }
   })
-  // 壳与正文共用一条竖线：顶栏导航左沿 == 状态行左沿 == 状态行右沿 == 正文文字左右沿。
-  // 这条被用户指出过两次（先是「左边空白大」，再是「没对齐」），
-  // 所以固化成断言：同屏出现三条不同的竖线，看着就是没做完。
+  // 壳与正文共用一条竖线：顶栏导航左沿 == 正文文字左沿。
+  // 状态行不在这条线上——它是**窗口**的元信息，整组贴窗口右下角（见下面那两条断言）。
   const edges = await page.evaluate(() => {
     const block = document.querySelector('#content .block:not(.gap)')
     const cb = document.getElementById('content').getBoundingClientRect()
@@ -1163,12 +1161,16 @@ const summary = {
   if (loose(edges.navLeft, edges.textLeft) > 2) {
     note('error', `顶栏导航左沿 ${edges.navLeft} 与正文左沿 ${edges.textLeft} 未对齐`)
   }
-  if (loose(edges.statusLeft, edges.textLeft) > 2) {
-    note('error', `状态行左沿 ${edges.statusLeft} 与正文左沿 ${edges.textLeft} 未对齐`)
+  // 状态行：内容整组贴**窗口**右下角，不再与正文列同宽同位
+  // （旧规则是「左沿对齐正文、右沿对齐正文右沿」，会让同一屏出现三条较劲的竖线）。
+  const winW = await page.evaluate(() => window.innerWidth)
+  if (winW - edges.statusRight > 28) {
+    note(
+      'error',
+      `状态行没有贴到窗口右下角：内容右沿 ${edges.statusRight}，窗口宽 ${winW}（差 ${winW - edges.statusRight}px）`,
+    )
   }
-  if (loose(edges.statusRight, edges.textRight) > 2) {
-    note('error', `状态行右沿 ${edges.statusRight} 与正文右沿 ${edges.textRight} 未对齐`)
-  }
+  note('info', `状态行：内容右沿 ${edges.statusRight} / 窗口 ${winW} / 正文右沿 ${edges.textRight}`)
   summary.shellEdges = edges
   // 标题必须对齐正文列的中心（不是窗口中心——有侧栏时两者差侧栏宽的一半）
   if (barGeo.title && barGeo.text) {

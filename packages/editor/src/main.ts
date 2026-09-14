@@ -103,6 +103,22 @@ const session: Session = {
 const contentEl = document.getElementById('content')!
 const dirtyDot = document.getElementById('dirty-dot')!
 const fileNameEl = document.getElementById('file-name')!
+
+/** 把文件名写进顶栏：主名 + 弱化的扩展名。 */
+function setTitleName(name: string): void {
+  const dot = name.lastIndexOf('.')
+  const hasExt = dot > 0 && dot < name.length - 1
+  const base = hasExt ? name.slice(0, dot) : name
+  const ext = hasExt ? name.slice(dot) : ''
+  fileNameEl.replaceChildren()
+  fileNameEl.append(document.createTextNode(base))
+  if (ext) {
+    const span = document.createElement('span')
+    span.className = 'titlebar-ext'
+    span.textContent = ext
+    fileNameEl.append(span)
+  }
+}
 const openBtn = document.getElementById('open-btn')!
 const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
 const modeSwitchEl = document.getElementById('mode-switch')!
@@ -1149,23 +1165,25 @@ function renderStatus() {
     return el
   }
 
-  statusLeft.replaceChildren()
+  statusRight.replaceChildren()
   if (stats.words === 0) {
-    statusLeft.append(item(t('statEmpty')))
+    statusRight.append(item(t('statEmpty')))
   } else {
-    statusLeft.append(item(t('statWords', { n: formatCount(stats.words) })))
-    if (sections > 0) statusLeft.append(item(t('statSections', { n: sections })))
-    if (minutes > 0) statusLeft.append(item(t('statReading', { n: minutes })))
+    statusRight.append(item(t('statWords', { n: formatCount(stats.words) })))
+    if (sections > 0) statusRight.append(item(t('statSections', { n: sections })))
+    if (minutes > 0) statusRight.append(item(t('statReading', { n: minutes })))
   }
 
-  statusRight.replaceChildren()
-  // 状态行右侧：当前档 + 保存状态 + 文件名。
-  // 当前档这里只写「编辑 / 源码」，阅读档不写——阅读是默认态，
-  // 给默认态也挂一个标签，等于在每篇文档右下角常驻一个「你在阅读」的噪音。
+  // 状态行只写「这份文档现在什么状态」，并且整行贴在窗口右下角。
+  //
+  // 三条取舍：
+  // 1. 不再重复文件名——顶栏就写着它，状态行再说一遍是同一信息出现两次；
+  // 2. 不再与正文列左右对齐：状态行是**窗口**的元信息，不是文档的一部分，
+  //    跟着正文列走会让同一屏出现三条互相较劲的竖线；
+  // 3. 阅读档不写档位标签：阅读是默认态，给默认态挂标签等于常驻一个「你在阅读」的噪音。
+
   if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
   statusRight.append(item(session.dirty ? t('statUnsaved') : t('statSavedAt'), session.dirty))
-  // 保存状态与文件名在同一行：这是「这份文件现在是什么状态」的完整答案
-  statusRight.append(item(fileNameEl.textContent ?? ''))
 }
 
 function markDirty() {
@@ -1295,7 +1313,10 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   session.focusedId = null
   session.dirty = false
   session.structuralDirty = false
-  fileNameEl.textContent = baseName(path)
+  // 文件名拆两段：主名用正文色，扩展名弱化。
+  // 阅读器里每份文档都叫 .md，把这个后缀用同样重量写出来，等于在最重要的位置上
+  // 放了一段零信息量的字符——它该在，但不该抢眼（同 VS Code / 各编辑器的做法）。
+  setTitleName(baseName(path))
   fileNameEl.dataset.untitled = 'false'
   document.title = `${baseName(path)} — Lector`
   contentEl.innerHTML = ''

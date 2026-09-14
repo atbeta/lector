@@ -108,7 +108,14 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
 
   function mode(): SidebarMode {
     if (!open) return 'hidden'
-    return window.innerWidth >= dockMin() ? 'docked' : 'overlay'
+    // 不再有「浮层」形态。
+    //
+    // 旧行为是窗口放不下就浮在正文上——但那会盖住正文，而阅读器里正文是主角：
+    // 用户为了看一眼目录，代价是刚才读到的那段被挡住。
+    // 现在放不下就一起挤：正文列本来就有 max-width，变窄仍然可读；
+    // 真挤到不能看的时候，关掉侧栏或拖宽窗口都在用户手里（宽度也可调）。
+    // 「初始要不要默认打开」仍按窗口够不够宽判断（见上面的 dockMin）。
+    return 'docked'
   }
 
   // 标题行：一列目录要有名字。初版直接从条目开始，288px 的白栏看起来像没加载完。
