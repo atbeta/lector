@@ -1522,6 +1522,106 @@ const summary = {
     }
     await page.keyboard.press('Escape')
   }
+  // 3.9) 查找：第几处 / 共几处 + 命中高亮 + 关掉不留痕
+  //
+  // 这一组守的是「读文档时最常用的工具」，三件事缺一不可：
+  // 只报总数不报当前是第几处，用户不知道自己走到哪；不高亮等于让人肉眼去找；
+  // 关掉后不拆标记，正文里就留下假的「高亮」。
+  {
+    await page.click('#find-btn')
+    await page.waitForSelector('.find-bar input', { timeout: 3000 })
+    // 查询词从当前文档里取（这段跑在哪个文档上不该是断言的隐含前提），
+    // 取一个字保证至少有一处命中，多数字在正文里都会出现多于一处的。
+    const query = await page.evaluate(() => {
+      const el = document.querySelector('#content .block .reading-prose, #content .block .source-view')
+      return (el?.textContent ?? '').replace(/\s+/g, '').slice(0, 1)
+    })
+    await page.fill('.find-bar input', query)
+    await page.waitForTimeout(350)
+    const opened = await page.evaluate(() => {
+      const label = document.querySelector('.find-count')?.textContent ?? ''
+      return {
+        label,
+        hits: document.querySelectorAll('mark.find-hit').length,
+        current: document.querySelectorAll('mark.find-hit--current').length,
+        // 「第几处」的判据：出现了当前序号，且不是只有一个数字
+        hasIndex: /第\s*\d+\s*处/.test(label) || /\d+\s*(\/|of)\s*\d+/.test(label),
+      }
+    })
+    if (opened.hits === 0) note('error', `查找没有高亮任何命中（查询词 ${JSON.stringify(query)}）`)
+    else if (opened.current !== 1) note('error', `当前命中标记 ${opened.current} 个（期望恰好 1 个）`)
+    if (!opened.hasIndex) note('error', `查找没报「当前是第几处」：${JSON.stringify(opened.label)}`)
+
+    // 翻页：跳转单位是「处」而不是「块」——旧版按块跳，一个块里多处会像卡住
+    await page.press('.find-bar input', 'Enter')
+    await page.waitForTimeout(300)
+    const after = await page.evaluate(() => document.querySelector('.find-count')?.textContent ?? '')
+    if (after === opened.label && opened.hits > 1) {
+      note('error', `按 Enter 后计数没变（${opened.label}）：跳转单位可能又退回按块了`)
+    }
+
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+    const closed = await page.evaluate(() => ({
+      hits: document.querySelectorAll('mark.find-hit').length,
+      bar: !!document.querySelector('.find-bar'),
+    }))
+    if (closed.bar) note('warn', '查找栏按 Esc 没关掉，后续断言可能被遮挡')
+    if (closed.hits !== 0) {
+      note('error', `关掉查找后正文里还剩 ${closed.hits} 个命中标记（用户会以为文档真有高亮）`)
+    }
+    note('info', `查找：${opened.label} → ${after}；命中 ${opened.hits} 处，关闭后残留 ${closed.hits}`)
+  }
+
+  // 3.10) 界面缩放：整页等比（含壳），且设置里能读出当前档位
+  //
+  // 判据分两层，缺一层就退化：
+  //   - 只放大正文 = 正文字号，不是界面缩放，所以顶栏/状态行必须跟着大；
+  //   - 设置里的读数必须存在，否则用户完全看不出线停在哪一档
+  //     （滑块的读数是与 root 平级的独立元素，用错行容器就会静默丢失）。
+  {
+    const readZoom = () =>
+      page.evaluate(() => ({
+        zoom: Number(getComputedStyle(document.documentElement).zoom || '1'),
+        titleH: Math.round(document.getElementById('titlebar').getBoundingClientRect().height),
+        statusH: Math.round(document.getElementById('statusbar').getBoundingClientRect().height),
+      }))
+    const z0 = await readZoom()
+    await page.keyboard.press(`${MOD}+=`)
+    await page.waitForTimeout(250)
+    const z1 = await readZoom()
+    if (!(z1.zoom > z0.zoom)) note('error', `⌘/Ctrl + = 没有放大界面：zoom ${z0.zoom} → ${z1.zoom}`)
+    if (!(z1.titleH > z0.titleH && z1.statusH > z0.statusH)) {
+      note(
+        'error',
+        `界面缩放没有作用到壳上（那只是正文字号）：顶栏 ${z0.titleH}→${z1.titleH}，状态行 ${z0.statusH}→${z1.statusH}`,
+      )
+    }
+    await page.keyboard.press(`${MOD}+0`)
+    await page.waitForTimeout(250)
+    const z2 = await readZoom()
+    if (Math.abs(z2.zoom - 1) > 0.001) note('error', `⌘/Ctrl + 0 没有回到 100%：${z2.zoom}`)
+
+    await page.click('#settings-btn')
+    await page.waitForTimeout(400)
+    const zoomRow = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.settings-row.cell')].find(
+        (r) => (r.textContent ?? '').includes('界面缩放') || (r.textContent ?? '').includes('Interface zoom'),
+      )
+      return row ? { value: (row.querySelector('.slider-value')?.textContent ?? '').trim() } : null
+    })
+    if (!zoomRow) note('error', '设置里找不到「界面缩放」这一行（可能误用了 row 而不是 cellRow 而整行丢失）')
+    else if (!/%$/.test(zoomRow.value)) {
+      note('error', `界面缩放的读数没有渲染：${JSON.stringify(zoomRow.value)}（slider 的 readout 是独立元素，必须用 cellRow）`)
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+    note(
+      'info',
+      `界面缩放：${z0.zoom} → ${z1.zoom} → 复位 ${z2.zoom}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}`,
+    )
+  }
+
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
