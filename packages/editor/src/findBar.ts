@@ -2,11 +2,12 @@ import type { BlockView } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 import { applyFindHighlight, clearFindHighlight, focusFindHit } from './findHighlight.ts'
+import { compileFind, DEFAULT_FIND_OPTIONS, type FindOptions, countFind } from './findMatch.ts'
 
 export interface FindHost {
   getBlocks: () => BlockView[]
   /** 在块里替换并标脏、重解析、重渲染。 */
-  replaceInBlock: (id: string, from: string, to: string, all: boolean) => void
+  replaceInBlock: (id: string, from: string, to: string, all: boolean, opts: FindOptions) => void
   /** 滚动到块。 */
   scrollTo: (id: string) => void
 }
@@ -15,18 +16,17 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function countMatches(text: string, query: string): number {
-  if (!query) return 0
-  const re = new RegExp(escapeRegExp(query), 'gi')
-  const m = text.match(re)
-  return m ? m.length : 0
-}
-
 export function findBar(host: FindHost) {
   const bar = document.createElement('div')
   bar.className = 'find-bar'
+  // 三个开关用 Aa / \b / .* 这组符号而不是文字：
+  // 它们是查找界面里跨语言通用的写法（VS Code、浏览器都是这套），
+  // 翻译成「区分大小写」反而占宽且不一眼可辨。含义交给 tooltip。
   bar.innerHTML = `
     <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
+    <button class="find-toggle find-case" data-tip="${t('findCase')}" aria-label="${t('findCase')}" aria-pressed="false">Aa</button>
+    <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
+    <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
     <span class="find-count"></span>
     <button class="btn-icon find-prev" data-tip="${t('findPrev')}" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
     <button class="btn-icon find-next" data-tip="${t('findNext')}" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
@@ -41,15 +41,19 @@ export function findBar(host: FindHost) {
   const close = bar.querySelector<HTMLButtonElement>('.find-close')!
   const prev = bar.querySelector<HTMLButtonElement>('.find-prev')!
   const next = bar.querySelector<HTMLButtonElement>('.find-next')!
+  const caseBtn = bar.querySelector<HTMLButtonElement>('.find-case')!
+  const wordBtn = bar.querySelector<HTMLButtonElement>('.find-word')!
+  const regexBtn = bar.querySelector<HTMLButtonElement>('.find-regex')!
 
-  let cursor = 0 // 当前匹配序号（0-based），0 表示未定位
+  let cursor = 0 // 当前匹配序号（0-based）
+  const opts: FindOptions = { ...DEFAULT_FIND_OPTIONS }
 
   function matches(): Array<{ id: string; count: number }> {
     const query = q.value
     if (!query) return []
     return host
       .getBlocks()
-      .map((b) => ({ id: b.id, count: countMatches(b.raw, query) }))
+      .map((b) => ({ id: b.id, count: countFind(b.raw, query, opts) }))
       .filter((m) => m.count > 0)
   }
 
@@ -77,7 +81,7 @@ export function findBar(host: FindHost) {
 
   /** 高亮 + 把第 cursor 处标成当前（找不到就退回第 0 处） */
   function paint(list: Array<{ id: string; nth: number }>): void {
-    applyFindHighlight(contentRoot(), q.value)
+    applyFindHighlight(contentRoot(), q.value, opts)
     const target = list[cursor]
     if (!target) return
     const el = blockEl(target.id)
@@ -85,8 +89,16 @@ export function findBar(host: FindHost) {
   }
 
   function updateCount(total: number): void {
+    const c = compileFind(q.value, opts)
+    if (q.value && !c.ok) {
+      // 无效/危险模式**明说**，不要静默当成 0 处：那会让人以为"文档里没有"
+      count.textContent = c.error === 'risky-regex' ? t('findRiskyRegex') : t('findInvalidRegex')
+      count.dataset.bad = 'true'
+      return
+    }
+    delete count.dataset.bad
     if (total === 0) {
-      count.textContent = t('noResults')
+      count.textContent = q.value ? t('noResults') : ''
       return
     }
     // 「第几处 / 共几处」：只有总数时，用户不知道自己走到哪了
@@ -99,7 +111,7 @@ export function findBar(host: FindHost) {
     if (cursor >= total) cursor = 0
     updateCount(total)
     for (const m of ms) host.scrollTo(m.id)
-    // 空查询时先把上一轮的标记拆干净（否则残留在正文里）
+    // 空查询/无效模式时先把上一轮的标记拆干净（否则残留在正文里）
     if (total === 0) clearFindHighlight(contentRoot())
     else paint(occurrences())
   }
@@ -120,6 +132,15 @@ export function findBar(host: FindHost) {
     paint(list)
   }
 
+  /** 开关：翻状态 + 同步 aria + 从头重新搜（光标位置在原模式下无意义） */
+  function toggle(btn: HTMLButtonElement, key: keyof FindOptions): void {
+    opts[key] = !opts[key]
+    btn.setAttribute('aria-pressed', String(opts[key]))
+    btn.classList.toggle('active', opts[key])
+    cursor = 0
+    refresh()
+  }
+
   q.addEventListener('input', () => {
     cursor = 0
     refresh()
@@ -127,13 +148,16 @@ export function findBar(host: FindHost) {
   q.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') goto(e.shiftKey ? -1 : 1)
   })
+  caseBtn.addEventListener('click', () => toggle(caseBtn, 'caseSensitive'))
+  wordBtn.addEventListener('click', () => toggle(wordBtn, 'wholeWord'))
+  regexBtn.addEventListener('click', () => toggle(regexBtn, 'regex'))
   next.addEventListener('click', () => goto(1))
   prev.addEventListener('click', () => goto(-1))
   repAll.addEventListener('click', () => {
     const from = q.value
     const to = rep.value
     if (!from) return
-    for (const m of matches()) host.replaceInBlock(m.id, from, to, true)
+    for (const m of matches()) host.replaceInBlock(m.id, from, to, true, { ...opts })
     refresh()
   })
   close.addEventListener('click', () => {

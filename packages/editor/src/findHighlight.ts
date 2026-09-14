@@ -15,6 +15,8 @@
  *   3. 拆/装都要成对：clear 用 replaceChild + normalize 把文本合回去。
  */
 
+import { compileFind, type FindOptions } from './findMatch.ts'
+
 const HIT = 'find-hit'
 const CURRENT = 'find-hit--current'
 
@@ -46,31 +48,35 @@ export function clearFindHighlight(root: HTMLElement): void {
   }
 }
 
-/** 标记当前文档里所有命中。返回标记到的数量（与按块统计的总数一致才有意义） */
-export function applyFindHighlight(root: HTMLElement, query: string): number {
+/**
+ * 标记当前文档里所有命中。返回标记到的数量。
+ *
+ * 走**统一匹配器**（findMatch.ts）：高亮的命中集合必须和计数、替换完全一致，
+ * 否则会出现「计数说 3 处、只标出 2 处」这种谁也说不清的问题——
+ * 而这类不一致在字符串模式下看不出来，一开正则/全词就冒出来。
+ */
+export function applyFindHighlight(root: HTMLElement, query: string, opts: FindOptions): number {
   clearFindHighlight(root)
-  const needle = query.trim().toLowerCase()
-  if (!needle) return 0
+  if (!query) return 0
+  const c = compileFind(query, opts)
+  if (!c.ok) return 0
   let hits = 0
   for (const node of textNodes(root)) {
     const text = node.nodeValue ?? ''
-    const lower = text.toLowerCase()
-    if (!lower.includes(needle)) continue
+    const found = c.find(text)
+    if (found.length === 0) continue
     const frag = document.createDocumentFragment()
-    let i = 0
-    for (;;) {
-      const at = lower.indexOf(needle, i)
-      if (at < 0) break
-      if (at > i) frag.appendChild(document.createTextNode(text.slice(i, at)))
+    let cursor = 0
+    for (const h of found) {
+      if (h.start > cursor) frag.appendChild(document.createTextNode(text.slice(cursor, h.start)))
       const mark = document.createElement('mark')
       mark.className = HIT
-      mark.textContent = text.slice(at, at + needle.length)
+      mark.textContent = text.slice(h.start, h.end)
       frag.appendChild(mark)
       hits++
-      i = at + needle.length
+      cursor = h.end
     }
-    if (!hits) continue
-    frag.appendChild(document.createTextNode(text.slice(i)))
+    frag.appendChild(document.createTextNode(text.slice(cursor)))
     node.parentNode?.replaceChild(frag, node)
   }
   return hits

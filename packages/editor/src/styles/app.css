@@ -1078,6 +1078,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
    灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
    而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
    层级交给底色与字重，线只负责分隔，统一用 border。 */
+/* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
+   两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
+.reading-prose td[data-align='right'] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .reading-prose th {
   font-weight: 600;
   font-size: var(--text-xs);

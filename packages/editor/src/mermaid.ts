@@ -16,7 +16,7 @@ type Mermaid = typeof mermaidApi
 const MAX_CACHE_ENTRIES = 200
 
 let mermaidPromise: Promise<Mermaid> | null = null
-let lastTheme: 'default' | 'dark' | null = null
+let lastThemeKey: string | null = null
 let renderSeq = 0
 
 const svgCache = new Map<string, string>()
@@ -51,21 +51,77 @@ function cssRgbToken(name: string, fallback: string): string {
   return raw ? `rgb(${raw})` : fallback
 }
 
+/**
+ * mermaid 的调色板绑到我们的 token：图里的纸、墨、线全部跟主题走。
+ *
+ * 只绑 background 是不够的——实测过：浅色下画出来是「白纸上一张淡紫图」
+ * （mermaid 自带 mediumpurple 描边 #9370DB、#333 文字），和界面的靛蓝中性墨完全不搭。
+ * 背景跟了不等于整套配色跟了。
+ *
+ * 映射规则刻意克制：节点底用中性 --muted、描边用 --primary（靛蓝）、文字用 --foreground、
+ * 连线用 --muted-foreground。这样图的语言和界面一致（中性面 + 靛蓝强调），
+ * 而且对比度由我们自己的调色板保证（design-audit 已经守过这几个组合）。
+ */
+function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
+  const dark = theme === 'dark'
+  const t = (name: string, fb: string): string => cssRgbToken(name, fb)
+  const card = t('--card', dark ? '#202020' : '#ffffff')
+  const muted = t('--muted', dark ? '#2a2a30' : '#f4f4f6')
+  const accent = t('--accent', dark ? '#26262c' : '#f0f0f4')
+  const primary = t('--primary', dark ? '#8b8bf0' : '#4f46e5')
+  const ink = t('--foreground', dark ? '#f4f4f6' : '#101014')
+  const line = t('--muted-foreground', dark ? '#9e9ea8' : '#5c5c66')
+  const border = t('--border', dark ? '#38383f' : '#e0e0e4')
+  return {
+    background: card,
+    // 流程图 / 状态图 / 大部分图
+    primaryColor: muted,
+    primaryBorderColor: primary,
+    primaryTextColor: ink,
+    lineColor: line,
+    textColor: ink,
+    nodeBorder: primary,
+    mainBkg: muted,
+    clusterBkg: accent,
+    clusterBorder: border,
+    edgeLabelBackground: card,
+    titleColor: ink,
+    // 时序图
+    actorBkg: muted,
+    actorBorder: primary,
+    actorTextColor: ink,
+    signalColor: line,
+    signalTextColor: ink,
+    labelBoxBkgColor: card,
+    labelBoxBorderColor: border,
+    labelTextColor: ink,
+    loopTextColor: ink,
+    noteBkgColor: accent,
+    noteBorderColor: border,
+    noteTextColor: ink,
+    activationBkgColor: accent,
+    activationBorderColor: primary,
+    // 类图
+    classText: ink,
+  }
+}
+
 function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   const next = theme === 'dark' ? 'dark' : 'default'
-  if (lastTheme === next) return
+  const vars = themeVariablesFor(theme)
+  // 判重键里必须带上纸墨本身：阅读主题（纸 / 米黄 / 书）会改 --card / --foreground，
+  // 只按 light/dark 判重的话，换成米黄纸面之后图还是旧的白底。
+  const key = `${next}::${vars.background}::${vars.primaryColor}::${vars.primaryBorderColor}::${vars.textColor}::${vars.lineColor}`
+  if (lastThemeKey === key) return
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
     theme: next,
-    // 画布跟 data-theme 的 --card 对齐，不写死 hex
-    themeVariables: {
-      background: cssRgbToken('--card', theme === 'dark' ? '#202020' : '#ffffff'),
-    },
+    themeVariables: vars,
     // 避免 mermaid 在失败时往 DOM 注入默认错误 UI（我们自己展示）
     suppressErrorRendering: true,
   })
-  lastTheme = next
+  lastThemeKey = key
 }
 
 /** 生成全局唯一的 mermaid render id（库要求 id 不重复）。 */

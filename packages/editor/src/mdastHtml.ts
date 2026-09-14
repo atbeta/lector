@@ -65,6 +65,18 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/**
+ * 纯数字单元格：可带正负号、千分位、小数，可带常见单位/后缀。
+ * 长度设上限，是为了别把 "2026-09-14 的会议记录" 这种也判成数字。
+ */
+const NUMERIC_CELL =
+  /^[~≈±]?\s*[-+]?\d[\d,]*(?:\.\d+)?\s*(?:%|ms|s|min|hours?|h|px|em|rem|kb|mb|gb|tb|k|m|b|次|个|条|张|行|字|天|小时|分钟|秒)?$/i
+
+/** 是否该右对齐（数字列）。导出是为了能被单测直接盯住。 */
+export function isNumericCell(text: string): boolean {
+  return text.length > 0 && text.length <= 24 && NUMERIC_CELL.test(text)
+}
+
 function inline(children: Node[] | undefined): string {
   if (!children) return ''
   return children.map((c) => inlineNode(c)).join('')
@@ -276,7 +288,14 @@ function blockToHtml(n: Node): string {
         .map(
           (r: Node) =>
             `<tr>${(r.children ?? [])
-              .map((c: Node) => `<td>${inline(c.children)}</td>`)
+              .map((c: Node) => {
+              // 数字列右对齐：表格排版里最常用、也最容易被忽略的一条。
+              // 判据放在渲染这一层（看这一格的内容），而不是"给每列判断类型"——
+              // 后者要扫整列、还要处理列内混排，收益不比这个大。
+              const html = inline(c.children)
+              const plain = html.replace(/<[^>]+>/g, '').trim()
+              return `<td${isNumericCell(plain) ? ' data-align="right"' : ''}>${html}</td>`
+            })
               .join('')}</tr>`,
         )
         .join('')

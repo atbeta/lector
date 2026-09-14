@@ -41,7 +41,8 @@ import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
 import { initSettings, resetFontSize, resetUiZoom, stepFontSize, stepUiZoom, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
-import { findBar, escapeRegExp } from './findBar.ts'
+import { findBar } from './findBar.ts'
+import { replaceFind } from './findMatch.ts'
 import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
@@ -2258,11 +2259,11 @@ function openFind() {
   }
   findBar({
     getBlocks: () => session.blocks,
-    replaceInBlock: (id, from, to) => {
+    replaceInBlock: (id, from, to, all, opts) => {
       const b = session.blocks.find((x) => x.id === id)
       if (!b) return
-      const re = new RegExp(escapeRegExp(from), 'gi')
-      b.raw = b.raw.replace(re, () => to)
+      // 统一替换器：与计数、高亮共用同一套匹配规则（字符串 / 全词 / 正则）
+      b.raw = replaceFind(b.raw, from, to, opts, all)
       b.dirty = true
       const roots = parseBlockRoots(b.raw)
       b.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
