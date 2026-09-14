@@ -50,6 +50,7 @@ import { openTableEditor } from './tableEditor.ts'
 import { mountTip } from './tip.ts'
 import { mountLightbox, showInLightbox } from './lightbox.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
+import { renderEmptyState as renderEmptyStateView, renderLoadingState as renderLoadingStateView } from './loadState.ts'
 import {
   getPosition,
   parsePositions,
@@ -1911,52 +1912,22 @@ window.addEventListener('beforeunload', (e) => {
   }
 })
 
-function renderEmptyState() {
-  contentEl.innerHTML = ''
-  const wrap = document.createElement('div')
-  wrap.className = 'empty-state'
-  const icon = document.createElement('div')
-  icon.className = 'empty-icon'
-  icon.innerHTML = iconSvg('book', 24)
-  const title = document.createElement('h2')
-  title.textContent = t('emptyTitle')
-  const p = document.createElement('p')
-  p.textContent = t('emptyHint')
-  const btn = document.createElement('button')
-  btn.className = 'btn btn-primary'
-  btn.innerHTML = `${iconSvg('folder', 16)} ${t('openFile')}`
-  btn.addEventListener('click', () => void openFromShellOrDialog())
-  wrap.append(icon, title, p, btn)
-  contentEl.appendChild(wrap)
-  fileNameEl.textContent = 'Lector'
-  fileNameEl.dataset.untitled = 'true'
-  document.title = 'Lector'
-  blocksEl.clear()
-  session.blocks = []
-  // 取消 loading：如果从加载态退回（用户取消选文件），把这个类也清掉
-  document.documentElement.classList.remove('is-loading')
+// 加载 / 空态已抽到 loadState.ts。这里提供 main.ts 的 facade,把所有
+// 用到的依赖(全局引用 + 打开回调)一次性注入,避免 loadState 知道 main.ts 的
+// 内部状态,反过来也避免主流程再散落两份 empty/loading 模板。
+const loadStateDeps = {
+  contentEl,
+  fileNameEl,
+  blocksEl,
+  onOpen: () => openFromShellOrDialog(),
 }
-
-/**
- * 加载中间态：「点打开」/「冷启动带 argv」时显示——这时不该有「打开文件」按钮
- * 等空态 UI（会让人误以为可以重复点），也不该闪「正在读取」文字之外的元素。
- * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退回 renderEmptyState。
- */
-function renderLoadingState(): void {
-  contentEl.innerHTML = ''
-  const wrap = document.createElement('div')
-  wrap.className = 'loading-state'
-  const label = document.createElement('div')
-  label.className = 'loading-spinner'
-  label.setAttribute('aria-label', t('loading'))
-  wrap.appendChild(label)
-  contentEl.appendChild(wrap)
-  fileNameEl.textContent = 'Lector'
-  fileNameEl.dataset.untitled = 'true'
-  document.title = 'Lector'
-  blocksEl.clear()
+function renderEmptyState(): void {
   session.blocks = []
-  document.documentElement.classList.add('is-loading')
+  renderEmptyStateView(loadStateDeps)
+}
+function renderLoadingState(): void {
+  session.blocks = []
+  renderLoadingStateView(loadStateDeps)
 }
 
 // 预览用的媒体样例：图片放大与代码块复制都要能在这里验
