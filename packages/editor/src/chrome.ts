@@ -139,6 +139,17 @@ export function syncTitlebarInset(): void {
   bar.style.setProperty('--titlebar-clamp-left', `${textLeft}px`)
   bar.style.setProperty('--titlebar-clamp-right', `${barRight - textRight}px`)
 
+  // 额头标题最多能延伸多宽而不压到右上角操作区：仍居中于正文列，但把宽度钳到
+  // 「正文中心 → 操作区左沿」的两倍，超了就省略号。这是唯一既保住「居中」、
+  // 又避免超长文件名落到模式开关上的办法（实测 1138px + 76 字符名会叠 225px）。
+  const actionsG = bar.querySelector<HTMLElement>('.titlebar-actions')
+  const contentCenter = (textLeft + textRight) / 2
+  if (actionsG) {
+    const actionsL = Math.round(actionsG.getBoundingClientRect().x)
+    const maxW = Math.max(0, 2 * (actionsL - 14 - contentCenter))
+    bar.style.setProperty('--titlebar-title-max', `${Math.round(maxW)}px`)
+  }
+
   // 壳两侧（顶栏导航、状态行文字）与正文共用一个左边缘。
   //
   // 之前是三套：状态行贴窗口边（14px）、导航固定 80px、正文随窗口居中（130→600px）。

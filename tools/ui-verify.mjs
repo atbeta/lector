@@ -346,7 +346,7 @@ page.on('pageerror', (e) => consoleErrors.push(String(e)))
 // 浅色主题是本应用的默认，必须显式验证（localStorage 里可能存着 dark）
 await page.addInitScript(() => {
   try {
-    window.localStorage.setItem('lector-theme', 'light')
+    window.localStorage.setItem('lector-settings', JSON.stringify({ theme: 'light' }))
   } catch {
     /* ignore */
   }
@@ -380,7 +380,7 @@ const winContext = await browser.newContext({
 const winPage = await winContext.newPage()
 await winPage.addInitScript(() => {
   try {
-    window.localStorage.setItem('lector-theme', 'light')
+    window.localStorage.setItem('lector-settings', JSON.stringify({ theme: 'light' }))
   } catch {
     /* ignore */
   }
