@@ -35,6 +35,13 @@ export interface EditorSettings {
    */
   uiZoom: number
   /** 自动成对符号（选中即包裹 **、[] 等）。 */
+  /**
+   * 未保存内容恢复：编辑过的内容留一份草稿在本地，重开这份文件时提示恢复。
+   * 做成开关是因为它**会留副本**——有人不接受应用里多存一份内容。
+   */
+  recoverUnsaved: boolean
+  /** 用户自定义 CSS：原样注到样式表末尾，可覆盖任何内置规则 */
+  customCss: string
   autoCharacterPairs: boolean
   /** 关闭脏文档前确认（防数据丢失）。 */
   closeAlwaysConfirmsChanges: boolean
@@ -60,6 +67,8 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   lineHeight: 1.75,
   readingWidth: 760,
   uiZoom: 100,
+  recoverUnsaved: true,
+  customCss: '',
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
@@ -114,6 +123,9 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
         ? src.closeAlwaysConfirmsChanges
         : base.closeAlwaysConfirmsChanges,
     showWhitespace: typeof src.showWhitespace === 'boolean' ? src.showWhitespace : base.showWhitespace,
+    recoverUnsaved: typeof src.recoverUnsaved === 'boolean' ? src.recoverUnsaved : base.recoverUnsaved,
+    // 限长：设置文件是被反复读写的小 JSON，不该成为存放整套主题的仓库
+    customCss: String(src.customCss ?? base.customCss ?? '').slice(0, 20000),
   }
 }
 

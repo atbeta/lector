@@ -1,12 +1,25 @@
-// 设置弹层。
+// 设置面板：左栏分区导航 + 右栏内容 + 顶部搜索。
 //
-// 结构上分两块，职责不同：
-//   - 「阅读主题」画廊：一次点选 = 套用一整套标定排版（字号/行距/栏宽/字体）。
-//     画廊自己会重建选中态，见 themeGallery.ts。
-//   - 「微调」行：在选定主题的基础上逐个改。改过的值不会再被主题覆盖，
-//     只会在卡片上多一个「已微调」标记——用户的调整永远是他自己的。
+// 为什么从「一张长卡」改成两栏：
+//   原来所有设置从上往下排，外观区一进来就是 6 张主题预览卡 + 5 个滑块 + 4 个开关，
+//   后面的「编辑」要滚两屏才看得到；再往上加东西（恢复未保存、自定义样式、以后更多）
+//   只会越滚越长，而且**没法找**——想改「代码块字号」得先猜它在哪一段。
+//   两栏之后每一节永远在自己的位置：加设置项只增加高度，不增加"找的难度"。
+//
+// 为什么加搜索：设置项过 20 个之后，找比改费时间。
+//   搜索按「行」过滤（不是按分区）：命中什么就只留什么，跨分区一起给。
+//
+// 面板本身不持有状态：值都来自 settings，改都通过 setSettings。
+// 唯一的例外是搜索词，它是这个面板的临时视图状态。
 
-import { getSettings, resetSettings, setSettings, setReadingTheme, setThemeMode, notify } from './settings.ts'
+import {
+  getSettings,
+  resetSettings,
+  setSettings,
+  setReadingTheme,
+  setThemeMode,
+  notify,
+} from './settings.ts'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -15,34 +28,47 @@ import { t } from './i18n.ts'
 
 let root: HTMLElement | null = null
 
+/** 打开时定位到哪一节（面板是每次重建的，用模块变量记住用户上次看的那节）。 */
+let lastSection = 'appearance'
+
 function h(tag: string, cls = ''): HTMLElement {
   const e = document.createElement(tag)
   if (cls) e.className = cls
   return e
 }
 
-function section(label: string): HTMLElement {
-  const wrap = h('section', 'settings-section')
-  wrap.appendChild(h('h3')).textContent = label
-  wrap.firstElementChild!.className = 'settings-row-label'
-  return wrap
+/** 一行设置：标签在左，控件在右。`settings-row` 是搜索过滤的最小单位。 */
+function row(label: string, control: HTMLElement, hint?: string): HTMLElement {
+  const r = h('div', 'settings-row')
+  const lab = h('div', 'row-text')
+  const span = h('span', 'row-label')
+  span.textContent = label
+  lab.appendChild(span)
+  if (hint) {
+    const hintEl = h('span', 'row-hint')
+    hintEl.textContent = hint
+    lab.appendChild(hintEl)
+  }
+  r.append(lab, control)
+  return r
 }
 
-function row(label: string, control: HTMLElement): HTMLElement {
-  const row = h('div', 'settings-row')
-  row.appendChild(h('span')).textContent = label
-  row.firstElementChild!.className = 'row-label'
-  row.appendChild(control)
-  return row
-}
-
-/** 带数值读数的一行（滑块 + 右侧数字）。 */
+/** 带数值读数的一行（滑块 + 右侧数字）。
+ *  必须用 cellRow：滑块的读数是与 root 平级的独立元素（见 ui.ts 的 Slider），
+ *  用 row() 只挂 root，数字就永远不显示——用户看不出线停在哪一档。 */
 function cellRow(label: string, slider: { root: HTMLElement; readout: HTMLElement }): HTMLElement {
   const r = h('div', 'settings-row cell')
-  r.appendChild(h('span')).textContent = label
-  r.firstElementChild!.className = 'row-label'
-  r.append(slider.root, slider.readout)
+  const span = h('span', 'row-label')
+  span.textContent = label
+  r.append(span, slider.root, slider.readout)
   return r
+}
+
+/** 一节的标题（分区内容的第一行）。 */
+function sectionTitle(label: string): HTMLElement {
+  const el = h('h3', 'settings-group-title')
+  el.textContent = label
+  return el
 }
 
 export function closeSettingsModal() {
@@ -57,22 +83,61 @@ export function openSettingsModal(onClose?: () => void) {
   const backdrop = h('div', 'modal-backdrop')
   const card = h('div', 'modal-card settings-card')
 
-  // 头部
-  const header = h('div', 'modal-header')
+  // ── 头部：标题 + 搜索 + 关闭 ──
+  const header = h('div', 'modal-header settings-header')
   const title = h('h2', 'modal-title')
   title.textContent = t('settingsTitle')
+
+  const search = h('input', 'settings-search') as HTMLInputElement
+  search.type = 'search'
+  search.placeholder = t('settingsSearch')
+  search.setAttribute('aria-label', t('settingsSearch'))
+
   const closeBtn = h('button', 'btn-icon')
   closeBtn.innerHTML = iconSvg('close')
   closeBtn.setAttribute('aria-label', t('close'))
-  closeBtn.addEventListener('click', closeSettingsModal)
-  header.append(title, closeBtn)
+  closeBtn.addEventListener('click', close)
+  header.append(title, search, closeBtn)
   card.appendChild(header)
 
-  const body = h('div', 'modal-body')
-  card.appendChild(body)
+  const panes = h('div', 'settings-panes')
+  const nav = h('nav', 'settings-nav')
+  const content = h('div', 'settings-content')
+  panes.append(nav, content)
+  card.appendChild(panes)
+
+  // ── 各分区内容 ──
+  // 建一次、常驻在 DOM 里，切换分区只改 hidden：重建会让滑块拖拽中断
+  // （指针捕获跑在被删掉的 DOM 上），也会让滚动位置丢失。
+  const panesBySection = new Map<string, HTMLElement>()
+  const navButtons = new Map<string, HTMLButtonElement>()
+
+  const makeSection = (id: string, label: string): HTMLElement => {
+    const el = h('section', 'settings-group')
+    el.dataset.section = id
+    el.appendChild(sectionTitle(label))
+    content.appendChild(el)
+    panesBySection.set(id, el)
+
+    const btn = h('button', 'settings-nav-item') as HTMLButtonElement
+    btn.type = 'button'
+    btn.textContent = label
+    btn.addEventListener('click', () => showSection(id))
+    nav.appendChild(btn)
+    navButtons.set(id, btn)
+    return el
+  }
+
+  function showSection(id: string): void {
+    lastSection = id
+    search.value = ''
+    for (const [key, el] of panesBySection) el.hidden = key !== id
+    for (const [key, btn] of navButtons) btn.classList.toggle('active', key === id)
+    content.scrollTop = 0
+  }
 
   // ── 外观 ──
-  const appearance = section(t('appearance'))
+  const appearance = makeSection('appearance', t('appearance'))
   const galleryHost = h('div', 'settings-gallery')
   // 画廊自带明暗分段 + 六张主题卡。设置一变就重画「选中态 / 已微调标记」——
   // 不订阅的话，用户在弹窗里换主题，卡片上的高亮还停在旧的那张。
@@ -83,16 +148,7 @@ export function openSettingsModal(onClose?: () => void) {
   })
   appearance.appendChild(galleryHost)
 
-  // ── 微调：主题给的是标定值，用户想动就动 ──
-  const font = Segmented(
-    getSettings().fontFamily,
-    [
-      { v: 'system', label: t('fontSystem') },
-      { v: 'serif', label: t('fontSerif') },
-    ],
-    (v) => apply((s) => ({ ...s, fontFamily: v })),
-  )
-  // 界面缩放放在外观区最前面：它是「整块屏幕多大」的旋钮，比正文的字体字号更外一层。
+  // 界面缩放：「整块屏幕多大」的旋钮，比正文的字体字号更外一层。
   // 与正文字号是两件事：读得舒服 ≠ 隔着三米能看清，所以两个旋钮都留着。
   const zoomSlider = Slider(
     getSettings().uiZoom,
@@ -102,10 +158,19 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, uiZoom: v })),
     (n) => `${n}%`,
   )
-  // 必须用 cellRow：滑块的读数是与 root 平级的独立元素（见 ui.ts 的 Slider），
-  // 用 row() 只挂 root，百分比就永远不显示——用户完全看不出线停在哪一档。
   appearance.appendChild(cellRow(t('uiZoom'), zoomSlider))
-  appearance.appendChild(row(t('readingFont'), font.root))
+
+  // ── 阅读 ──
+  const reading = makeSection('reading', t('reading'))
+  const font = Segmented(
+    getSettings().fontFamily,
+    [
+      { v: 'system', label: t('fontSystem') },
+      { v: 'serif', label: t('fontSerif') },
+    ],
+    (v) => apply((s) => ({ ...s, fontFamily: v })),
+  )
+  reading.appendChild(row(t('readingFont'), font.root))
 
   const fontSlider = Slider(
     getSettings().fontSize,
@@ -115,7 +180,7 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, fontSize: v })),
     (n) => `${n}px`,
   )
-  appearance.appendChild(cellRow(t('fontSize'), fontSlider))
+  reading.appendChild(cellRow(t('fontSize'), fontSlider))
 
   const lhSlider = Slider(
     getSettings().lineHeight,
@@ -125,7 +190,7 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, lineHeight: v })),
     (n) => n.toFixed(2),
   )
-  appearance.appendChild(cellRow(t('lineHeight'), lhSlider))
+  reading.appendChild(cellRow(t('lineHeight'), lhSlider))
 
   const wSlider = Slider(
     getSettings().readingWidth,
@@ -135,46 +200,100 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, readingWidth: v })),
     (n) => `${n}px`,
   )
-  appearance.appendChild(cellRow(t('readingWidth'), wSlider))
-  body.appendChild(appearance)
+  reading.appendChild(cellRow(t('readingWidth'), wSlider))
 
   // ── 编辑 ──
-  const editing = section(t('editing'))
+  const editing = makeSection('editing', t('editing'))
   editing.appendChild(
-    row(t('autoPairs'), Switch(getSettings().autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v })))),
+    row(
+      t('autoPairs'),
+      Switch(getSettings().autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v }))),
+    ),
+  )
+  editing.appendChild(
+    row(
+      t('showWhitespace'),
+      Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v }))),
+    ),
   )
   editing.appendChild(
     row(
       t('confirmClose'),
-      Switch(getSettings().closeAlwaysConfirmsChanges, (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v }))),
+      Switch(
+        getSettings().closeAlwaysConfirmsChanges,
+        (v) => apply((s) => ({ ...s, closeAlwaysConfirmsChanges: v })),
+      ),
     ),
   )
   editing.appendChild(
-    row(t('showWhitespace'), Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v })))),
+    row(
+      t('recoverUnsaved'),
+      Switch(getSettings().recoverUnsaved, (v) => apply((s) => ({ ...s, recoverUnsaved: v }))),
+      t('recoverUnsavedHint'),
+    ),
   )
-  body.appendChild(editing)
 
-  // 底栏
+  // ── 高级 ──
+  const advanced = makeSection('advanced', t('advanced'))
+  const cssBox = h('textarea', 'settings-textarea') as HTMLTextAreaElement
+  cssBox.value = getSettings().customCss ?? ''
+  cssBox.placeholder = t('customCssPlaceholder')
+  cssBox.spellcheck = false
+  cssBox.rows = 6
+  // 输入即生效（下面 notify 里同步），失焦再落盘由 setSettings 自己负责
+  cssBox.addEventListener('input', () => apply((s) => ({ ...s, customCss: cssBox.value })))
+  const cssRow = row(t('customCss'), cssBox, t('customCssHint'))
+  cssRow.classList.add('settings-row-stack')
+  advanced.appendChild(cssRow)
+
+  // ── 底栏 ──
   const footer = h('div', 'modal-footer')
   const reset = h('button', 'btn')
   reset.textContent = t('resetDefaults')
   reset.addEventListener('click', () => resetSettings())
   const done = h('button', 'btn btn-primary')
   done.textContent = t('done')
-  done.addEventListener('click', () => {
-    closeSettingsModal()
-    onClose?.()
-  })
+  done.addEventListener('click', () => close())
   footer.append(reset, done)
   card.appendChild(footer)
 
   /**
-   * 设置一变就同步「微调」控件的位置。
-   *
-   * 必须同步而不是整块重建：滑块拖到一半被重建，拖拽就断了（指针捕获跑在
-   * 被删掉的 DOM 上）。所以这里只 set()，只动值不动结构。
+   * 搜索：按行过滤，跨分区一起给。
+   * 不重建 DOM、不切分区——只翻 hidden 和「有可见行吗」两个开关，
+   * 所以拖到一半的滑块不会被搜索打断。
    */
-  // 画廊重建的合并开关（定义在 notify 之前：回调里就用到它）
+  function applyFilter(): void {
+    const q = search.value.trim().toLowerCase()
+    if (!q) {
+      showSection(lastSection)
+      return
+    }
+    let visibleTotal = 0
+    for (const [id, el] of panesBySection) {
+      let visibleInSection = 0
+      for (const r of el.querySelectorAll<HTMLElement>('.settings-row')) {
+        const hit = (r.textContent ?? '').toLowerCase().includes(q)
+        r.hidden = !hit
+        if (hit) visibleInSection++
+      }
+      // 标题行也跟着藏：搜索时每个分区只留命中的行，标题反而更清爽
+      el.querySelector<HTMLElement>('.settings-group-title')!.hidden = visibleInSection === 0
+      el.hidden = visibleInSection === 0
+      visibleTotal += visibleInSection
+      navButtons.get(id)?.classList.toggle('active', false)
+    }
+    empty.hidden = visibleTotal > 0
+  }
+
+  const empty = h('div', 'settings-empty')
+  empty.textContent = t('settingsNoResult')
+  empty.hidden = true
+  content.appendChild(empty)
+
+  search.addEventListener('input', applyFilter)
+
+  // ── 状态同步 ──
+  // 只 set() 值、不动结构：拖到一半被重建，拖拽就断了。
   let galleryTick = false
   const off = notify((s) => {
     font.set(s.fontFamily)
@@ -182,6 +301,7 @@ export function openSettingsModal(onClose?: () => void) {
     lhSlider.set(s.lineHeight)
     wSlider.set(s.readingWidth)
     zoomSlider.set(s.uiZoom)
+    if (document.activeElement !== cssBox) cssBox.value = s.customCss ?? ''
     // 用 rAF 合并：拖滑块时 notify 每像素都响，画廊只需要每帧对齐一次
     if (!galleryTick) {
       galleryTick = true
@@ -192,20 +312,31 @@ export function openSettingsModal(onClose?: () => void) {
     }
   })
 
-  const close = () => {
+  function close(): void {
     off()
-    closeSettingsModal()
     document.removeEventListener('keydown', onKey)
+    closeSettingsModal()
+    onClose?.()
+  }
+
+  document.addEventListener('keydown', onKey)
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') close()
+    // ⌘/Ctrl+F 直接进搜索框：设置里"找"比"翻"常用
+    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      e.preventDefault()
+      search.focus()
+    }
   }
 
   backdrop.appendChild(card)
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close()
   })
-  document.addEventListener('keydown', onKey)
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') close()
-  }
   document.body.appendChild(backdrop)
   root = backdrop
+
+  showSection(lastSection)
+  // 打开就聚焦搜索框？不。用户多数是"来改某一项"，聚焦搜索会让键盘输入
+  // 直接落进搜索框而误过滤；想搜的人按 ⌘F 或直接点。
 }

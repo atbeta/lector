@@ -18,6 +18,24 @@ function applyTheme(theme: ThemeMode) {
   document.documentElement.setAttribute('data-theme-mode', theme)
 }
 
+/**
+ * 自定义样式的容器：永远建在 <head> 末尾。
+ *
+ * 放末尾而不是中间，是为了让「用户想覆盖哪条规则都能覆盖」——同权重下后者胜出，
+ * 就不用为了一行改色去写 !important 军备竞赛。Typora / Obsidian / VS Code
+ * 开放自定义 CSS 也都是这个做法。
+ */
+let customStyleEl: HTMLStyleElement | null = null
+
+function applyCustomCss(css: string): void {
+  if (!customStyleEl) {
+    customStyleEl = document.createElement('style')
+    customStyleEl.id = 'lector-custom-css'
+    document.head.appendChild(customStyleEl)
+  }
+  if (customStyleEl.textContent !== css) customStyleEl.textContent = css
+}
+
 function applyVars(s: EditorSettings) {
   const root = document.documentElement
   root.style.setProperty('--reading-font-size', `${s.fontSize}px`)
@@ -32,6 +50,7 @@ function applyVars(s: EditorSettings) {
   // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
   // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。
   root.setAttribute('data-reading-theme', s.readingTheme)
+  applyCustomCss(s.customCss ?? '')
 }
 
 export function notify(handler: (s: EditorSettings) => void): () => void {

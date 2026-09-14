@@ -2100,3 +2100,108 @@ tr:hover .table-editor-op { opacity: 1; }
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* ───────────── 设置面板：两栏 ─────────────
+ * 左栏分区导航、右栏内容、顶部搜索。规则见 settingsModal.ts 的文件头注释。
+ * 面板高度锁在视口内（86vh）而不是"内容多高就多高"：设置项会一直增加，
+ * 让面板跟着长高，迟早会顶出屏幕。 */
+.modal-card.settings-card {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 94vw);
+  height: min(620px, 86vh);
+}
+.settings-search {
+  flex: 0 1 260px;
+  min-width: 120px;
+  margin-left: auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-base);
+}
+.settings-search:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 1px; }
+.settings-header .btn-icon { margin-left: 0; }
+.settings-panes {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--shell));
+  overflow-y: auto;
+}
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.settings-nav-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+.settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 550; }
+.settings-content { overflow-y: auto; min-height: 0; padding: 14px 18px 18px; }
+.settings-group-title {
+  margin: 0 0 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(var(--muted-foreground));
+}
+.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-hint { max-width: 46ch; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
+.settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.settings-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.settings-empty { padding: 24px 4px; font-size: var(--text-base); color: rgb(var(--muted-foreground)); }
+
+/* ───────────── 未保存草稿提示 ─────────────
+ * 固定在顶栏下方居中，而不是插进正文流里：
+ * 插进 #content 会被任何一次重渲染（切模式、改设置）冲掉，
+ * 而这条提示必须一直在，直到用户做出选择。 */
+.recover-bar {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: fade-in var(--motion-fast) var(--ease-enter) both;
+}
+.recover-text { font-size: var(--text-base); color: rgb(var(--foreground)); }
