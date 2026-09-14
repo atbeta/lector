@@ -27,6 +27,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 notify = "8.0.0"
 
-# 仅 Windows 用：向 DWM 申请无边框窗口圆角（io.rs::apply_platform_window_tweaks）。
+# 仅 Windows 用：透明无边框窗口 + Mica/Acrylic 材质换系统圆角与原生投影
+# （io.rs::apply_platform_window_tweaks）。
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+window-vibrancy = "0.8.0"

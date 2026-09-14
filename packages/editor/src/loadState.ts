@@ -81,9 +81,6 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
     item.className = 'recent-item'
     item.dataset.path = path
     item.dataset.tip = path
-    const badge = document.createElement('span')
-    badge.className = 'recent-badge'
-    badge.innerHTML = iconSvg('fileText', 15)
     const text = document.createElement('span')
     text.className = 'recent-text'
     const name = document.createElement('span')
@@ -93,7 +90,7 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
     dir.className = 'recent-dir'
     dir.textContent = dirName(path)
     text.append(name, dir)
-    item.append(badge, text)
+    item.appendChild(text)
     item.addEventListener('click', () => void deps.onOpenRecent?.(path))
     list.appendChild(item)
   }
@@ -106,24 +103,21 @@ function openShortcut(): string {
   return /mac/i.test(navigator.userAgent) ? '⌘O' : 'Ctrl O'
 }
 
-/** 空态:品牌区（图标 + 名 + 定位语）+ 主按钮（+ 最近打开）。 */
+/** 空态：排版主导（衬线字标 + 定位语 + 墨色主按钮），品牌色不出场。 */
 export function renderEmptyState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
   const wrap = document.createElement('div')
   wrap.className = 'empty-state'
-  const hero = document.createElement('div')
-  hero.className = 'empty-hero'
-  hero.innerHTML = iconSvg('book', 30)
   const title = document.createElement('h2')
   title.textContent = t('emptyTitle')
   const tagline = document.createElement('p')
   tagline.className = 'empty-tagline'
   tagline.textContent = t('emptyTagline')
   const btn = document.createElement('button')
-  btn.className = 'btn btn-primary empty-open'
+  btn.className = 'empty-open'
   btn.innerHTML = `${iconSvg('folder', 16)}<span>${t('openFile')}</span><kbd>${openShortcut()}</kbd>`
   btn.addEventListener('click', () => void deps.onOpen())
-  wrap.append(hero, title, tagline, btn)
+  wrap.append(title, tagline, btn)
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)

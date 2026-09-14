@@ -501,41 +501,43 @@ pub fn open_path(app: &AppHandle, path: &str) {
 pub struct WindowChrome {
   /// 是否保留系统绘制的窗口边框（macOS 的红绿灯就长在这里）
   pub decorations: bool,
+  /// 窗口是否透明。Windows 需要：透明 + Mica/Acrylic 材质才有系统圆角
+  /// （见 apply_platform_window_tweaks）。macOS 不需要。
+  pub transparent: bool,
 }
 
 #[cfg(target_os = "macos")]
 pub const fn window_chrome() -> WindowChrome {
   // macOS：保留原生边框 + 覆盖式标题栏。红绿灯是 mac 用户的肌肉记忆，
   // 自绘一套会立刻显得「不是 mac 应用」。
-  WindowChrome { decorations: true }
+  WindowChrome { decorations: true, transparent: false }
 }
 
 #[cfg(not(target_os = "macos"))]
 pub const fn window_chrome() -> WindowChrome {
   // Windows / Linux：无边框自绘，最小化/最大化/关闭由 Web 层的 chrome.ts 调窗口命令。
-  WindowChrome { decorations: false }
+  // Windows 透明窗口是圆角的前提（DWM 材质方案，见 apply_platform_window_tweaks）。
+  WindowChrome { decorations: false, transparent: true }
 }
 
 /// 平台级的窗口观感微调，在窗口创建后、显示前调用。
 ///
-/// Windows：向 DWM 显式申请圆角（DWMWA_WINDOW_CORNER_PREFERENCE = ROUND）。
-/// 无边框窗口不保证吃到 Win11 的默认圆角——本应用就是反例；Win10 没有这个
-/// 属性，调用失败静默忽略即可。macOS 原生边框自带圆角，无此事。
+/// Windows 圆角方案（沿用 RelayCraft 验证过的路子）：无边框 + 透明窗口 +
+/// DWM 背景材质——Win11 上 Mica，不支持时退回 Acrylic。只要挂了 DWM 材质，
+/// DWM 就会按系统圆角裁窗口并画出原生投影；正文背景由 CSS 的 --background
+/// 画满，材质只在窗口边缘可见。
+/// 之前试过 DWMWA_WINDOW_CORNER_PREFERENCE：对无边框窗口（popup 样式）不生效，
+/// 别再走回头路。材质色调按创建时的系统主题选一次，之后切主题不重刷
+/// （影响只有边缘几像素的材质色调，可接受）。
 #[cfg(target_os = "windows")]
 fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
-  use windows_sys::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
-  };
-  const DWMWCP_ROUND: u32 = 2;
-  let Ok(hwnd) = win.hwnd() else { return };
-  let preference: u32 = DWMWCP_ROUND;
-  unsafe {
-    let _ = DwmSetWindowAttribute(
-      hwnd.0 as windows_sys::Win32::Foundation::HWND,
-      DWMWA_WINDOW_CORNER_PREFERENCE as _,
-      &preference as *const u32 as *const _,
-      std::mem::size_of::<u32>() as u32,
-    );
+  use window_vibrancy::{apply_acrylic, apply_mica};
+  let dark = matches!(win.theme(), Ok(tauri::Theme::Dark));
+  if dark {
+    let _ = apply_acrylic(win, Some((18, 18, 22, 80)));
+  } else if apply_mica(win, Some(false)).is_err() {
+    // Win10 没有 Mica
+    let _ = apply_acrylic(win, Some((242, 242, 250, 50)));
   }
 }
 
@@ -586,6 +588,12 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
     .decorations(chrome.decorations);
+  // transparent 在 macOS 上要 macos-private-api 私有特性，而我们只用原生边框，不需要它；
+  // Windows 透明窗口是圆角的前提（DWM 材质方案，见 apply_platform_window_tweaks）。
+  #[cfg(not(target_os = "macos"))]
+  {
+    builder = builder.transparent(chrome.transparent);
+  }
   #[cfg(target_os = "macos")]
   {
     builder = builder

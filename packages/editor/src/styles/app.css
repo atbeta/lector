@@ -911,7 +911,10 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   to { opacity: 1; transform: translateX(0); }
 }
 
-/* ───────────── 首屏空态 ───────────── */
+/* ───────────── 首屏空态 ─────────────
+ * 排版主导：衬线字标 + 定位语 + 墨色主按钮，品牌蓝在这一屏不出场。
+ * 之前用主色渐变图标块 + 蓝按钮，色块太大显得「不高级」；阅读器的第一屏
+ * 应该像一本书的扉页——字是主角，色是配角。 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -928,51 +931,54 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(2) { animation-delay: 45ms; }
 .empty-state > *:nth-child(3) { animation-delay: 90ms; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
-.empty-state > *:nth-child(5) { animation-delay: 180ms; }
 @keyframes empty-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.empty-hero {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  color: rgb(var(--primary-foreground));
-  background: var(--brand-gradient);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
-    0 10px 28px rgb(var(--primary) / 0.30);
-  margin-bottom: 16px;
-}
 .empty-state h2 {
   margin: 0;
-  font-size: var(--text-h2);
+  font-family: var(--font-serif);
+  font-size: var(--text-h1);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: rgb(var(--foreground));
 }
 .empty-tagline {
-  margin: 6px 0 24px;
+  margin: 8px 0 30px;
   font-size: var(--text-base);
   color: rgb(var(--subtle-foreground));
 }
+/* 墨色按钮：空态的主动作用「最强、不带品牌色」的墨色（tokens 里 --ink 的本义） */
 .empty-open {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 9px 12px 9px 16px;
-  font-size: var(--text-md);
+  padding: 10px 13px 10px 17px;
+  border: 0;
   border-radius: var(--radius-card);
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-foreground));
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(24 24 27 / 0.18), 0 6px 16px rgb(24 24 27 / 0.08);
+  transition: transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
-/* 快捷键角标叠在主按钮上：半透明白底白边，不另起色 */
+.empty-open:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgb(24 24 27 / 0.16), 0 10px 24px rgb(24 24 27 / 0.12);
+}
+.empty-open:active { transform: none; }
 .empty-open kbd {
   padding: 1px 6px;
   border-radius: 5px;
   font-family: var(--font-sans);
   font-size: var(--text-2xs);
   line-height: 1.5;
-  background: rgb(255 255 255 / 0.16);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24);
+  background: rgb(var(--ink-foreground) / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-foreground) / 0.16);
 }
 
 /* ───────────── Tip 浮层 ─────────────
@@ -2352,12 +2358,13 @@ tr:hover .table-editor-op { opacity: 1; }
 
 
 /* ───────────── 空态的「最近打开」 ─────────────
- * 空态只回答「打开什么」，所以这一块是按钮的补充而不是并列的另一屏：
- * 标题轻、条目卡片化、目录弱化成第二行；右上角留一个安静的「清空」。 */
+ * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
+ * 不做卡片、不做图标徽章、不用主色描边——这份列表是「接着读」，
+ * 观感上应该接近目录页，而不是一排 App 图标。 */
 .recent-block {
-  margin-top: 32px;
+  margin-top: 36px;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   text-align: left;
 }
 .recent-head {
@@ -2365,6 +2372,7 @@ tr:hover .table-editor-op { opacity: 1; }
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 8px;
+  padding: 0 2px;
 }
 .recent-label {
   font-size: var(--text-2xs);
@@ -2387,46 +2395,33 @@ tr:hover .table-editor-op { opacity: 1; }
   transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 .recent-clear:hover {
-  background: var(--destructive-soft);
-  color: rgb(var(--destructive));
+  background: var(--block-hover-bg);
+  color: rgb(var(--foreground));
 }
-.recent-list { display: flex; flex-direction: column; gap: 6px; }
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--paper));
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1px rgb(var(--border));
+  overflow: hidden;
+}
 .recent-item {
   display: flex;
   align-items: center;
-  gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 14px;
   border: 0;
-  border-radius: var(--radius-card);
-  background: rgb(var(--paper));
-  box-shadow: 0 0 0 1px rgb(var(--border));
+  background: transparent;
   font: inherit;
   font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
-  transition: box-shadow var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
+  transition: background var(--motion-fast) var(--ease-standard);
 }
-.recent-item:hover {
-  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.45), 0 2px 8px rgb(24 24 27 / 0.06);
-  transform: translateY(-1px);
-}
-/* 按压回位：浮起是悬停语义，按下就该落回去 */
-.recent-item:active { transform: none; }
-html[data-theme='dark'] .recent-item:hover {
-  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
-}
-.recent-badge {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  color: rgb(var(--primary));
-  background: var(--primary-softer);
-}
+/* 发丝分隔线用 inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+.recent-item + .recent-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
+.recent-item:hover { background: var(--block-hover-bg); }
 .recent-text {
   flex: 1 1 auto;
   min-width: 0;
