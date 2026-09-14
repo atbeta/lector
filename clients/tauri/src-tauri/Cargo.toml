@@ -21,4 +21,8 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2"
+# 记住窗口尺寸/位置/最大化状态，下次启动恢复。
+# 官方插件（crates.io 上的 tauri-plugin-window-state），只在 Rust 侧使用，
+# 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。
+tauri-plugin-window-state = "2"
 notify = "8.0.0"

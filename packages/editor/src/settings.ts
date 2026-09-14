@@ -23,6 +23,11 @@ function applyVars(s: EditorSettings) {
   root.style.setProperty('--reading-font-size', `${s.fontSize}px`)
   root.style.setProperty('--reading-line-height', `${s.lineHeight}`)
   root.style.setProperty('--reading-max-w', `${s.readingWidth}px`)
+  // 界面缩放：整页等比。
+  // 用 CSS zoom 而不是 transform: scale —— zoom 参与布局，顶栏/状态行/浮层/命中区
+  // 一起等比变化，不会出现「看得见但点不到」；transform 只做视觉缩放，命中区还在原位。
+  // Chromium（WebView2）与 WebKit（WKWebView）都支持。
+  root.style.setProperty('zoom', String(s.uiZoom / 100))
   root.classList.toggle('font-serif', s.fontFamily === 'serif')
   // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
   // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。
@@ -78,6 +83,23 @@ export function stepFontSize(delta: number) {
 
 export function resetFontSize() {
   setSettings({ ...current, fontSize: DEFAULT_SETTINGS.fontSize })
+}
+
+/** 界面缩放的档位：演示时常用 125/150，两个端点之间不留太多空档 */
+const UI_ZOOM_STEPS = [70, 80, 90, 100, 110, 125, 150]
+
+/** 步进一档界面缩放（方向键/快捷键用）。 */
+export function stepUiZoom(delta: number) {
+  const cur = getSettings().uiZoom
+  const i = UI_ZOOM_STEPS.findIndex((v) => v >= cur)
+  const at = i < 0 ? UI_ZOOM_STEPS.length - 1 : i
+  const next = UI_ZOOM_STEPS[Math.min(UI_ZOOM_STEPS.length - 1, Math.max(0, at + delta))]!
+  setSettings({ ...getSettings(), uiZoom: next })
+}
+
+/** 界面缩放回到 100%。 */
+export function resetUiZoom() {
+  setSettings({ ...getSettings(), uiZoom: 100 })
 }
 
 export function toggleTheme() {

@@ -39,7 +39,7 @@ import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath } from './asset.ts'
-import { initSettings, resetFontSize, stepFontSize, getSettings } from './settings.ts'
+import { initSettings, resetFontSize, resetUiZoom, stepFontSize, stepUiZoom, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar, escapeRegExp } from './findBar.ts'
 import { redo, undo } from '@codemirror/commands'
@@ -49,6 +49,7 @@ import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
 import { mountTip } from './tip.ts'
 import { mountLightbox, showInLightbox, showSvgInLightbox } from './lightbox.ts'
+import { closeSelectionBubble, mountSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { hideContextMenu, showContextMenu, type ContextMenuItem } from './contextMenu.ts'
 import { renderEmptyState as renderEmptyStateView, renderLoadingState as renderLoadingStateView } from './loadState.ts'
 import {
@@ -1511,7 +1512,18 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
         liveText.set(block.id, text)
         syncBlockText(block, text)
       },
-      config,
+      {
+        ...config,
+        // 选中文字 → 浮出格式浮条；空选区/失焦 → 收起。
+        // 位置由 CM 自己算（coordsAtPos），浮条只负责摆和点。
+        onSelectionChange: (sel) => {
+          if (!sel || !cm) {
+            closeSelectionBubble()
+            return
+          }
+          openSelectionBubble(sel, cm.view)
+        },
+      },
     )
     const intent = caretIntent
     requestAnimationFrame(() => {
@@ -1686,6 +1698,7 @@ function syncBlockText(block: BlockView, text: string): void {
 }
 
 function finalizeFocused() {
+  closeSelectionBubble()
   if (session.focusedId === null || !cm) return
   const block = session.blocks.find((b) => b.id === session.focusedId)
   if (!block) return
@@ -2019,20 +2032,40 @@ window.addEventListener('keydown', (e) => {
     return
   }
   // ⌘0 恢复默认字号（⌘0 在部分键盘上与 ⌘) 同位）
-  if (!e.shiftKey && (e.key === '0' || e.key === ')')) {
+  // ⌘/Ctrl + = - 0 → **界面缩放**（浏览器与各应用的通用约定，演示时一按就大）
+  // ⇧⌘/⇧Ctrl + = - 0 → 正文字号（只改正文）
+  // 换位之前 ⌘+ 改的是正文字号：在「投屏给别人看」这个场景下，
+  // 用户想要的是整个界面变大，而不是只有正文——按惯例把它让给界面缩放，
+  // 正文字号仍留着 shift 变体和设置里的滑块。
+  const zoomKey = e.key
+  if (!e.shiftKey && (zoomKey === '=' || zoomKey === '+')) {
     e.preventDefault()
-    resetFontSize()
+    stepUiZoom(1)
     return
   }
-  // ⌘= / ⌘+ 放大，⌘- 缩小。⌘= 是主键（不用 Shift 也能按到）
-  if (!e.shiftKey && (e.key === '=' || e.key === '+')) {
+  if (!e.shiftKey && zoomKey === '-') {
+    e.preventDefault()
+    stepUiZoom(-1)
+    return
+  }
+  if (!e.shiftKey && (zoomKey === '0' || zoomKey === ')')) {
+    e.preventDefault()
+    resetUiZoom()
+    return
+  }
+  if (e.shiftKey && (zoomKey === '+' || zoomKey === '=' || zoomKey === '*')) {
     e.preventDefault()
     stepFontSize(1)
     return
   }
-  if (!e.shiftKey && e.key === '-') {
+  if (e.shiftKey && (zoomKey === '_' || zoomKey === '-')) {
     e.preventDefault()
     stepFontSize(-1)
+    return
+  }
+  if (e.shiftKey && (zoomKey === ')' || zoomKey === '0')) {
+    e.preventDefault()
+    resetFontSize()
     return
   }
 })
@@ -2407,7 +2440,8 @@ void (async () => {
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
-  mountLightbox()
+  mountSelectionBubble()
+mountLightbox()
   mountTip()
   // 右键菜单：capture 阶段接管，避免被块自身的点击处理先吃掉
   document.addEventListener('contextmenu', onContextMenu)

@@ -487,12 +487,32 @@ pub fn ensure_main_window(app: &AppHandle) -> tauri::Result<()> {
   Ok(())
 }
 
+/// 首次启动的默认窗口尺寸：按主屏工作区算，不写死。
+///
+/// 原来写死 900×720：在 1080p 上只占中间一小块，2K/4K 上更明显（用户反馈过
+/// 「默认窗口不满」）；而随便换一个更大的固定值，又会在 1366×768 这类屏上顶出屏幕。
+/// 取宽七成、高七成八，两端都能落到「合适」。
+///
+/// 只影响**第一次**启动：之后由 window-state 插件恢复用户自己调过的尺寸与位置。
+fn default_window_size(app: &AppHandle) -> (f64, f64) {
+  let fallback = (1180.0, 820.0);
+  let Ok(Some(monitor)) = app.primary_monitor() else {
+    return fallback;
+  };
+  let logical = monitor.size().to_logical::<f64>(monitor.scale_factor());
+  (
+    (logical.width * 0.72).clamp(960.0, 1680.0),
+    (logical.height * 0.78).clamp(680.0, 1120.0),
+  )
+}
+
 fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::WebviewWindow> {
   let chrome = window_chrome();
   #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+  let (w, h) = default_window_size(app);
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title("Lector")
-    .inner_size(900.0, 720.0)
+    .inner_size(w, h)
     .min_inner_size(480.0, 360.0)
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)

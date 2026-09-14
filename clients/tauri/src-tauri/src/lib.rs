@@ -41,6 +41,10 @@ pub fn run() {
       }
     }))
     .plugin(tauri_plugin_dialog::init())
+    // 窗口状态：退出时记住尺寸/位置/是否最大化，启动时恢复。
+    // 必须在建窗口（setup 里的 ensure_main_window）**之前**注册——
+    // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
+    .plugin(tauri_plugin_window_state::Builder::default().build())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

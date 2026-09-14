@@ -28,6 +28,12 @@ export interface EditorSettings {
   lineHeight: number
   /** 阅读列宽（px）。 */
   readingWidth: number
+  /**
+   * 界面缩放（%）：整页等比放大，给投屏 / 会议演示用。
+   * 与 fontSize 正交——那个只改正文，这个连顶栏、状态行、大纲一起放大。
+   * 分成两个旋钮而不是一个，是因为两件事的诉求不同：读得舒服 vs 隔着三米能看清。
+   */
+  uiZoom: number
   /** 自动成对符号（选中即包裹 **、[] 等）。 */
   autoCharacterPairs: boolean
   /** 关闭脏文档前确认（防数据丢失）。 */
@@ -53,6 +59,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   fontSize: 17,
   lineHeight: 1.75,
   readingWidth: 760,
+  uiZoom: 100,
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
@@ -63,6 +70,8 @@ const CLAMP = {
   lineHeight: { min: 1.2, max: 2.6 },
   // 上限 1600：2K 屏（2560）扣掉侧栏还有 2200px，1200 的天花板会在最需要它的屏幕上先撞到
   readingWidth: { min: 480, max: 1600 },
+  // 上限 160：再大在 1080p 上会被顶栏裁掉内容；下限 70 是为了小屏同时看别的窗口
+  uiZoom: { min: 70, max: 160 },
 } as const
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {
@@ -98,6 +107,7 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     fontSize: clampInt(src.fontSize, CLAMP.fontSize.min, CLAMP.fontSize.max, base.fontSize),
     lineHeight: clampFloat(src.lineHeight, CLAMP.lineHeight.min, CLAMP.lineHeight.max, base.lineHeight),
     readingWidth: clampInt(src.readingWidth, CLAMP.readingWidth.min, CLAMP.readingWidth.max, base.readingWidth),
+    uiZoom: clampInt(src.uiZoom, CLAMP.uiZoom.min, CLAMP.uiZoom.max, base.uiZoom),
     autoCharacterPairs: typeof src.autoCharacterPairs === 'boolean' ? src.autoCharacterPairs : base.autoCharacterPairs,
     closeAlwaysConfirmsChanges:
       typeof src.closeAlwaysConfirmsChanges === 'boolean'

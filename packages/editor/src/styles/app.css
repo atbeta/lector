@@ -1704,6 +1704,43 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-header .btn-icon { margin-left: auto; }
 .modal-body { padding: 0; }
 
+/* ───────────── 选区浮条（编辑态） ─────────────
+ * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，
+ * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），
+ * 但在暗色下也要看得清——它是浮在**正文**上的，不是浮在遮罩上。 */
+.selection-bubble {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+}
+.selection-bubble[hidden] { display: none; }
+.selection-bubble-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.selection-bubble-btn:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+.selection-bubble-btn svg { display: block; }
+
 /* ───────────── 外观浮层（顶栏 Aa 按钮） ─────────────
  * 浮层而不是弹窗：换主题是「读着读着顺手换一下」的动作，不该把正文整块遮住——
  * 用户要一边看着自己的文章一边试主题。 */

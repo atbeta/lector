@@ -12,6 +12,14 @@ export interface EditorialConfig {
   autoCharacterPairs: boolean
   showWhitespace: boolean
   /**
+   * 选区变化回调：非空选区 → 给 {text, from, to, rect}；空选区/失焦 → null。
+   * 给 rect 是因为只有 CM 自己知道选区的视口坐标（coordsAtPos），
+   * 调用方（选区浮条）不该再去猜。
+   */
+  onSelectionChange?: (
+    sel: { text: string; from: number; to: number; rect: DOMRect } | null,
+  ) => void
+  /**
    * 兜底撤销：这个块的 CM 历史已经空了，块级操作还有可撤的时候调用。
    * 返回 true 表示真的撤掉了（调用方自己重绘）。
    */
@@ -96,6 +104,30 @@ const syntaxHigh = syntaxHighlighting(
  * 挂一个「裸 CodeMirror 6」到容器，文档 = 该块 raw。
  * 禁止任何 Decoration.replace widget——只编源码。语法高亮走 markdown() + token 色，安全。
  */
+/** 对当前选区套用行内格式。⌘B/⌘I/⌘E/⌘K 与选区浮条共用这一份实现。 */
+function applyWrap(view: EditorView, left: string, right?: string, placeholder?: string): void {
+  const { state } = view
+  const sel = state.selection.main
+  const r = toggleWrap(state.doc.toString(), sel.from, sel.to, { left, right, placeholder })
+  view.dispatch({
+    changes: { from: 0, to: state.doc.length, insert: r.text },
+    selection: { anchor: r.selection.from, head: r.selection.to },
+    scrollIntoView: true,
+    userEvent: 'input',
+  })
+}
+
+/** 选区浮条用：套用指定行内格式（与快捷键同一套实现，不另抄一份）。 */
+export function formatSelection(
+  view: EditorView,
+  kind: 'bold' | 'italic' | 'code' | 'link',
+): void {
+  if (kind === 'bold') applyWrap(view, '**')
+  else if (kind === 'italic') applyWrap(view, '*')
+  else if (kind === 'code') applyWrap(view, '`')
+  else applyWrap(view, '[', undefined, 'url')
+}
+
 export function mountEditor(
   host: HTMLElement,
   doc: string,
@@ -111,6 +143,9 @@ export function mountEditor(
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         onChange(update.state.doc.toString())
+      }
+      if (config.onSelectionChange && (update.selectionSet || update.docChanged || update.focusChanged)) {
+        reportSelection(update.view)
       }
     }),
     EditorView.domEventHandlers({
@@ -149,15 +184,7 @@ export function mountEditor(
   // 用 Prec.high：lang-markdown 自带的 keymap 里有同键位（如 ⌘E 在某些编辑器里
   // 是「行内代码」），要先于它执行。
   const wrapKey = (left: string, right?: string, placeholder?: string) => (view: EditorView) => {
-    const { state } = view
-    const sel = state.selection.main
-    const r = toggleWrap(state.doc.toString(), sel.from, sel.to, { left, right, placeholder })
-    view.dispatch({
-      changes: { from: 0, to: state.doc.length, insert: r.text },
-      selection: { anchor: r.selection.from, head: r.selection.to },
-      scrollIntoView: true,
-      userEvent: 'input',
-    })
+    applyWrap(view, left, right, placeholder)
     return true
   }
 
@@ -228,6 +255,29 @@ export function mountEditor(
     bind('ArrowRight', keys.ArrowRight)
     if (bindings.length) extensions.push(Prec.high(keymap.of(bindings)))
   }
+  /** 把当前选区（含视口坐标）报给外部；空选区或失焦报 null。 */
+  const reportSelection = (view: EditorView): void => {
+    const hook = config.onSelectionChange
+    if (!hook) return
+    if (!view.hasFocus) return hook(null)
+    const sel = view.state.selection.main
+    if (sel.empty) return hook(null)
+    const from = view.coordsAtPos(sel.from)
+    const to = view.coordsAtPos(sel.to)
+    if (!from || !to) return hook(null)
+    // 多行选区：取两端的并集，够浮条定位用（不求像素级精确）
+    const left = Math.min(from.left, to.left)
+    const right = Math.max(from.right, to.right)
+    const top = Math.min(from.top, to.top)
+    const bottom = Math.max(from.bottom, to.bottom)
+    hook({
+      text: view.state.sliceDoc(sel.from, sel.to),
+      from: sel.from,
+      to: sel.to,
+      rect: new DOMRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top)),
+    })
+  }
+
   const view = new EditorView({ parent: host, doc, extensions })
   return {
     view,

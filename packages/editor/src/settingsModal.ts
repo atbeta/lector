@@ -92,6 +92,17 @@ export function openSettingsModal(onClose?: () => void) {
     ],
     (v) => apply((s) => ({ ...s, fontFamily: v })),
   )
+  // 界面缩放放在外观区最前面：它是「整块屏幕多大」的旋钮，比正文的字体字号更外一层。
+  // 与正文字号是两件事：读得舒服 ≠ 隔着三米能看清，所以两个旋钮都留着。
+  const zoomSlider = Slider(
+    getSettings().uiZoom,
+    70,
+    160,
+    10,
+    (v) => apply((s) => ({ ...s, uiZoom: v })),
+    (n) => `${n}%`,
+  )
+  appearance.appendChild(row(t('uiZoom'), zoomSlider.root))
   appearance.appendChild(row(t('readingFont'), font.root))
 
   const fontSlider = Slider(
@@ -168,6 +179,7 @@ export function openSettingsModal(onClose?: () => void) {
     fontSlider.set(s.fontSize)
     lhSlider.set(s.lineHeight)
     wSlider.set(s.readingWidth)
+    zoomSlider.set(s.uiZoom)
     // 用 rAF 合并：拖滑块时 notify 每像素都响，画廊只需要每帧对齐一次
     if (!galleryTick) {
       galleryTick = true
