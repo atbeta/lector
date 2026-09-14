@@ -26,6 +26,10 @@ export function openTableEditor(opts: {
   onEditSource: (markdown: string) => void
 }): void {
   let draft: ParsedTable = padTable(parseTable(opts.source.split('\n')))
+  /** 用户改过表格：仅此时序列化写回。打开-关上是常见不动作，
+   *  但 parseTable → padTable → serializeTable 的双向总会规范化对齐空格，
+   *  等价无改也会让 md ≠ block.raw，触发脏标。记下来以走原路。 */
+  let dirty = false
   let closed = false
 
   const backdrop = document.createElement('div')
@@ -61,6 +65,12 @@ export function openTableEditor(opts: {
     closed = true
     document.removeEventListener('keydown', onKey, true)
     backdrop.remove()
+    // 没改：不要写回。点「编辑源码」则传原始 source，让上游 applyTableMarkdown
+    // 看到 md === block.raw 自行跳过，避免「打开表格看一眼」也变脏。
+    if (!dirty) {
+      if (editSource) opts.onEditSource(opts.source)
+      return
+    }
     const md = serializeTable(draft)
     if (editSource) opts.onEditSource(md)
     else opts.onDone(md)
@@ -96,6 +106,7 @@ export function openTableEditor(opts: {
       const v = ta.value.replace(/\n/g, ' ')
       if (v !== ta.value) ta.value = v
       draft = setCell(draft, row, col, v)
+      dirty = true
       autogrow()
     })
     ta.addEventListener('keydown', (e) => {
@@ -104,6 +115,7 @@ export function openTableEditor(opts: {
       const nextRow = row + 1
       if (nextRow >= draft.body.length) {
         draft = addRow(draft)
+        dirty = true
         renderGrid()
       }
       focusCell(nextRow, col)
@@ -145,6 +157,7 @@ export function openTableEditor(opts: {
         th.appendChild(
           ghostButton(t('tableDelCol'), '×', () => {
             draft = deleteCol(draft, ci)
+            dirty = true
             renderGrid()
           }),
         )
@@ -156,6 +169,7 @@ export function openTableEditor(opts: {
     addColTh.appendChild(
       ghostButton(t('tableAddCol'), '+', () => {
         draft = addCol(draft)
+        dirty = true
         renderGrid()
         focusCell(-1, draft.header.length - 1)
       }),
@@ -176,6 +190,7 @@ export function openTableEditor(opts: {
       gutter.appendChild(
         ghostButton(t('tableDelRow'), '×', () => {
           draft = deleteRow(draft, ri)
+          dirty = true
           renderGrid()
         }),
       )
@@ -191,6 +206,7 @@ export function openTableEditor(opts: {
     addRowBtn.textContent = `+ ${t('tableAddRow')}`
     addRowBtn.addEventListener('click', () => {
       draft = addRow(draft)
+      dirty = true
       renderGrid()
       focusCell(draft.body.length - 1, 0)
     })
