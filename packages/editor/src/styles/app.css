@@ -924,9 +924,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 
 /* ───────────── 首屏空态 ─────────────
- * 排版主导：衬线字标 + 定位语 + 墨色主按钮，品牌蓝在这一屏不出场。
- * 之前用主色渐变图标块 + 蓝按钮，色块太大显得「不高级」；阅读器的第一屏
- * 应该像一本书的扉页——字是主角，色是配角。 */
+ * 扉页构图：品牌 logo + 衬线字标 + 定位语 + 墨色主按钮。
+ * 品牌色只出现在 logo 上（它是门面），按钮仍走墨色——阅读器的第一屏
+ * 应该像一本书的扉页：字是主角，色是配角。 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -980,22 +980,6 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-open, .empty-new { min-width: 132px; justify-content: center; }
 .empty-open { min-height: 42px; padding-inline: 20px; }
 .empty-new { min-height: 42px; padding-inline: 18px; }
-.empty-state::before {
-  content: 'L';
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 22px;
-  border-radius: 15px;
-  background: rgb(var(--ink));
-  color: rgb(var(--ink-foreground));
-  font-family: var(--font-serif);
-  font-size: 30px;
-  font-weight: 650;
-  letter-spacing: -0.08em;
-  box-shadow: 0 8px 20px rgb(var(--foreground) / 0.12);
-}
 @media (max-width: 560px) {
   .empty-actions { flex-direction: column; width: min(100%, 220px); }
   .empty-open, .empty-new { width: 100%; }
@@ -2291,6 +2275,37 @@ tr:hover .table-editor-op { opacity: 1; }
 
 
 /* ─��─────────── 动效 ───────────── */
+/* 设置·关于 */
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 14px;
+}
+.about-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  box-shadow: 0 4px 12px rgb(var(--foreground) / 0.12);
+}
+.about-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgb(var(--foreground));
+}
+.about-tagline {
+  margin-top: 1px;
+  font-size: var(--text-sm);
+  color: rgb(var(--subtle-foreground));
+}
+/* 只读值：关于区/版本号这类「只看不改」的右槽内容 */
+.row-static {
+  font-size: var(--text-base);
+  color: rgb(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -2597,6 +2612,30 @@ html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 .empty-open, .empty-new { min-height: 38px; }
 .recent-block { margin-top: 32px; }
+
+/* ───────────── 空态画布 ─────────────
+ * 空态不是「一篇空文档」，是扉页：撤掉纸页表面（底色/两侧描边/最大栏宽），
+ * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
+html.is-empty #content {
+  max-width: none;
+  background: transparent;
+  border-inline-color: transparent;
+  box-shadow: none;
+}
+/* 空态内容自己的版心：比阅读栏宽一些，最近打开的列表才排得开 */
+.empty-state { width: min(640px, 100%); box-sizing: border-box; }
+.empty-logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  border-radius: 16px; /* svg 自带圆角；这里是兜底，防占位瞬间露出直角 */
+  box-shadow: 0 10px 24px rgb(var(--foreground) / 0.14);
+}
+.empty-actions { gap: 12px; }
+.empty-open, .empty-new { min-width: 148px; min-height: 44px; justify-content: center; }
+.empty-new { margin-left: 0; }
+/* 最近打开跟随空态版心，不再是窄栏里的一小条 */
+html.is-empty .recent-block { max-width: 560px; margin-inline: auto; }
 
 /* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
    只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */

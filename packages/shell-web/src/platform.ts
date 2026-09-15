@@ -133,6 +133,13 @@ export async function openExternal(url: string): Promise<void> {
   await invoke('open_url', { url })
 }
 
+/** 应用版本：壳里读 tauri.conf.json 的版本（构建期固化）；浏览器预览没有壳，报 'dev'。 */
+export async function appVersion(): Promise<string> {
+  if (detectEnv() !== 'shell') return 'dev'
+  const { getVersion } = await import('@tauri-apps/api/app')
+  return getVersion()
+}
+
 export async function dirFor(path: string): Promise<string> {
   const { invoke } = await tauriApi()
   const res = await invoke<{ base_dir: string }>('dir_for', { path })

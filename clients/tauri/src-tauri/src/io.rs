@@ -588,6 +588,9 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
     // 所有新窗口先以同一规则居中；window-state 有历史记录时会在此基础上恢复，
     // 没有历史记录时则避免空态窗口和文件关联启动窗口落在不同的默认位置。
     .center()
+    // 先隐身：窗口建出来时是默认尺寸/居中位置，restore_state 之后才 show。
+    // 少了这一步，用户会看到「窗口先在中央出现 → 再跳回上次的位置」的完整过程。
+    .visible(false)
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
     .decorations(chrome.decorations);

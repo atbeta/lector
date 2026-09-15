@@ -26,7 +26,7 @@ import { Segmented, Slider, Switch } from './ui.ts'
 import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
-import { testImageCommand, runImageCommand } from '@lector/shell-web'
+import { testImageCommand, runImageCommand, appVersion } from '@lector/shell-web'
 
 let root: HTMLElement | null = null
 
@@ -332,6 +332,28 @@ export function openSettingsModal(onClose?: () => void) {
   const cssRow = row(t('customCss'), cssBox, t('customCssHint'))
   cssRow.classList.add('settings-row-stack')
   advanced.appendChild(cssRow)
+
+  // ── 关于 ──
+  // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
+  const about = makeSection('about', t('about'))
+  const hero = h('div', 'about-hero')
+  const aboutLogo = h('img', 'about-logo') as HTMLImageElement
+  aboutLogo.src = '/lector-mark.svg'
+  aboutLogo.alt = ''
+  const aboutName = h('div', 'about-name')
+  const nameEl = h('div', 'about-title')
+  nameEl.textContent = 'Lector'
+  const taglineEl = h('div', 'about-tagline')
+  taglineEl.textContent = t('emptyTagline')
+  aboutName.append(nameEl, taglineEl)
+  hero.append(aboutLogo, aboutName)
+  about.appendChild(hero)
+  const versionValue = h('span', 'row-static')
+  versionValue.textContent = '…'
+  void appVersion().then((v) => {
+    versionValue.textContent = `v${v}`
+  })
+  about.appendChild(row(t('versionLabel'), versionValue))
 
   // ── 底栏 ──
   const footer = h('div', 'modal-footer')

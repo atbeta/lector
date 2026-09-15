@@ -105,11 +105,15 @@ function openShortcut(): string {
   return /mac/i.test(navigator.userAgent) ? '⌘O' : 'Ctrl O'
 }
 
-/** 空态：排版主导（衬线字标 + 定位语 + 墨色主按钮），品牌色不出场。 */
+/** 空态：真 logo + 衬线字标 + 定位语 + 主/次按钮。整窗撤掉纸页表面，让内容居中于整窗。 */
 export function renderEmptyState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
   const wrap = document.createElement('div')
   wrap.className = 'empty-state'
+  const logo = document.createElement('img')
+  logo.className = 'empty-logo'
+  logo.src = '/lector-mark.svg'
+  logo.alt = ''
   const title = document.createElement('h2')
   title.textContent = t('emptyTitle')
   const tagline = document.createElement('p')
@@ -133,12 +137,15 @@ export function renderEmptyState(deps: LoadStateDeps): void {
     newBtn.addEventListener('click', () => void deps.onNew?.())
     actions.appendChild(newBtn)
   }
-  wrap.append(title, tagline, actions)
+  wrap.append(logo, title, tagline, actions)
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)
   resetTitle(deps.fileNameEl)
   deps.blocksEl.clear()
+  // 空态撤掉「纸页」：#content 的纸面底色与两侧描边在正文阅读时是页面感，
+  // 在空态里则是两条死灰带——整窗都是画布，内容才像「印在书上」而不是「贴在框里」。
+  document.documentElement.classList.add('is-empty')
   document.documentElement.classList.remove('is-loading')
 }
 
@@ -158,5 +165,6 @@ export function renderLoadingState(deps: LoadStateDeps): void {
   deps.contentEl.appendChild(wrap)
   resetTitle(deps.fileNameEl)
   deps.blocksEl.clear()
+  document.documentElement.classList.remove('is-empty')
   document.documentElement.classList.add('is-loading')
 }

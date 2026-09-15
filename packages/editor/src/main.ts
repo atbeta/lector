@@ -1533,6 +1533,8 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   document.title = `${baseName(path)} — Lector`
   contentEl.innerHTML = ''
   contentEl.scrollTop = 0
+  // 有文档了就把「纸页」表面还回来（空态撤掉的纸面底色与描边，见 loadState.ts）
+  document.documentElement.classList.remove('is-empty')
   render()
   markDirty()
   // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
