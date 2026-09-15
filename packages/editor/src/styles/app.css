@@ -1180,8 +1180,11 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
    只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。
-   结构类（标签、函数名、类名、选择器、属性）统一并入关键词色，保持四色克制；
-   运算符与标点不着色，留给正文色。不套 Prism 自带主题。 */
+   不套 Prism 自带主题；运算符与标点不着色，留给正文色。
+
+   默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
+   否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
+   结构词（keyword/tag/selector/函数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -1206,11 +1209,17 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .reading-prose .token.keyword,
 .reading-prose .token.builtin,
 .reading-prose .token.important,
-.reading-prose .token.atrule,
+.reading-prose .token.atrule {
+  color: rgb(var(--code-keyword));
+  font-weight: 600;
+}
 .reading-prose .token.tag,
 .reading-prose .token.selector,
-.reading-prose .token.function,
 .reading-prose .token.class-name,
+.reading-prose .token.function {
+  color: rgb(var(--code-keyword));
+  font-weight: 500;
+}
 .reading-prose .token.property,
 .reading-prose .token.variable {
   color: rgb(var(--code-keyword));
@@ -1243,11 +1252,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .reading-prose a:hover { border-bottom-color: rgb(var(--primary)); }
 
-/* 分隔线收窄成小段短横：整幅横线会把版面切碎。
-   用实色不叠 alpha——叠了之后合成对比只剩 1.2:1，等于没画。 */
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前做的 6rem 居中短线是我们自己发明的花饰，容易读成
+     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，容易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
