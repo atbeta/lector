@@ -962,11 +962,14 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(3) { animation-delay: 90ms; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
 .empty-state > *:nth-child(5) { animation-delay: 180ms; }
-/* 矮窗口里优先保住"打开 / 新建"两个主动作：最近打开是辅助信息，
-   它会把主按钮挤出视口，屏幕上就是"很空却有滚动条"（用户反馈过）。
-   隐藏比缩成一团好——辅助信息在需要时再去文件对话框里找。 */
+/* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（条目多）会把主按钮
+   挤出视口，屏幕上就是"很空却有滚动条"（用户反馈过）。隐藏比缩成一团好——
+   辅助信息在需要时再去文件对话框里找。
+   但只藏列表本身，别连空引导一起藏：那句只有一行、任何窗口都放得下，
+   陪葬掉的话首屏就又空了（矮窗口 / 高 DPI 缩放尤其容易踩到）。 */
 @media (max-height: 780px) {
-  .empty-state .recent-block { display: none; }
+  .empty-state .recent-head,
+  .empty-state .recent-list { display: none; }
 }
 @keyframes empty-in {
   from { opacity: 0; transform: translateY(8px); }
