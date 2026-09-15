@@ -147,10 +147,10 @@ saveBtn.dataset.tip = t('saveAria')
 saveBtn.disabled = true
 outlineBtn.innerHTML = iconSvg('outline', 16)
 outlineBtn.setAttribute('aria-label', t('outlineAria'))
-outlineBtn.dataset.tip = `${t('outlineAria')} (${modShift('O')})`
+outlineBtn.dataset.tip = t('outlineAria')
 findBtn.innerHTML = iconSvg('search', 16)
 findBtn.setAttribute('aria-label', t('findAria'))
-findBtn.dataset.tip = `${t('findAria')} (${mod('F')})`
+findBtn.dataset.tip = t('findAria')
 // 「外观」按钮：图标用 Aa（打字/排版），不是月亮/太阳——
 // 它打开的不只是明暗，还有阅读主题。太阳月亮会把功能说小一半。
 appearanceBtn.innerHTML = iconSvg('type', 16)
@@ -158,8 +158,8 @@ appearanceBtn.setAttribute('aria-label', t('themeAria'))
 appearanceBtn.dataset.tip = t('themeAria')
 settingsBtn.innerHTML = iconSvg('settings', 16)
 settingsBtn.setAttribute('aria-label', t('settingsAria'))
-settingsBtn.dataset.tip = `${t('settingsAria')} (${mod(',')})`
-openBtn.dataset.tip = `${t('openAria')} (${mod('O')})`
+settingsBtn.dataset.tip = t('settingsAria')
+openBtn.dataset.tip = t('openAria')
 dirtyDot.dataset.tip = t('dirtyTitle')
 // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
 // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
@@ -251,7 +251,9 @@ function applyModeUI(): void {
 function refreshSaveButton(): void {
   const canSave = session.dirty
   saveBtn.disabled = !canSave
-  saveBtn.dataset.tip = canSave ? `${t('saveAria')} (${mod('S')})` : t('saveNothing')
+  // 提示语只描述"这个按钮做什么"：快捷键不属于它的语义（用户要查键位时去键盘面板，
+  // 而不是把鼠标停在每个按钮上逐个收集）。
+  saveBtn.dataset.tip = canSave ? t('saveAria') : t('saveNothing')
 }
 
 function setViewMode(next: ViewMode): void {
@@ -1220,6 +1222,7 @@ function scheduleRecoveryWrite(): void {
     recoveryTimer = null
     if (!getSettings().recoverUnsaved) return
     const src = session.source
+    if (largeFileMode) return
     if (!session.dirty || !src || !isRecoverable(src.path)) return
     rememberRecovery(src.path, applyEncoding(src, serialize(session.blocks)))
   }, 1200)
@@ -1443,6 +1446,46 @@ function showToast(msg: string) {
   window.setTimeout(() => toast?.classList.remove('show'), 2400)
 }
 
+/** 大文件模式：整篇只读预览，禁用写盘与草稿（见 loadSession / persistToDisk）。 */
+let largeFileMode = false
+
+const LARGE_FILE_BYTES = 3 * 1024 * 1024
+const LARGE_FILE_LINES = 40_000
+const LARGE_PREVIEW_LINES = 2000
+
+function isLargeDocument(text: string): boolean {
+  if (text.length > LARGE_FILE_BYTES) return true
+  // 行数用"数换行"近似，不 split——那本身就要几十 MB 内存，正是要避开的开销。
+  let lines = 0
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10 && ++lines > LARGE_FILE_LINES) return true
+  }
+  return false
+}
+
+/** 预览块：前 N 行包成一个代码块，直接复用既有渲染路径，不为大文件另写一套渲染。 */
+function largePreviewBlocks(text: string): ReturnType<typeof parseBlocks> {
+  const head = text.split('\n', LARGE_PREVIEW_LINES + 1).slice(0, LARGE_PREVIEW_LINES).join('\n')
+  return parseBlocks('```\n' + head + '\n```')
+}
+
+/** 大文件模式的常驻提示条（复用既有提示条外观，不新增视觉语言）。 */
+function showLargeFileBar(sizeMb: string): void {
+  if (document.querySelector('.large-file-bar')) return
+  const bar = document.createElement('div')
+  bar.className = 'recover-bar large-file-bar'
+  bar.setAttribute('role', 'status')
+  const text = document.createElement('span')
+  text.className = 'recover-text'
+  text.textContent = t('largeFileNotice', { size: sizeMb, shown: String(LARGE_PREVIEW_LINES) })
+  bar.append(text)
+  document.body.appendChild(bar)
+}
+
+function clearLargeFileBar(): void {
+  document.querySelector('.large-file-bar')?.remove()
+}
+
 function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   if (cm) {
     cm.destroy()
@@ -1452,9 +1495,13 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   liveText.clear()
   session.source = createSourceDocument(path, raw, mtimeMs)
   setCurrentMdPath(session.source.path)
-  session.blocks = parseBlocks(session.source.text)
+  // 大文件逃生舱：超阈值就不解析、不建块，只把前 2000 行作为只读预览。
+  // 现状是"整篇解析 + 每块一个 DOM"，30M/73 万行会造出几万个块、浏览器直接卡死，
+  // 用户看到的是永远停在 Loading。这一步先保证**打得开、看得见、绝不写坏**；
+  // 可编辑的窗口化渲染是下一步。
+  largeFileMode = isLargeDocument(session.source.text)
+  session.blocks = largeFileMode ? largePreviewBlocks(session.source.text) : parseBlocks(session.source.text)
   // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
-  // 否则打开一个空的 .md 会看到一片空白、连点都点不了——"文件是空的"和
   // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
   // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
   if (session.blocks.length === 0) {
@@ -1497,6 +1544,13 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
     pendingEmptyFocus = null
     setViewMode('edit')
     requestAnimationFrame(() => focusBlock(id))
+  }
+  // 大文件：强制阅读档 + 常驻说明。这个模式是只读的，进编辑档只会让人以为能改。
+  if (largeFileMode) {
+    setViewMode('read')
+    showLargeFileBar((session.source.text.length / 1048576).toFixed(1))
+  } else {
+    clearLargeFileBar()
   }
   // 这份文件上次有没有留下未保存的草稿？有就提示，但**不自动改内容**——
   // 打开一个文件却看到和磁盘不一样的内容，是最不该发生的意外。
@@ -2452,6 +2506,12 @@ window.addEventListener('keydown', (e) => {
 
 async function persistToDisk(force = false): Promise<boolean> {
   if (!session.source) return false
+  // 大文件模式只渲染了前 2000 行：块内容 ≠ 原文件，保存等于把文件截断。
+  // 与其冒这个险，不如明确拒绝并说明（用户可在外部编辑器里改）。
+  if (largeFileMode) {
+    showToast(t('largeFileReadOnly'))
+    return false
+  }
   // 新建文档还没有磁盘身份（路径不是绝对路径，见 newDocument）→ 先另存为。
   // 不能在这里调 saveAsFlow()：它在预览环境会回头调 persistToDisk，直接成环。
   // 用"路径是否绝对"作判据：打开过的文件一定是绝对路径，新建文档用显示名占位。
@@ -2953,6 +3013,12 @@ mountLightbox()
     // 空文档样例：`?doc=blank`。用来验证"空的 .md 仍是一份可编辑文档"
     // （空文件必须能直接打字，不能表现成"没打开文件"）。
     else if (which === 'blank') loadSession('blank.md', '')
+    // 大文件样例：`?doc=huge`。现场生成 5 万行（约 2MB）——不往仓库里塞大文件，
+    // 同时正好压到"大文件模式"的阈值上（行数阈 4 万）。
+    else if (which === 'huge') {
+      const line = '- 这是一行用于压测的正文内容，重复出现以撑大文件体积。\n'
+      loadSession('huge.md', '# 大文件压测\n\n' + line.repeat(50_000))
+    }
     else loadSession(which || 'sample.md', sample)
   }
 })()

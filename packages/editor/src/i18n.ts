@@ -2,7 +2,7 @@
 
 export type Locale = 'zh-CN' | 'en'
 
-const zh = {
+export const zh = {
   appName: 'Lector',
   openFile: '打开文件',
   emptyTitle: 'Lector',
@@ -14,6 +14,8 @@ const zh = {
   saveAction: '保存',
   discardAction: '放弃改动',
   cancelAction: '取消',
+  largeFileNotice: '文件过大（{size} MB）：只读预览前 {shown} 行，本模式不保存。',
+  largeFileReadOnly: '大文件模式为只读：未写盘，原文件未被修改。',
   openRecentFailed: '打开失败（文件可能已被移动或删除）：{name}',
   emptyTagline: '阅读优先的纯 Markdown 编辑器',
   clearRecent: '清空',
@@ -85,8 +87,8 @@ const zh = {
   imageUploadFailed: '上传命令未成功，已用本地副本。{error}',
   dropImageHint: '松手即可插入图片',
   imageModeTitle: '图片插入方式',
-  imageModeImages: '默认（固定写入 images/）',
-  imageModeImagesHint: '不改变今天的行为：图片始终写到 md 同目录的 images/。',
+  imageModeImages: '默认：写入 images/ 子目录',
+  imageModeImagesHint: '图片写入 md 同目录的 images/ 下，正文插入相对路径。',
   imageModeAssets: '写入文档同名资源目录',
   imageModeAssetsHint: '目录模板默认为 {filename}.assets。{filename} 会被替换为文档基名。',
   imageAssetsDir: '资源目录模板',
@@ -207,6 +209,8 @@ const en: Record<keyof typeof zh, string> = {
   saveAction: 'Save',
   discardAction: 'Discard changes',
   cancelAction: 'Cancel',
+  largeFileNotice: 'Large file ({size} MB): read-only preview of the first {shown} lines; saving is off.',
+  largeFileReadOnly: 'Large-file mode is read-only: nothing was written, the file is unchanged.',
   openRecentFailed: 'Could not open (moved or deleted?): {name}',
   emptyTagline: 'A reading-first Markdown editor',
   clearRecent: 'Clear',
@@ -278,8 +282,8 @@ const en: Record<keyof typeof zh, string> = {
   imageUploadFailed: 'Upload command failed; using local copy. {error}',
   dropImageHint: 'Drop to insert image',
   imageModeTitle: 'Image insert mode',
-  imageModeImages: 'Default (write to images/)',
-  imageModeImagesHint: "Keep today's behavior: write images to the images/ folder next to the document.",
+  imageModeImages: 'Default: images/ subfolder',
+  imageModeImagesHint: 'Images go to images/ next to the document; body gets a relative path.',
   imageModeAssets: 'Write to a per-document assets folder',
   imageModeAssetsHint: 'Default template: {filename}.assets. {filename} is replaced with the document base name.',
   imageAssetsDir: 'Assets folder template',
@@ -390,7 +394,9 @@ const en: Record<keyof typeof zh, string> = {
 export type MessageKey = keyof typeof zh
 
 function detectLocale(): Locale {
-  const lang = typeof navigator !== 'undefined' ? navigator.language : 'zh-CN'
+  // bun/部分预览环境里 navigator 存在但没有 language——按"取不到就当 zh-CN"处理，
+  // 否则模块顶层就会抛（连单元测试都导入不了）。
+  const lang = typeof navigator !== 'undefined' && typeof navigator.language === 'string' ? navigator.language : 'zh-CN'
   return lang.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
