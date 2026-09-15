@@ -386,6 +386,34 @@ export async function onMaximizeHover(
 }
 
 /**
+ * 窗口即将关闭时的拦截。回调返回 'close' 才真正关，'stay' 则留下。
+ *
+ * 必须用 Tauri 的 `onCloseRequested`，**不能用 `window.beforeunload`**：
+ * Tauri 的关闭走原生侧（窗口 X、自绘关闭键、macOS 的 ⌘W 都到这里），
+ * WebView2 下 beforeunload 拦不住，脏文档会被静默关掉——这正是之前的问题。
+ *
+ * 具体要不要弹确认、脏不脏，只有 Web 层知道，所以决策交给回调。
+ * 确认后再次 `close()`：那时不再 preventDefault，放行。
+ */
+export async function onCloseRequest(
+  handler: () => Promise<'close' | 'stay'>,
+): Promise<() => void> {
+  if (detectEnv() !== 'shell') return () => {}
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  const win = getCurrentWindow()
+  let allowed = false
+  const unlisten = await win.onCloseRequested(async (event) => {
+    if (allowed) return
+    event.preventDefault()
+    if ((await handler()) === 'close') {
+      allowed = true
+      await win.close()
+    }
+  })
+  return unlisten
+}
+
+/**
  * 相对图片解析器：shell 下把 baseDir + relative 拼成自定义协议的 URL。
  *
  * URL 形态必须按平台来：Windows / Android 是 `http://<scheme>.localhost/<encoded>`，

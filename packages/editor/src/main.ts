@@ -35,6 +35,7 @@ import {
   runImageCommand,
   onOpen,
   onFileChanged,
+  onCloseRequest,
   onMenu,
   shellAssetResolver,
   openExternal,
@@ -3215,13 +3216,35 @@ if (detectEnv() === 'shell') {
 }
 bindShellEvents()
 
-// 关闭脏文档前的浏览器级守卫（原生窗口关闭确认属壳侧后续项）
-window.addEventListener('beforeunload', (e) => {
-  if (getSettings().closeAlwaysConfirmsChanges && session.dirty && session.source) {
-    e.preventDefault()
-    e.returnValue = ''
-  }
-})
+// 关闭脏文档前的确认。壳里必须走 Tauri 的 onCloseRequested（窗口 X / 自绘关闭键 /
+// macOS 的 ⌘W 都经它）；beforeunload 在 WebView2 下拦不住，脏文档会被静默关掉。
+// 浏览器预览没有壳，退回 beforeunload 的浏览器原生提示（仅预览用）。
+if (detectEnv() === 'shell') {
+  void onCloseRequest(async () => {
+    if (!getSettings().closeAlwaysConfirmsChanges || !session.dirty || !session.source) {
+      return 'close'
+    }
+    const choice = await showDialog({
+      title: t('newUnsavedTitle'),
+      body: t('closeUnsavedBody'),
+      actions: [
+        { id: 'cancel', label: t('cancelAction') },
+        { id: 'discard', label: t('discardAction'), danger: true },
+        { id: 'save', label: t('saveAction'), primary: true },
+      ],
+    })
+    if (choice === 'save') return (await persistToDisk()) ? 'close' : 'stay'
+    if (choice === 'discard') return 'close'
+    return 'stay'
+  })
+} else {
+  window.addEventListener('beforeunload', (e) => {
+    if (getSettings().closeAlwaysConfirmsChanges && session.dirty && session.source) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+  })
+}
 
 // 加载 / 空态已抽到 loadState.ts。这里提供 main.ts 的 facade,把所有
 // 用到的依赖(全局引用 + 打开回调)一次性注入,避免 loadState 知道 main.ts 的
