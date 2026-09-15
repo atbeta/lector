@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="16" fill="#242321"/><path d="M15 15h16.5A10.5 10.5 0 0 1 42 25.5v24.7a9.7 9.7 0 0 0-8.2-4.7H15V15Z" fill="#fff"/><path d="M49 15H32.5A10.5 10.5 0 0 0 22 25.5v24.7a9.7 9.7 0 0 1 8.2-4.7H49V15Z" fill="#d7a84b"/><path d="M29 54h6" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Lector</title>
+  <desc id="desc">蓝石墨色圆角底，白色 L 以流畅弧角托住 M，分别代表 Lector 与 Markdown。</desc>
+  <rect width="32" height="32" rx="8" fill="#364653"/>
+  <g stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
+    <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+  </g>
+</svg>
