@@ -59,13 +59,23 @@ export function resolveImageSrc(raw: string): string {
  * `lector-file://localhost/<encoded>`；Windows 的 path 还带一个前导斜杠
  * （`/D:\…`）。反解不出来（https 外链、data:）返回 null——调用方据此隐藏
  * 「在文件夹中显示 / 复制路径 / 上传图床」这类只对本地文件有意义的动作。
+ *
+ * 关键：**分隔符要归一成平台原生**。URL 里拼的是 `base + '/' + relative`，
+ * base 是原生分隔符（Windows 是 `\`），反解出来就成了 `D:\Code/images/x.png`
+ * 这种混的——混的分隔符 explorer 的 `/select,` 会认不出，直接退到默认目录
+ * （用户看到"打开了桌面"），复制出来也不是一条能直接用的路径。
  */
 export function assetLocalPath(src: string): string | null {
-  const m =
-    /^https?:\/\/lector-file\.localhost\/(.*)$/i.exec(src) ??
-    /^lector-file:\/\/localhost\/(.*)$/i.exec(src)
-  if (!m) return null
-  let p = decodeURIComponent(m[1] ?? '')
-  if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1)
+  const win = /^https?:\/\/lector-file\.localhost\/(.*)$/i.exec(src)
+  const posix = win ? null : /^lector-file:\/\/localhost\/(.*)$/i.exec(src)
+  const encoded = (win ?? posix)?.[1]
+  if (encoded == null) return null
+  let p = decodeURIComponent(encoded)
+  if (win) {
+    if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1) // /D:\… → D:\…
+    p = p.replace(/\//g, '\\')
+  } else {
+    p = p.replace(/\\/g, '/')
+  }
   return p || null
 }

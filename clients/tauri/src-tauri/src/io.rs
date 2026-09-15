@@ -193,9 +193,14 @@ pub fn reveal_in_folder(path: String) -> Result<(), String> {
   #[cfg(target_os = "macos")]
   let r = std::process::Command::new("open").arg("-R").arg(&p).spawn();
   #[cfg(target_os = "windows")]
-  let r = std::process::Command::new("explorer")
-    .arg(format!("/select,{}", p.display()))
-    .spawn();
+  let r = {
+    // explorer 的 `/select,` 认不出混合分隔符（`D:\dir/sub/file`），会把整串当成
+    // 无效目标、退到默认目录（用户看到的是"打开了桌面"）。统一成反斜杠再传。
+    let target = p.to_string_lossy().replace('/', "\\");
+    std::process::Command::new("explorer")
+      .arg(format!("/select,{target}"))
+      .spawn()
+  };
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
   let r = {
     let dir = p.parent().unwrap_or_else(|| std::path::Path::new("."));
