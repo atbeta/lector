@@ -1161,12 +1161,43 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--foreground));
   tab-size: 2;
 }
-/* 代码高亮的四类颜色走 tokens，换主题自动跟随。
-   只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。 */
-.tok-comment { color: rgb(var(--code-comment)); font-style: italic; }
-.tok-string { color: rgb(var(--code-string)); }
-.tok-number { color: rgb(var(--code-number)); }
-.tok-keyword { color: rgb(var(--code-keyword)); font-weight: 550; }
+/* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
+   只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。
+   结构类（标签、函数名、类名、选择器、属性）统一并入关键词色，保持四色克制；
+   运算符与标点不着色，留给正文色。不套 Prism 自带主题。 */
+.reading-prose .token.comment,
+.reading-prose .token.prolog,
+.reading-prose .token.doctype,
+.reading-prose .token.cdata {
+  color: rgb(var(--code-comment));
+  font-style: italic;
+}
+.reading-prose .token.string,
+.reading-prose .token.char,
+.reading-prose .token.attr-value,
+.reading-prose .token.regex,
+.reading-prose .token.url,
+.reading-prose .token.inserted {
+  color: rgb(var(--code-string));
+}
+.reading-prose .token.number,
+.reading-prose .token.boolean,
+.reading-prose .token.constant,
+.reading-prose .token.symbol {
+  color: rgb(var(--code-number));
+}
+.reading-prose .token.keyword,
+.reading-prose .token.builtin,
+.reading-prose .token.important,
+.reading-prose .token.atrule,
+.reading-prose .token.tag,
+.reading-prose .token.selector,
+.reading-prose .token.function,
+.reading-prose .token.class-name,
+.reading-prose .token.property,
+.reading-prose .token.variable {
+  color: rgb(var(--code-keyword));
+}
 
 .reading-prose pre code {
   display: block;

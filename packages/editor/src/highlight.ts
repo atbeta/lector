@@ -1,100 +1,162 @@
-// 轻量代码高亮。
+// 代码高亮：Prism（core + 按需注册的语言）。
 //
-// 为什么自己写而不引 Shiki / highlight.js：这是阅读器的预览层，不是 IDE。
-// Shiki 会带进整套 TextMate 语法与主题（几百 KB），highlight.js 也要几十 KB，
-// 而我们要的只是「关键词、字符串、注释、数字」四类离线可辨。
-// 复用 tokens 里已有的 --code-* 四个颜色，换主题自动跟着走。
+// 为什么改成引库：自写的 tokenizer 只覆盖 12 种语言，别名全靠一张手维护的表，
+// 结果最常用的 ```typescript / ```javascript 反而是白的（只有 ```ts / ```js 有色）。
+// 阅读器预览层确实不需要 Shiki 的 TextMate 级保真，但「常用语言 + 别名归一」
+// 这件事 Prism 用几十 KB 就做全了，自维护不划算。
 //
-// 原则：宁可少上色，也不要上错色。识别不了就当普通文本——高亮错了比不高亮更难读。
+// 颜色仍走我们自己的 --code-* 四个 token（映射见 app.css），**不套 Prism 主题**——
+// 这样换阅读主题时代码配色跟着一起变。
 
-const KEYWORDS: Record<string, string[]> = {
-  ts: ['const','let','var','function','return','if','else','for','while','class','interface','type','import','export','from','new','await','async','try','catch','finally','throw','typeof','instanceof','extends','implements','public','private','readonly','enum','as','in','of','this','super','null','undefined','true','false','void','yield','static','satisfies','declare'],
-  js: ['const','let','var','function','return','if','else','for','while','class','import','export','from','new','await','async','try','catch','finally','throw','typeof','instanceof','extends','this','super','null','undefined','true','false','void','yield','static'],
-  rust: ['fn','let','mut','pub','use','mod','struct','enum','impl','trait','for','while','loop','if','else','match','return','self','Self','crate','super','as','const','static','ref','move','async','await','dyn','where','unsafe','in','true','false','Some','None','Ok','Err','String','Vec'],
-  python: ['def','class','return','if','elif','else','for','while','import','from','as','with','try','except','finally','raise','lambda','yield','async','await','pass','break','continue','global','nonlocal','assert','del','in','is','not','and','or','None','True','False','self'],
-  py: ['def','class','return','if','elif','else','for','while','import','from','as','with','try','except','finally','raise','lambda','yield','async','await','pass','break','continue','global','nonlocal','assert','del','in','is','not','and','or','None','True','False','self'],
-  sh: ['if','then','else','elif','fi','for','in','do','done','while','case','esac','function','return','export','local','echo','cd','set','unset'],
-  bash: ['if','then','else','elif','fi','for','in','do','done','while','case','esac','function','return','export','local','echo','cd','set','unset'],
-  sql: ['select','from','where','insert','into','values','update','set','delete','create','table','drop','alter','join','left','right','inner','outer','on','group','by','order','having','limit','offset','as','and','or','not','null','primary','key','index','distinct','union'],
-  css: ['important','media','supports','keyframes','import','from','to'],
-  go: ['func','package','import','var','const','type','struct','interface','map','chan','go','defer','return','if','else','for','range','switch','case','default','break','continue','nil','true','false'],
-  json: ['true','false','null'],
-  yaml: ['true','false','null','yes','no'],
-  yml: ['true','false','null','yes','no'],
+import './prism-setup.ts'
+import Prism from 'prismjs'
+
+// ⚠ 导入顺序=依赖顺序：组件文件会 Prism.languages.extend('c', …) / clone('typescript')，
+// 基语言没先加载就会抛。`prismjs` 入口已带 markup / css / clike / javascript。
+import 'prismjs/components/prism-c'
+import 'prismjs/components/prism-cpp'
+import 'prismjs/components/prism-csharp'
+import 'prismjs/components/prism-objectivec'
+import 'prismjs/components/prism-java'
+import 'prismjs/components/prism-kotlin'
+import 'prismjs/components/prism-scala'
+import 'prismjs/components/prism-groovy'
+import 'prismjs/components/prism-dart'
+import 'prismjs/components/prism-go'
+import 'prismjs/components/prism-rust'
+import 'prismjs/components/prism-swift'
+import 'prismjs/components/prism-zig'
+import 'prismjs/components/prism-opencl'
+import 'prismjs/components/prism-glsl'
+import 'prismjs/components/prism-hlsl'
+import 'prismjs/components/prism-wgsl'
+import 'prismjs/components/prism-wasm'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-jsx'
+import 'prismjs/components/prism-tsx'
+import 'prismjs/components/prism-json'
+import 'prismjs/components/prism-yaml'
+import 'prismjs/components/prism-toml'
+import 'prismjs/components/prism-ini'
+import 'prismjs/components/prism-csv'
+import 'prismjs/components/prism-markdown'
+import 'prismjs/components/prism-diff'
+import 'prismjs/components/prism-latex'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-powershell'
+import 'prismjs/components/prism-batch'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-ruby'
+import 'prismjs/components/prism-perl'
+import 'prismjs/components/prism-lua'
+import 'prismjs/components/prism-r'
+import 'prismjs/components/prism-julia'
+import 'prismjs/components/prism-matlab'
+import 'prismjs/components/prism-markup-templating'
+import 'prismjs/components/prism-php'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-plsql'
+import 'prismjs/components/prism-graphql'
+import 'prismjs/components/prism-protobuf'
+import 'prismjs/components/prism-regex'
+import 'prismjs/components/prism-http'
+import 'prismjs/components/prism-log'
+import 'prismjs/components/prism-docker'
+import 'prismjs/components/prism-nginx'
+import 'prismjs/components/prism-makefile'
+import 'prismjs/components/prism-cmake'
+// 半导体 / EDA 日用：HDL、脚本（Tcl）、汇编、GPU/加速器、老牌科学计算
+import 'prismjs/components/prism-verilog'
+import 'prismjs/components/prism-vhdl'
+import 'prismjs/components/prism-tcl'
+import 'prismjs/components/prism-nasm'
+import 'prismjs/components/prism-armasm'
+import 'prismjs/components/prism-llvm'
+import 'prismjs/components/prism-fortran'
+
+/** 围栏别名 → Prism 语言键。用户写什么都别让它变成「有标签没颜色」。 */
+const ALIAS: Record<string, string> = {
+  ts: 'typescript',
+  js: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  node: 'javascript',
+  rs: 'rust',
+  py: 'python',
+  py3: 'python',
+  python3: 'python',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  console: 'bash',
+  yml: 'yaml',
+  golang: 'go',
+  'c++': 'cpp',
+  'c#': 'csharp',
+  cs: 'csharp',
+  kt: 'kotlin',
+  rb: 'ruby',
+  pl: 'perl',
+  md: 'markdown',
+  ps1: 'powershell',
+  pwsh: 'powershell',
+  html: 'markup',
+  htm: 'markup',
+  xml: 'markup',
+  svg: 'markup',
+  objc: 'objectivec',
+  'objective-c': 'objectivec',
+  m: 'matlab',
+  vhd: 'vhdl',
+  sv: 'verilog',
+  systemverilog: 'verilog',
+  asm: 'nasm',
+  x86: 'nasm',
+  arm: 'armasm',
+  tclsh: 'tcl',
+  tex: 'latex',
+  dockerfile: 'docker',
+  make: 'makefile',
+  mk: 'makefile',
+  gql: 'graphql',
+  proto: 'protobuf',
+  shader: 'glsl',
 }
-
-/** 语言别名 → 关键字表 */
-function keywordsFor(lang: string): string[] {
-  const key = lang.toLowerCase().replace(/^language-/, '')
-  return KEYWORDS[key] ?? []
-}
-
-/** 反引号是模板字符串的只有这几个语言；其它语言里它是普通字符。 */
-const BACKTICK_LANGS = new Set(['ts', 'js', 'tsx', 'jsx', 'typescript', 'javascript'])
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ESC[c] ?? c)
 }
 
+function normalizeLang(lang: string): string {
+  const k = (lang || '').trim().toLowerCase().replace(/^language-/, '')
+  return ALIAS[k] ?? k
+}
+
+// 同一块代码会随重渲染（切档、编辑落块）反复走高亮，结果缓存下来不重复算。
+// 颜色由 CSS 变量决定，所以换主题不需要清缓存。
+const cache = new Map<string, string>()
+const CACHE_MAX = 400
+
 /**
  * 高亮一段代码，返回 HTML（已转义）。
- * 只做「整词」级切分，不做 AST——阅读器的代码块不需要更精确。
+ * 不认识的语言原样转义——宁可不上色，也不要上错色。
  */
 export function highlightCode(code: string, lang: string): string {
-  const key = lang.toLowerCase().replace(/^language-/, '')
-  const words = keywordsFor(lang)
-  const backticks = BACKTICK_LANGS.has(key)
-  // 不认识的语言一律原样（仅转义）：宁可不上色，也不要上错色。
-  // 认字的语言大多是弱类型脚本，没有关键字表时按「有注释/字符串」猜反而会误伤正文。
-  if (words.length === 0) return esc(code)
-  const keywords = new Set(words)
-  const out: string[] = []
-  let i = 0
-  while (i < code.length) {
-    const rest = code.slice(i)
-    // 行注释：// 或 # 或 --（SQL）
-    const lineComment = rest.match(/^(\/\/|#(?![0-9a-fA-F]{3,8}\b)|--\s).*?(?=\n|$)/)
-    if (lineComment) {
-      out.push(`<span class="tok-comment">${esc(lineComment[0])}</span>`)
-      i += lineComment[0].length
-      continue
-    }
-    const blockComment = rest.match(/^\/\*[\s\S]*?\*\//)
-    if (blockComment) {
-      out.push(`<span class="tok-comment">${esc(blockComment[0])}</span>`)
-      i += blockComment[0].length
-      continue
-    }
-    const str = rest.match(
-      backticks
-        ? /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/
-        : /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/,
-    )
-    if (str) {
-      out.push(`<span class="tok-string">${esc(str[0])}</span>`)
-      i += str[0].length
-      continue
-    }
-    const num = rest.match(/^\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?\b/)
-    if (num && !/[\w$]/.test(code[i - 1] ?? '')) {
-      out.push(`<span class="tok-number">${esc(num[0])}</span>`)
-      i += num[0].length
-      continue
-    }
-    // 整词：前后不能是标识符字符，否则 `constant` 里的 `const` 会被染色
-    const word = rest.match(/^[A-Za-z_$][\w$]*/)
-    if (word) {
-      const w = word[0]
-      const prevOk = !/[\w$.]/.test(code[i - 1] ?? '')
-      const nextOk = !/[\w$]/.test(code[i + w.length] ?? '')
-      out.push(keywords.has(w) && prevOk && nextOk ? `<span class="tok-keyword">${esc(w)}</span>` : esc(w))
-      i += w.length
-      continue
-    }
-    // 其它字符原样搬（转义后）
-    out.push(esc(code[i]!))
-    i += 1
+  const key = normalizeLang(lang)
+  const grammar = Prism.languages[key]
+  if (!grammar) return esc(code)
+  const cacheKey = `${key}\u0000${code}`
+  const hit = cache.get(cacheKey)
+  if (hit !== undefined) return hit
+  let html: string
+  try {
+    html = Prism.highlight(code, grammar, key)
+  } catch {
+    // Prism 极端边界（语法文件本身有问题）也不该把预览打崩
+    return esc(code)
   }
-  return out.join('')
+  if (cache.size >= CACHE_MAX) cache.clear()
+  cache.set(cacheKey, html)
+  return html
 }
