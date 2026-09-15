@@ -12,8 +12,6 @@ use std::{
 use notify::RecommendedWatcher;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-// 恢复窗口状态的方法在 trait 上，必须显式引入才能调用（E0599 会提示「trait 未在作用域内」）
-use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use crate::protocol;
 
@@ -623,27 +621,62 @@ fn default_window_size(app: &AppHandle) -> (f64, f64) {
   )
 }
 
+/// 上次退出时这个窗口标签的几何（读 window-state 插件的存档）。
+/// (x, y, 宽, 高, 是否最大化)。最大化时用 prev_x/prev_y 作还原矩形。
+fn saved_window_geometry(app: &AppHandle, label: &str) -> Option<(f64, f64, f64, f64, bool)> {
+  let dir = app.path().app_config_dir().ok()?;
+  let text = fs::read_to_string(dir.join(".window-state.json")).ok()?;
+  let map: serde_json::Value = serde_json::from_str(&text).ok()?;
+  let st = map.get(label)?;
+  let num = |k: &str| st.get(k).and_then(|v| v.as_f64());
+  let (w, h) = (num("width")?, num("height")?);
+  let maximized = st.get("maximized").and_then(|v| v.as_bool()).unwrap_or(false);
+  if maximized {
+    // 最大化时 x/y 是显示器左上角，prev_* 才是还原矩形的位置
+    let x = num("prev_x").unwrap_or_else(|| num("x").unwrap_or(0.0));
+    let y = num("prev_y").unwrap_or_else(|| num("y").unwrap_or(0.0));
+    Some((x, y, w, h, true))
+  } else {
+    Some((num("x")?, num("y")?, w, h, false))
+  }
+}
+
+/// 存档位置是否还在某块屏的工作区内（换过显示器布局时把窗口拉回居中）。
+fn position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
+  app.monitor_from_point(x, y).ok().flatten().is_some()
+}
+
 fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::WebviewWindow> {
   let chrome = window_chrome();
-  #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
   let (w, h) = default_window_size(app);
+  // 预读 window-state 存档，让窗口「出生即在正确位置」。
+  //
+  // 为什么不能建出来再 restore_state：那时窗口已可见，用户会看到「先在默认位置
+  // 出现 → 再跳回上次位置」。而先 visible(false) 再 show 更糟——隐藏窗口里的
+  // WKWebView 会被 WebKit 挂起乃至终结内容进程，第二个窗口直接卡死（实测复现，
+  // 创建即 content process terminated；可见窗口能自动 reload 恢复，隐藏窗口不会）。
+  // 预应用几何是唯一两头都对的做法：插件的就绪时自动恢复仍会执行，同值幂等。
+  let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title("Lector")
-    .inner_size(w, h)
     .min_inner_size(480.0, 360.0)
     // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
     // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
     // 我们的拖放逻辑（落点定位、复制进 assets）全在 Web 层，用不到原生通道。
     .disable_drag_drop_handler()
-    // 所有新窗口先以同一规则居中；window-state 有历史记录时会在此基础上恢复，
-    // 没有历史记录时则避免空态窗口和文件关联启动窗口落在不同的默认位置。
-    .center()
-    // 先隐身：窗口建出来时是默认尺寸/居中位置，restore_state 之后才 show。
-    // 少了这一步，用户会看到「窗口先在中央出现 → 再跳回上次的位置」的完整过程。
-    .visible(false)
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
     .decorations(chrome.decorations);
+  if let Some((x, y, sw, sh, maximized)) = saved {
+    builder = builder.inner_size(sw, sh).position(x, y);
+    if maximized {
+      builder = builder.maximized(true);
+    }
+  } else {
+    // 所有新窗口先以同一规则居中；没有历史记录时避免空态窗口和
+    // 文件关联启动窗口落在不同的默认位置。
+    builder = builder.inner_size(w, h).center();
+  }
   // transparent 在 macOS 上要 macos-private-api 私有特性，而我们只用原生边框，不需要它；
   // Windows 透明窗口是圆角的前提（DWM 材质方案，见 apply_platform_window_tweaks）。
   #[cfg(not(target_os = "macos"))]
@@ -663,12 +696,8 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
   let win = builder.build()?;
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
-  // 恢复上次的尺寸/位置/最大化，然后才让它露面；没有历史状态时保留上面的统一居中。
-  // 顺序是必须的：window-state 的自动恢复发生在窗口就绪之后，若此刻窗口已可见，
-  // 用户会看到「小窗口闪一下 → 跳到最大化」。显式调用把顺序钉死（restore 与 show
-  // 在同一个同步块里，中间不会插进一次绘制），与插件的自动恢复幂等。
-  let _ = win.restore_state(StateFlags::all() & !StateFlags::MAXIMIZED);
-  let _ = win.show();
+  // 几何已在 builder 阶段预应用（见上方注释）；window-state 插件在窗口就绪时
+  // 还会自动恢复一次，与这里的值相同，幂等。
   Ok(win)
 }
 
