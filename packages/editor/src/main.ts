@@ -48,6 +48,7 @@ import { findBar } from './findBar.ts'
 import { replaceFind } from './findMatch.ts'
 import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
+import { openShortcutsPanel } from './shortcutsPanel.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
@@ -156,10 +157,15 @@ findBtn.dataset.tip = t('findAria')
 appearanceBtn.innerHTML = iconSvg('type', 16)
 appearanceBtn.setAttribute('aria-label', t('themeAria'))
 appearanceBtn.dataset.tip = t('themeAria')
+const keyboardBtn = document.getElementById('keyboard-btn') as HTMLButtonElement
 settingsBtn.innerHTML = iconSvg('settings', 16)
 settingsBtn.setAttribute('aria-label', t('settingsAria'))
 settingsBtn.dataset.tip = t('settingsAria')
 openBtn.dataset.tip = t('openAria')
+// 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
+keyboardBtn.innerHTML = iconSvg('keyboard', 16)
+keyboardBtn.dataset.tip = t('shortcutTitle')
+keyboardBtn.addEventListener('click', () => openShortcutsPanel())
 dirtyDot.dataset.tip = t('dirtyTitle')
 // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
 // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
@@ -213,7 +219,7 @@ function buildModeSwitch(): void {
     btn.className = 'mode-opt'
     btn.dataset.mode = m
     btn.setAttribute('role', 'radio')
-    btn.dataset.tip = `${viewLabel(m)} (${mod(VIEW_NUM[m])})`
+    btn.dataset.tip = viewLabel(m)
     const icon = document.createElement('span')
     icon.className = 'mode-opt-icon'
     icon.innerHTML = iconSvg(VIEW_ICON[m], 15)

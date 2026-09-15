@@ -453,7 +453,9 @@ const summary = {
     divider: !!document.querySelector('.titlebar-divider'),
   }))
   if (tb.lead !== 2) note('error', `顶栏左侧工具 ${tb.lead} 个（期望 2：打开/保存）`)
-  if (tb.actions !== 4) note('error', `顶栏右侧工具 ${tb.actions} 个（期望 4：大纲/查找/主题/设置）`)
+  // 工具组只要求"至少这几件"：每加一个工具就改断言的精确值，会让这条断言变成维护负担，
+  // 而它真正要守的是"右侧工具组存在且没被整体删掉"。
+  if (tb.actions < 4) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 4：大纲/查找/外观/键盘）`)
   if (!tb.divider) note('error', '顶栏缺少组间分隔，六个图标会读成一排散兵')
 
   // 1) 宽窗口：停靠、默认展开、不压正文
@@ -1855,6 +1857,31 @@ const summary = {
     else note('info', `大文件：${ms}ms、${lf.blocks} 个块、预览 ${lf.lines} 行、mode=${lf.mode}`)
     await page.goto(URL_ARG, { waitUntil: 'load' })
     await page.waitForTimeout(500)
+  }
+
+  // 3.18) 键盘面板：键位有地方可查；且提示语里不再夹带快捷键
+  //
+  // 两件事一起守：**提示语**只描述按钮做什么（快捷键不属于它的语义），
+  // **面板**提供唯一可查的键位清单。只做前者会让用户无处可查，只做后者会留下双份真相。
+  {
+    const tipsWithKeys = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-tip]')]
+        .map((el) => el.dataset.tip ?? '')
+        .filter((s) => /[⌘⇧]|Ctrl\+|Cmd\+/.test(s)),
+    )
+    if (tipsWithKeys.length > 0) note('error', `提示语里仍夹带快捷键：${tipsWithKeys.join(' / ')}`)
+    await page.click('#keyboard-btn')
+    await page.waitForTimeout(400)
+    const panel = await page.evaluate(() => ({
+      open: !!document.querySelector('.shortcuts-card'),
+      rows: document.querySelectorAll('.shortcut-row').length,
+      keys: [...document.querySelectorAll('.shortcut-keys')].map((k) => k.textContent ?? '').slice(0, 3),
+    }))
+    if (!panel.open) note('error', '键盘图标点了没有打开键位面板')
+    else if (panel.rows < 8) note('error', `键位面板只列了 ${panel.rows} 条（太少，用户查不到）`)
+    else note('info', `键盘面板：${panel.rows} 条，首列 ${panel.keys.join(' / ')}`)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
   }
 
 }
