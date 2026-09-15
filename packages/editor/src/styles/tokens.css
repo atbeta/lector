@@ -58,15 +58,16 @@
   --secondary: 244 243 240;
   --secondary-foreground: 26 25 22;
 
-  /* ───────────── 主色：石板靛蓝（低饱和） ───────────── */
-  /* #5A74B0（NoteFast 同款）。比 SolBoard 的 #5E6AD2 更灰一档：
-     阅读器里蓝色只做指路（链接 / 选中 / 焦点环），灰一点才压得住纸面。 */
-  --primary: 90 116 176;        /* 文字用主色时必须过 4.5:1（此值 ≈4.6:1，贴线，别再加灰） */
+  /* ───────────── 主色：墨色（默认主题无品牌色） ───────────── */
+  /* 阅读器不需要一个品牌蓝来刷存在感：强调就是墨色本身。
+     链接靠下划线认路，选中/焦点环用墨的浅洗——纸面上最「高级」的强调色是不着色。
+     其余阅读主题自带自己的强调色（纸=砖红、手册=文档蓝…），见 reading-themes.css。 */
+  --primary: 60 57 51;          /* #3C3933 温石墨：比正文浅一档，靠下划线/底洗区分 */
   --primary-foreground: 255 255 255;
-  --primary-hover: 78 100 152;  /* #4E6498 */
+  --primary-hover: 44 41 36;    /* #2C2924 */
   --primary-soft: rgb(var(--primary) / 0.10);
   --primary-softer: rgb(var(--primary) / 0.05);
-  --selection: rgb(var(--primary) / 0.16);
+  --selection: rgb(var(--primary) / 0.14);
 
   /* ───────────── 墨色按钮（最强行动色） ───────────── */
   /* 墨色：toast、跳转高亮这类「最强、不带品牌色」的动作 */
@@ -148,7 +149,7 @@
   /* ───────────── 代码高亮（低饱和，贴合极简） ───────────── */
   /* 代码高亮四色都要过 AA（≥4.5:1）：原来的注释色只有 2.81:1，
      代码块里最该被忽略的一类反而最看不清。 */
-  --code-keyword: 90 116 176;
+  --code-keyword: 60 57 51;
   --code-string: 15 110 52;
   --code-comment: 101 98 91;
   --code-number: 158 68 8;
@@ -196,10 +197,10 @@ html[data-theme='dark'] {
   --secondary: 41 40 37;
   --secondary-foreground: 240 239 236;
 
-  /* 石板靛蓝在深底提亮，主按钮用深字，选中文字仍走 --primary */
-  --primary: 149 164 198;       /* 深底提亮（对纸面 ~7:1），与浅色同一色相族 */
-  --primary-foreground: 25 25 25;
-  --primary-hover: 169 184 214;
+  /* 深底的强调是浅纸灰：与浅色同为墨色族，不加任何彩色 */
+  --primary: 214 211 205;       /* 对纸面 ~11:1 */
+  --primary-foreground: 26 25 22;
+  --primary-hover: 232 229 223;
   --primary-soft: rgb(var(--primary) / 0.18);
   --primary-softer: rgb(var(--primary) / 0.10);
   --selection: rgb(var(--primary) / 0.34);
@@ -229,7 +230,7 @@ html[data-theme='dark'] {
   --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.20), 0 4px 14px rgb(var(--primary) / 0.26);
   --shadow-header: 0 1px 0 rgb(255 255 255 / 0.06);
 
-  --code-keyword: 149 164 198;
+  --code-keyword: 214 211 205;
   --code-string: 126 226 166;
   --code-comment: 147 144 137;
   --code-number: 245 198 92;
