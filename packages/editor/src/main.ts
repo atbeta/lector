@@ -1183,6 +1183,69 @@ function mountImageActions(): void {
   )
 }
 
+/**
+ * 表单输入框（设置里的图床命令、查找框…）上的菜单：标准编辑动作。
+ *
+ * 不能放行 webview 默认菜单——它端出来的是浏览器的那份（刷新 / 打印 / 检查元素），
+ * 而这里真正需要的是剪切 / 复制 / 粘贴 / 全选。
+ */
+function fieldMenuItems(field: HTMLElement): ContextMenuItem[] {
+  const box =
+    field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement ? field : null
+  const hasSelection = box
+    ? box.selectionStart !== null && box.selectionStart !== box.selectionEnd
+    : !window.getSelection()?.isCollapsed
+  const exec = (cmd: string) => () => {
+    document.execCommand(cmd)
+  }
+  return [
+    { label: t('menuUndo'), hint: mod('Z'), run: exec('undo') },
+    { label: t('menuRedo'), hint: modShift('Z'), run: exec('redo') },
+    { separatorBefore: true, label: t('menuCut'), hint: mod('X'), disabled: !hasSelection, run: exec('cut') },
+    { label: t('menuCopy'), hint: mod('C'), disabled: !hasSelection, run: exec('copy') },
+    { label: t('menuPaste'), hint: mod('V'), run: () => void pasteIntoField(field) },
+    {
+      label: t('menuSelectAll'),
+      hint: mod('A'),
+      run: () => {
+        if (box) box.select()
+        else document.execCommand('selectAll')
+      },
+    },
+  ]
+}
+
+/** 把剪贴板文本插到输入框光标处。execCommand('paste') 在 webview 里被禁，只能自己读。 */
+async function pasteIntoField(field: HTMLElement): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text) return
+    field.focus()
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+      const start = field.selectionStart ?? field.value.length
+      const end = field.selectionEnd ?? start
+      field.setRangeText(text, start, end, 'end')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    } else {
+      document.execCommand('insertText', false, text)
+    }
+  } catch {
+    showToast(t('menuPasteFailed'))
+  }
+}
+
+/** 正文里已选中文字时，往菜单末尾补一条「复制选中的文字」。 */
+function appendSelectionCopy(items: ContextMenuItem[]): void {
+  const text = window.getSelection()?.toString() ?? ''
+  if (!text) return
+  items.push({
+    separatorBefore: true,
+    label: t('menuCopySelection'),
+    hint: mod('C'),
+    run: () => void copyText(text, t('menuCopied')),
+  })
+}
+
 /** 右键入口：按目标决定给哪套菜单。 */
 function onContextMenu(e: MouseEvent): void {
   const target = e.target as HTMLElement | null
@@ -1206,11 +1269,12 @@ function onContextMenu(e: MouseEvent): void {
         run: () => void closeFile(),
       })
     }
-    if (items.length === 0) return
+    // 无论有没有东西可给，都要吞掉默认菜单：顶栏不该冒出浏览器的「检查元素」
     e.preventDefault()
-    showContextMenu(items, e.clientX, e.clientY)
+    if (items.length > 0) showContextMenu(items, e.clientX, e.clientY)
     return
   }
+
   // 聚焦块的 CodeMirror：编辑菜单（撤销/复制/粘贴…）
   if (target.closest('.cm-content')) {
     e.preventDefault()
@@ -1218,63 +1282,85 @@ function onContextMenu(e: MouseEvent): void {
     return
   }
 
-  // 输入控件保留系统菜单：那里需要系统级的粘贴、输入法候选、拼写检查，
-  // 这些我们没实现，抢过来只会把功能变少。
-  if (target.closest('input, textarea, [contenteditable="true"]')) return
+  // 输入控件：给应用自己的编辑菜单，而不是放行 webview 那份（带「检查元素」）
+  const field = target.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null
+  if (field) {
+    e.preventDefault()
+    showContextMenu(fieldMenuItems(field), e.clientX, e.clientY)
+    return
+  }
 
-  // 只在「正文」里接管右键。
+  // 到这儿还没命中，就先把 webview 默认菜单吞掉。
   //
-  // 其余表面——设置 / 快捷键 / 外观 / 灯箱 / 对话框 / 查找条等浮层，以及侧栏、
-  // 状态行、顶栏空白、空态——一律放行系统菜单。这些地方用户常要选中文字复制，
-  // 以前那条「没落在块上」的兜底会把文档块菜单（在文首插入段落 / 复制全文…）
-  // 糊到每一个角落，连复制都被吃掉。右键菜单必须按表面分派，不能全球兜底。
-  if (!target.closest('#content') || !session.source) return
-
-  // 正文里拦掉 webview 默认菜单（刷新 / 打印 / 检查元素），给文档自己的右键。
+  // 它端出来的是浏览器的那一份：刷新 / 打印 / 后退 / 检查元素，"检查元素"更是
+  // 直接把 F12 开发者工具递给普通用户——这在一个本地 Markdown 阅读器里是纯噪音。
+  // 所以**每个表面都必须显式决定给什么**，不能让默认菜单从缝里漏出来。
   e.preventDefault()
 
-  // 图片
-  if (target.tagName === 'IMG' && target.closest('.reading-prose')) {
-    showContextMenu(imageMenuItems(target as HTMLImageElement), e.clientX, e.clientY)
-    return
-  }
-
-  // 链接
-  const link = target.closest('a') as HTMLAnchorElement | null
-  if (link && link.closest('.reading-prose')) {
-    showContextMenu(linkMenuItems(link.getAttribute('href') ?? ''), e.clientX, e.clientY)
-    return
-  }
-
-  // 任务项：按渲染顺序定位到源码里第几条任务
-  const li = target.closest('li.task') as HTMLLIElement | null
-  if (li) {
-    const blockEl = li.closest('.block') as HTMLElement | null
-    const id = blockEl?.dataset.blockId
-    const block = id ? session.blocks.find((b) => b.id === id) : undefined
-    if (block && blockEl) {
-      const items = Array.from(blockEl.querySelectorAll('li.task'))
-      const idx = items.indexOf(li)
-      const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
-      showContextMenu(taskMenuItems(block, idx, !!box?.checked), e.clientX, e.clientY)
+  // 正文里的块：文档自己的菜单（图片 / 链接 / 任务 / 块 / 段间空白）
+  if (target.closest('#content') && session.source) {
+    // 图片
+    if (target.tagName === 'IMG' && target.closest('.reading-prose')) {
+      showContextMenu(imageMenuItems(target as HTMLImageElement), e.clientX, e.clientY)
       return
     }
-  }
 
-  // 预览块
-  const blockEl = target.closest('.block') as HTMLElement | null
-  const id = blockEl?.dataset.blockId
-  const block = id ? session.blocks.find((b) => b.id === id) : undefined
-  if (block && blockEl && block.kind !== 'unknown') {
-    showContextMenu(blockMenuItems(block, blockEl), e.clientX, e.clientY)
+    // 链接
+    const link = target.closest('a') as HTMLAnchorElement | null
+    if (link && link.closest('.reading-prose')) {
+      showContextMenu(linkMenuItems(link.getAttribute('href') ?? ''), e.clientX, e.clientY)
+      return
+    }
+
+    // 任务项：按渲染顺序定位到源码里第几条任务
+    const li = target.closest('li.task') as HTMLLIElement | null
+    if (li) {
+      const blockEl = li.closest('.block') as HTMLElement | null
+      const id = blockEl?.dataset.blockId
+      const block = id ? session.blocks.find((b) => b.id === id) : undefined
+      if (block && blockEl) {
+        const items = Array.from(blockEl.querySelectorAll('li.task'))
+        const idx = items.indexOf(li)
+        const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
+        showContextMenu(taskMenuItems(block, idx, !!box?.checked), e.clientX, e.clientY)
+        return
+      }
+    }
+
+    // 预览块
+    const blockEl = target.closest('.block') as HTMLElement | null
+    const id = blockEl?.dataset.blockId
+    const block = id ? session.blocks.find((b) => b.id === id) : undefined
+    if (block && blockEl && block.kind !== 'unknown') {
+      const items = blockMenuItems(block, blockEl)
+      appendSelectionCopy(items)
+      showContextMenu(items, e.clientX, e.clientY)
+      return
+    }
+
+    // 没落在任何块上：段间空白缝（.block.gap 没有 blockId）、正文列的两侧留白、
+    // 最后一段之后的那片空。右键这里想做的事，八成还是「在这儿加一段」，
+    // 所以贴着最近的内容块给一份短菜单。
+    const items = blankAreaMenuItems(nearestBlockBefore(target))
+    appendSelectionCopy(items)
+    showContextMenu(items, e.clientX, e.clientY)
     return
   }
 
-  // 没落在任何块上：段间空白缝（.block.gap 没有 blockId）、正文列的两侧留白、
-  // 最后一段之后的那片空。右键这里想做的事，八成还是「在这儿加一段」，
-  // 所以贴着最近的内容块给一份短菜单。
-  const nearest = nearestBlockBefore(target)
-  showContextMenu(blankAreaMenuItems(nearest), e.clientX, e.clientY)
+  // 正文之外、又选中了文字的表面（设置里的说明、侧栏、状态行…）：只给「复制」。
+  // 这些地方以前被「没落在块上」的兜底糊了整份文档菜单，连复制都做不到。
+  const selected = window.getSelection()?.toString() ?? ''
+  if (selected) {
+    showContextMenu(
+      [{ label: t('menuCopy'), hint: mod('C'), run: () => void copyText(selected, t('menuCopied')) }],
+      e.clientX,
+      e.clientY,
+    )
+    return
+  }
+
+  // 其余地方（空白、不可选中的 chrome）：默认菜单已吞，不再弹任何东西——
+  // 原生应用在非交互区域右键就是这个行为，弹一份「猜你想干什么」的菜单才是噪音。
 }
 
 /**
