@@ -1451,6 +1451,14 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   session.source = createSourceDocument(path, raw, mtimeMs)
   setCurrentMdPath(session.source.path)
   session.blocks = parseBlocks(session.source.text)
+  // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
+  // 否则打开一个空的 .md 会看到一片空白、连点都点不了——"文件是空的"和
+  // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
+  // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
+  if (session.blocks.length === 0) {
+    const { para, gap } = makeEmptyParagraph(0)
+    session.blocks = [para, gap]
+  }
   session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
   session.focusedId = null
   session.dirty = false
