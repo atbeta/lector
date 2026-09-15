@@ -159,12 +159,6 @@ export async function appVersion(): Promise<string> {
   return getVersion()
 }
 
-export async function dirFor(path: string): Promise<string> {
-  const { invoke } = await tauriApi()
-  const res = await invoke<{ base_dir: string }>('dir_for', { path })
-  return res.base_dir
-}
-
 export async function watch(path: string): Promise<void> {
   const { invoke } = await tauriApi()
   await invoke('watch', { path })
@@ -296,12 +290,6 @@ export async function onOpen(handler: (p: OpenPayload) => void): Promise<() => v
   if (detectEnv() !== 'shell') return () => {}
   const { listen } = await tauriApi()
   return listen<OpenPayload>('lector:open', (p) => handler(p))
-}
-
-export async function onSaveRequest(handler: (p: OpenPayload) => void): Promise<() => void> {
-  if (detectEnv() !== 'shell') return () => {}
-  const { listen } = await tauriApi()
-  return listen<OpenPayload>('lector:save-request', (p) => handler(p))
 }
 
 export async function onFileChanged(

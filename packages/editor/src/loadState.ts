@@ -8,6 +8,7 @@
 
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
+import { baseName, dirName } from './paths.ts'
 
 interface LoadStateDeps {
   contentEl: HTMLElement
@@ -28,22 +29,6 @@ function resetTitle(fileNameEl: HTMLElement): void {
   fileNameEl.textContent = 'Lector'
   fileNameEl.dataset.untitled = 'true'
   document.title = 'Lector'
-}
-
-/** 只取文件名部分：列表里主标题是文件名，目录名做次要信息。 */
-function baseName(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
-}
-
-/** 目录部分（含末尾分隔符），用于在文件名下面标出处。 */
-function dirName(path: string): string {
-  // 分隔符按原路径的形态还原：Windows 上显示 `D:/a/b` 和系统里看到的不是一回事。
-  const sep = path.includes('\\') ? '\\' : '/'
-  const parts = path.split(/[\\/]/)
-  parts.pop()
-  if (parts.length === 0) return ''
-  const joined = parts.join(sep)
-  return joined.length > 42 ? `…${joined.slice(-41)}` : joined
 }
 
 /**

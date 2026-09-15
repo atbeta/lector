@@ -82,7 +82,6 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       io::read_file,
       io::write_file,
-      io::dir_for,
       io::open_url,
       io::open_with_default,
       io::reveal_in_folder,

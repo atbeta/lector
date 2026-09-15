@@ -46,6 +46,7 @@ import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
 import { setAssetResolver, setCurrentMdPath, assetLocalPath } from './asset.ts'
+import { baseName, docStem, isAbsolutePath } from './paths.ts'
 import { initSettings, resetFontSize, resetUiZoom, stepFontSize, stepUiZoom, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar } from './findBar.ts'
@@ -1336,11 +1337,6 @@ function outlineSignature(): string {
     .join('|')
 }
 
-function baseName(p: string): string {
-  const parts = p.split(/[\\/]/)
-  return parts[parts.length - 1] || p
-}
-
 /**
  * 状态行：文档的一行自述。
  *
@@ -2564,12 +2560,6 @@ async function ingestImageFile(file: File, name: string | null, insertRef?: { ty
   }
 }
 
-/** doc 路径 → 基名去扩展名（供 {filename} 模板）。 */
-function docStem(path: string): string {
-  const base = path.split(/[\\/]/).pop() ?? 'untitled'
-  return base.replace(/\.(md|markdown|txt)$/i, '') || 'untitled'
-}
-
 /** 按拖放/粘贴落点插图：光标处、某块之后、或文末。 */
 function insertImage(insertRef: { type: 'caret' } | { type: 'afterBlock'; blockId: string } | null | undefined, md: string) {
   if (insertRef?.type === 'afterBlock') {
@@ -3086,15 +3076,6 @@ async function saveAsFlow() {
   } finally {
     saveInFlight = false
   }
-}
-
-/**
- * 是否是「已经在磁盘上的绝对路径」。
- * 覆盖：POSIX `/…`、Windows 盘符 `C:\…` / `C:/…`、UNC 与 verbatim `\\server\share` / `\\?\D:\…`。
- * 只用来判断"有没有磁盘身份"，不做严格校验（严格校验在壳侧）。
- */
-function isAbsolutePath(p: string): boolean {
-  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\')
 }
 
 /** 当前文档的磁盘绝对路径；未命名占位路径返回 null（壳侧同样会拒绝）。 */

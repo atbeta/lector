@@ -121,11 +121,6 @@ export function resetUiZoom() {
   setSettings({ ...getSettings(), uiZoom: 100 })
 }
 
-export function toggleTheme() {
-  const resolved = current.theme === 'system' ? (mq?.matches ? 'dark' : 'light') : current.theme
-  setSettings({ ...current, theme: resolved === 'dark' ? 'light' : 'dark' })
-}
-
 export async function initSettings() {
   const raw = await loadSettings().catch(() => null)
   current = normalizeSettings(raw)

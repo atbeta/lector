@@ -30,11 +30,6 @@ pub struct PendingOpens(pub Mutex<HashMap<String, String>>);
 static WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Serialize)]
-pub struct DirResult {
-  base_dir: String,
-}
-
-#[derive(Serialize)]
 pub struct ReadResult {
   path: String,
   content: String,
@@ -159,15 +154,6 @@ pub fn open_url(url: String) -> Result<(), String> {
     return Err(format!("refused to open non-http url: {u}"));
   }
   crate::menu::open_external(u).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn dir_for(path: String) -> Result<DirResult, String> {
-  let p = std::path::Path::new(&path);
-  let dir = p.parent().unwrap_or_else(|| std::path::Path::new("."));
-  Ok(DirResult {
-    base_dir: dir.to_string_lossy().into_owned(),
-  })
 }
 
 /// 用系统默认应用打开当前文件：联动其他编辑器（复杂编辑、预览）的逃生口。

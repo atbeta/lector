@@ -22,11 +22,6 @@ export interface ContextMenuItem {
 let panel: HTMLElement | null = null
 let detach: (() => void) | null = null
 
-/** 菜单是否打开。 */
-export function contextMenuOpen(): boolean {
-  return panel !== null && !panel.hidden
-}
-
 export function hideContextMenu(): void {
   if (!panel) return
   panel.hidden = true
