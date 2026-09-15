@@ -123,15 +123,17 @@ export function renderEmptyState(deps: LoadStateDeps): void {
   btn.addEventListener('click', () => void deps.onOpen())
   // 「新建」与「打开文件」主次分明：打开是主要动作（阅读优先），新建是次要动作。
   // 记事本能新建，阅读器却只能打开，用户"想创建却创建不了"是真实会遇到的。
+  const actions = document.createElement('div')
+  actions.className = 'empty-actions'
+  actions.appendChild(btn)
   if (deps.onNew) {
     const newBtn = document.createElement('button')
     newBtn.className = 'empty-new'
     newBtn.innerHTML = `${iconSvg('filePlus', 16)}<span>${t('newFile')}</span>`
     newBtn.addEventListener('click', () => void deps.onNew?.())
-    wrap.append(title, tagline, btn, newBtn)
-  } else {
-    wrap.append(title, tagline, btn)
+    actions.appendChild(newBtn)
   }
+  wrap.append(title, tagline, actions)
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)

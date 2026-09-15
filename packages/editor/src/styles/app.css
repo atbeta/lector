@@ -183,6 +183,18 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  color: rgb(var(--foreground));
+  opacity: 0.86;
+}
+.brand-mark svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+html[data-shell='windows'] .brand-mark { width: 24px; height: 24px; margin-right: 2px; }
+html[data-shell='windows'] .brand-mark svg { width: 18px; height: 18px; }
 .titlebar-actions {
   display: flex;
   align-items: center;
@@ -956,9 +968,39 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--foreground));
 }
 .empty-tagline {
-  margin: 8px 0 30px;
+  margin: 10px 0 28px;
   font-size: var(--text-base);
   color: rgb(var(--subtle-foreground));
+}
+.empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.empty-actions .empty-new { margin-left: 0; }
+.empty-open, .empty-new { min-width: 132px; justify-content: center; }
+.empty-open { min-height: 42px; padding-inline: 20px; }
+.empty-new { min-height: 42px; padding-inline: 18px; }
+.empty-state::before {
+  content: 'L';
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 22px;
+  border-radius: 15px;
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-foreground));
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.08em;
+  box-shadow: 0 8px 20px rgb(var(--foreground) / 0.12);
+}
+@media (max-width: 560px) {
+  .empty-actions { flex-direction: column; width: min(100%, 220px); }
+  .empty-open, .empty-new { width: 100%; }
 }
 /* 墨色按钮：空态的主动作用「最强、不带品牌色」的墨色（tokens 里 --ink 的本义） */
 .empty-open {
@@ -1461,7 +1503,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
  * 关键取舍：**不画卡片**。
- * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的��一篇文档的
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的����一篇文档的
  * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
  * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
  * 发丝线表示「这段可以点进去改」。
@@ -1677,7 +1719,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── 图片 / 图表放大（lightbox） ─────────────
  * 两层职责：
- *   遮罩（.lightbox）= 暗掉页面 + ���载 HUD 与工具条；
+ *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
  *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
  * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
  * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
@@ -1747,7 +1789,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   max-height: 100%;
 }
 
-/* 左上角：缩放读数 + ���势提示 */
+/* 左���角：缩放读数 + ���势提示 */
 .lb-hud {
   position: absolute;
   top: 16px;
