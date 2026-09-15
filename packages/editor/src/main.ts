@@ -1211,23 +1211,26 @@ function onContextMenu(e: MouseEvent): void {
     showContextMenu(items, e.clientX, e.clientY)
     return
   }
-  // 编辑器内
+  // 聚焦块的 CodeMirror：编辑菜单（撤销/复制/粘贴…）
   if (target.closest('.cm-content')) {
     e.preventDefault()
     showContextMenu(editorMenuItems(), e.clientX, e.clientY)
     return
   }
 
-  // 表单输入保留系统菜单：那里需要系统级的粘贴、输入法候选、拼写检查，
+  // 输入控件保留系统菜单：那里需要系统级的粘贴、输入法候选、拼写检查，
   // 这些我们没实现，抢过来只会把功能变少。
   if (target.closest('input, textarea, [contenteditable="true"]')) return
 
-  // 其余位置**一律**拦掉浏览器菜单。
+  // 只在「正文」里接管右键。
   //
-  // 这里是桌面应用：右键一块段间空白弹出「刷新 / 另存为 / 打印 / 检查元素」，
-  // 会让人瞬间怀疑自己开错了东西（Tauri 的 WebView 默认就带这套菜单）。
-  // 拦掉之后必须给出我们自己的东西，否则「右键没反应」和「弹出网页菜单」
-  // 一样糟——所以下面每一个分支都要有出口，最后一个分支兜住「空白处」。
+  // 其余表面——设置 / 快捷键 / 外观 / 灯箱 / 对话框 / 查找条等浮层，以及侧栏、
+  // 状态行、顶栏空白、空态——一律放行系统菜单。这些地方用户常要选中文字复制，
+  // 以前那条「没落在块上」的兜底会把文档块菜单（在文首插入段落 / 复制全文…）
+  // 糊到每一个角落，连复制都被吃掉。右键菜单必须按表面分派，不能全球兜底。
+  if (!target.closest('#content') || !session.source) return
+
+  // 正文里拦掉 webview 默认菜单（刷新 / 打印 / 检查元素），给文档自己的右键。
   e.preventDefault()
 
   // 图片

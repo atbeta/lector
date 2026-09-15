@@ -94,7 +94,10 @@ export function showContextMenu(items: ContextMenuItem[], x: number, y: number):
 
   // ── 关闭路径 ──
   const onDown = (e: MouseEvent) => {
-    if (!(e.target as HTMLElement | null)?.closest('.context-menu')) hideContextMenu()
+    // e.target 不一定是 Element（偶尔是 Document / 文本节点），没有 closest——
+    // 直接调会抛错，菜单反而关不掉。这里只对 Element 判断是否点在菜单里。
+    const el = e.target as Element | null
+    if (!el || typeof el.closest !== 'function' || !el.closest('.context-menu')) hideContextMenu()
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
