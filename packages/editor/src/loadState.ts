@@ -105,7 +105,11 @@ function openShortcut(): string {
   return /mac/i.test(navigator.userAgent) ? '⌘O' : 'Ctrl O'
 }
 
-/** 空态：真 logo + 衬线字标 + 定位语 + 主/次按钮。整窗撤掉纸页表面，让内容居中于整窗。 */
+/**
+ * 空态：真 logo + 定位语 + 主/次按钮。
+ * 扉页上不印字标——应用名在窗口标题里淡淡地待着就够了，
+ * 这里让 logo 和一句定位语说话，比再喊一遍名字安静。
+ */
 export function renderEmptyState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
   const wrap = document.createElement('div')
@@ -113,9 +117,7 @@ export function renderEmptyState(deps: LoadStateDeps): void {
   const logo = document.createElement('img')
   logo.className = 'empty-logo'
   logo.src = '/lector-mark.svg'
-  logo.alt = ''
-  const title = document.createElement('h2')
-  title.textContent = t('emptyTitle')
+  logo.alt = t('emptyTitle')
   const tagline = document.createElement('p')
   tagline.className = 'empty-tagline'
   tagline.textContent = t('emptyTagline')
@@ -137,7 +139,7 @@ export function renderEmptyState(deps: LoadStateDeps): void {
     newBtn.addEventListener('click', () => void deps.onNew?.())
     actions.appendChild(newBtn)
   }
-  wrap.append(logo, title, tagline, actions)
+  wrap.append(logo, tagline, actions)
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)

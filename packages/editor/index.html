@@ -41,7 +41,9 @@
     <header id="titlebar" data-tauri-drag-region>
       <div class="titlebar-lead">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" focusable="false"><rect width="32" height="32" rx="8" fill="#364653"/><g stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/><path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/></g></svg>
+          <!-- width/height 必须显式写：这个 svg 只有 viewBox。样式表是通过 JS 模块引入的，
+               首帧还没应用——没有尺寸时它会按默认铺满整个视口，启动瞬间闪出一个"大 LOGO"。 -->
+          <svg width="24" height="24" viewBox="0 0 32 32" focusable="false"><rect width="32" height="32" rx="8" fill="#364653"/><g stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/><path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/></g></svg>
         </span>
         <button type="button" class="btn-icon" id="open-btn" data-tip="打开 (⌘O)" aria-label="打开"></button>
         <button type="button" class="btn-icon" id="save-btn" data-tip="保存 (⌘S)" aria-label="保存"></button>
@@ -61,7 +63,7 @@
         <button type="button" class="btn-icon" id="outline-btn" data-tip="大纲" aria-label="大纲" aria-pressed="false"></button>
         <button type="button" class="btn-icon" id="find-btn" data-tip="查找" aria-label="查找"></button>
         <button type="button" class="btn-icon" id="appearance-btn" data-tip="外观" aria-label="外观" aria-haspopup="dialog"></button>
-        <button type="button" class="btn-icon" id="keyboard-btn" data-tip="键盘快捷键" aria-label="键盘快捷键"></button>
+        <button type="button" class="btn-icon" id="keyboard-btn" aria-label="键盘快捷键"></button>
         <button type="button" class="btn-icon" id="settings-btn" data-tip="设置" aria-label="设置"></button>
       </div>
       <div class="window-controls"></div>

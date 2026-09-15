@@ -221,8 +221,9 @@ function nextViewMode(m: ViewMode): ViewMode {
 /**
  * 分段控件：三档常驻，当前档常亮。
  *
- * 图标 + 文字都上：只有图标时「哪一档是什么」要靠猜（旧版图标画的还是下一档，
- * 更猜不出来）；只有文字时顶栏会变成一排字。窄窗口下只留图标，由 CSS 决定。
+ * 只有图标 + tip：三档的图标（眼睛 / 铅笔 / 代码）已经足够自明，
+ * 常驻文字会把顶栏变成一排字、还和右侧其它图标按钮争宽度。悬停出 tip、
+ * aria-label 供读屏——文字没有消失，只是移到需要时才出现的层。
  */
 function buildModeSwitch(): void {
   modeSwitchEl.replaceChildren()
@@ -235,13 +236,11 @@ function buildModeSwitch(): void {
     btn.dataset.mode = m
     btn.setAttribute('role', 'radio')
     btn.dataset.tip = viewLabel(m)
+    btn.setAttribute('aria-label', viewLabel(m))
     const icon = document.createElement('span')
     icon.className = 'mode-opt-icon'
     icon.innerHTML = iconSvg(VIEW_ICON[m], 15)
-    const label = document.createElement('span')
-    label.className = 'mode-opt-label'
-    label.textContent = viewLabel(m)
-    btn.append(icon, label)
+    btn.append(icon)
     btn.addEventListener('click', () => setViewMode(m))
     modeSwitchEl.appendChild(btn)
   }
@@ -1709,6 +1708,9 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now(), byteLen?: 
   contentEl.scrollTop = 0
   // 有文档了就把「纸页」表面还回来（空态撤掉的纸面底色与描边，见 loadState.ts）
   document.documentElement.classList.remove('is-empty')
+  // 冷启动带 argv / 点打开的加载态也要收掉，否则 html.is-loading 会一直挂着
+  // （模式开关等按加载态隐藏的东西会永远不出现）
+  document.documentElement.classList.remove('is-loading')
 
   if (largeMode) {
     contentEl.classList.add('large-doc')

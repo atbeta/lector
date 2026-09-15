@@ -76,15 +76,16 @@ function buildCard(): HTMLElement {
   card.className = 'shortcuts-pop'
   card.setAttribute('role', 'dialog')
   card.setAttribute('aria-modal', 'false')
-  const title = document.createElement('h2')
-  title.className = 'shortcuts-pop-title'
-  title.textContent = t('shortcutTitle')
-  card.append(title)
+  // 面板不印标题：键位表本身就是标题。aria-label 留给读屏。
+  card.setAttribute('aria-label', t('shortcutTitle'))
   for (const group of shortcutGroups()) {
+    // 每组一列（横向排布）：键位表因此又短又宽，不需要滚动条
+    const col = document.createElement('div')
+    col.className = 'shortcut-col'
     const h = document.createElement('h3')
     h.className = 'shortcut-group'
     h.textContent = group.title
-    card.append(h)
+    col.append(h)
     for (const row of group.rows) {
       const line = document.createElement('div')
       line.className = 'shortcut-row'
@@ -95,8 +96,9 @@ function buildCard(): HTMLElement {
       label.className = 'shortcut-label'
       label.textContent = row.label
       line.append(keys, label)
-      card.append(line)
+      col.append(line)
     }
+    card.append(col)
   }
   return card
 }
