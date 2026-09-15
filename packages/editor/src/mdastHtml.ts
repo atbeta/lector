@@ -173,8 +173,11 @@ function inlineNode(n: Node): string {
 function listItems(list: Node): string {
   const items = (list.children ?? []).map((item: Node) => {
     const task = item.checked !== undefined && item.checked !== null
+    // 复选框不再是「只读装饰」：预览里点一下直接切换勾选（点击由 main.ts 拦下
+    // 并改写源码，原生 toggle 被 preventDefault）。tabindex=-1：它是预览的一部分，
+    // 不该进 Tab 序。checked 只反映初始渲染，真实状态永远以源码为准。
     const checkbox = task
-      ? `<input type="checkbox" disabled${item.checked ? ' checked' : ''} /> `
+      ? `<input type="checkbox" tabindex="-1"${item.checked ? ' checked' : ''} /> `
       : ''
     // listItem 的 children 通常是 paragraph 或嵌套 list
     const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')

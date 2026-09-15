@@ -56,7 +56,7 @@ export function themeCard(
   // 所以这里不能读 CSS 变量，只能按主题标定的 fontFamily 直接指定。
   const serif = theme.preset.fontFamily === 'serif'
   card.style.fontFamily = serif ? 'var(--font-serif)' : 'var(--font-sans)'
-  card.title = `${pick(theme.name)} — ${pick(theme.tagline)}`
+  // 不带 title 提示：卡面上已经印着名称与一句话介绍，tooltip 只会复读一遍
 
   const sample = document.createElement('span')
   sample.className = 'theme-preview-sample'

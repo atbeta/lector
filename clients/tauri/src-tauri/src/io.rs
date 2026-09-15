@@ -156,6 +156,45 @@ pub fn dir_for(path: String) -> Result<DirResult, String> {
   })
 }
 
+/// 用系统默认应用打开当前文件：联动其他编辑器（复杂编辑、预览）的逃生口。
+/// 路径来自 Web 侧当前文档——它本身就是打开过的磁盘文件，不扩大权限面。
+#[tauri::command]
+pub fn open_with_default(path: String) -> Result<(), String> {
+  let p = PathBuf::from(&path);
+  if !p.is_absolute() {
+    return Err(format!("not an on-disk file: {path}"));
+  }
+  #[cfg(target_os = "macos")]
+  let r = std::process::Command::new("open").arg(&p).spawn();
+  #[cfg(target_os = "windows")]
+  let r = std::process::Command::new("explorer").arg(&p).spawn();
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let r = std::process::Command::new("xdg-open").arg(&p).spawn();
+  r.map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// 在系统文件管理器中显示当前文件（Finder 显示 / 资源管理器选中）。
+#[tauri::command]
+pub fn reveal_in_folder(path: String) -> Result<(), String> {
+  let p = PathBuf::from(&path);
+  if !p.is_absolute() {
+    return Err(format!("not an on-disk file: {path}"));
+  }
+  #[cfg(target_os = "macos")]
+  let r = std::process::Command::new("open").arg("-R").arg(&p).spawn();
+  #[cfg(target_os = "windows")]
+  let r = std::process::Command::new("explorer")
+    .arg(format!("/select,{}", p.display()))
+    .spawn();
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  let r = {
+    let dir = p.parent().unwrap_or_else(|| std::path::Path::new("."));
+    std::process::Command::new("xdg-open").arg(dir).spawn()
+  };
+  r.map(|_| ()).map_err(|e| e.to_string())
+}
+
+
 #[tauri::command]
 pub fn watch(path: String, app: AppHandle) -> Result<bool, String> {
   watch_file(&app, &path);

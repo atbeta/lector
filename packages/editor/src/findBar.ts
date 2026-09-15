@@ -28,11 +28,11 @@ export function findBar(host: FindHost) {
     <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
     <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
     <span class="find-count"></span>
-    <button class="btn-icon find-prev" data-tip="${t('findPrev')}" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
-    <button class="btn-icon find-next" data-tip="${t('findNext')}" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
+    <button class="btn-icon find-prev" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
+    <button class="btn-icon find-next" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
     <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
     <button class="btn find-replaceall">${t('replaceAll')}</button>
-    <button class="find-close btn-icon" data-tip="${t('close')}" aria-label="${t('close')}">${iconSvg('close')}</button>
+    <button class="find-close btn-icon" aria-label="${t('close')}">${iconSvg('close')}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!

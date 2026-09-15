@@ -361,6 +361,9 @@ html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 父层（.titlebar-center）pointer-events:none 是为了让顶栏可拖拽；
+     标题本身要恢复可点：右键它给文件级菜单（打开方式/显示位置/复制路径）。 */
+  pointer-events: auto;
   /* 标题仍相对正文列居中，但最宽不能压到右上角操作区（模式开关/图标）上。
      长文件名在游戏里要省略不省略——真实屏幕就靠这条挡着。 */
   max-width: var(--titlebar-title-max, 100%);
@@ -855,24 +858,14 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
 
-/* 当前小节：左侧一根靛蓝指示条 + 文字变实。
-   不用整行填色——一列目录里出现色块会把侧栏压得很重，也会和 hover 打架。
-   指示条贴在行首，缩进层级不受影响。 */
+/* 当前小节：文字变实加粗，无指示条、无填色。
+   试过行首指示条（2px 色条）：侧栏多了一条与缩进无关的竖线，像排版瑕疵；
+   整行填色又会把侧栏压重、和 hover 打架。文字本身的重量变化已经足够。 */
 .outline-row { position: relative; }
 .outline-row.active { color: rgb(var(--foreground)); font-weight: 550; }
-/* 当前小节的上级：只把文字变深，不加指示条。
-   指示条表示「你在这里」，上级表示「你在这条线上」，两者不该同一种表达。 */
+/* 当前小节的上级：只把文字变深。
+   「你在这里」与「你在这条线上」用同一档文字变化表达，靠粗细区分主次。 */
 .outline-row.ancestor { color: rgb(var(--foreground)); }
-.outline-row.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgb(var(--primary));
-}
 /* 大纲每一级**同字号**。曾经给 3 级及以下写过一条 --text-2xs（12px）的规则，
    结果三级小节比一级还小——层级由缩进和字重表达就够了，字号一变小，
    深处的标题反而更看不清，和「大纲是给人快速定位的」正好相反。 */
@@ -1296,7 +1289,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .reading-prose li.task .task-label { flex: 1 1 auto; min-width: 0; }
 .reading-prose li.task .task-label > :first-child { margin-top: 0; }
-.reading-prose li.task input[type='checkbox'] { flex: 0 0 auto; margin: 0.4em 0 0; }
+.reading-prose li.task input[type='checkbox'] { flex: 0 0 auto; margin: 0.4em 0 0; cursor: pointer; }
 /* 已完成：用「勾选框 + 删除线」表达，不靠把字调暗。
    整行压到 4:1 会读成「禁用」，而未完成反而最亮，层级正好反了。
    删除线用墨色：用 border-strong 画出来比它划掉的字还淡，等于没划。 */
@@ -1358,67 +1351,67 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--muted-foreground));
 }
 
-/* ───────────── 代码块工具条（语言 + 复制） ─────────────
- * 贴在代码块上沿、默认隐形，悬停代码块才浮现——阅读时不抢注意力，
- * 要复制时手已经在那一块上了。 */
+/* ───────────── 代码卡（语言 + 复制 收进代码区域内部） ─────────────
+ * 卡 = 代码区域本体：头部条（语言在左、复制在右）与 pre 共用一张卡的
+ * 底色、描边与圆角，中间一道发丝线分开——工具属于这块内容，
+ * 而不是它头顶的另一行（结构仿 notefast 的 code fence）。 */
+.code-card {
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: rgb(var(--muted));
+  overflow: hidden;
+}
 .code-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* 头部行：真实高度、真实内边距，而不是「0 高度 + top 位移」贴在代码第一行上。
-     旧写法高度为 0、靠 top: 8px 把语言标和复制按钮压在代码上，块一窄它们就被挤出框。
-     现在它自己占一行，语言在左、复制在右，不再和代码抢位置。 */
-  height: 26px;
-  padding: 0 2px;
-  position: relative;
-  justify-content: flex-end;
-  opacity: 1;
-  transition: opacity var(--motion-fast) var(--ease-standard);
-  pointer-events: auto;
+  height: 30px;
+  padding: 0 5px 0 13px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--foreground) / 0.025);
 }
-.block:hover .code-bar,
-.block.focused .code-bar { opacity: 1; pointer-events: auto; }
 .code-lang {
   margin-right: auto;
-  padding: 1px 8px;
   color: rgb(var(--subtle-foreground));
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   letter-spacing: 0.02em;
   text-transform: lowercase;
-  background: rgb(var(--muted) / 0.6);
-  border-radius: 99px;
 }
 .code-copy {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 1px solid rgb(var(--border));
-  border-radius: 99px;
-  background: rgb(var(--popover));
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
   color: rgb(var(--muted-foreground));
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-standard),
-    background var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard);
+    background var(--motion-fast) var(--ease-standard);
 }
 .code-copy:hover {
   color: rgb(var(--foreground));
-  border-color: rgb(var(--border-strong) / 0.6);
   background: rgb(var(--accent));
 }
-/* 头部行已经占位，代码不再需要额外的上边距来避让 */
-.block[data-kind='code'] .reading-prose pre { margin-top: 0; }
+/* 卡的内部不再有自己的边界与底色 */
+.code-card .reading-prose pre,
+.block[data-kind='code'] .reading-prose pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* 专注主题连卡的描边也拿掉（零描边是这款的定义） */
+html[data-reading-theme='focus'] .code-card { border: 0; }
+html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── Mermaid 图表 ─────────────
- * 走常规的 code-bar + diagram 两层结构：工具条还是复制/标语言，
- * diagram 占下方的画布区域。懒加载,渲染失败时给错误 + 源码回退。 */
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
+ * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
-  margin-top: 8px;
   padding: 12px;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius);
@@ -1430,6 +1423,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   min-height: 80px;
   cursor: zoom-in;
   transition: border-color var(--motion-fast) var(--ease-standard);
+}
+/* 在代码卡里时，画布自己的边界全部让位给卡 */
+.code-card .mermaid-diagram {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .mermaid-diagram:hover {
   border-color: rgb(var(--border-strong) / 0.6);
@@ -2454,26 +2453,36 @@ tr:hover .table-editor-op { opacity: 1; }
   animation: fade-in var(--motion-fast) var(--ease-enter) both;
 }
 /* ───────────── 键盘面板 ─────────────
- * 键位清单：左列等宽键帽、右列说明。键帽用等宽字体并对齐成一列，
- * 眼睛才能顺着"键 → 功能"扫下去；不然就是一堆散落的符号。 */
-.shortcuts-card { width: min(520px, 92vw); }
-.shortcuts-head { padding: 16px 18px 4px; }
-.shortcuts-head h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
-.shortcuts-body { padding: 0 18px 18px; max-height: 62vh; overflow-y: auto; }
+ * 悬浮卡（非模态）：贴按钮下沿，悬停即出、移走即收。
+ * 宽度跟内容走——键位行的内容天然短，定宽卡片会让右半边全空。
+ * 键帽列等宽字体、列宽按最长键自适应，眼睛顺着「键 → 功能」扫下去。 */
+.shortcuts-pop {
+  position: fixed;
+  z-index: 100;
+  width: fit-content;
+  max-width: 92vw;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 12px 16px 14px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
+}
+.shortcuts-pop-title { margin: 0 0 2px; font-size: var(--text-md); font-weight: 600; }
 .shortcut-group {
-  margin: 16px 0 4px;
+  margin: 12px 0 4px;
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   color: rgb(var(--muted-foreground));
 }
-.shortcut-group:first-child { margin-top: 6px; }
 .shortcut-row {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
   align-items: center;
-  padding: 5px 0;
+  padding: 3.5px 0;
 }
 .shortcut-keys {
   font-family: var(--font-mono);
@@ -2481,11 +2490,12 @@ tr:hover .table-editor-op { opacity: 1; }
   padding: 2px 7px;
   border-radius: 5px;
   text-align: center;
+  white-space: nowrap;
   background: rgb(var(--muted) / 0.7);
   border: 1px solid rgb(var(--border-subtle));
   color: rgb(var(--foreground));
 }
-.shortcut-label { font-size: var(--text-base); color: rgb(var(--foreground)); }
+.shortcut-label { font-size: var(--text-base); color: rgb(var(--foreground)); white-space: nowrap; }
 
 .recover-text { font-size: var(--text-base); color: rgb(var(--foreground)); }
 

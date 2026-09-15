@@ -36,6 +36,8 @@ import {
   onMenu,
   shellAssetResolver,
   openExternal,
+  openWithDefault,
+  revealInFolder,
 } from '@lector/shell-web'
 import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
@@ -48,7 +50,7 @@ import { findBar } from './findBar.ts'
 import { replaceFind } from './findMatch.ts'
 import { redo, undo } from '@codemirror/commands'
 import { iconSvg } from './icons.ts'
-import { openShortcutsPanel } from './shortcutsPanel.ts'
+import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { mountHeaderScrollState, mountTitlebarInset, mountWindowControls } from './chrome.ts'
 import { createSidebar } from './sidebar.ts'
 import { openTableEditor } from './tableEditor.ts'
@@ -164,8 +166,9 @@ settingsBtn.dataset.tip = t('settingsAria')
 openBtn.dataset.tip = t('openAria')
 // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
 keyboardBtn.innerHTML = iconSvg('keyboard', 16)
-keyboardBtn.dataset.tip = t('shortcutTitle')
-keyboardBtn.addEventListener('click', () => openShortcutsPanel())
+// 键盘按钮不带 tooltip：悬停 250ms 就会展开快捷键悬浮卡，
+// 再叠一个「键盘快捷键」气泡只会正好盖住卡片标题
+bindShortcutsButton(keyboardBtn)
 dirtyDot.dataset.tip = t('dirtyTitle')
 // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
 // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
@@ -818,6 +821,27 @@ function deleteBlock(id: string): void {
   const i = blockIndex(id)
   if (i < 0) return
   const block = session.blocks[i]!
+  // 最后一个内容块不可删：删了文档就没有任何可编辑表面，连「点一下开始写」
+  // 都做不到。退化为清空内容（等价记事本的「全选删除」）——块还在、可写、可撤销。
+  if (session.blocks.filter((b) => !isWhitespaceGap(b)).length <= 1) {
+    const before = block.raw
+    const beforeKind = block.kind
+    const beforeMdast = block.mdast
+    block.raw = ''
+    block.mdast = parseOne('')
+    block.kind = 'paragraph'
+    block.dirty = (session.originals.get(block.id) ?? '') !== ''
+    blockUndoStack.push(t('menuUndoBlock'), () => {
+      block.raw = before
+      block.kind = beforeKind
+      block.mdast = beforeMdast
+      block.dirty = block.raw !== (session.originals.get(block.id) ?? '')
+    })
+    markDirty()
+    render()
+    focusBlock(block.id)
+    return
+  }
   const isGap = (b: BlockView | undefined) => b?.kind === 'unknown' && b.raw.trim() === ''
   let from = i
   let count = 1
@@ -1021,6 +1045,22 @@ function onContextMenu(e: MouseEvent): void {
   const target = e.target as HTMLElement | null
   if (!target) return
 
+  // 顶栏文件名：文件级动作（联动其他应用、显示位置、复制路径）
+  if (target.closest('.titlebar-title')) {
+    const path = currentDiskPath()
+    if (!path) return
+    e.preventDefault()
+    showContextMenu(
+      [
+        { label: t('menuOpenDefault'), run: () => void openDefaultApp() },
+        { label: t('menuReveal'), run: () => void revealCurrent() },
+        { separatorBefore: true, label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
+      ],
+      e.clientX,
+      e.clientY,
+    )
+    return
+  }
   // 编辑器内
   if (target.closest('.cm-content')) {
     e.preventDefault()
@@ -1457,7 +1497,13 @@ let largeFileMode = false
 
 const LARGE_FILE_BYTES = 3 * 1024 * 1024
 const LARGE_FILE_LINES = 40_000
-const LARGE_PREVIEW_LINES = 2000
+/** 大文件每次渲染的行数（首屏与每次滚动追加都按这个粒度） */
+const LARGE_CHUNK_LINES = 2000
+/** 还没渲染的尾部（大文件模式专用）。滚动近底时按块追加，直到整篇铺开。 */
+let largeRemainder = ''
+/** 大文件总行数（提示条要报进度）。进入大文件模式时数一次。 */
+let largeTotalLines = 0
+let largeShownLines = 0
 
 function isLargeDocument(text: string): boolean {
   if (text.length > LARGE_FILE_BYTES) return true
@@ -1469,23 +1515,72 @@ function isLargeDocument(text: string): boolean {
   return false
 }
 
-/** 预览块：前 N 行包成一个代码块，直接复用既有渲染路径，不为大文件另写一套渲染。 */
-function largePreviewBlocks(text: string): ReturnType<typeof parseBlocks> {
-  const head = text.split('\n', LARGE_PREVIEW_LINES + 1).slice(0, LARGE_PREVIEW_LINES).join('\n')
-  return parseBlocks('```\n' + head + '\n```')
+/** 从头切出至多 maxLines 行，返回这一段与剩余。只走 indexOf，不 split 全文。 */
+function takeLineChunk(text: string, maxLines: number): { chunk: string; rest: string } {
+  let pos = 0
+  let n = 0
+  while (n < maxLines && pos < text.length) {
+    const i = text.indexOf('\n', pos)
+    if (i < 0) {
+      pos = text.length
+      break
+    }
+    pos = i + 1
+    n++
+  }
+  return { chunk: text.slice(0, pos), rest: text.slice(pos) }
+}
+
+/** 一段大文件切片包成一个代码块，复用既有渲染路径，不为大文件另写一套渲染。 */
+function largeChunkBlocks(chunk: string): ReturnType<typeof parseBlocks> {
+  const body = chunk.endsWith('\n') || chunk === '' ? chunk : `${chunk}\n`
+  return parseBlocks('```\n' + body + '```')
+}
+
+/** 追加下一段大文件切片。只加块、不置脏：这是「把全文铺开」，不是编辑。 */
+function appendLargeChunk(): void {
+  if (!largeRemainder) return
+  const { chunk, rest } = takeLineChunk(largeRemainder, LARGE_CHUNK_LINES)
+  if (!chunk) {
+    largeRemainder = ''
+    return
+  }
+  largeRemainder = rest
+  const blocks = largeChunkBlocks(chunk)
+  for (const b of blocks) session.originals.set(b.id, b.raw)
+  session.blocks.push(...blocks)
+  largeShownLines += LARGE_CHUNK_LINES
+  markDirty()
+  render()
+  updateLargeFileBar()
 }
 
 /** 大文件模式的常驻提示条（复用既有提示条外观，不新增视觉语言）。 */
 function showLargeFileBar(sizeMb: string): void {
-  if (document.querySelector('.large-file-bar')) return
+  clearLargeFileBar()
   const bar = document.createElement('div')
   bar.className = 'recover-bar large-file-bar'
   bar.setAttribute('role', 'status')
   const text = document.createElement('span')
   text.className = 'recover-text'
-  text.textContent = t('largeFileNotice', { size: sizeMb, shown: String(LARGE_PREVIEW_LINES) })
   bar.append(text)
+  bar.dataset.size = sizeMb
   document.body.appendChild(bar)
+  updateLargeFileBar()
+}
+
+function updateLargeFileBar(): void {
+  const el = document.querySelector('.large-file-bar .recover-text')
+  if (!el) return
+  const size = document.querySelector('.large-file-bar')?.getAttribute('data-size') ?? ''
+  const done = largeRemainder === ''
+  el.textContent = done
+    ? t('largeFileNoticeAll', { size, total: String(largeTotalLines) })
+    : t('largeFileNotice', {
+        size,
+        shown: String(Math.min(largeShownLines, largeTotalLines)),
+        total: String(largeTotalLines),
+      })
 }
 
 function clearLargeFileBar(): void {
@@ -1506,7 +1601,21 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   // 用户看到的是永远停在 Loading。这一步先保证**打得开、看得见、绝不写坏**；
   // 可编辑的窗口化渲染是下一步。
   largeFileMode = isLargeDocument(session.source.text)
-  session.blocks = largeFileMode ? largePreviewBlocks(session.source.text) : parseBlocks(session.source.text)
+  if (largeFileMode) {
+    // 首屏只铺前 2000 行，其余随滚动追加（见 appendLargeChunk）。
+    // 总行数数一次就够：一次 30MB 的换行扫描 ~20ms，换提示条能报真实进度。
+    const { chunk, rest } = takeLineChunk(session.source.text, LARGE_CHUNK_LINES)
+    largeRemainder = rest
+    largeShownLines = LARGE_CHUNK_LINES
+    largeTotalLines = 0
+    for (let i = 0; i < session.source.text.length; i++) {
+      if (session.source.text.charCodeAt(i) === 10) largeTotalLines++
+    }
+    session.blocks = largeChunkBlocks(chunk)
+  } else {
+    largeRemainder = ''
+    session.blocks = parseBlocks(session.source.text)
+  }
   // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
   // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
   // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
@@ -1822,6 +1931,28 @@ function decorateCopyButton(btn: HTMLElement): void {
   })
 }
 
+/** 代码卡头部条：语言标在左、复制键在右，收在代码区域内部（notefast 同款结构）。 */
+function makeCodeBar(lang: string, getText: () => string): HTMLElement {
+  const bar = document.createElement('div')
+  bar.className = 'code-bar'
+  if (lang) {
+    const label = document.createElement('span')
+    label.className = 'code-lang'
+    label.textContent = lang
+    bar.appendChild(label)
+  }
+  const copy = document.createElement('button')
+  copy.type = 'button'
+  copy.className = 'code-copy'
+  decorateCopyButton(copy)
+  copy.addEventListener('click', (e) => {
+    e.stopPropagation()
+    void copyText(getText())
+  })
+  bar.appendChild(copy)
+  return bar
+}
+
 function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
   const code = preview.querySelector('pre code')
   if (!code) return
@@ -1835,21 +1966,7 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
     const host = pre?.parentElement
     if (!host) return
 
-    const bar = document.createElement('div')
-    bar.className = 'code-bar'
-    const label = document.createElement('span')
-    label.className = 'code-lang'
-    label.textContent = 'mermaid'
-    bar.appendChild(label)
-    const copy = document.createElement('button')
-    copy.type = 'button'
-    copy.className = 'code-copy'
-    decorateCopyButton(copy)
-    copy.addEventListener('click', (e) => {
-      e.stopPropagation()
-      void copyText(source, t('codeCopied'))
-    })
-    bar.appendChild(copy)
+    const bar = makeCodeBar('mermaid', () => source)
 
     const diagram = document.createElement('div')
     diagram.className = 'mermaid-diagram'
@@ -1859,8 +1976,11 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
     diagram.appendChild(status)
 
     if (pre) pre.remove()
-    host.appendChild(bar)
-    host.appendChild(diagram)
+    // 头部条 + 画布收进同一张卡：工具条属于这块内容，不是它头顶的另一行
+    const card = document.createElement('div')
+    card.className = 'code-card'
+    card.append(bar, diagram)
+    host.appendChild(card)
 
     // 点击放大：与 notefast 一致，把**内联的 SVG 标记**交给灯箱（不转 data URL）。
     // 停上后由 outer-content click 统一处理返回。
@@ -1902,26 +2022,16 @@ function decorateCodeBlock(el: HTMLElement, preview: HTMLElement): void {
     return
   }
 
-  const bar = document.createElement('div')
-  bar.className = 'code-bar'
-  if (lang) {
-    const label = document.createElement('span')
-    label.className = 'code-lang'
-    label.textContent = lang
-    bar.appendChild(label)
-  }
-  const copy = document.createElement('button')
-  copy.type = 'button'
-  copy.className = 'code-copy'
-  decorateCopyButton(copy)
-  copy.addEventListener('click', (e) => {
-    e.stopPropagation()
-    void copyText(code.textContent ?? '')
-  })
-  bar.appendChild(copy)
-  // 挂在块的预览容器上（不是 pre 里面）：pre 的内容是代码，塞按钮会污染复制结果
+  // 卡 = 代码区域本体：语言标与复制键收进卡内头部，不再飘在代码块上方独立成行。
+  // pre 的内容是代码，按钮挪进 pre 里会污染复制结果——所以是「卡包 pre」，不是「pre 里塞按钮」。
   const pre = code.parentElement
-  pre?.parentElement?.insertBefore(bar, pre)
+  const host = pre?.parentElement
+  if (!pre || !host) return
+  const card = document.createElement('div')
+  card.className = 'code-card'
+  card.appendChild(makeCodeBar(lang, () => code.textContent ?? ''))
+  host.insertBefore(card, pre)
+  card.appendChild(pre)
 }
 
 /** 复制文本：优先 Clipboard API，失败退回 execCommand（壳里的老 WebView 可能不支持前者）。 */
@@ -2067,6 +2177,23 @@ contentEl.addEventListener('click', (e) => {
     const href = link.getAttribute('href')
     if (href && /^(https?:|mailto:)/i.test(href)) {
       window.open(href, '_blank', 'noopener,noreferrer')
+    }
+    return
+  }
+  // 任务复选框：点一下直接改写源码里的 [ ]/[x]，而不是进源码编辑。
+  // 只读模式同样可用——勾选是「顺手改」，不该被要求先切编辑档。
+  const box = (e.target as HTMLElement).closest<HTMLInputElement>('li.task input[type=checkbox]')
+  if (box && box.closest('.preview')) {
+    e.preventDefault()
+    const blockEl = box.closest<HTMLElement>('.block')
+    const id = blockEl?.dataset.blockId
+    const block = id ? session.blocks.find((b) => b.id === id) : undefined
+    const li = box.closest('li.task')
+    if (block && blockEl && li) {
+      const items = Array.from(blockEl.querySelectorAll('li.task'))
+      // 目标态读 defaultChecked（渲染时源码属性的镜像），不读 box.checked：
+      // 浏览器在事件派发前就已经把复选框原生翻转了，读 checked 拿到的永远是反值。
+      toggleTaskItem(block, items.indexOf(li), !box.defaultChecked)
     }
     return
   }
@@ -2645,6 +2772,41 @@ async function saveAsFlow() {
   }
 }
 
+/** 当前文档的磁盘绝对路径；未命名占位路径返回 null（壳侧同样会拒绝）。 */
+function currentDiskPath(): string | null {
+  const p = session.source?.path
+  if (!p) return null
+  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) ? p : null
+}
+
+/** 用系统默认应用打开当前文件：复杂编辑/预览时联动其他应用的逃生口。 */
+async function openDefaultApp(): Promise<void> {
+  const p = currentDiskPath()
+  if (!p) {
+    showToast(t('menuNeedDiskFile'))
+    return
+  }
+  try {
+    await openWithDefault(p)
+  } catch {
+    showToast(t('openFailed'))
+  }
+}
+
+/** 在系统文件管理器中显示当前文件。 */
+async function revealCurrent(): Promise<void> {
+  const p = currentDiskPath()
+  if (!p) {
+    showToast(t('menuNeedDiskFile'))
+    return
+  }
+  try {
+    await revealInFolder(p)
+  } catch {
+    showToast(t('openFailed'))
+  }
+}
+
 async function reloadFromDisk() {
   if (!session.source) return
   try {
@@ -2716,6 +2878,12 @@ function bindShellEvents() {
         break
       case 'reload':
         void reloadFromDisk()
+        break
+      case 'open-default':
+        void openDefaultApp()
+        break
+      case 'reveal':
+        void revealCurrent()
         break
       case 'settings':
         openSettingsModal()
@@ -2968,6 +3136,13 @@ mountLightbox()
       requestAnimationFrame(() => {
         spyTick = false
         updateActiveHeading()
+        // 大文件：滚到距底一屏半以内就再铺 2000 行，直到整篇铺开
+        if (
+          largeRemainder &&
+          contentEl.scrollTop + contentEl.clientHeight * 2.5 > contentEl.scrollHeight
+        ) {
+          appendLargeChunk()
+        }
       })
       scheduleRecordPosition()
     },

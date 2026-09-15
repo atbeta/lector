@@ -1873,11 +1873,15 @@ const summary = {
     await page.click('#keyboard-btn')
     await page.waitForTimeout(400)
     const panel = await page.evaluate(() => ({
-      open: !!document.querySelector('.shortcuts-card'),
+      // 键位面板是悬浮卡（.shortcuts-pop），不是模态（.modal-backdrop）：
+      // 查键位是「看一眼就走」，不该遮正文
+      open: !!document.querySelector('.shortcuts-pop'),
+      notModal: !document.querySelector('.modal-backdrop .shortcuts-card'),
       rows: document.querySelectorAll('.shortcut-row').length,
       keys: [...document.querySelectorAll('.shortcut-keys')].map((k) => k.textContent ?? '').slice(0, 3),
     }))
     if (!panel.open) note('error', '键盘图标点了没有打开键位面板')
+    else if (!panel.notModal) note('error', '键位面板变成了模态弹窗（应为悬浮卡）')
     else if (panel.rows < 8) note('error', `键位面板只列了 ${panel.rows} 条（太少，用户查不到）`)
     else note('info', `键盘面板：${panel.rows} 条，首列 ${panel.keys.join(' / ')}`)
     await page.keyboard.press('Escape')

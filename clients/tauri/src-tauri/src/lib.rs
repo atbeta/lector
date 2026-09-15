@@ -82,6 +82,8 @@ pub fn run() {
       io::write_file,
       io::dir_for,
       io::open_url,
+      io::open_with_default,
+      io::reveal_in_folder,
       io::watch,
       io::take_pending_open,
       io::load_settings,

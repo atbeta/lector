@@ -26,6 +26,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
   let save = MenuItem::with_id(app, "file-save", "保存", true, Some("CmdOrCtrl+S"))?;
   let save_as = MenuItem::with_id(app, "file-save-as", "另存为…", true, Some("CmdOrCtrl+Shift+S"))?;
   let reload = MenuItem::with_id(app, "file-reload", "从磁盘重新载入", true, None::<&str>)?;
+  let open_default = MenuItem::with_id(app, "file-open-default", "用默认应用打开", true, None::<&str>)?;
+  let reveal = MenuItem::with_id(app, "file-reveal", "在 Finder 中显示", true, None::<&str>)?;
 
   let recent = io::load_recent(app);
   let mut recent_items: Vec<MenuItem<Wry>> = Vec::new();
@@ -58,6 +60,9 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
       &save_as,
       &PredefinedMenuItem::separator(app)?,
       &reload,
+      &PredefinedMenuItem::separator(app)?,
+      &open_default,
+      &reveal,
       &PredefinedMenuItem::separator(app)?,
       &PredefinedMenuItem::close_window(app, None)?,
     ],
@@ -174,6 +179,8 @@ pub fn route(app: &AppHandle, id: &str) {
     "file-save" => "save",
     "file-save-as" => "save-as",
     "file-reload" => "reload",
+    "file-open-default" => "open-default",
+    "file-reveal" => "reveal",
     "edit-find" => "find",
     "view-theme" => "theme",
     "view-outline" => "outline",

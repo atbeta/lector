@@ -133,6 +133,20 @@ export async function openExternal(url: string): Promise<void> {
   await invoke('open_url', { url })
 }
 
+/** 用系统默认应用打开文件（联动其他编辑器；壳侧校验必须是绝对路径）。 */
+export async function openWithDefault(path: string): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('open_with_default', { path })
+}
+
+/** 在系统文件管理器中显示文件。 */
+export async function revealInFolder(path: string): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('reveal_in_folder', { path })
+}
+
 /** 应用版本：壳里读 tauri.conf.json 的版本（构建期固化）；浏览器预览没有壳，报 'dev'。 */
 export async function appVersion(): Promise<string> {
   if (detectEnv() !== 'shell') return 'dev'
