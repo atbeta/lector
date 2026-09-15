@@ -1336,6 +1336,16 @@ function scheduleRecoveryWrite(): void {
  */
 let externalBar: HTMLElement | null = null
 
+/**
+ * 保存进行中：这段时间里 watcher 报的变更一律是我们自己写的，必须忽略。
+ *
+ * 曾出过的 bug：`write_file` 落盘后 watcher 立刻回调，而此刻 `persistToDisk`
+ * 还停在 `await` 里、`dirty` 仍是 true，于是走进"外部修改 + 有未保存改动"分支，
+ * 保存完还把那条提示条留在屏幕上——用户看到的是"明明是我自己保存的，怎么说被别人改了"。
+ * dirty 与 mtime 的判据都晚于这次回调，只有这个窗口能挡住它。
+ */
+let saveInFlight = false
+
 function hideExternalBar(): void {
   externalBar?.remove()
   externalBar = null
@@ -2770,6 +2780,7 @@ async function persistToDisk(force = false): Promise<boolean> {
   }
   const finalText = applyEncoding(session.source, normalized)
   let res: SaveResult
+  saveInFlight = true
   try {
     res = await save(session.source.path, finalText, session.source.mtimeMs, force)
   } catch (err) {
@@ -2779,6 +2790,8 @@ async function persistToDisk(force = false): Promise<boolean> {
     console.error('[lector] save failed', err)
     showToast(`${t('saveFailed')}：${String(err)}`)
     return false
+  } finally {
+    saveInFlight = false
   }
   if (res.conflict) {
     const choice = await chooseConflict()
@@ -2793,6 +2806,8 @@ async function persistToDisk(force = false): Promise<boolean> {
     showToast(t('saveFailed'))
     return false
   }
+  // 写盘成功：把自己刚触发的「外部修改」提示条收掉（若是误报，它本就不该在）
+  hideExternalBar()
   if (largeMode) {
     // 保存成功：把 CM 的当前全文记为新的基线（含换行归一，因为 applyEncoding 另存了磁盘形态）
     largeSnapshot = normalized
@@ -2875,17 +2890,21 @@ async function saveAsFlow() {
     return
   }
   if (!target) return
+  saveInFlight = true
   try {
     const res = await save(target, finalText, 0, true)
     if (!res.ok) {
       showToast(t('saveFailed'))
       return
     }
+    hideExternalBar()
     loadSession(target, finalText, res.current_mtime_ms ?? Date.now())
     showToast(t('saved'))
   } catch (err) {
     console.error('[lector] save-as failed', err)
     showToast(`${t('saveFailed')}：${String(err)}`)
+  } finally {
+    saveInFlight = false
   }
 }
 
@@ -2963,6 +2982,8 @@ function bindShellEvents() {
   void onFileChanged(async (e) => {
     const src = session.source
     if (!src || e.path !== src.path) return
+    // 自己刚写完盘引起的 watcher 回调：dirty/mtime 都还没更新，只有这个窗口能识别
+    if (saveInFlight) return
     if (e.mtime_ms <= (src.mtimeMs ?? 0)) return
     if (!session.dirty) {
       await reloadFromDisk()
