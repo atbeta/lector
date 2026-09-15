@@ -38,7 +38,8 @@ export function showDialog(opts: {
     for (const a of opts.actions) {
       const btn = document.createElement('button')
       btn.type = 'button'
-      btn.className = a.primary ? 'btn btn-primary' : 'btn'
+      // 次要/危险键用 ghost（有描边）：三个键里两个光秃秃、一个实心，读起来是拼凑的。
+      btn.className = a.primary ? 'btn btn-primary' : 'btn btn-ghost'
       if (a.danger) btn.classList.add('btn-danger')
       btn.textContent = a.label
       btn.addEventListener('click', () => finish(a.id))

@@ -453,23 +453,26 @@ html[data-shell='windows'] .window-controls { display: flex; }
 }
 .btn-icon-slot { display: inline-flex; align-items: center; }
 .btn-icon-slot svg { display: block; }
+/* 主操作按钮走**墨色身份**（--ink），不走 --primary：
+   --primary 会被阅读主题改写（如「手册」主题是蓝），那是给**正文**（链接/标记）用的强调色；
+   一旦主按钮也用它，chrome 就会跟着阅读主题变蓝，和应用的墨色身份打架。
+   空态的「打开文件」本来就用 --ink，这里统一过来。 */
 .btn-primary {
-  color: rgb(var(--primary-foreground));
-  background: rgb(var(--primary));
-  border-color: rgb(var(--primary));
+  color: rgb(var(--ink-foreground));
+  background: rgb(var(--ink));
+  border-color: rgb(var(--ink));
   box-shadow: var(--shadow-btn-primary);
 }
 .btn-primary:hover:not(:disabled) {
-  color: rgb(var(--primary-foreground));
-  background: rgb(var(--primary-hover));
-  border-color: rgb(var(--primary-hover));
+  color: rgb(var(--ink-foreground));
+  background: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+  border-color: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
 }
-/* 危险动作：平时是红字幽灵键（不抢主按钮的位），悬停才实心。
-   之前只有 .btn-danger 这个类名、没有任何规则，于是「清空 / 放弃改动」看起来
-   跟普通次要按钮一模一样——危险动作没有视觉身份，是设计缺陷不是风格选择。 */
+/* 危险动作：红字 + 淡红描边；悬停才实心。描边让它和次要按钮同属「有边的键」，
+   不再是三个里两个光秃秃、一个实心的拼凑感。 */
 .btn-danger {
   color: rgb(var(--destructive));
-  border-color: transparent;
+  border-color: rgb(var(--destructive) / 0.4);
   background: transparent;
 }
 .btn-danger:hover:not(:disabled) {
