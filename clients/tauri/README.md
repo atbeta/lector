@@ -7,6 +7,7 @@ Tauri 2 薄壳（macOS + Windows）。壳只做：文件对话框、文件关联
 - 禁止复用 NoteFast engine / bootstrap / NF_READY
 - 业务逻辑不下沉 Rust；Rust 只做文件系统与系统集成的诚实代理
 - Windows 安装包用 NSIS 补丁写 `Software\Classes\Markdown\DefaultIcon` 实现关联文件图标
+  （指向随包发的 `markdown.ico`，与应用图标分开，见下）
 
 ## Windows 打包
 
@@ -53,12 +54,31 @@ Tauri 会注册一个**用 `fileAssociations[].name` 命名的类键**（本仓�
 资源管理器于是退化用白纸图标。
 
 补丁在 `src-tauri/windows/nsis-hooks.nsh`：`NSIS_HOOK_POSTINSTALL` 把
-`Software\Classes\${LECTOR_FILE_CLASS}\DefaultIcon` 写成 `$INSTDIR\lector.exe,0`，
+`Software\Classes\${LECTOR_FILE_CLASS}\DefaultIcon` 指向 **`resources\markdown.ico`**，
 并调 `SHChangeNotify` 刷新图标缓存；卸载只删这个值，不动类键本身。
 
-- 类名经 `!define LECTOR_FILE_CLASS` 传入，必须等于 `fileAssociations[].name`。
-  `build-windows.yml` 的 `check` job 做静态比对，改一处必须改另一处。
+`.md` 用的是**独立的文档图标**，不是应用图标：应用图标是满幅深色圆角方块，当文档图标
+太重、在一堆文件里也认不出「这是一份文档」。文档图标是浅色纸张 + 折角 + Lector 标记，
+放在一堆白色页面里也是一眼能认出的一个。
+
+- 源文件 `file-icon.svg`（应用图标是 `app-icon.svg`），重新生成：
+  ```
+  bunx tauri icon clients/tauri/file-icon.svg -o /tmp/md-icon
+  cp /tmp/md-icon/icon.ico clients/tauri/src-tauri/icons/markdown.ico
+  ```
+  `tauri icon` 会连带生成 android/ios/icns 一堆用不上的东西，只取 `icon.ico`。
+  生成的 `.ico` 内含 16/24/32/48/64/256 六档——16px 那档必须单独看，
+  它是资源管理器列表视图里真正显示的那张。
+- 图标文件由 `bundle.resources` 落到安装目录（`"icons/markdown.ico" -> "resources/markdown.ico"`）。
+  这一步是**静默失败**的：落点对不上时 hook 会退回 exe 图标，注册表里照样有值。
+  所以 `build-windows.yml` 不只看注册表，还会 `Test-Path` 那个 .ico。
+- 类名经 `!define LECTOR_FILE_CLASS` 传入，必须等于 `fileAssociations[].name`；
+  图标落点经 `!define LECTOR_FILE_ICON` 传入，必须等于 `bundle.resources` 的目标。
+  `ci.yml` 静态比对这两处 + 图标文件是否存在，改一处必须改另一处。
 - 写之前先读 `shell\open\command`，为空说明类键不是本安装器写的，跳过、不抢。
 - **CI 会真装一遍再读注册表**（静默安装到临时目录 → 断言 `.md -> Markdown`、
-  `DefaultIcon` 指向 `Lector.exe`、卸载后值为空 → 卸载）。NSIS 脚本是压缩存放的，
+  `DefaultIcon` 指向存在的 `markdown.ico`、卸载后值为空 → 卸载）。NSIS 脚本是压缩存放的，
   在安装器二进制里 grep 字符串是假阴性，别用那种办法验。
+
+macOS 那边暂时无解：Tauri 不支持 `CFBundleTypeIconFile`，文档图标只能跟应用图标一致。
+macOS 打包与签名不在范围内，先不管。

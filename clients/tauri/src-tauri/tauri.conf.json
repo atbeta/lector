@@ -28,6 +28,9 @@
     "fileAssociations": [
       { "ext": ["md", "markdown", "txt"], "name": "Markdown", "role": "Editor", "mimeType": "text/markdown" }
     ],
+    "resources": {
+      "icons/markdown.ico": "resources/markdown.ico"
+    },
     "macOS": {
       "minimumSystemVersion": "10.15"
     },

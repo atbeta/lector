@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Markdown 文档</title>
+  <desc id="desc">浅色纸张，右上折角，中央是 Lector 的 L/M 标记——与应用图标同一族，但读起来是一份文档而不是一个应用。</desc>
+
+  <!-- 纸张。右上角让给折角，其余三角圆角。 -->
+  <path d="M8 3H19L26 10V27A2 2 0 0 1 24 29H8A2 2 0 0 1 6 27V5A2 2 0 0 1 8 3Z"
+        fill="#FCFDFE" stroke="#C6D0D9" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- 折角：比纸面深一档，让"这是一页纸"在最暗的主题里也成立 -->
+  <path d="M19 3V8A2 2 0 0 0 21 10H26Z" fill="#DCE3EA"/>
+
+  <!-- Lector 标记。比应用图标里粗一档：缩到 16px 后笔画只剩 1.3px，
+       细了会糊成一团；同时缩进纸面留出边距，四边都透气。 -->
+  <g transform="translate(16 17) scale(0.8) translate(-16 -16)" stroke="#364653" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
+    <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+  </g>
+</svg>

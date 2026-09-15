@@ -117,14 +117,24 @@ jobs:
             if ($v -ne $class) { $bad += "$ext does not point at the $class class (got '$v')" }
           }
 
-          # 2) 官方只建空 DefaultIcon；patched 后必须指向安装出来的 exe。
+          # 2) 官方只建空 DefaultIcon；patched 后必须指向随包发的 .md 图标。
+          #    顺带验「图标文件真的落到了安装目录」——resources 的落点写错时，
+          #    hook 会静默退回 exe 图标，只看注册表是看不出来的。
           $icon = (Get-ItemProperty "$classKey\DefaultIcon" -ErrorAction SilentlyContinue).'(default)'
           $cmd = (Get-ItemProperty "$classKey\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
           Write-Host "DefaultIcon = '$icon'"
           Write-Host "open command = '$cmd'"
           if (-not $cmd) { $bad += "$class has no shell\open\command" }
-          if (-not $icon) { $bad += "$class has no DefaultIcon (patch did not run)" }
-          elseif ($icon -notmatch 'Lector\.exe') { $bad += "DefaultIcon does not point at Lector.exe (got '$icon')" }
+          if (-not $icon) {
+            $bad += "$class has no DefaultIcon (patch did not run)"
+          } else {
+            $iconPath = $icon -replace ',\d+$', ''
+            if ($iconPath -notmatch 'markdown\.ico$') {
+              $bad += "DefaultIcon is not the dedicated .md icon (got '$icon')"
+            } elseif (-not (Test-Path -LiteralPath $iconPath)) {
+              $bad += "DefaultIcon points at a missing file ('$icon')"
+            }
+          }
 
           $exe = Join-Path $install "Lector.exe"
           if (-not (Test-Path $exe)) { $bad += "installed exe missing at $exe" }

@@ -48,7 +48,23 @@ jobs:
           if conf.get('bundle', {}).get('windows', {}).get('nsis', {}).get('installerHooks') != 'windows/nsis-hooks.nsh':
               errs.append("tauri.conf.json 没挂上 windows/nsis-hooks.nsh")
 
-          print(f"class={hook_class} extensions={exts}")
+          # .md 图标走独立的 markdown.ico,三处必须串起来:
+          # hook 指向的落点 == bundle.resources 的落点,且图标文件真的在仓库里。
+          # 串不上时资源管理器只会默默退回 exe 图标,不会有任何报错——所以必须静态挡。
+          m_icon = re.search(r'!define\s+LECTOR_FILE_ICON\s+"\$INSTDIR\\([^"]+)"', hooks)
+          hook_icon = m_icon.group(1).replace('\\', '/') if m_icon else None
+          resources = {k.replace('\\', '/'): v.replace('\\', '/')
+                       for k, v in (conf['bundle'].get('resources') or {}).items()}
+          if not hook_icon:
+              errs.append("nsis-hooks.nsh 的 LECTOR_FILE_ICON 不是 $INSTDIR\\<相对路径> 的形式")
+          else:
+              if hook_icon not in resources.values():
+                  errs.append(f"bundle.resources 里没有落点 {hook_icon!r}（有 {sorted(resources.values())}）")
+              for src, dest in resources.items():
+                  if dest == hook_icon and not pathlib.Path('clients/tauri/src-tauri', src).exists():
+                      errs.append(f"{src} 不存在（改过图标文件却没重新生成？）")
+
+          print(f"class={hook_class} extensions={exts} icon={hook_icon}")
           if errs:
               print("\n".join(errs)); sys.exit(1)
           PY
