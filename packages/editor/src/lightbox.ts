@@ -25,8 +25,6 @@ let closeBtn: HTMLButtonElement | null = null
 let open = false
 /** 关闭后要把焦点还给谁（打开前的 activeElement） */
 let restoreFocus: HTMLElement | null = null
-/** 正文图片点击的委托句柄，卸载时要摘掉 */
-let onClickRef: ((e: MouseEvent) => void) | null = null
 
 function build(): void {
   if (overlay) return
@@ -101,34 +99,24 @@ export function hideLightbox(): void {
 }
 
 /**
- * 挂载灯箱：建浮层 + 绑定正文图片的点击放大（事件委托，块重建后依然有效）。
- * 返回卸载函数。
+ * 挂载灯箱：建浮层 + 绑定 Esc / 缩放键。
+ *
+ * 正文图片的点击不再直接开灯箱——点击给的是「针对这一张图」的动作菜单
+ * （查看原图 / 编辑源码 / 复制路径 / 图床…），开灯箱降为菜单里的第一项。
+ * 菜单在 main.ts 里（要读 session 才能定位到块），这里只提供 showInLightbox。
  */
 export function mountLightbox(): () => void {
   build()
-
-  onClickRef = (e: MouseEvent) => {
-    const target = e.target as HTMLElement | null
-    if (!target || target.tagName !== 'IMG') return
-    if (!target.closest('.reading-prose')) return
-    e.preventDefault()
-    e.stopPropagation()
-    const img = target as HTMLImageElement
-    showInLightbox(img.src, img.alt)
-  }
-  document.addEventListener('click', onClickRef, true)
 
   // 捕获阶段：抢在编辑器 / 大纲的 Esc 处理之前关掉浮层
   document.addEventListener('keydown', onKey, true)
 
   return () => {
-    if (onClickRef) document.removeEventListener('click', onClickRef, true)
     document.removeEventListener('keydown', onKey, true)
     overlay?.remove()
     overlay = null
     zoom = null
     closeBtn = null
-    onClickRef = null
     open = false
   }
 }

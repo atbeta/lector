@@ -1469,8 +1469,9 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   box-sizing: border-box;
 }
 
-/* 阅读里的图片：可点开放大，光标要说明这件事 */
-.reading-prose img { cursor: zoom-in; }
+/* 阅读里的图片：点击弹「针对这张图」的动作菜单（查看原图 / 编辑源码 / 路径…），
+   所以光标是「可点」而不是「可放大」——放大只是菜单里的一项 */
+.reading-prose img { cursor: pointer; }
 
 /* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
  * 关键取舍：**不画卡片**。

@@ -892,7 +892,7 @@ const summary = {
       if (!code.lang) note('warn', '代码块没有显示语言标签')
     }
 
-    // 阅读里的图片：光标要提示可放大，点击要真的能开、能关
+    // 阅读里的图片：点击要弹出针对这张图的动作菜单，菜单里的「查看原图」能开、Esc 能关
     const img = await page.evaluate(() => {
       const i = document.querySelector('.reading-prose img')
       if (!i) return { missing: true }
@@ -900,9 +900,25 @@ const summary = {
     })
     if (img.missing) note('error', '样本文档里没有图片，无法验证放大查看')
     else {
-      if (img.cursor !== 'zoom-in') note('error', `阅读里的图片光标是 ${img.cursor}，没有「可放大」的提示`)
+      if (img.cursor !== 'pointer') note('error', `阅读里的图片光标是 ${img.cursor}，没有「可点击」的提示`)
       if (!img.loaded) note('error', '样本文档里的图片没加载出来（夹具路径不对？）')
+      // 点击图片 → 弹「针对这张图」的动作菜单
       await page.click('.reading-prose img')
+      await page.waitForTimeout(250)
+      const menu = await page.evaluate(() => ({
+        open: !!document.querySelector('.context-menu'),
+        items: [...document.querySelectorAll('.context-menu .context-item')].map((b) => b.textContent),
+      }))
+      if (!menu.open) note('error', '点击图片没有弹出图片动作菜单')
+      else if (!menu.items.some((s) => s.includes('查看原图')))
+        note('error', `图片菜单里没有「查看原图」：${menu.items.join(' / ')}`)
+      // 菜单里的「查看原图」打开放大浮层
+      await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('.context-menu .context-item')].find((b) =>
+          b.textContent?.includes('查看原图'),
+        )
+        btn?.click()
+      })
       await page.waitForTimeout(300)
       const opened = await page.evaluate(() => {
         const l = document.querySelector('.lightbox')
@@ -911,7 +927,7 @@ const summary = {
           locked: getComputedStyle(document.getElementById('content')).overflowY === 'hidden',
         }
       })
-      if (!opened.open) note('error', '点击图片没有打开放大浮层')
+      if (!opened.open) note('error', '图片菜单里的「查看原图」没有打开放大浮层')
       if (!opened.locked) note('error', '放大浮层打开时正文仍可滚动（背景会跟着滚）')
       await page.keyboard.press('Escape')
       await page.waitForTimeout(250)

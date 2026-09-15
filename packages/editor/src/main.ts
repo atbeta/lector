@@ -9,6 +9,8 @@ import {
   parseBlockRoots,
   parseOne,
   serialize,
+  listImages,
+  replaceImageUrl,
   type BlockKind,
   type BlockView,
   countText,
@@ -43,7 +45,7 @@ import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
-import { setAssetResolver, setCurrentMdPath } from './asset.ts'
+import { setAssetResolver, setCurrentMdPath, assetLocalPath } from './asset.ts'
 import { initSettings, resetFontSize, resetUiZoom, stepFontSize, stepUiZoom, getSettings } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { findBar } from './findBar.ts'
@@ -1066,11 +1068,112 @@ function linkMenuItems(href: string): ContextMenuItem[] {
 }
 
 /** 图片上的菜单。 */
+/** 图片在正文里的归属：哪个块、块内第几张（按渲染 DOM 顺序，与 listImages 对齐）。 */
+function imageTarget(img: HTMLImageElement): { block: BlockView; index: number } | null {
+  const blockEl = img.closest<HTMLElement>('.block')
+  const id = blockEl?.dataset.blockId
+  const block = id ? session.blocks.find((b) => b.id === id) : undefined
+  if (!block || !blockEl) return null
+  const imgs = Array.from(blockEl.querySelectorAll<HTMLImageElement>('img'))
+  const index = imgs.indexOf(img)
+  if (index < 0) return null
+  return { block, index }
+}
+
+/** 「编辑源码」：聚焦该块，把光标放到这张图的语法上（预览收起、露出 markdown）。 */
+function focusImageSource(block: BlockView, index: number): void {
+  const node = listImages(block.raw)[index]
+  if (!node) {
+    focusBlock(block.id)
+    return
+  }
+  focusBlock(block.id, { mode: 'pos', pos: node.start })
+}
+
+/** 上传到图床（仅命令模式）：跑用户命令拿到 URL，用它替换这张图的 src。 */
+async function uploadImageAt(block: BlockView, index: number, absPath: string): Promise<void> {
+  const s = getSettings()
+  const { command, preArgs } = splitUploadCommand(s.imageCommand)
+  if (!command) return
+  try {
+    const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], absPath, s.imageCommandTimeoutMs)
+    if (!res.ok || !res.url) {
+      showToast(`${t('imageUploadFailed')}：${res.error ?? 'unknown'}`)
+      return
+    }
+    const next = replaceImageUrl(block.raw, index, res.url)
+    if (next == null) {
+      showToast(t('imageFailed'))
+      return
+    }
+    const before = block.raw
+    setBlockRaw(block, next)
+    // 换 src 不经过 CM，得自己进撤销链（同任务勾选/表格写回）
+    blockUndoStack.push(t('imageUndoUpload'), () => setBlockRaw(block, before))
+    render()
+    showToast(t('imageUploaded'))
+  } catch (err) {
+    showToast(`${t('imageUploadFailed')}：${String(err)}`)
+  }
+}
+
+/**
+ * 图片动作菜单：只放「针对这一张图」能做的事。
+ *
+ * 点击图片的意图是「看一眼 / 换个地址 / 拿到它」，不是编辑源码——
+ * 所以「查看原图」排第一，其余按可用性出现（外链图没有本地路径，
+ * 就不给「在文件夹中显示 / 复制路径」；没配图床命令就不给「上传」）。
+ */
 function imageMenuItems(img: HTMLImageElement): ContextMenuItem[] {
-  return [
-    { label: t('menuZoomImage'), run: () => img.click() },
-    { label: t('menuCopyImagePath'), run: () => void copyText(img.getAttribute('src') ?? '', t('menuCopied')) },
+  const target = imageTarget(img)
+  const items: ContextMenuItem[] = [
+    { label: t('imageView'), run: () => showInLightbox(img.src, img.alt) },
   ]
+  if (target) {
+    items.push({ label: t('imageEditSource'), run: () => focusImageSource(target.block, target.index) })
+  }
+  const local = assetLocalPath(img.src)
+  if (local) {
+    items.push({
+      separatorBefore: true,
+      label: t('menuReveal'),
+      run: () => void revealInFolder(local).catch(() => showToast(t('openFailed'))),
+    })
+  }
+  items.push({
+    label: t('menuCopyImagePath'),
+    run: () => void copyText(local ?? img.getAttribute('src') ?? '', t('menuCopied')),
+  })
+  const s = getSettings()
+  if (target && local && s.imageMode === 'command' && s.imageCommand.trim()) {
+    items.push({
+      separatorBefore: true,
+      label: t('imageUpload'),
+      run: () => void uploadImageAt(target.block, target.index, local),
+    })
+  }
+  return items
+}
+
+/**
+ * 点击正文图片 → 弹图片动作菜单（锚在图片下沿，放不下会自动收进视口）。
+ *
+ * 用左键不是因为惯常，而是这里没有「选中图片」这个态：点图片最想要的是
+ * 拿到针对它的几个动作。查看原图降为菜单第一项。
+ */
+function mountImageActions(): void {
+  document.addEventListener(
+    'click',
+    (e) => {
+      const target = e.target as HTMLElement | null
+      if (!target || target.tagName !== 'IMG' || !target.closest('.reading-prose')) return
+      e.preventDefault()
+      e.stopPropagation()
+      const r = (target as HTMLImageElement).getBoundingClientRect()
+      showContextMenu(imageMenuItems(target as HTMLImageElement), r.left, r.bottom + 4)
+    },
+    true,
+  )
 }
 
 /** 右键入口：按目标决定给哪套菜单。 */
@@ -1845,6 +1948,8 @@ type CaretIntent =
   | { mode: 'coords'; x: number; y: number }
   | { mode: 'start'; x?: number }
   | { mode: 'end'; x?: number }
+  /** 落到块内某个字符偏移（图片动作「编辑源码」用：把光标放到图片语法上）。 */
+  | { mode: 'pos'; pos: number }
 
 let caretIntent: CaretIntent | null = null
 
@@ -1853,6 +1958,8 @@ function placeCaret(view: EditorView, intent: CaretIntent) {
   let pos: number | null = null
   if (intent.mode === 'coords') {
     pos = view.posAtCoords({ x: intent.x, y: intent.y })
+  } else if (intent.mode === 'pos') {
+    pos = Math.max(0, Math.min(doc.length, intent.pos))
   } else if (intent.mode === 'start') {
     if (intent.x == null) pos = 0
     else {
@@ -3251,6 +3358,8 @@ void (async () => {
   readCollapsedPref()
   mountSelectionBubble()
 mountLightbox()
+  // 正文图片：点击弹动作菜单（查看原图 / 编辑源码 / 复制路径 / 图床…）
+  mountImageActions()
   mountTip()
   // 右键菜单：capture 阶段接管，避免被块自身的点击处理先吃掉
   document.addEventListener('contextmenu', onContextMenu)

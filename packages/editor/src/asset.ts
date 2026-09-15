@@ -51,3 +51,21 @@ export function resolveImageSrc(raw: string): string {
   // dev：按 Vite 服务根解析（默认 public/ 或 /images/）
   return new URL(safe, window.location.origin).href
 }
+
+/**
+ * 从渲染出来的图片 src 反解本地绝对路径（仅壳的 lector-file 协议）。
+ *
+ * Windows 形如 `http://lector-file.localhost/<encoded>`，其余平台
+ * `lector-file://localhost/<encoded>`；Windows 的 path 还带一个前导斜杠
+ * （`/D:\…`）。反解不出来（https 外链、data:）返回 null——调用方据此隐藏
+ * 「在文件夹中显示 / 复制路径 / 上传图床」这类只对本地文件有意义的动作。
+ */
+export function assetLocalPath(src: string): string | null {
+  const m =
+    /^https?:\/\/lector-file\.localhost\/(.*)$/i.exec(src) ??
+    /^lector-file:\/\/localhost\/(.*)$/i.exec(src)
+  if (!m) return null
+  let p = decodeURIComponent(m[1] ?? '')
+  if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1)
+  return p || null
+}
