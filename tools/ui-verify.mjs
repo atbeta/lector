@@ -1780,6 +1780,32 @@ const summary = {
     note('info', `最近打开：${recent.count} 条，首条「${recent.names[0] ?? '—'}」目录「${recent.dirs[0] ?? '—'}」`)
   }
 
+  // 3.15) 空文档必须能直接打字
+  //
+  // 用户看到的问题是"打开一个空的 .md 却打不了字"——空文档表现成了"没打开文件"。
+  // 判据不能只看块数（不同版本可能产出 0 块或 1 个空块），要看**有没有落点**：
+  // 进了编辑档、有块内编辑器、光标在里面，三者缺一都还是打不了字。
+  {
+    await page.goto(URL_ARG + '?doc=blank', { waitUntil: 'load' })
+    await page.waitForTimeout(1300)
+    const blank = await page.evaluate(() => ({
+      mode: document.documentElement.dataset.mode,
+      cms: document.querySelectorAll('.cm-content').length,
+      focused: !!document.activeElement?.closest?.('.cm-content'),
+    }))
+    if (blank.mode !== 'edit') note('error', `打开空文档没有进编辑档：${blank.mode}`)
+    if (blank.cms < 1) note('error', '空文档里没有块内编辑器（表现成了"没打开文件"）')
+    else if (!blank.focused) note('error', '空文档的编辑器没有聚焦：光标没进去，用户看不出能打字')
+    else {
+      await page.keyboard.type('空白文档')
+      await page.waitForTimeout(350)
+      const ok = await page.evaluate(() => document.querySelector('#content')?.textContent?.includes('空白文档'))
+      if (!ok) note('error', '空文档里打字没有写进正文')
+    }
+    await page.goto(URL_ARG, { waitUntil: 'load' })
+    await page.waitForTimeout(600)
+  }
+
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病

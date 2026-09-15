@@ -1208,6 +1208,8 @@ function isRecoverable(path: string): boolean {
 }
 
 let pendingRecovery: Recovery | null = null
+/** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
+let pendingEmptyFocus: string | null = null
 let recoveryBar: HTMLElement | null = null
 let recoveryTimer: number | null = null
 
@@ -1458,8 +1460,15 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   if (session.blocks.length === 0) {
     const { para, gap } = makeEmptyParagraph(0)
     session.blocks = [para, gap]
+    pendingEmptyFocus = para.id
   }
   session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
+  // 空文档（整篇没有任何非空内容）→ 渲染落地后进编辑档并聚焦。
+  // 判据不能用"块数为 0"：空的 .md 在不同版本里可能产出 0 块或 1 个空块，
+  // 而用户看到的问题是同一个——**一个可见表面都没有，点不到也打不了字**。
+  if (session.blocks.length > 0 && session.blocks.every((b) => b.raw.trim() === '')) {
+    pendingEmptyFocus = session.blocks[0]?.id ?? null
+  }
   session.focusedId = null
   session.dirty = false
   session.structuralDirty = false
@@ -1479,6 +1488,16 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
   if (sidebar.isOpen()) renderOutline()
   setDocPresent(true)
+  // 空文档：进编辑档并把光标放进去。
+  // 只合成空段落是不够的——空段落没有可见表面，阅读档里看不到也点不到，
+  // 那还是"打不了字"；光标本身就是这里唯一需要的占位。
+  // 用 rAF 等这一轮渲染落地再聚焦，否则可能拿到还没进 DOM 的块（表现为"点了没反应"）。
+  if (pendingEmptyFocus) {
+    const id = pendingEmptyFocus
+    pendingEmptyFocus = null
+    setViewMode('edit')
+    requestAnimationFrame(() => focusBlock(id))
+  }
   // 这份文件上次有没有留下未保存的草稿？有就提示，但**不自动改内容**——
   // 打开一个文件却看到和磁盘不一样的内容，是最不该发生的意外。
   pendingRecovery = null
@@ -2886,6 +2905,9 @@ mountLightbox()
     else if (which === 'frontmatter') loadSession('frontmatter.md', frontmatterSample)
     else if (which === 'media') loadSession('media.md', mediaSample)
     else if (which === 'mermaid') loadSession('mermaid.md', mermaidSample)
+    // 空文档样例：`?doc=blank`。用来验证"空的 .md 仍是一份可编辑文档"
+    // （空文件必须能直接打字，不能表现成"没打开文件"）。
+    else if (which === 'blank') loadSession('blank.md', '')
     else loadSession(which || 'sample.md', sample)
   }
 })()
