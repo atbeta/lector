@@ -1071,7 +1071,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   word-break: break-word;
   pointer-events: none;
   transform: translateX(-50%);
-  animation: tip-in 0.12s var(--ease-enter) both;
+  animation: tip-in var(--motion-fast) var(--ease-enter) both;
 }
 .tip[data-side='top'] {
   transform: translate(-50%, -100%);
@@ -2791,4 +2791,24 @@ html.large-file .mode-switch { display: none; }
 .large-doc-host .cm-content {
   max-width: 88ch;
   margin-inline: auto;
+}
+
+
+/* ───────────── 减少动态 ─────────────
+ * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
+ * 界面，动效本就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
+ * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .loading-spinner {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
