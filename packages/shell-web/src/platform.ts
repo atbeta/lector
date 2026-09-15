@@ -393,7 +393,9 @@ export async function onMaximizeHover(
  * WebView2 下 beforeunload 拦不住，脏文档会被静默关掉——这正是之前的问题。
  *
  * 具体要不要弹确认、脏不脏，只有 Web 层知道，所以决策交给回调。
- * 确认后再次 `close()`：那时不再 preventDefault，放行。
+ * 确认关闭时用 `destroy()`：**不能在 CloseRequested 处理器里再调 `close()`**——
+ * 窗口已处在"已请求关闭"状态，那次 close 会被吞掉，表现为点「放弃改动」后既不关、
+ * 之后点关闭也没反应。destroy 不再走 CloseRequested，直接销毁。
  */
 export async function onCloseRequest(
   handler: () => Promise<'close' | 'stay'>,
@@ -401,13 +403,10 @@ export async function onCloseRequest(
   if (detectEnv() !== 'shell') return () => {}
   const { getCurrentWindow } = await import('@tauri-apps/api/window')
   const win = getCurrentWindow()
-  let allowed = false
   const unlisten = await win.onCloseRequested(async (event) => {
-    if (allowed) return
     event.preventDefault()
     if ((await handler()) === 'close') {
-      allowed = true
-      await win.close()
+      await win.destroy()
     }
   })
   return unlisten
