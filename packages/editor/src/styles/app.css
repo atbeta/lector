@@ -14,6 +14,12 @@
 }
 
 /* ───────────── 基础 ───────────── */
+/* hidden 属性必须真的藏得住。
+ * 本文件里大量组件用 display:flex / grid 声明自己，作者样式会盖过 UA 的
+ * [hidden]{display:none}——于是 el.hidden = true 对它们完全无效（设置面板
+ * 的搜索过滤与图片档位显隐都栽在这上面）。用 !important 把这条语义钉死。 */
+[hidden] { display: none !important; }
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -2356,10 +2362,8 @@ tr:hover .table-editor-op { opacity: 1; }
 
 /* ───────────── 设置·关于 ───────────── */
 /* 一张居中的名片，不是一列设置行。
- * 撑满整节高度再竖直居中——否则 logo 吊在左上角，下面一大片空。
- * :not([hidden]) 不能省：这里的 display:flex 是作者样式，会盖过 UA 的
- * [hidden]{display:none}，切走这一节时它就会赖在屏幕上不消失。 */
-.settings-group[data-section='about']:not([hidden]) {
+ * 撑满整节高度再竖直居中——否则 logo 吊在左上角，下面一大片空。 */
+.settings-group[data-section='about'] {
   display: flex;
   flex-direction: column;
   min-height: 100%;

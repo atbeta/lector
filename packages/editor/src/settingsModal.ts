@@ -73,6 +73,15 @@ function sectionTitle(label: string): HTMLElement {
   return el
 }
 
+/**
+ * 标记「这行只在某些图片档位下才有意义」。
+ * 显隐由 applyFilter 统一裁决——搜索和档位过滤走同一个出口，不会互相覆盖。
+ */
+function markRowForModes(r: HTMLElement, modes: string): HTMLElement {
+  r.dataset.showModes = modes
+  return r
+}
+
 export function closeSettingsModal() {
   root?.remove()
   root = null
@@ -133,8 +142,7 @@ export function openSettingsModal(onClose?: () => void) {
   function showSection(id: string): void {
     lastSection = id
     search.value = ''
-    for (const [key, el] of panesBySection) el.hidden = key !== id
-    for (const [key, btn] of navButtons) btn.classList.toggle('active', key === id)
+    applyFilter()
     content.scrollTop = 0
   }
 
@@ -236,7 +244,9 @@ export function openSettingsModal(onClose?: () => void) {
   )
 
   // ── 图片 ──
-  // 策略 + 资源目录模板 + 上传命令。三档单选决定落盘位置与是否调用图床命令。
+  // 三档单选决定图片落哪、要不要跑上传命令。只有选中的那一档相关的行才显示：
+  // images/ 没有可配项；同名资源目录只多一个目录模板；自定义上传才展开命令、
+  // 参数、超时与测试。全都常驻会让「哪些项现在真的生效」无从判断。
   const images = makeSection('images', t('images'))
   const imageMode = Segmented(
     getSettings().imageMode,
@@ -245,19 +255,15 @@ export function openSettingsModal(onClose?: () => void) {
       { v: 'assets', label: t('imageModeAssets') },
       { v: 'command', label: t('imageModeCommand') },
     ],
-    (v) => apply((s) => ({ ...s, imageMode: v as EditorSettings['imageMode'] })),
+    (v) => {
+      apply((s) => ({ ...s, imageMode: v as EditorSettings['imageMode'] }))
+      // 换档要同时换掉说明文字、并按新档重算各行的显隐
+      syncImageMode()
+    },
   )
-  images.appendChild(
-    row(
-      t('imageModeTitle'),
-      imageMode.root,
-      getSettings().imageMode === 'images'
-        ? t('imageModeImagesHint')
-        : getSettings().imageMode === 'assets'
-          ? t('imageModeAssetsHint')
-          : t('imageModeCommandHint'),
-    ),
-  )
+  const imageModeRow = row(t('imageModeTitle'), imageMode.root, imageModeHint(getSettings().imageMode))
+  const imageModeHintEl = imageModeRow.querySelector<HTMLElement>('.row-hint')!
+  images.appendChild(imageModeRow)
 
   const dirInput = h('input', 'settings-input') as HTMLInputElement
   dirInput.type = 'text'
@@ -265,7 +271,11 @@ export function openSettingsModal(onClose?: () => void) {
   dirInput.value = getSettings().imageAssetsDir
   dirInput.placeholder = '{filename}.assets'
   dirInput.addEventListener('input', () => apply((s) => ({ ...s, imageAssetsDir: dirInput.value })))
-  images.appendChild(row(t('imageAssetsDir'), dirInput, t('imageAssetsDirHint')))
+  const dirRow = row(t('imageAssetsDir'), dirInput, t('imageAssetsDirHint'))
+  // 命令档也要它：上传失败时本地副本就落在这个目录里
+  dirRow.dataset.showModes = 'assets command'
+  const dirHintEl = dirRow.querySelector<HTMLElement>('.row-hint')!
+  images.appendChild(dirRow)
 
   const cmdInput = h('input', 'settings-input') as HTMLInputElement
   cmdInput.type = 'text'
@@ -273,7 +283,7 @@ export function openSettingsModal(onClose?: () => void) {
   cmdInput.value = getSettings().imageCommand
   cmdInput.placeholder = 'picgo upload'
   cmdInput.addEventListener('input', () => apply((s) => ({ ...s, imageCommand: cmdInput.value })))
-  images.appendChild(row(t('imageCommand'), cmdInput, t('imageCommandHint')))
+  images.appendChild(markRowForModes(row(t('imageCommand'), cmdInput, t('imageCommandHint')), 'command'))
 
   const argsInput = h('input', 'settings-input') as HTMLInputElement
   argsInput.type = 'text'
@@ -283,7 +293,7 @@ export function openSettingsModal(onClose?: () => void) {
   argsInput.addEventListener('input', () =>
     apply((s) => ({ ...s, imageCommandArgs: argsInput.value.split(/\s+/).filter(Boolean) })),
   )
-  images.appendChild(row(t('imageCommandArgs'), argsInput))
+  images.appendChild(markRowForModes(row(t('imageCommandArgs'), argsInput), 'command'))
 
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),
@@ -293,7 +303,7 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, imageCommandTimeoutMs: v * 1000 })),
     (n) => `${n}s`,
   )
-  images.appendChild(cellRow(t('imageCommandTimeoutSec'), timeoutSlider))
+  images.appendChild(markRowForModes(cellRow(t('imageCommandTimeoutSec'), timeoutSlider), 'command'))
 
   // 测试命令按钮：用未保存草稿跑一次上传，看 stdout 是否有 URL。
   const testBtn = h('button', 'btn') as HTMLButtonElement
@@ -315,10 +325,26 @@ export function openSettingsModal(onClose?: () => void) {
       }
     })()
   })
-  const testHost = h('div', 'settings-row-stack')
+  const testHost = markRowForModes(h('div', 'settings-row settings-row-stack'), 'command')
   testHost.appendChild(testBtn)
   testHost.appendChild(testResult)
   images.appendChild(testHost)
+
+  /** 当前档位的说明。 */
+  function imageModeHint(mode: EditorSettings['imageMode']): string {
+    if (mode === 'images') return t('imageModeImagesHint')
+    if (mode === 'assets') return t('imageModeAssetsHint')
+    return t('imageModeCommandHint')
+  }
+
+  /** 换档后同步说明与各行显隐。 */
+  function syncImageMode(): void {
+    const mode = getSettings().imageMode
+    imageModeHintEl.textContent = imageModeHint(mode)
+    // 目录模板在两档里的含义不同：assets 是正文图所在目录，command 是兜底副本目录
+    dirHintEl.textContent = mode === 'command' ? t('imageAssetsDirHintCommand') : t('imageAssetsDirHint')
+    applyFilter()
+  }
 
   // ── 高级 ──
   const advanced = makeSection('advanced', t('advanced'))
@@ -377,31 +403,43 @@ export function openSettingsModal(onClose?: () => void) {
   card.appendChild(footer)
 
   /**
-   * 搜索：按行过滤，跨分区一起给。
-   * 不重建 DOM、不切分区——只翻 hidden 和「有可见行吗」两个开关，
-   * 所以拖到一半的滑块不会被搜索打断。
+   * 行的显隐只有一个出口：搜索与图片档位过滤都走这里，谁也不会盖掉谁。
+   *
+   * 空搜索 = 常规浏览：只看上次的分区，行按当前档位过滤（rowAllowed）。
+   * 有搜索 = 跨分区找：不问分区、不看档位，文案命中的行一律翻出来——
+   * 用户既然点名搜了，就不该因为「你现在是 images 档」而找不到上传命令。
+   *
+   * 不重建 DOM、只翻 hidden：拖到一半的滑块不会被搜索打断。
    */
   function applyFilter(): void {
     const q = search.value.trim().toLowerCase()
-    if (!q) {
-      showSection(lastSection)
-      return
-    }
+    const browsing = !q
     let visibleTotal = 0
     for (const [id, el] of panesBySection) {
+      navButtons.get(id)?.classList.toggle('active', browsing && id === lastSection)
+      if (browsing && id !== lastSection) {
+        el.hidden = true
+        continue
+      }
       let visibleInSection = 0
       for (const r of el.querySelectorAll<HTMLElement>('.settings-row')) {
-        const hit = (r.textContent ?? '').toLowerCase().includes(q)
+        const hit = browsing ? rowAllowed(r) : (r.textContent ?? '').toLowerCase().includes(q)
         r.hidden = !hit
         if (hit) visibleInSection++
       }
+      el.hidden = visibleInSection === 0
       // 标题行也跟着藏：搜索时每个分区只留命中的行，标题反而更清爽
       el.querySelector<HTMLElement>('.settings-group-title')!.hidden = visibleInSection === 0
-      el.hidden = visibleInSection === 0
       visibleTotal += visibleInSection
-      navButtons.get(id)?.classList.toggle('active', false)
     }
     empty.hidden = visibleTotal > 0
+  }
+
+  /** 这一行在当前图片档位下是否该出现。没打标记的行恒显示。 */
+  function rowAllowed(r: HTMLElement): boolean {
+    const modes = r.dataset.showModes
+    if (!modes) return true
+    return modes.split(' ').includes(getSettings().imageMode)
   }
 
   const empty = h('div', 'settings-empty')
