@@ -15,8 +15,12 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = new URL('..', import.meta.url).pathname
+// 不能用 `new URL('..', import.meta.url).pathname`：Windows 上 pathname 是
+// `/D:/Code/lector/`，再 join 下去会得到 `D:\D:\Code\lector\...`。
+// CI 跑在 Linux 上（没有盘符），这条路只在开发机上是坏的。
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const TOKENS = readFileSync(join(ROOT, 'packages/editor/src/styles/tokens.css'), 'utf8')
 const APP = readFileSync(join(ROOT, 'packages/editor/src/styles/app.css'), 'utf8')
 
