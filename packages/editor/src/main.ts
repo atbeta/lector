@@ -1181,20 +1181,27 @@ function onContextMenu(e: MouseEvent): void {
   const target = e.target as HTMLElement | null
   if (!target) return
 
-  // 顶栏文件名：文件级动作（联动其他应用、显示位置、复制路径）
+  // 顶栏文件名：文件级动作（联动其他应用、显示位置、复制路径）+ 关闭文件
   if (target.closest('.titlebar-title')) {
     const path = currentDiskPath()
-    if (!path) return
-    e.preventDefault()
-    showContextMenu(
-      [
+    const items: ContextMenuItem[] = []
+    if (path) {
+      items.push(
         { label: t('menuOpenDefault'), run: () => void openDefaultApp() },
         { label: t('menuReveal'), run: () => void revealCurrent() },
-        { separatorBefore: true, label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
-      ],
-      e.clientX,
-      e.clientY,
-    )
+        { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
+      )
+    }
+    if (session.source) {
+      items.push({
+        separatorBefore: items.length > 0,
+        label: t('menuCloseFile'),
+        run: () => void closeFile(),
+      })
+    }
+    if (items.length === 0) return
+    e.preventDefault()
+    showContextMenu(items, e.clientX, e.clientY)
     return
   }
   // 编辑器内
@@ -2742,6 +2749,13 @@ window.addEventListener('keydown', (e) => {
     void reloadFromDisk()
     return
   }
+  // ⌘W 关闭文件（回首页；首页是「最近打开」的唯一入口）。没有文档时不拦，
+  // 让窗口关闭交给系统/窗口按钮。
+  if (!e.shiftKey && e.key.toLowerCase() === 'w' && session.source) {
+    e.preventDefault()
+    void closeFile()
+    return
+  }
   // ⌘⇧O 大纲
   if (e.shiftKey && e.key.toLowerCase() === 'o') {
     e.preventDefault()
@@ -2970,6 +2984,58 @@ async function newDocument(): Promise<void> {
   // 传显示名当占位路径：标题栏因此显示"未命名"，
   // 而 persistToDisk 看到"路径非绝对"就知道该弹另存为。
   loadSession(t('untitledName'), '')
+}
+
+/**
+ * 关闭当前文档：回到首页（空态）。
+ *
+ * 为什么是「关文档」而不是「关窗口」：首页是「最近打开」的**唯一入口**——
+ * 不关掉文档就再也翻不到它。窗口留着，用户可以接着从最近列表开下一篇；
+ * 这与单文档多窗口的约定也一致（一个窗口一份文档，关掉只是腾空它）。
+ * 有未保存改动先问（保存 / 放弃 / 取消），与新建同一套语义。
+ */
+async function closeFile(): Promise<void> {
+  if (!session.source) return
+  if (session.dirty) {
+    const choice = await showDialog({
+      title: t('newUnsavedTitle'),
+      body: t('closeUnsavedBody'),
+      actions: [
+        { id: 'cancel', label: t('cancelAction') },
+        { id: 'discard', label: t('discardAction'), danger: true },
+        { id: 'save', label: t('saveAction'), primary: true },
+      ],
+    })
+    if (choice === null || choice === 'cancel') return
+    if (choice === 'save' && !(await persistToDisk())) return
+  }
+  // 清掉文档身份与编辑器载体：之后所有按「有没有文档」分支的逻辑都回到空态，
+  // 壳侧的绑定/监听因 Session 无 source 而自然失效；下次打开同一文件由
+  // 壳的 open_path 重新聚焦本窗口（registry 里仍记着这个 label）。
+  if (cm) {
+    cm.destroy()
+    cm = null
+  }
+  if (largeCm) {
+    largeCm.destroy()
+    largeCm = null
+  }
+  largeMode = false
+  session.source = null
+  session.focusedId = null
+  session.dirty = false
+  session.structuralDirty = false
+  session.originals = new Map()
+  setCurrentMdPath(null)
+  hideExternalBar()
+  hideRecoveryBar()
+  clearLargeFileBar()
+  contentEl.classList.remove('large-doc')
+  document.documentElement.classList.remove('large-file')
+  renderEmptyState()
+  // 必须放在 renderEmptyState 之后：它清空 blocks，状态行才会回到「没有文档」
+  // 的空表；放前面读到的还是上一篇的字数。
+  markDirty()
 }
 
 /** 另存为：选新路径 → 强制写（系统对话框已确认覆盖）→ 会话切到新文件。 */

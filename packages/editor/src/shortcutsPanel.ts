@@ -25,6 +25,7 @@ export function shortcutGroups(): ShortcutGroup[] {
       rows: [
         { keys: mod('O'), label: t('openAria') },
         { keys: mod('S'), label: t('saveAria') },
+        { keys: mod('W'), label: t('menuCloseFile') },
         { keys: mod('R'), label: t('reloadFile') },
         { keys: mod(','), label: t('settingsAria') },
         { keys: modShift('O'), label: t('outlineAria') },
