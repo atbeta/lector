@@ -495,7 +495,7 @@ pub fn open_path(app: &AppHandle, path: &str) {
 ///
 /// 教训写在这里，别再踩：**tauri.conf.json 里的 window 配置会覆盖 builder**。
 /// 曾经在 config 里写了 `"decorations": false`，又在 macOS 分支里调
-/// `.decorations(true)` 想改回来——不起作用，macOS 的红绿灯连同原生边框一起消失，
+/// `.decorations(true)` 想改��来——不起作用，macOS 的红绿灯连同原生边框一起消失，
 /// 用户只能从系统菜单关窗口。所以 config 只放不变量，平台差异一律在 builder 里做。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowChrome {
@@ -585,6 +585,9 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
     .title("Lector")
     .inner_size(w, h)
     .min_inner_size(480.0, 360.0)
+    // 所有新窗口先以同一规则居中；window-state 有历史记录时会在此基础上恢复，
+    // 没有历史记录时则避免空态窗口和文件关联启动窗口落在不同的默认位置。
+    .center()
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
     .decorations(chrome.decorations);
@@ -607,7 +610,7 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
   let win = builder.build()?;
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
-  // 恢复上次的尺寸/位置/最大化，然后才让它露面。
+  // 恢复上次的尺寸/位置/最大化，然后才让它露面；没有历史状态时保留上面的统一居中。
   // 顺序是必须的：window-state 的自动恢复发生在窗口就绪之后，若此刻窗口已可见，
   // 用户会看到「小窗口闪一下 → 跳到最大化」。显式调用把顺序钉死（restore 与 show
   // 在同一个同步块里，中间不会插进一次绘制），与插件的自动恢复幂等。
