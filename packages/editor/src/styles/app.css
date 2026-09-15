@@ -533,9 +533,13 @@ html[data-shell='windows'] .window-controls { display: flex; }
      留 24px 呼吸，标题不贴容器顶边 */
   scroll-padding-top: 24px;
   min-width: 0;
-  max-width: calc(var(--reading-max-w) + 64px);
-  margin-inline: auto;
-  padding: 30px 32px 18vh;
+  /* 阅读区 = 侧栏右沿到窗口右沿的整块，滚动条因此落在窗口右沿（而不是
+     "阅读列"的右沿、悬在窗口中间）。正文仍居中到一个阅读宽度：用 padding 反推
+     两边的留白，不需要给块再加一层包裹元素。 */
+  max-width: none;
+  margin-inline: 0;
+  padding-block: 30px 18vh;
+  padding-inline: max(32px, calc((100% - var(--reading-max-w)) / 2));
   width: 100%;
   box-sizing: border-box;
 }
@@ -869,6 +873,14 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
     color var(--motion-fast) var(--ease-standard);
 }
 .outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+/* 标题文字（flex 子项）：min-width:0 才能在窄侧栏里省略而不是把整行撑开 */
+.outline-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* 当前小节：文字变实加粗，无指示条、无填色。
    试过行首指示条（2px 色条）：侧栏多了一条与缩进无关的竖线，像排版瑕疵；
@@ -1229,11 +1241,13 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 分隔线收窄成小段短横：整幅横线会把版面切碎。
    用实色不叠 alpha——叠了之后合成对比只剩 1.2:1，等于没画。 */
 .reading-prose hr {
+  /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
+     约 24px 上下留白」。之前做的 6rem 居中短线是我们自己发明的花饰，容易读成
+     "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
-  max-width: 6rem;
-  margin-inline: auto;
-  background: rgb(var(--border-strong));
+  margin: 2em 0;
+  background: rgb(var(--border-strong) / 0.4);
 }
 
 .reading-prose table {
@@ -2651,8 +2665,10 @@ tr:hover .table-editor-op { opacity: 1; }
  * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
 #content {
   background: rgb(var(--paper));
-  border-inline: 1px solid rgb(var(--border-subtle) / 0.72);
-  box-shadow: 0 0 28px rgb(var(--foreground) / 0.025);
+  /* 分区线只有侧栏那条右框：阅读区自己不再画左右两条竖线（那会和侧栏框
+     夹出一条底色沟，分区反而糊）。 */
+  border-inline: 0;
+  box-shadow: none;
 }
 #titlebar {
   height: 48px;
@@ -2676,7 +2692,6 @@ html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
 .reading-prose p { text-wrap: pretty; }
 .reading-prose h1 { margin-bottom: 0.18em; }
 .reading-prose h2 { padding-bottom: 0.18em; border-bottom: 1px solid rgb(var(--border-subtle) / 0.72); }
-.reading-prose hr { border: 0; border-top: 1px solid rgb(var(--border-strong) / 0.34); }
 .reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 

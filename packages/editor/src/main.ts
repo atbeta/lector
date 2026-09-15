@@ -499,7 +499,12 @@ function renderOutline() {
       row.className = 'outline-row'
       row.dataset.depth = String(n.depth)
       row.dataset.blockId = n.id
-      row.textContent = n.text
+      // 文字要包一层：.outline-row 是 flex 容器，text-overflow 对它的匿名文本子项
+      // 不生效，长标题只会被硬切（没有省略号）。包成带 min-width:0 的 flex 子项才省略。
+      const rowText = document.createElement('span')
+      rowText.className = 'outline-text'
+      rowText.textContent = n.text
+      row.appendChild(rowText)
       // 长标题在窄侧栏里会被截断，tips 让悬停能看全
       row.dataset.tip = n.text
       row.addEventListener('click', () => {
