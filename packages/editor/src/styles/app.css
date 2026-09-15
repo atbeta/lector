@@ -183,16 +183,6 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  margin-right: 4px;
-}
-.brand-mark svg { display: block; width: 24px; height: 24px; }
-html[data-shell='windows'] .brand-mark { width: 26px; height: 26px; margin-right: 2px; }
-html[data-shell='windows'] .brand-mark svg { width: 22px; height: 22px; }
 .titlebar-actions {
   display: flex;
   align-items: center;
