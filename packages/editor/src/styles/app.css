@@ -2589,6 +2589,14 @@ tr:hover .table-editor-op { opacity: 1; }
   width: 100%;
   text-align: left;
 }
+/* 没有最近文件时的一句轻引导：把首屏那块空白变成"会长出东西"的留白，
+   而不是"没做完"。居中、弱色，重量不超过上面的定位语。 */
+.recent-empty {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-base);
+  color: rgb(var(--subtle-foreground));
+}
 .recent-head {
   display: flex;
   align-items: baseline;

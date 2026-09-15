@@ -40,12 +40,22 @@ function resetTitle(fileNameEl: HTMLElement): void {
  * 等于壳在维护一份谁也看不到的清单；现在 Windows 也能在这里读，也要能在这里清。
  *
  * 只列 5 条：多了就变成"又一个要滚动的列表"，而它只是空态的一个旁支。
+ *
+ * 一条都没有时不留空：放一句轻引导。空态本就是极简扉页，但"空得没有任何信息"
+ * 会被读成没做完；这句话把空白变成有意义的留白，也顺带告诉用户这里会长出什么。
  */
 function recentBlock(deps: LoadStateDeps): HTMLElement | null {
+  if (!deps.onOpenRecent) return null
   const files = deps.recentFiles ?? []
-  if (files.length === 0 || !deps.onOpenRecent) return null
   const box = document.createElement('div')
   box.className = 'recent-block'
+  if (files.length === 0) {
+    const hint = document.createElement('p')
+    hint.className = 'recent-empty'
+    hint.textContent = t('recentEmptyHint')
+    box.appendChild(hint)
+    return box
+  }
   const head = document.createElement('div')
   head.className = 'recent-head'
   const label = document.createElement('div')
