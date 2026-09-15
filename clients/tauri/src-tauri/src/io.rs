@@ -578,6 +578,13 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
     // Win10 没有 Mica
     let _ = apply_acrylic(win, Some((242, 242, 250, 50)));
   }
+  // 悬停最大化按钮弹 Snap 布局浮窗（Win11）——无边框窗口默认没有这个行为
+  if let Ok(hwnd) = win.hwnd() {
+    let w = win.clone();
+    crate::snap::install(hwnd.0 as isize, move || {
+      let _ = w.toggle_maximize();
+    });
+  }
 }
 
 #[cfg(not(target_os = "windows"))]

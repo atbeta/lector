@@ -1,6 +1,8 @@
 mod io;
 mod menu;
 mod protocol;
+#[cfg(target_os = "windows")]
+mod snap;
 
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, RunEvent};
