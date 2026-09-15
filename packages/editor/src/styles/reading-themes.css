@@ -28,8 +28,8 @@
  * 重述就有漂移风险，所以 tools/design-audit.mjs 会逐项比对这一块与 tokens.css
  * 基线：基线改了而这里没跟上，审计直接报错。 */
 [data-reading-theme='default'] {
-  --background: 248 247 245;
-  --shell: 248 247 245;
+  --background: 247 246 243;
+  --shell: 247 246 243;
   --paper: 255 255 255;
   --card: 255 255 255;
   --popover: 255 255 255;

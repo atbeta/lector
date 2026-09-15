@@ -172,7 +172,7 @@ button, a, input, [role='slider'], [role='switch'] {
  * 三条硬约束，写在前面，改的时候别再破坏：
  *  1. 标题必须在「正文列」上居中，不是在整个窗口上居中。窗口有侧栏时两者差
  *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
- *  2. 右侧是固定的一排按钮，宽度可预测，所以用 absolute + margin:auto 夹在
+ *  2. 右侧是固定的一排按钮，宽度��预测，所以用 absolute + margin:auto 夹在
  *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
  *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
  *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
@@ -203,7 +203,7 @@ button, a, input, [role='slider'], [role='switch'] {
 }
 
 /* ───────────── 视图模式分段控件 ─────────────
- * 三档常驻 + 当前档常亮。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
+ * 三档常驻 + 当前档常���。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
  * 和旁边的图标按钮是同一类东西（控制），而左侧留给文件动作（打开 / 保存）。
  *
  * 为什么不是三个图标按钮：图标说不出「阅读 / 编辑 / 源码」这三件事的区别，
@@ -1461,7 +1461,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
  * 关键取舍：**不画卡片**。
- * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的是一篇文档的
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的��一篇文档的
  * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
  * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
  * 发丝线表示「这段可以点进去改」。
@@ -1677,11 +1677,11 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── 图片 / 图表放大（lightbox） ─────────────
  * 两层职责：
- *   遮罩（.lightbox）= 暗掉页面 + 承载 HUD 与工具条；
+ *   遮罩（.lightbox）= 暗掉页面 + ���载 HUD 与工具条；
  *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
  * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
  * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
- * 于是「小图居中、大图可拖」是同一段 CSS 的结果。详见 zoomView.ts。 */
+ * 于是「小图居中、大图可拖」是���一段 CSS 的结果。详见 zoomView.ts。 */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -1747,7 +1747,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   max-height: 100%;
 }
 
-/* 左上角：缩放读数 + 手势提示 */
+/* 左上角：缩放读数 + ���势提示 */
 .lb-hud {
   position: absolute;
   top: 16px;
@@ -2520,6 +2520,43 @@ tr:hover .table-editor-op { opacity: 1; }
   font-size: var(--text-2xs);
   color: rgb(var(--subtle-foreground));
 }
+
+/* ───────────── 视觉精修层 ─────────────
+ * 保持阅读器安静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
+ * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
+#content {
+  background: rgb(var(--paper));
+  border-inline: 1px solid rgb(var(--border-subtle) / 0.72);
+  box-shadow: 0 0 28px rgb(var(--foreground) / 0.025);
+}
+#titlebar {
+  height: 48px;
+  border-bottom: 1px solid rgb(var(--border-subtle) / 0.56);
+}
+#titlebar.scrolled { border-bottom-color: transparent; }
+html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
+.titlebar-title { font-weight: 550; }
+.titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
+.btn-icon:hover:not(:disabled),
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn-icon:active:not(:disabled),
+.btn:active:not(:disabled) { transform: translateY(0); }
+.sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
+.sidebar-head { padding-top: 16px; }
+#statusbar {
+  height: 32px;
+  border-top: 1px solid rgb(var(--border-subtle) / 0.56);
+  box-shadow: none;
+}
+.reading-prose p { text-wrap: pretty; }
+.reading-prose h1 { margin-bottom: 0.18em; }
+.reading-prose h2 { padding-bottom: 0.18em; border-bottom: 1px solid rgb(var(--border-subtle) / 0.72); }
+.reading-prose hr { border: 0; border-top: 1px solid rgb(var(--border-strong) / 0.34); }
+.reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+.empty-state h2 { font-size: 34px; letter-spacing: -0.025em; }
+.empty-tagline { max-width: 30ch; line-height: 1.7; }
+.empty-open, .empty-new { min-height: 38px; }
+.recent-block { margin-top: 32px; }
 
 /* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
    只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
