@@ -2354,31 +2354,65 @@ tr:hover .table-editor-op { opacity: 1; }
 }
 
 
-/* ─��─────────── 动效 ───────────── */
-/* 设置·关于 */
+/* ───────────── 设置·关于 ───────────── */
+/* 一张居中的名片，不是一列设置行。
+ * 撑满整节高度再竖直居中——否则 logo 吊在左上角，下面一大片空。
+ * :not([hidden]) 不能省：这里的 display:flex 是作者样式，会盖过 UA 的
+ * [hidden]{display:none}，切走这一节时它就会赖在屏幕上不消失。 */
+.settings-group[data-section='about']:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.about-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  /* 视觉重心略高于几何中心：下方留多一点，眼睛才觉得"正"。 */
+  padding-bottom: 52px;
+}
 .about-hero {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0 14px;
+  gap: 15px;
+  padding: 0;
+  text-align: center;
 }
 .about-logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  box-shadow: 0 4px 12px rgb(var(--foreground) / 0.12);
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  box-shadow: 0 6px 18px rgb(var(--foreground) / 0.14);
+}
+.about-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
 }
 .about-title {
-  font-size: var(--text-md);
+  font-size: var(--text-xl);
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: rgb(var(--foreground));
 }
 .about-tagline {
-  margin-top: 1px;
+  margin-top: 0;
   font-size: var(--text-sm);
   color: rgb(var(--subtle-foreground));
 }
+/* 版本行：靠在一起居中，去掉设置行那条通栏分隔线。 */
+.about-version {
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border-bottom: none;
+}
+.about-version .row-label { color: rgb(var(--subtle-foreground)); }
 /* 只读值：关于区/版本号这类「只看不改」的右槽内容 */
 .row-static {
   font-size: var(--text-base);
@@ -2386,6 +2420,7 @@ tr:hover .table-editor-op { opacity: 1; }
   font-variant-numeric: tabular-nums;
 }
 
+/* ───────────── 动效 ───────────── */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }

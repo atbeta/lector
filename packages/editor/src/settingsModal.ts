@@ -335,7 +335,10 @@ export function openSettingsModal(onClose?: () => void) {
 
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
+  // 这节没有可调的项，所以不做成左对齐的设置行，而是一张居中的名片：
+  // logo / 名字 / 一句话 / 版本号，竖直居中撑满整节，避免矮矮一行吊在左上角。
   const about = makeSection('about', t('about'))
+  const pane = h('div', 'about-pane')
   const hero = h('div', 'about-hero')
   const aboutLogo = h('img', 'about-logo') as HTMLImageElement
   aboutLogo.src = '/lector-mark.svg'
@@ -347,13 +350,17 @@ export function openSettingsModal(onClose?: () => void) {
   taglineEl.textContent = t('emptyTagline')
   aboutName.append(nameEl, taglineEl)
   hero.append(aboutLogo, aboutName)
-  about.appendChild(hero)
+  pane.appendChild(hero)
   const versionValue = h('span', 'row-static')
   versionValue.textContent = '…'
   void appVersion().then((v) => {
     versionValue.textContent = `v${v}`
   })
-  about.appendChild(row(t('versionLabel'), versionValue))
+  // 仍用 row()：它留着 .settings-row 这条搜索锚点，搜「版本」能找到这一节。
+  const versionRow = row(t('versionLabel'), versionValue)
+  versionRow.classList.add('about-version')
+  pane.appendChild(versionRow)
+  about.appendChild(pane)
 
   // ── 底栏 ──
   const footer = h('div', 'modal-footer')
