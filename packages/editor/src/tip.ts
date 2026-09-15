@@ -39,8 +39,10 @@ function cancelTimer(): void {
 
 function place(el: HTMLDivElement, anchor: HTMLElement): void {
   const r = anchor.getBoundingClientRect()
-  const above = r.top >= 40
-  el.style.left = `${Math.min(Math.max(r.left + r.width / 2, EDGE_PAD), window.innerWidth - EDGE_PAD)}px`
+  // 先量自身，再定坐标：原来只把"中心点"钳进视口，气泡宽 200px 时靠边必然溢出半个。
+  const half = (el.offsetWidth || 0) / 2
+  const above = r.top >= (el.offsetHeight || 0) + 12
+  el.style.left = `${Math.min(Math.max(r.left + r.width / 2, EDGE_PAD + half), window.innerWidth - EDGE_PAD - half)}px`
   el.style.top = above ? `${r.top - 6}px` : `${r.bottom + 6}px`
   el.dataset.side = above ? 'top' : 'bottom'
 }

@@ -1555,12 +1555,22 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   animation: pop-in var(--motion-fast) var(--ease-emphasized) both;
   outline: none;
 }
+/* 右键菜单不吃全局那圈焦点环（app.css 顶部的 :focus-visible 用 --ring 画蓝边）。
+   菜单是靠右键唤出的瞬态浮层，环一道蓝边既难看也无信息量——
+   选中态已经由菜单项自己的底色表达；键盘用户看到的也是那个底色。 */
+.context-menu:focus-visible,
+.context-item:focus-visible {
+  outline: none;
+}
 .context-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   padding: 6px 10px;
+  /* 鼠标右键是"指针操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
+     键盘用户仍有可见焦点，由下面 :focus-visible 那条负责。 */
+  outline: none;
   border: 0;
   border-radius: var(--radius-btn);
   background: transparent;
