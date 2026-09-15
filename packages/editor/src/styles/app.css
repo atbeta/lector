@@ -189,12 +189,10 @@ button, a, input, [role='slider'], [role='switch'] {
   width: 28px;
   height: 28px;
   margin-right: 4px;
-  color: rgb(var(--foreground));
-  opacity: 0.86;
 }
-.brand-mark svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-html[data-shell='windows'] .brand-mark { width: 24px; height: 24px; margin-right: 2px; }
-html[data-shell='windows'] .brand-mark svg { width: 18px; height: 18px; }
+.brand-mark svg { display: block; width: 24px; height: 24px; }
+html[data-shell='windows'] .brand-mark { width: 26px; height: 26px; margin-right: 2px; }
+html[data-shell='windows'] .brand-mark svg { width: 22px; height: 22px; }
 .titlebar-actions {
   display: flex;
   align-items: center;
@@ -810,7 +808,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .outline-kids { margin-left: 12px; }
 .outline-node[data-collapsed='true'] > .outline-kids { display: none; }
 .outline-line { display: flex; align-items: stretch; }
-/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty），
+/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty���，
    否则同一级的标题会因为「有没有子节」而左右错开。 */
 .outline-twisty {
   flex: 0 0 auto;
@@ -1240,7 +1238,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
    灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
    而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
-   层级交给底色与字重，线只负责分隔，统一用 border。 */
+   层级交给底色与字��，线只负责分隔，统一用 border。 */
 /* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
    两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
 .reading-prose td[data-align='right'] {
@@ -2292,7 +2290,7 @@ tr:hover .table-editor-op { opacity: 1; }
 }
 
 
-/* ───────────── 动效 ───────────── */
+/* ─��─────────── 动效 ───────────── */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
