@@ -580,7 +580,12 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
   if let Ok(hwnd) = win.hwnd() {
     let w = win.clone();
     crate::snap::install(hwnd.0 as isize, move || {
-      let _ = w.toggle_maximize();
+      // tauri 没有 toggle_maximize，用 is_maximized 自己分派
+      if w.is_maximized().unwrap_or(false) {
+        let _ = w.unmaximize();
+      } else {
+        let _ = w.maximize();
+      }
     });
   }
 }
