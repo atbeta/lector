@@ -322,6 +322,11 @@ html[data-shell='windows'] .titlebar-center {
   min-width: 0;
   justify-content: flex-start;
 }
+/* 标题不套 --titlebar-title-max：那个夹取是给 macOS「标题居中于正文列」用的，
+   防标题压到右侧操作区。Windows 的标题左对齐、和操作区隔着一整条顶栏，
+   套上去反而会因"正文列中心"右移（分区制 + 侧栏打开）把宽度夹成 0、整个消失。
+   静态 flex 下标题本来就会自然 ellipsis，不会压到操作区。 */
+html[data-shell='windows'] .titlebar-title { max-width: none; }
 html[data-shell='windows'] .titlebar-actions { margin-left: auto; }
 
 .titlebar-lead,

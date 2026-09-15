@@ -92,9 +92,13 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 }
 
 #[tauri::command]
-pub fn read_file(path: String) -> Result<ReadResult, String> {
+pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
+  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进协议白名单。
+  // 不能等 bind_document：前端拿到内容就渲染，图片请求可能早于 bind_document 到达，
+  // 那时白名单还没有这个目录 → 403 → 图片塌成 0 高（切一次档才恢复）。
+  protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
   // mtime 与字节数来自同一次 metadata，不额外读盘
   let md = fs::metadata(p).ok();
   let mtime_ms = md
