@@ -744,6 +744,9 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
    只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
 html.no-doc body.app { grid-template-columns: 0 1fr; }
 html.no-doc .sidebar { display: none; }
+/* 状态行写的是「这份文档现在什么状态」。没有文档时就无话可写，留一条空带
+   既没信息又打破空态「整窗一块画布」的扉页感——一起收掉。 */
+html.no-doc #statusbar { display: none; }
 /* 宽度把手：贴在右边缘的一条 7px 热区。
    平时只是一条发丝线（侧栏悬停才显形），拖起来才点成主色——
    它得能被发现，但不能在静态视觉里跟目录条目抢注意力。 */
