@@ -968,6 +968,28 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   transition: transform var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard);
 }
+/* 「新建」是次要动作：与主按钮同高、无底色、只留一道描边。
+   两个按钮并排时，主次不该靠颜色争抢——底色归主按钮，描边归次按钮。 */
+.empty-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px;
+  padding: 9px 15px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.empty-new:hover {
+  border-color: rgb(var(--border-strong));
+  background: rgb(var(--accent));
+}
 .empty-open:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgb(24 24 27 / 0.16), 0 10px 24px rgb(24 24 27 / 0.12);

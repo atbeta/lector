@@ -14,6 +14,8 @@ interface LoadStateDeps {
   fileNameEl: HTMLElement
   blocksEl: { clear: () => void }
   onOpen: () => void | Promise<void>
+  /** 「新建」入口。不给就不渲染这个按钮（空态仍然是完整的）。 */
+  onNew?: () => void | Promise<void>
   /** 最近打开（新在前）。空数组 = 不显示这一块。 */
   recentFiles?: string[]
   onOpenRecent?: (path: string) => void | Promise<void>
@@ -117,7 +119,17 @@ export function renderEmptyState(deps: LoadStateDeps): void {
   btn.className = 'empty-open'
   btn.innerHTML = `${iconSvg('folder', 16)}<span>${t('openFile')}</span><kbd>${openShortcut()}</kbd>`
   btn.addEventListener('click', () => void deps.onOpen())
-  wrap.append(title, tagline, btn)
+  // 「新建」与「打开文件」主次分明：打开是主要动作（阅读优先），新建是次要动作。
+  // 记事本能新建，阅读器却只能打开，用户"想创建却创建不了"是真实会遇到的。
+  if (deps.onNew) {
+    const newBtn = document.createElement('button')
+    newBtn.className = 'empty-new'
+    newBtn.innerHTML = `${iconSvg('filePlus', 16)}<span>${t('newFile')}</span>`
+    newBtn.addEventListener('click', () => void deps.onNew?.())
+    wrap.append(title, tagline, btn, newBtn)
+  } else {
+    wrap.append(title, tagline, btn)
+  }
   const recent = recentBlock(deps)
   if (recent) wrap.appendChild(recent)
   deps.contentEl.appendChild(wrap)

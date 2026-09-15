@@ -2452,6 +2452,23 @@ window.addEventListener('keydown', (e) => {
 
 async function persistToDisk(force = false): Promise<boolean> {
   if (!session.source) return false
+  // 新建文档还没有磁盘身份（路径不是绝对路径，见 newDocument）→ 先另存为。
+  // 不能在这里调 saveAsFlow()：它在预览环境会回头调 persistToDisk，直接成环。
+  // 用"路径是否绝对"作判据：打开过的文件一定是绝对路径，新建文档用显示名占位。
+  if (detectEnv() === 'shell' && !/^([a-zA-Z]:[\\/]|\/)/.test(session.source.path)) {
+    let target: string | null = null
+    try {
+      target = await pickSavePath(session.source.path || t('untitledName'))
+    } catch (err) {
+      console.error('[lector] save-as dialog', err)
+      return false
+    }
+    if (!target) return false
+    // 换成真实路径后，下面走的是同一条写盘路径（含冲突检测），不另开分支
+    session.source = createSourceDocument(target, session.source.text, 0)
+    void bindDocument(target)
+    void watch(target)
+  }
   finalizeFocused()
   const normalized = serialize(session.blocks)
   const finalText = applyEncoding(session.source, normalized)
@@ -2499,6 +2516,33 @@ async function persistToDisk(force = false): Promise<boolean> {
 }
 
 saveBtn.addEventListener('click', () => void persistToDisk())
+
+/**
+ * 新建文档：与记事本一致，**在同一窗口换一份空文档**。
+ * 红线不允许应用内 Tab，也不必开新窗口——"新建"对用户就是"我要开始写一份新的"。
+ *
+ * 有未保存改动时给三选一（保存 / 放弃 / 取消）：放弃不可撤销，不该一键吞掉。
+ * 空文档后续由 loadSession 的空文档分支接管（进编辑档 + 光标入位）。
+ */
+async function newDocument(): Promise<void> {
+  if (session.dirty) {
+    const choice = await showDialog({
+      title: t('newUnsavedTitle'),
+      body: t('newUnsavedBody'),
+      actions: [
+        { id: 'cancel', label: t('cancelAction') },
+        { id: 'discard', label: t('discardAction'), danger: true },
+        { id: 'save', label: t('saveAction'), primary: true },
+      ],
+    })
+    if (choice === null || choice === 'cancel') return
+    // 保存失败（用户取消另存为 / 写盘出错）就不要继续替换文档
+    if (choice === 'save' && !(await persistToDisk())) return
+  }
+  // 传显示名当占位路径：标题栏因此显示"未命名"，
+  // 而 persistToDisk 看到"路径非绝对"就知道该弹另存为。
+  loadSession(t('untitledName'), '')
+}
 
 /** 另存为：选新路径 → 强制写（系统对话框已确认覆盖）→ 会话切到新文件。 */
 async function saveAsFlow() {
@@ -2642,7 +2686,8 @@ const loadStateDeps = {
   contentEl,
   fileNameEl,
   blocksEl,
-  onOpen: () => openFromShellOrDialog(),
+  onOpen: () => void openFromShellOrDialog(),
+  onNew: () => void newDocument(),
   recentFiles: [] as string[],
   onOpenRecent: (path: string) => openRecent(path),
   onClearRecent: () => clearRecentList(),

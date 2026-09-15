@@ -1806,6 +1806,32 @@ const summary = {
     await page.waitForTimeout(600)
   }
 
+  // 3.16) 空态「新建」：必须得到一份能立刻打字的空文档
+  //
+  // 这条守的是"用户打开应用想创建、却创建不了"。只看按钮在不在不够——
+  // 新建出来必须是**可写文档**：编辑档 + 块内编辑器 + 光标在里面，三者缺一都算失败。
+  {
+    await page.goto(URL_ARG + '?doc=empty', { waitUntil: 'load' })
+    await page.waitForTimeout(900)
+    const hasNew = await page.evaluate(() => !!document.querySelector('.empty-new'))
+    if (!hasNew) note('error', '空态没有「新建」入口（记事本能新建，只支持打开说不过去）')
+    else {
+      await page.click('.empty-new')
+      await page.waitForTimeout(900)
+      const made = await page.evaluate(() => ({
+        mode: document.documentElement.dataset.mode,
+        cms: document.querySelectorAll('.cm-content').length,
+        focused: !!document.activeElement?.closest?.('.cm-content'),
+        title: document.getElementById('file-name')?.textContent ?? '',
+      }))
+      if (made.mode !== 'edit' || made.cms < 1 || !made.focused) {
+        note('error', `新建出来的不是可写文档：mode=${made.mode} cms=${made.cms} focused=${made.focused}`)
+      } else if (!made.title) note('error', '新建文档标题栏是空的（应当显示「未命名」一类占位名）')
+      else note('info', `新建：标题「${made.title}」、编辑档、光标入位`)
+    }
+    await page.goto(URL_ARG, { waitUntil: 'load' })
+    await page.waitForTimeout(600)
+  }
 }
 
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
