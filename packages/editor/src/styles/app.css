@@ -469,6 +469,20 @@ html[data-shell='windows'] .window-controls { display: flex; }
   background: rgb(var(--primary-hover));
   border-color: rgb(var(--primary-hover));
 }
+/* 危险动作：平时是红字幽灵键（不抢主按钮的位），悬停才实心。
+   之前只有 .btn-danger 这个类名、没有任何规则，于是「清空 / 放弃改动」看起来
+   跟普通次要按钮一模一样——危险动作没有视觉身份，是设计缺陷不是风格选择。 */
+.btn-danger {
+  color: rgb(var(--destructive));
+  border-color: transparent;
+  background: transparent;
+}
+.btn-danger:hover:not(:disabled) {
+  color: rgb(var(--destructive-foreground));
+  background: rgb(var(--destructive));
+  border-color: rgb(var(--destructive));
+}
+.btn-danger:active:not(:disabled) { background: rgb(var(--destructive)); filter: brightness(0.94); }
 .btn-ghost-active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
 
 .btn-icon {
@@ -2154,13 +2168,33 @@ html.lightbox-open #content { overflow: hidden; }
   background: rgb(var(--popover));
   border-top: 1px solid rgb(var(--border-subtle));
 }
-.dialog-card { width: min(440px, calc(100vw - 48px)); }
+/* 小确认框：不要 sticky 头/脚 + 两条通栏分割线——那是给大弹窗（设置/表格）用的。
+   一个标题、一句话、两个按钮的卡片，靠留白分层就够；分割线一多就显糙。 */
+.dialog-card {
+  width: min(392px, calc(100vw - 48px));
+  padding: 20px 20px 16px;
+}
+.dialog-card .modal-header {
+  position: static;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+.dialog-card .modal-title { font-size: var(--text-md); }
+.dialog-card .modal-footer {
+  position: static;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+  gap: 6px;
+}
+.dialog-card .btn { min-height: 34px; padding: 0 14px; }
 .dialog-body {
   margin: 0;
-  padding: 16px 20px 20px;
+  padding: 8px 0 20px;
   font-size: var(--text-base);
-  line-height: 1.65;
-  color: rgb(var(--foreground));
+  line-height: 1.6;
+  color: rgb(var(--muted-foreground));
 }
 
 /* ───────────── 表格编辑弹窗 ─────────────

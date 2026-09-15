@@ -3241,22 +3241,17 @@ const loadStateDeps = {
 }
 
 /**
- * 清空「最近打开」：先确认（只是清列表、不动磁盘文件），再让壳落盘。
- * 清空后空态还在屏幕上就把列表就地拿掉，不重新拉取——刚清完又异步塞回来
- * 会显得「没清掉」。
+ * 清空「最近打开」：**不弹确认**。
+ *
+ * 确认框是给「不可逆且有代价」的动作（放弃未保存改动、覆盖冲突版本）准备的。
+ * 最近列表只是个便利缓存：清掉后照样能从文件对话框再打开、重新出现，
+ * 代价几乎为零——为它挡一道确认，是拿用户的每一次点击换一个不存在的风险。
+ * 清完给一句 toast 说明结果就够了。
  */
 async function clearRecentList(): Promise<void> {
-  const id = await showDialog({
-    title: t('clearRecentTitle'),
-    body: t('clearRecentBody'),
-    actions: [
-      { id: 'cancel', label: t('cancel'), primary: true },
-      { id: 'clear', label: t('clearRecent'), danger: true },
-    ],
-  })
-  if (id !== 'clear') return
   await recentClear()
   loadStateDeps.recentFiles = []
+  // 空态还在屏幕上就把列表就地拿掉，不重新拉取——刚清完又异步塞回来会显得「没清掉」。
   if (session.blocks.length === 0) renderEmptyStateView(loadStateDeps)
   showToast(t('recentCleared'))
 }
