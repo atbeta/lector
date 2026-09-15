@@ -2809,7 +2809,7 @@ function renderEmptyState(): void {
   void recentList().then((paths) => {
     // 期间可能已经打开了别的文件——那就别再往已经消失的空态里塞列表
     if (session.blocks.length > 0) return
-    loadStateDeps.recentFiles = paths
+    loadStateDeps.recentFiles = paths.slice(0, 3)
     renderEmptyStateView(loadStateDeps)
   })
 }

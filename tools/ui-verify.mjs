@@ -1884,8 +1884,29 @@ const summary = {
     await page.waitForTimeout(250)
   }
 
+  // 3.19) 空态不该有"凭空"的滚动条
+  //
+  // 用户的原始描述："明明看起来很空，却有右侧滚动条，太丑"。根因是空态用 min-height
+  // 撑高度（62vh）+ 固定 padding，窗口一矮就超出容器。判据直接量：**空态的滚动高度
+  // 不得超过可视高度**，而不是去核对某条 CSS 的值（值会被后来的人改）。
+  {
+    await page.setViewportSize({ width: 1200, height: 700 })
+    await page.addInitScript(() => {
+      window.__lectorTestRecent = ['/docs/a.md', '/docs/b.md', '/docs/c.md']
+    })
+    await page.goto(URL_ARG + '?doc=empty', { waitUntil: 'load' })
+    await page.waitForTimeout(900)
+    const fit = await page.evaluate(() => {
+      const el = document.getElementById('content')
+      return el ? { scroll: el.scrollHeight, client: el.clientHeight } : null
+    })
+    if (!fit) note('error', '空态找不到正文容器')
+    else if (fit.scroll > fit.client + 1) note('error', `空态出现滚动条：${fit.scroll}px / 可视 ${fit.client}px`)
+    else note('info', `空态无多余滚动条：${fit.scroll}px / ${fit.client}px`)
+    await page.setViewportSize({ width: 1200, height: 820 })
+    await page.waitForTimeout(200)
+  }
 }
-
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
 const order = { error: 0, warn: 1, info: 2 }
 findings.sort((a, b) => order[a.level] - order[b.level])
