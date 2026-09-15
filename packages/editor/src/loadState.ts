@@ -37,10 +37,12 @@ function baseName(path: string): string {
 
 /** 目录部分（含末尾分隔符），用于在文件名下面标出处。 */
 function dirName(path: string): string {
+  // 分隔符按原路径的形态还原：Windows 上显示 `D:/a/b` 和系统里看到的不是一回事。
+  const sep = path.includes('\\') ? '\\' : '/'
   const parts = path.split(/[\\/]/)
   parts.pop()
   if (parts.length === 0) return ''
-  const joined = parts.join('/')
+  const joined = parts.join(sep)
   return joined.length > 42 ? `…${joined.slice(-41)}` : joined
 }
 

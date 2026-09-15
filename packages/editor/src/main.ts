@@ -2881,7 +2881,9 @@ async function persistToDisk(force = false): Promise<boolean> {
   // 新建文档还没有磁盘身份（路径不是绝对路径，见 newDocument）→ 先另存为。
   // 不能在这里调 saveAsFlow()：它在预览环境会回头调 persistToDisk，直接成环。
   // 用"路径是否绝对"作判据：打开过的文件一定是绝对路径，新建文档用显示名占位。
-  if (detectEnv() === 'shell' && !/^([a-zA-Z]:[\\/]|\/)/.test(session.source.path)) {
+  // 绝对路径的判定要含 UNC（`\\server\share`）——否则打开网络共享上的文件时，
+  // 每次保存都会被当成"未命名"反复弹另存为。
+  if (detectEnv() === 'shell' && !isAbsolutePath(session.source.path)) {
     let target: string | null = null
     try {
       target = await pickSavePath(session.source.path || t('untitledName'))
@@ -3086,11 +3088,20 @@ async function saveAsFlow() {
   }
 }
 
+/**
+ * 是否是「已经在磁盘上的绝对路径」。
+ * 覆盖：POSIX `/…`、Windows 盘符 `C:\…` / `C:/…`、UNC 与 verbatim `\\server\share` / `\\?\D:\…`。
+ * 只用来判断"有没有磁盘身份"，不做严格校验（严格校验在壳侧）。
+ */
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\')
+}
+
 /** 当前文档的磁盘绝对路径；未命名占位路径返回 null（壳侧同样会拒绝）。 */
 function currentDiskPath(): string | null {
   const p = session.source?.path
   if (!p) return null
-  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) ? p : null
+  return isAbsolutePath(p) ? p : null
 }
 
 /** 用系统默认应用打开当前文件：复杂编辑/预览时联动其他应用的逃生口。 */

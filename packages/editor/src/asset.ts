@@ -36,13 +36,27 @@ export function sanitizeRelative(src: string): string | null {
 const SAFE_ABS_RE = /^(https?:|lector-file:)/i
 const SAFE_DATA_RE = /^data:image\/(png|jpe?g|gif|webp|avif)[;,]/i
 
+/** 容错解码：不是合法转义就原样返回（正文里的裸 `%` 不该让渲染报错）。 */
+function safeDecode(s: string): string {
+  if (!s.includes('%')) return s
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
+}
+
 /** 由 mdast 的 image url 产出最终 src。 */
 export function resolveImageSrc(raw: string): string {
   if (!raw) return ''
   if (/^(file:|blob:)/i.test(raw)) return ''
   if (/^data:/i.test(raw)) return SAFE_DATA_RE.test(raw) ? raw : ''
   if (SAFE_ABS_RE.test(raw)) return raw
-  const safe = sanitizeRelative(raw)
+  // 先把相对路径解回原文再校验、拼接：markdown 里空格会被编码成 %20（见 imageMarkdown），
+  // 带着 %20 拼进绝对路径后，协议层（convertFileSrc / URL）会**再编码一次**变成 %2520，
+  // 壳解一次仍是 `%20` 字面量 → 文件找不到、图片不显示。
+  // 放在 sanitizeRelative 之前也更安全：`%2e%2e` 这类编码穿越会先还原成 `..` 再被拒。
+  const safe = sanitizeRelative(safeDecode(raw))
   if (safe === null) return ''
   if (customResolver) {
     const custom = customResolver(safe, currentMdPath)

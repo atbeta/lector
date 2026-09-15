@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { sanitizeRelative, resolveImageSrc, assetLocalPath } from '../src/asset.ts'
+import { sanitizeRelative, resolveImageSrc, assetLocalPath, setAssetResolver } from '../src/asset.ts'
 
 describe('asset 路径守卫', () => {
   test('允许同目录与子目录相对路径', () => {
@@ -18,6 +18,22 @@ describe('asset 路径守卫', () => {
     // 解析前先走绝对判定，不进入守卫
     expect(resolveImageSrc('https://x.com/a.png')).toBe('https://x.com/a.png')
     expect(resolveImageSrc('data:image/png;base64,abc')).toBe('data:image/png;base64,abc')
+  })
+
+  test('相对路径先解码再解析（%20 不会被双重编码）', () => {
+    // markdown 里空格是 %20（见 imageMarkdown）；带着 %20 拼接 + 协议再编码会变 %2520
+    let seen = ''
+    setAssetResolver((raw) => {
+      seen = raw
+      return `resolved:${raw}`
+    })
+    expect(resolveImageSrc('My%20Notes.assets/a.png')).toBe('resolved:My Notes.assets/a.png')
+    expect(seen).toBe('My Notes.assets/a.png')
+    setAssetResolver(null)
+  })
+
+  test('编码的穿越 %2e%2e 先还原再拒（不放过任何形式的 ../）', () => {
+    expect(resolveImageSrc('%2e%2e/secret.png')).toBe('')
   })
 })
 

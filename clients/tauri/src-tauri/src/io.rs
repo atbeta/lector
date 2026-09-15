@@ -332,7 +332,9 @@ fn sanitize_image_name(name: &str) -> Option<String> {
   }
   let mut out = String::new();
   for c in stem.chars() {
-    if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' {
+    // 用 Unicode 的 is_alphanumeric（而非 ascii）：要和前端 safeDropName 的
+    // `\p{L}\p{N}` 保持一致，否则「截图_2026.png」拖进来会被落成「--_2026.png」。
+    if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
       out.push(c);
     } else {
       out.push('-');
@@ -733,6 +735,24 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
   Ok(win)
 }
 
+/// 事件路径与目标路径是否指向同一个文件。
+///
+/// Windows 的文件系统大小写不敏感，而 notify 报回来的大小写可能与用户打开时不同
+/// （`C:\x\README.md` vs 磁盘上的 `readme.md`）——直接 `==` 会漏掉这次外部变更，
+/// 表现为"别的程序改了文件，Lector 没有任何反应"。
+fn paths_equal(a: &std::path::Path, b: &std::path::Path) -> bool {
+  #[cfg(windows)]
+  {
+    let a_s = a.as_os_str().to_string_lossy();
+    let b_s = b.as_os_str().to_string_lossy();
+    a_s.eq_ignore_ascii_case(b_s.as_ref())
+  }
+  #[cfg(not(windows))]
+  {
+    a == b
+  }
+}
+
 /// 监听文件所在目录，变化时 emit lector:file-changed。
 pub fn watch_file(app: &AppHandle, path: &str) {
   use notify::{RecursiveMode, Watcher};
@@ -746,11 +766,13 @@ pub fn watch_file(app: &AppHandle, path: &str) {
   let watcher = match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
     if let Ok(ev) = res {
       for p in ev.paths {
-        if p == watched {
+        if paths_equal(&p, &watched) {
           let _ = emit_app.emit(
             "lector:file-changed",
             serde_json::json!({
-              "path": p.to_string_lossy(),
+              // 报「我们记录的那条路径」而不是事件路径：两者的分隔符/大小写可能不同，
+              // 而前端是按 `===` 精确比对的，报事件路径会被它当成别的文件过滤掉。
+              "path": watched.to_string_lossy(),
               "mtime_ms": file_mtime_ms(&watched).unwrap_or_default()
             }),
           );
@@ -1010,6 +1032,8 @@ mod tests {
     assert_eq!(sanitize_image_name("photo.png").as_deref(), Some("photo.png"));
     assert_eq!(sanitize_image_name("a/../x.PNG").as_deref(), Some("x.png"));
     assert_eq!(sanitize_image_name("weird name.webp").as_deref(), Some("weird-name.webp"));
+    // 中文名要留住（与前端 safeDropName 的 \p{L} 对齐），不能被整段换成 '-'
+    assert_eq!(sanitize_image_name("截图_2026.png").as_deref(), Some("截图_2026.png"));
     assert!(sanitize_image_name("../x.png").is_none() || sanitize_image_name("../x.png").as_deref() == Some("x.png"));
     assert!(sanitize_image_name("x.txt").is_none());
     assert!(sanitize_image_name("..").is_none());

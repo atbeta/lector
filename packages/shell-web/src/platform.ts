@@ -408,8 +408,10 @@ export async function onMaximizeHover(
 export function shellAssetResolver(raw: string, mdPath: string | null): string | null {
   if (detectEnv() !== 'shell') return null
   if (!mdPath) return null
-  const baseDir = mdPath.slice(0, Math.max(mdPath.lastIndexOf('/'), mdPath.lastIndexOf('\\')))
-  const base = baseDir || mdPath
+  const slash = Math.max(mdPath.lastIndexOf('/'), mdPath.lastIndexOf('\\'))
+  // 没有目录部分（未命名占位名）→ 交给调用方走默认兜底，别拿文件名当目录拼
+  if (slash < 0) return null
+  const base = mdPath.slice(0, slash) || mdPath.slice(0, 1)
   const abs = `${base}/${raw}`
   const convert = window.__TAURI_INTERNALS__?.convertFileSrc
   if (typeof convert === 'function') return convert(abs, 'lector-file')
