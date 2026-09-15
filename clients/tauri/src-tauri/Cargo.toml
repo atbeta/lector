@@ -31,12 +31,13 @@ notify = "8.0.0"
 # （io.rs::apply_platform_window_tweaks）。
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8.0"
-# Snap Layouts 覆盖层（snap.rs）：透明子窗口对 WM_NCHITTEST 回答 HTMAXBUTTON
+# Snap Layouts 覆盖层（snap.rs）：不绘制的子窗口对 WM_NCHITTEST 回答 HTMAXBUTTON
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",
   "Win32_UI_WindowsAndMessaging",
   "Win32_UI_Shell",
   "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
   "Win32_Graphics_Gdi",
   "Win32_System_LibraryLoader",
 ] }

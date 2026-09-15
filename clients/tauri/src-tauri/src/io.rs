@@ -11,7 +11,7 @@ use std::{
 };
 use notify::RecommendedWatcher;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::protocol;
 
@@ -576,17 +576,27 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
     // Win10 没有 Mica
     let _ = apply_acrylic(win, Some((242, 242, 250, 50)));
   }
-  // 悬停最大化按钮弹 Snap 布局浮窗（Win11）——无边框窗口默认没有这个行为
+  // 悬停最大化按钮弹 Snap 布局浮窗（Win11）——无边框窗口默认没有这个行为。
+  // 覆盖层会接管那颗按钮的鼠标，所以点击在 Rust 侧 toggle，悬停再转告 web 层补 :hover。
   if let Ok(hwnd) = win.hwnd() {
-    let w = win.clone();
-    crate::snap::install(hwnd.0 as isize, move || {
-      // tauri 没有 toggle_maximize，用 is_maximized 自己分派
-      if w.is_maximized().unwrap_or(false) {
-        let _ = w.unmaximize();
-      } else {
-        let _ = w.maximize();
-      }
-    });
+    let toggle_win = win.clone();
+    let hover_win = win.clone();
+    let label = win.label().to_string();
+    crate::snap::install(
+      hwnd.0 as isize,
+      move || {
+        // tauri 没有 toggle_maximize，用 is_maximized 自己分派
+        if toggle_win.is_maximized().unwrap_or(false) {
+          let _ = toggle_win.unmaximize();
+        } else {
+          let _ = toggle_win.maximize();
+        }
+      },
+      move |hovering| {
+        // 只发给本窗口：裸 emit 会广播，所有窗口的最大化按钮会一起亮
+        let _ = hover_win.emit_to(EventTarget::webview_window(label.clone()), "lector:win-max-hover", hovering);
+      },
+    );
   }
 }
 

@@ -413,6 +413,8 @@ html[data-shell='windows'] .window-controls { display: flex; }
     color var(--motion-fast) var(--ease-standard);
 }
 .win-btn:hover { background: rgb(var(--foreground) / 0.07); color: rgb(var(--foreground)); }
+/* 最大化键被 Snap 覆盖层接管鼠标，:hover 不会触发，靠原生事件补的 class（见 chrome.ts） */
+.win-btn.snap-hover { background: rgb(var(--foreground) / 0.07); color: rgb(var(--foreground)); }
 .win-btn:active { background: rgb(var(--foreground) / 0.11); }
 .win-btn svg { display: block; }
 /* 关闭键是唯一的危险操作：只有它用红（Windows 原生行为） */

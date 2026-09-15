@@ -10,7 +10,7 @@
 //  - 浏览器预览：按 UA 预演对应平台版式（按钮在位但 disabled），
 //    方便在没有壳的环境里调样式。
 
-import { bindWindowControls, detectEnv } from '@lector/shell-web'
+import { bindWindowControls, detectEnv, onMaximizeHover } from '@lector/shell-web'
 import { windowGlyph } from './icons.ts'
 
 export type ShellPlatform = 'macos' | 'windows' | 'web'
@@ -86,6 +86,17 @@ export function mountWindowControls(): () => void {
 
   const dispose = bindWindowControls(handlers)
 
+  // Snap 覆盖层（Win11）接管了最大化按钮的鼠标，原生侧把悬停进出转成事件回来，
+  // 这里补上 :hover 样式——否则最大化键悬停时没有任何反馈。
+  let disposed = false
+  let offMaxHover: (() => void) | null = null
+  void onMaximizeHover((hovering) => maxBtn.el.classList.toggle('snap-hover', hovering)).then(
+    (off) => {
+      if (disposed) off()
+      else offMaxHover = off
+    },
+  )
+
   // 双击顶栏切换最大化：Windows 肌肉记忆，无边框窗口必须自己补。
   // 顶栏自身已是拖拽区（-webkit-app-region / data-tauri-drag-region），
   // 这里只补双击语义。
@@ -97,7 +108,9 @@ export function mountWindowControls(): () => void {
   bar?.addEventListener('dblclick', onDblClick)
 
   return () => {
+    disposed = true
     dispose()
+    offMaxHover?.()
     bar?.removeEventListener('dblclick', onDblClick)
     host.replaceChildren()
   }

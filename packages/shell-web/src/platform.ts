@@ -375,6 +375,21 @@ export function bindWindowControls(opts: {
 }
 
 /**
+ * 最大化按钮的悬停进出。
+ *
+ * Windows 无边框窗口上，Snap Layouts 覆盖层（原生子窗口）接管了那颗按钮的鼠标，
+ * webview 收不到 :hover，按钮会「悬停无反馈」。壳在原生侧把进入/离开转成这个事件，
+ * 前端据此给按钮补样式。非壳环境是 no-op。
+ */
+export async function onMaximizeHover(
+  handler: (hovering: boolean) => void,
+): Promise<() => void> {
+  if (detectEnv() !== 'shell') return () => {}
+  const { listen } = await tauriApi()
+  return listen<boolean>('lector:win-max-hover', (hovering) => handler(hovering))
+}
+
+/**
  * 相对图片解析器：shell 下把 baseDir + relative 拼接成 lector-file:///。
  */
 export function shellAssetResolver(raw: string, mdPath: string | null): string | null {
