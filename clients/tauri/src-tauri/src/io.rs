@@ -624,6 +624,10 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
     .title("Lector")
     .inner_size(w, h)
     .min_inner_size(480.0, 360.0)
+    // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
+    // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
+    // 我们的拖放逻辑（落点定位、复制进 assets）全在 Web 层，用不到原生通道。
+    .disable_drag_drop_handler()
     // 所有新窗口先以同一规则居中；window-state 有历史记录时会在此基础上恢复，
     // 没有历史记录时则避免空态窗口和文件关联启动窗口落在不同的默认位置。
     .center()
