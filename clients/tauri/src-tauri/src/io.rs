@@ -39,6 +39,9 @@ pub struct ReadResult {
   path: String,
   content: String,
   mtime_ms: u64,
+  /// 磁盘字节数。前端用它决定是否进入大文件模式——用字符数（UTF-16 码元）
+  /// 判会把中文文档的阈值抬高约 3 倍，且和用户在资源管理器里看到的大小对不上。
+  byte_len: u64,
 }
 
 #[derive(Serialize)]
@@ -92,11 +95,20 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 pub fn read_file(path: String) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
-  let mtime = file_mtime_ms(p).unwrap_or(0);
+  // mtime 与字节数来自同一次 metadata，不额外读盘
+  let md = fs::metadata(p).ok();
+  let mtime_ms = md
+    .as_ref()
+    .and_then(|m| m.modified().ok())
+    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+    .map(|d| d.as_millis() as u64)
+    .unwrap_or(0);
+  let byte_len = md.map(|m| m.len()).unwrap_or_else(|| content.len() as u64);
   Ok(ReadResult {
     path,
     content,
-    mtime_ms: mtime,
+    mtime_ms,
+    byte_len,
   })
 }
 

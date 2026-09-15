@@ -111,6 +111,18 @@ const session: Session = {
   originals: new Map(),
 }
 
+// 大文件状态的声明必须早于模块顶层的 applyModeUI()/renderStatus()——
+// 否则首次初始化时会撞上 `let` 的暂时性死区（ReferenceError），
+// 整个初始化 IIFE 中断，窗口控件与空态都挂不上（真机上就是"右上角按钮消失 + 白屏"）。
+let largeMode = false
+let largeCm: CmHandle | null = null
+/** 载入 / 上次保存时的全文（归一换行后），未回到这个值就算脏。 */
+let largeSnapshot = ''
+let largeDirty = false
+/** 提示条要报的真实体积与行数（载入时算一次）。 */
+let largeBytes = 0
+let largeTotalLines = 0
+
 const contentEl = document.getElementById('content')!
 const dirtyDot = document.getElementById('dirty-dot')!
 const fileNameEl = document.getElementById('file-name')!
@@ -266,6 +278,8 @@ function refreshSaveButton(): void {
 }
 
 function setViewMode(next: ViewMode): void {
+  // 大文件只有纯文本可编：没有块可渲染，切档只会切出空画面，直接锁在源码档。
+  if (largeMode && next !== 'source') return
   if (viewMode === next) return
   const prev = viewMode
   viewMode = next
@@ -426,6 +440,16 @@ function revealActiveBranch(): void {
 }
 
 function renderOutline() {
+  if (largeMode) {
+    // 大文件不建块，也就没有现成的标题列表。这里明确说明「不可用」，
+    // 而不是留一片空白让人以为文档没有标题。
+    sidebar.body.innerHTML = ''
+    const p = document.createElement('p')
+    p.className = 'outline-empty'
+    p.textContent = t('outlineLargeUnavailable')
+    sidebar.body.appendChild(p)
+    return
+  }
   const headings: OutlineHeading[] = session.blocks
     .filter((b) => b.kind === 'heading')
     .map((b) => {
@@ -644,15 +668,23 @@ function savePositions(map: PositionMap): void {
 let positions: PositionMap = loadPositions()
 let restoreTimer: number | null = null
 
+/** 当前正文的滚动容器：普通档是 #content，大文件档是 CM 自己的滚动层。 */
+function activeScroller(): HTMLElement | null {
+  if (largeMode) return largeCm?.view.scrollDOM ?? null
+  return contentEl
+}
+
 /** 取回并应用上次的阅读位置。只在有记录且位置仍合理时滚动。 */
 function restoreReadingPosition(): void {
   const path = session.source?.path
   if (!path) return
-  const top = getPosition(positions, path, contentEl.scrollHeight)
+  const scroller = activeScroller()
+  if (!scroller) return
+  const top = getPosition(positions, path, scroller.scrollHeight)
   if (top === null) return
   // 等一帧：render() 刚改完 DOM，同一帧里设 scrollTop 会被随后的布局吃掉
   requestAnimationFrame(() => {
-    contentEl.scrollTop = top
+    scroller.scrollTop = top
     updateActiveHeading()
   })
 }
@@ -671,7 +703,9 @@ function scheduleRecordPosition(): void {
     restoreTimer = null
     const path = session.source?.path
     if (!path) return
-    positions = recordPosition(positions, path, contentEl.scrollTop, contentEl.scrollHeight)
+    const scroller = activeScroller()
+    if (!scroller) return
+    positions = recordPosition(positions, path, scroller.scrollTop, scroller.scrollHeight)
     savePositions(positions)
   }, 400)
 }
@@ -1163,6 +1197,7 @@ function blankAreaMenuItems(nearest: BlockView | null): ContextMenuItem[] {
 
 /** 当前会把什么写回磁盘——与状态行的字数取自同一份文本。 */
 function allRawText(): string {
+  if (largeMode) return largeText()
   return session.blocks.map((b) => b.raw).join('')
 }
 
@@ -1199,17 +1234,6 @@ function baseName(p: string): string {
  * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 字、保存后变 98」。
  */
 function renderStatus() {
-  const blocks = session.blocks
-  if (blocks.length === 0) {
-    statusLeft.replaceChildren()
-    statusRight.replaceChildren()
-    return
-  }
-  const text = blocks.map((b) => b.raw).join('')
-  const stats = countText(text)
-  const sections = blocks.filter((b) => b.kind === 'heading').length
-  const minutes = readingMinutes(stats)
-
   // 项目之间补一个空格字符：视觉间隔由 CSS gap 负责，
   // 但读屏与「选中状态行复制」拿到的是 textContent，不能连成一串。
   const item = (text: string, strong = false) => {
@@ -1220,6 +1244,32 @@ function renderStatus() {
     el.append(' ')
     return el
   }
+  if (largeMode) {
+    // 大文件不逐键统计字数——那是对几十 MB 全文的扫描，每次按键都做会卡。
+    // 只报体积、行数与存盘状态，这是刻意的降级。
+    statusLeft.replaceChildren()
+    statusRight.replaceChildren()
+    statusRight.append(
+      item(
+        t('statLargeFile', {
+          lines: formatCount(largeTotalLines),
+          size: (largeBytes / 1048576).toFixed(1),
+        }),
+      ),
+    )
+    statusRight.append(item(session.dirty ? t('statUnsaved') : t('statSavedAt'), session.dirty))
+    return
+  }
+  const blocks = session.blocks
+  if (blocks.length === 0) {
+    statusLeft.replaceChildren()
+    statusRight.replaceChildren()
+    return
+  }
+  const text = blocks.map((b) => b.raw).join('')
+  const stats = countText(text)
+  const sections = blocks.filter((b) => b.kind === 'heading').length
+  const minutes = readingMinutes(stats)
 
   statusRight.replaceChildren()
   if (stats.words === 0) {
@@ -1268,7 +1318,9 @@ function scheduleRecoveryWrite(): void {
     recoveryTimer = null
     if (!getSettings().recoverUnsaved) return
     const src = session.source
-    if (largeFileMode) return
+    // 大文件不写草稿：一是几十 MB 的整篇序列化本身不划算，二是这份文本没有块基线
+    // （serialize([]) 会得到空串，真存下去就是一条"文件变空了"的假草稿）。
+    if (largeMode) return
     if (!session.dirty || !src || !isRecoverable(src.path)) return
     rememberRecovery(src.path, applyEncoding(src, serialize(session.blocks)))
   }, 1200)
@@ -1380,7 +1432,7 @@ function markDirty() {
     lastOutlineSignature = sig
     if (sidebar.isOpen()) renderOutline()
   }
-  session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
+  session.dirty = largeMode ? largeDirty : sessionIsDirty(session.blocks, session.structuralDirty)
   // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
   document.documentElement.classList.toggle('dirty', session.dirty)
   if (session.dirty) {
@@ -1492,148 +1544,161 @@ function showToast(msg: string) {
   window.setTimeout(() => toast?.classList.remove('show'), 2400)
 }
 
-/** 大文件模式：整篇只读预览，禁用写盘与草稿（见 loadSession / persistToDisk）。 */
-let largeFileMode = false
-
+/**
+ * 大文件模式：不解析、不建块，整篇挂一个裸 CM6 当可编辑缓冲。
+ *
+ * 为什么不是块 IR：整篇 mdast 解析是超线性的（实测 1MB≈1.1s、3MB≈4.2s、10MB≈31s），
+ * 几十 MB 的文件根本解析不完；块级 DOM 也会把浏览器压死。而 CM6 自带视口虚拟化，
+ * 装得下整篇、只渲染可见行，于是「能编辑、能保存」这条死线成立。
+ * 代价是大文件下没有块级预览渲染（只有带语法高亮的纯文本）——这是刻意的降级。
+ * 可编辑的窗口化 IR 是后续独立排期的方向。
+ *
+ * 写盘仍走 applyEncoding：载入时已按 createSourceDocument 归一换行，未编辑时
+ * 还原后与原文字节恒等（core 的文件级测试盯着这条）。
+ *
+ * 状态本体（largeMode / largeCm / largeSnapshot / largeDirty / largeBytes / largeTotalLines）
+ * 声明在文件顶部 session 旁边：模块初始化期 renderStatus 就会读它们。
+ */
 const LARGE_FILE_BYTES = 3 * 1024 * 1024
 const LARGE_FILE_LINES = 40_000
-/** 大文件每次渲染的行数（首屏与每次滚动追加都按这个粒度） */
-const LARGE_CHUNK_LINES = 2000
-/** 还没渲染的尾部（大文件模式专用）。滚动近底时按块追加，直到整篇铺开。 */
-let largeRemainder = ''
-/** 大文件总行数（提示条要报进度）。进入大文件模式时数一次。 */
-let largeTotalLines = 0
-let largeShownLines = 0
 
-function isLargeDocument(text: string): boolean {
-  if (text.length > LARGE_FILE_BYTES) return true
-  // 行数用"数换行"近似，不 split——那本身就要几十 MB 内存，正是要避开的开销。
-  let lines = 0
-  for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10 && ++lines > LARGE_FILE_LINES) return true
-  }
-  return false
-}
-
-/** 从头切出至多 maxLines 行，返回这一段与剩余。只走 indexOf，不 split 全文。 */
-function takeLineChunk(text: string, maxLines: number): { chunk: string; rest: string } {
-  let pos = 0
+function countLines(text: string): number {
   let n = 0
-  while (n < maxLines && pos < text.length) {
-    const i = text.indexOf('\n', pos)
-    if (i < 0) {
-      pos = text.length
-      break
-    }
-    pos = i + 1
-    n++
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) n++
   }
-  return { chunk: text.slice(0, pos), rest: text.slice(pos) }
+  return n
 }
 
-/** 一段大文件切片包成一个代码块，复用既有渲染路径，不为大文件另写一套渲染。 */
-function largeChunkBlocks(chunk: string): ReturnType<typeof parseBlocks> {
-  const body = chunk.endsWith('\n') || chunk === '' ? chunk : `${chunk}\n`
-  return parseBlocks('```\n' + body + '```')
-}
-
-/** 追加下一段大文件切片。只加块、不置脏：这是「把全文铺开」，不是编辑。 */
-function appendLargeChunk(): void {
-  if (!largeRemainder) return
-  const { chunk, rest } = takeLineChunk(largeRemainder, LARGE_CHUNK_LINES)
-  if (!chunk) {
-    largeRemainder = ''
-    return
-  }
-  largeRemainder = rest
-  const blocks = largeChunkBlocks(chunk)
-  for (const b of blocks) session.originals.set(b.id, b.raw)
-  session.blocks.push(...blocks)
-  largeShownLines += LARGE_CHUNK_LINES
-  markDirty()
-  render()
-  updateLargeFileBar()
+/**
+ * 大文件判据：真实字节数 OR 行数。
+ * 字节优先命中就不必再扫行数；用字节而不是 `text.length`，因为后者是 UTF-16 码元，
+ * 会把中文文档的阈值抬高约 3 倍，也和用户在资源管理器里看到的大小对不上。
+ */
+function isLargeDocument(bytes: number, text: string): boolean {
+  if (bytes > LARGE_FILE_BYTES) return true
+  return countLines(text) > LARGE_FILE_LINES
 }
 
 /** 大文件模式的常驻提示条（复用既有提示条外观，不新增视觉语言）。 */
-function showLargeFileBar(sizeMb: string): void {
+function showLargeFileBar(): void {
   clearLargeFileBar()
   const bar = document.createElement('div')
   bar.className = 'recover-bar large-file-bar'
   bar.setAttribute('role', 'status')
   const text = document.createElement('span')
   text.className = 'recover-text'
+  text.textContent = t('largeFileNotice', {
+    size: (largeBytes / 1048576).toFixed(1),
+    lines: formatCount(largeTotalLines),
+  })
   bar.append(text)
-  bar.dataset.size = sizeMb
   document.body.appendChild(bar)
-  updateLargeFileBar()
-}
-
-function updateLargeFileBar(): void {
-  const el = document.querySelector('.large-file-bar .recover-text')
-  if (!el) return
-  const size = document.querySelector('.large-file-bar')?.getAttribute('data-size') ?? ''
-  const done = largeRemainder === ''
-  el.textContent = done
-    ? t('largeFileNoticeAll', { size, total: String(largeTotalLines) })
-    : t('largeFileNotice', {
-        size,
-        shown: String(Math.min(largeShownLines, largeTotalLines)),
-        total: String(largeTotalLines),
-      })
 }
 
 function clearLargeFileBar(): void {
   document.querySelector('.large-file-bar')?.remove()
 }
 
-function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
+/**
+ * 大文件的可编辑载体：整篇裸 CM6 铺满正文区，自己滚动（视口虚拟化）。
+ * 不挂结构键——没有块可拆合，Enter 就是普通换行。
+ */
+function mountLargeDocument(): void {
+  const host = document.createElement('div')
+  host.className = 'large-doc-host'
+  contentEl.appendChild(host)
+  largeCm = mountEditor(
+    host,
+    session.source?.text ?? '',
+    () => {
+      /* 大文件不逐键取全文：脏状态由 onDocChanged 驱动 */
+    },
+    {
+      autoCharacterPairs: getSettings().autoCharacterPairs,
+      showWhitespace: getSettings().showWhitespace,
+      pasteHtmlAsMarkdown: true,
+      largeDocument: true,
+      onDocChanged: () => {
+        largeDirty = true
+        markDirty()
+      },
+      onSelectionChange: (sel) => {
+        if (!sel || !largeCm) {
+          closeSelectionBubble()
+          return
+        }
+        openSelectionBubble(sel, largeCm.view)
+      },
+    },
+  )
+  // CM 自己滚动：#content 不再是滚动容器，顶栏分隔影与阅读位置跟着它的滚动容器走。
+  const scroller = largeCm.view.scrollDOM
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      document.getElementById('titlebar')?.classList.toggle('scrolled', scroller.scrollTop > 4)
+      scheduleRecordPosition()
+    },
+    { passive: true },
+  )
+}
+
+/** 大文件下用于写盘 / 状态 / 复制的全文（只在保存等少数时机取一次）。 */
+function largeText(): string {
+  return largeCm ? largeCm.view.state.doc.toString() : (session.source?.text ?? '')
+}
+
+function loadSession(path: string, raw: string, mtimeMs = Date.now(), byteLen?: number) {
   if (cm) {
     cm.destroy()
     cm = null
   }
+  if (largeCm) {
+    largeCm.destroy()
+    largeCm = null
+  }
   blocksEl.clear()
   liveText.clear()
+  contentEl.classList.remove('large-doc')
+  document.documentElement.classList.remove('large-file')
   session.source = createSourceDocument(path, raw, mtimeMs)
   setCurrentMdPath(session.source.path)
-  // 大文件逃生舱：超阈值就不解析、不建块，只把前 2000 行作为只读预览。
-  // 现状是"整篇解析 + 每块一个 DOM"，30M/73 万行会造出几万个块、浏览器直接卡死，
-  // 用户看到的是永远停在 Loading。这一步先保证**打得开、看得见、绝不写坏**；
-  // 可编辑的窗口化渲染是下一步。
-  largeFileMode = isLargeDocument(session.source.text)
-  if (largeFileMode) {
-    // 首屏只铺前 2000 行，其余随滚动追加（见 appendLargeChunk）。
-    // 总行数数一次就够：一次 30MB 的换行扫描 ~20ms，换提示条能报真实进度。
-    const { chunk, rest } = takeLineChunk(session.source.text, LARGE_CHUNK_LINES)
-    largeRemainder = rest
-    largeShownLines = LARGE_CHUNK_LINES
-    largeTotalLines = 0
-    for (let i = 0; i < session.source.text.length; i++) {
-      if (session.source.text.charCodeAt(i) === 10) largeTotalLines++
-    }
-    session.blocks = largeChunkBlocks(chunk)
+  // 大文件逃生舱：超阈值就不解析、不建块，整篇交给一个裸 CM（见上方注释）。
+  // 字节数由壳给出（read_file 的 byte_len）；浏览器预览退回 Blob 大小。
+  const bytes = byteLen ?? new Blob([raw]).size
+  largeMode = isLargeDocument(bytes, session.source.text)
+  if (largeMode) {
+    session.blocks = []
+    session.originals = new Map()
+    session.focusedId = null
+    session.dirty = false
+    session.structuralDirty = false
+    largeSnapshot = session.source.text
+    largeDirty = false
+    largeBytes = bytes
+    largeTotalLines = countLines(session.source.text)
   } else {
-    largeRemainder = ''
     session.blocks = parseBlocks(session.source.text)
+    // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
+    // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
+    // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
+    if (session.blocks.length === 0) {
+      const { para, gap } = makeEmptyParagraph(0)
+      session.blocks = [para, gap]
+      pendingEmptyFocus = para.id
+    }
+    session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
+    // 空文档（整篇没有任何非空内容）→ 渲染落地后进编辑档并聚焦。
+    // 判据不能用"块数为 0"：空的 .md 在不同版本里可能产出 0 块或 1 个空块，
+    // 而用户看到的问题是同一个——**一个可见表面都没有，点不到也打不了字**。
+    if (session.blocks.length > 0 && session.blocks.every((b) => b.raw.trim() === '')) {
+      pendingEmptyFocus = session.blocks[0]?.id ?? null
+    }
+    session.focusedId = null
+    session.dirty = false
+    session.structuralDirty = false
   }
-  // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
-  // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
-  // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
-  if (session.blocks.length === 0) {
-    const { para, gap } = makeEmptyParagraph(0)
-    session.blocks = [para, gap]
-    pendingEmptyFocus = para.id
-  }
-  session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))
-  // 空文档（整篇没有任何非空内容）→ 渲染落地后进编辑档并聚焦。
-  // 判据不能用"块数为 0"：空的 .md 在不同版本里可能产出 0 块或 1 个空块，
-  // 而用户看到的问题是同一个——**一个可见表面都没有，点不到也打不了字**。
-  if (session.blocks.length > 0 && session.blocks.every((b) => b.raw.trim() === '')) {
-    pendingEmptyFocus = session.blocks[0]?.id ?? null
-  }
-  session.focusedId = null
-  session.dirty = false
-  session.structuralDirty = false
   // 文件名拆两段：主名用正文色，扩展名弱化。
   // 阅读器里每份文档都叫 .md，把这个后缀用同样重量写出来，等于在最重要的位置上
   // 放了一段零信息量的字符——它该在，但不该抢眼（同 VS Code / 各编辑器的做法）。
@@ -1644,33 +1709,47 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
   contentEl.scrollTop = 0
   // 有文档了就把「纸页」表面还回来（空态撤掉的纸面底色与描边，见 loadState.ts）
   document.documentElement.classList.remove('is-empty')
-  render()
-  markDirty()
-  // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
-  // 用 rAF 等一帧，避免和 render 的布局在同一帧里打架。
-  restoreReadingPosition()
-  // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
-  if (sidebar.isOpen()) renderOutline()
-  setDocPresent(true)
-  // 空文档：进编辑档并把光标放进去。
-  // 只合成空段落是不够的——空段落没有可见表面，阅读档里看不到也点不到，
-  // 那还是"打不了字"；光标本身就是这里唯一需要的占位。
-  // 用 rAF 等这一轮渲染落地再聚焦，否则可能拿到还没进 DOM 的块（表现为"点了没反应"）。
-  if (pendingEmptyFocus) {
-    const id = pendingEmptyFocus
-    pendingEmptyFocus = null
-    setViewMode('edit')
-    requestAnimationFrame(() => focusBlock(id))
-  }
-  // 大文件：强制阅读档 + 常驻说明。这个模式是只读的，进编辑档只会让人以为能改。
-  if (largeFileMode) {
-    setViewMode('read')
-    showLargeFileBar((session.source.text.length / 1048576).toFixed(1))
+
+  if (largeMode) {
+    contentEl.classList.add('large-doc')
+    document.documentElement.classList.add('large-file')
+    // 大文件只有纯文本可编：档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+    // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
+    if (viewMode !== 'source') {
+      viewMode = 'source'
+      applyModeUI()
+    }
+    mountLargeDocument()
+    showLargeFileBar()
+    lastOutlineSignature = ''
+    if (sidebar.isOpen()) renderOutline()
+    restoreReadingPosition()
+    // 复位脏点/保存按钮/状态行（换文档前的 dirty 类不能留着）
+    markDirty()
   } else {
+    render()
+    markDirty()
+    // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
+    // 用 rAF 等一帧，避免和 render 的布局在同一帧里打架。
+    restoreReadingPosition()
+    // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
+    if (sidebar.isOpen()) renderOutline()
+    // 空文档：进编辑档并把光标放进去。
+    // 只合成空段落是不够的——空段落没有可见表面，阅读档里看不到也点不到，
+    // 那还是"打不了字"；光标本身就是这里唯一需要的占位。
+    // 用 rAF 等这一轮渲染落地再聚焦，否则可能拿到还没进 DOM 的块（表现为"点了没反应"）。
+    if (pendingEmptyFocus) {
+      const id = pendingEmptyFocus
+      pendingEmptyFocus = null
+      setViewMode('edit')
+      requestAnimationFrame(() => focusBlock(id))
+    }
     clearLargeFileBar()
   }
+  setDocPresent(true)
   // 这份文件上次有没有留下未保存的草稿？有就提示，但**不自动改内容**——
   // 打开一个文件却看到和磁盘不一样的内容，是最不该发生的意外。
+  // （大文件不会留草稿：recovery.ts 对 >512KB 的内容直接跳过。）
   pendingRecovery = null
   hideRecoveryBar()
   if (getSettings().recoverUnsaved && isRecoverable(path)) {
@@ -1692,6 +1771,9 @@ function loadSession(path: string, raw: string, mtimeMs = Date.now()) {
 }
 
 async function render() {
+  // 大文件没有块：正文区由 mountLargeDocument 挂的整篇 CM 占据，
+  // 任何走块渲染的路径（切档、markDirty 之后等）都必须绕开，否则会把 CM 清掉。
+  if (largeMode) return
   // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
   // 文档无 math 节点时,这步 0 开销。
   await preRenderMath(session.blocks)
@@ -2270,6 +2352,17 @@ function appendImageParagraph(md: string) {
 }
 
 function insertImageMarkdownAtCaret(md: string) {
+  // 大文件：正文就是一个整篇 CM，插到它的光标处
+  if (largeMode && largeCm) {
+    const view = largeCm.view
+    const pos = view.state.selection.main.head
+    view.dispatch({
+      changes: { from: pos, insert: md },
+      selection: { anchor: pos + md.length },
+      scrollIntoView: true,
+    })
+    return
+  }
   if (cm && session.focusedId) {
     const pos = cm.view.state.selection.main.head
     cm.view.dispatch({
@@ -2591,6 +2684,12 @@ settingsBtn.addEventListener('click', () => openSettingsModal())
 outlineBtn.addEventListener('click', () => toggleOutline())
 
 function openFind() {
+  // 大文件不建块，现有查找是按块计数 + 按块高亮/跳转的，跑不动。
+  // 明确说不支持，而不是打开一个「0 处命中」的假面板。
+  if (largeMode) {
+    showToast(t('findLargeUnavailable'))
+    return
+  }
   if (document.querySelector('.find-bar')) {
     document.querySelector<HTMLInputElement>('.find-input')?.focus()
     return
@@ -2641,12 +2740,6 @@ window.addEventListener('keydown', (e) => {
 
 async function persistToDisk(force = false): Promise<boolean> {
   if (!session.source) return false
-  // 大文件模式只渲染了前 2000 行：块内容 ≠ 原文件，保存等于把文件截断。
-  // 与其冒这个险，不如明确拒绝并说明（用户可在外部编辑器里改）。
-  if (largeFileMode) {
-    showToast(t('largeFileReadOnly'))
-    return false
-  }
   // 新建文档还没有磁盘身份（路径不是绝对路径，见 newDocument）→ 先另存为。
   // 不能在这里调 saveAsFlow()：它在预览环境会回头调 persistToDisk，直接成环。
   // 用"路径是否绝对"作判据：打开过的文件一定是绝对路径，新建文档用显示名占位。
@@ -2664,8 +2757,15 @@ async function persistToDisk(force = false): Promise<boolean> {
     void bindDocument(target)
     void watch(target)
   }
-  finalizeFocused()
-  const normalized = serialize(session.blocks)
+  // 大文件：未编辑时直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
+  // 会在"打开后原样保存"这一路径上改写换行字节（撞产品红线）。编辑过才用 CM 的文本。
+  let normalized: string
+  if (largeMode) {
+    normalized = largeDirty ? largeText() : session.source.text
+  } else {
+    finalizeFocused()
+    normalized = serialize(session.blocks)
+  }
   const finalText = applyEncoding(session.source, normalized)
   let res: SaveResult
   try {
@@ -2691,21 +2791,30 @@ async function persistToDisk(force = false): Promise<boolean> {
     showToast(t('saveFailed'))
     return false
   }
-  session.blocks.forEach((b) => {
-    session.originals.set(b.id, b.raw)
-    b.dirty = false
-  })
-  session.structuralDirty = false
+  if (largeMode) {
+    // 保存成功：把 CM 的当前全文记为新的基线（含换行归一，因为 applyEncoding 另存了磁盘形态）
+    largeSnapshot = normalized
+    session.source.text = normalized
+    largeDirty = false
+  } else {
+    session.blocks.forEach((b) => {
+      session.originals.set(b.id, b.raw)
+      b.dirty = false
+    })
+    session.structuralDirty = false
+  }
   if (typeof res.current_mtime_ms === 'number') {
     session.source.mtimeMs = res.current_mtime_ms
   }
-  if (cm) {
-    cm.destroy()
-    cm = null
+  if (!largeMode) {
+    if (cm) {
+      cm.destroy()
+      cm = null
+    }
+    session.focusedId = null
+    render()
   }
-  session.focusedId = null
   markDirty()
-  render()
   showToast(t('saved'))
   return true
 }
@@ -2746,8 +2855,14 @@ async function saveAsFlow() {
     await persistToDisk()
     return
   }
-  finalizeFocused()
-  const normalized = serialize(session.blocks)
+  let normalized: string
+  if (largeMode) {
+    // 同上：未编辑写原文，避免 CM 的换行规整污染字节
+    normalized = largeDirty ? largeText() : session.source.text
+  } else {
+    finalizeFocused()
+    normalized = serialize(session.blocks)
+  }
   const finalText = applyEncoding(session.source, normalized)
   const defaultName = baseName(session.source.path) || 'untitled.md'
   let target: string | null = null
@@ -3102,13 +3217,15 @@ export function parseBlocks(text: string): BlockView[] {
 `
 
 void (async () => {
-  await initSettings()
-  // 大纲的折叠偏好（localStorage）要在第一次 renderOutline 之前读进来
-  readCollapsedPref()
   // 窗口外框（无标题栏）：平台判定 + Windows 自绘控件 + 顶栏滚动分隔。
+  // 放在最前、且不依赖设置：壳的这三个键是"应用还能用"的最低保证，
+  // 排在 await initSettings()（一次 IPC）之后，一旦那次 IPC 不落地，控件就永远挂不上。
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
   mountWindowControls()
   mountHeaderScrollState()
+  await initSettings()
+  // 大纲的折叠偏好（localStorage）要在第一次 renderOutline 之前读进来
+  readCollapsedPref()
   mountSelectionBubble()
 mountLightbox()
   mountTip()
@@ -3136,13 +3253,6 @@ mountLightbox()
       requestAnimationFrame(() => {
         spyTick = false
         updateActiveHeading()
-        // 大文件：滚到距底一屏半以内就再铺 2000 行，直到整篇铺开
-        if (
-          largeRemainder &&
-          contentEl.scrollTop + contentEl.clientHeight * 2.5 > contentEl.scrollHeight
-        ) {
-          appendLargeChunk()
-        }
       })
       scheduleRecordPosition()
     },

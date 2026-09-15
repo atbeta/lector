@@ -11,6 +11,8 @@ export interface ReadResult {
   path: string
   content: string
   mtime_ms: number
+  /** 磁盘字节数（浏览器预览里是 Blob 大小）。大文件判定用它，不用字符数。 */
+  byte_len: number
 }
 
 export interface SaveResult {
@@ -71,7 +73,7 @@ export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> 
       const file = input.files?.[0]
       if (!file) return resolve(null)
       void file.text().then((content) =>
-        resolve({ path: file.name, content, mtime_ms: Date.now() }),
+        resolve({ path: file.name, content, mtime_ms: Date.now(), byte_len: file.size }),
       )
     })
     input.click()

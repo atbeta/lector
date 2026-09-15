@@ -39,6 +39,14 @@ export interface EditorialConfig {
     ArrowLeft?: (view: EditorView) => boolean
     ArrowRight?: (view: EditorView) => boolean
   }
+  /**
+   * 大文件模式：文档可能几十 MB，逐键 `doc.toString()` 复制整篇会直接卡死。
+   * 打开后 onChange 不再收到文本，只在每次变更时触发 onDocChanged（无参）；
+   * 需要全文时（保存）调用方自己从 view.state.doc.toString() 取一次。
+   */
+  largeDocument?: boolean
+  /** 配合 largeDocument：变更通知（不含文本）。 */
+  onDocChanged?: () => void
 }
 
 export interface CmHandle {
@@ -142,7 +150,9 @@ export function mountEditor(
     syntaxHigh,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        onChange(update.state.doc.toString())
+        // 大文件不把整篇 toString（那是 O(n) 复制，逐键调用会卡死）；只报「变了」
+        if (config.largeDocument) config.onDocChanged?.()
+        else onChange(update.state.doc.toString())
       }
       if (config.onSelectionChange && (update.selectionSet || update.docChanged || update.focusChanged)) {
         reportSelection(update.view)
@@ -213,6 +223,9 @@ export function mountEditor(
         {
           key: 'Enter',
           run: (view) => {
+            // 大文件：围栏展开要拿整篇文本（doc.toString()），几十 MB 下每次回车
+            // 都是一次全量复制。大文件模式不做这个便利，交给普通换行。
+            if (config.largeDocument) return false
             // ``` 之后回车 → 展开成代码块（光标进块内）。返回 false 时
             // 交给 lang-markdown 的列表续行等默认行为。
             const { state } = view

@@ -1834,11 +1834,11 @@ const summary = {
     await page.goto(URL_ARG, { waitUntil: 'load' })
     await page.waitForTimeout(600)
   }
-  // 3.17) 大文件模式：必须打得开、只读、不写盘
+  // 3.17) 大文件模式：必须打得开、可编辑（整篇进一个裸 CM）、不建块
   //
-  // 用户的原始反馈是"30M/73 万行永远停在 Loading"。判据不是"有没有提示条"这么弱，
-  // 而是三条一起：**块数**（整篇解析会造出几万个块）、**预览行数**（应当只有前 2000 行）、
-  // **耗时**（超过 15 秒就等同于打不开）。
+  // 用户的原始反馈是"30M/73 万行永远停在 Loading"。旧方案是只读代码块预览；
+  // 现在改成整篇裸 CM6（自带视口虚拟化），所以判据是：**有提示条**、**挂了 CM**、
+  // **没建块**、**档位锁在源码档**、**耗时**（超过 15 秒就等同于打不开）。
   {
     const started = Date.now()
     await page.goto(URL_ARG + '?doc=huge', { waitUntil: 'load' })
@@ -1848,13 +1848,16 @@ const summary = {
       bar: !!document.querySelector('.large-file-bar'),
       mode: document.documentElement.dataset.mode,
       blocks: document.querySelectorAll('#content .block').length,
-      lines: (document.querySelector('#content pre')?.textContent ?? '').split('\n').length,
+      cm: !!document.querySelector('.large-doc-host .cm-editor'),
+      // CM 视口虚拟化：DOM 里的行数应远小于全文行数
+      renderedLines: document.querySelectorAll('.large-doc-host .cm-line').length,
     }))
-    if (!lf.bar) note('error', '大文件没有进入大文件模式（无提示条）：说明整篇解析了，30M 的文档会卡死')
-    if (lf.blocks > 5) note('error', `大文件模式仍建了 ${lf.blocks} 个块（应当只渲染预览块）`)
-    if (lf.lines > 2100) note('error', `大文件预览渲染了 ${lf.lines} 行（应当只渲染前 2000 行）`)
+    if (!lf.bar) note('error', '大文件没有进入大文件模式（无提示条）：说明整篇解析了，大文档会卡死')
+    if (!lf.cm) note('error', '大文件模式没有挂上可编辑的 CodeMirror（应当整篇进裸 CM）')
+    if (lf.mode !== 'source') note('error', `大文件档位应为 source，实为 ${lf.mode}`)
+    if (lf.blocks > 0) note('error', `大文件模式仍建了 ${lf.blocks} 个块（应当不建块）`)
     if (ms > 15000) note('error', `大文件打开耗时 ${ms}ms（超过 15s 等同于打不开）`)
-    else note('info', `大文件：${ms}ms、${lf.blocks} 个块、预览 ${lf.lines} 行、mode=${lf.mode}`)
+    else note('info', `大文件：${ms}ms、mode=${lf.mode}、CM=${lf.cm}、DOM 行 ${lf.renderedLines}`)
     await page.goto(URL_ARG, { waitUntil: 'load' })
     await page.waitForTimeout(500)
   }

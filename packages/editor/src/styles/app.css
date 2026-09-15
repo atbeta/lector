@@ -2666,3 +2666,33 @@ html.is-empty .recent-block { max-width: 560px; margin-inline: auto; }
   border: 2px dashed rgb(var(--primary) / 0.6);
   border-radius: 8px;
 }
+
+/* ───────────── 大文件：整篇裸 CM6 ─────────────
+ * 大文件不做块 IR（整篇 mdast 解析超线性，几十 MB 解析不完），正文区换成
+ * 一个自带视口虚拟化的 CM。滚动发生在 CM 的滚动层里，所以：撤掉 #content 的
+ * 内边距与滚动，由 CM 自己撑满。
+ * 档位锁在源码档——没有可渲染的块，切回阅读/编辑只会是空画面，索性把分段控件隐掉。 */
+html.large-file .mode-switch { display: none; }
+#content.large-doc {
+  overflow: hidden;
+  padding: 0;
+  /* 大文件是纯文本编辑，不套阅读栏宽，让 CM 用满窗口 */
+  max-width: none;
+}
+.large-doc-host {
+  height: 100%;
+  min-height: 0;
+}
+.large-doc-host .cm-editor {
+  height: 100%;
+}
+.large-doc-host .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  padding: 24px clamp(20px, 6vw, 64px) 18vh;
+}
+.large-doc-host .cm-content {
+  max-width: 88ch;
+  margin-inline: auto;
+}
