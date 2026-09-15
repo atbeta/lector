@@ -112,7 +112,7 @@ export function renderEmptyState(deps: LoadStateDeps): void {
   btn.className = 'empty-open'
   // 按钮上不印快捷键：键位查询统一在键盘面板（见 shortcutsPanel.ts）。
   // 印在按钮上会让每个按钮都拖一条尾巴，而且两处（按钮 + 面板）迟早不一致。
-  btn.innerHTML = `${iconSvg('folder', 16)}<span>${t('openFile')}</span>`
+  btn.innerHTML = `${iconSvg('fileText', 16)}<span>${t('openFile')}</span>`
   btn.addEventListener('click', () => void deps.onOpen())
   // 「新建」与「打开文件」主次分明：打开是主要动作（阅读优先），新建是次要动作。
   // 记事本能新建，阅读器却只能打开，用户"想创建却创建不了"是真实会遇到的。

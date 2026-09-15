@@ -155,7 +155,7 @@ const findBtn = document.getElementById('find-btn')!
 const statusLeft = document.getElementById('status-left')!
 const statusRight = document.getElementById('status-right')!
 
-openBtn.innerHTML = iconSvg('folder', 16)
+openBtn.innerHTML = iconSvg('fileText', 16)
 openBtn.setAttribute('aria-label', t('openAria'))
 openBtn.dataset.tip = t('openAria')
 saveBtn.innerHTML = iconSvg('save', 16)
