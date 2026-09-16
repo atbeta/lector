@@ -925,12 +925,11 @@ const summary = {
       // 而文案随语言变（门跑英文界面时是 View original）——按中文标签找会假失败。
       else if (menu.items.length < 3)
         note('error', `图片动作菜单只有 ${menu.items.length} 项（应为：查看原图 / 编辑源码 / 复制图片路径）`)
-      // 菜单里的「查看原图」打开放大浮层
+      // 菜单里的「查看原图」打开放大浮层。
+      // 按**位置**取（实现里它排第一），不按文案：这个脚本的页面没钉 locale，
+      // 文案随机器语言变，按中文标签找会永远假红——上面 924 行刚说过这件事。
       await page.evaluate(() => {
-        const btn = [...document.querySelectorAll('.context-menu .context-item')].find((b) =>
-          b.textContent?.includes('查看原图'),
-        )
-        btn?.click()
+        document.querySelector('.context-menu .context-item')?.click()
       })
       await page.waitForTimeout(300)
       const opened = await page.evaluate(() => {
@@ -1639,17 +1638,60 @@ const summary = {
       const row = [...document.querySelectorAll('.settings-row.cell')].find(
         (r) => (r.textContent ?? '').includes('界面缩放') || (r.textContent ?? '').includes('Interface zoom'),
       )
-      return row ? { value: (row.querySelector('.slider-value')?.textContent ?? '').trim() } : null
+      return row
+        ? {
+            value: (row.querySelector('.slider-value')?.textContent ?? '').trim(),
+            label: (row.querySelector('.row-label')?.textContent ?? '').trim(),
+          }
+        : null
     })
     if (!zoomRow) note('error', '设置里找不到「界面缩放」这一行（可能误用了 row 而不是 cellRow 而整行丢失）')
     else if (!/%$/.test(zoomRow.value)) {
       note('error', `界面缩放的读数没有渲染：${JSON.stringify(zoomRow.value)}（slider 的 readout 是独立元素，必须用 cellRow）`)
     }
+
+    // 分区标题的显隐：浏览时藏（左侧选中项已经写着这一节叫什么，右侧再顶一行是同一句话说两遍），
+    // 搜索时露（结果跨分区，那些标题正是「这条命中属于哪一节」的答案）。
+    //
+    // 查询词从界面里取（「界面缩放」这一行的标签），不硬写字符串：这个脚本的页面没钉 locale，
+    // 文案跟着机器语言走，写死中文会在英文环境下永远搜不到东西、把检查变成假红。
+    const visibleGroups = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('.settings-group')]
+          .filter((s) => !s.hidden)
+          .map((s) => ({
+            section: s.dataset.section,
+            title: (s.querySelector('.settings-group-title')?.textContent ?? '').trim(),
+            titleHidden: s.querySelector('.settings-group-title')?.hidden,
+          })),
+      )
+    const browsing = await visibleGroups()
+    if (browsing.length !== 1) {
+      note('warn', `常规浏览时应恰好一个分区可见，实为 ${browsing.length} 个，标题显隐检查可能不准`)
+    }
+    for (const g of browsing) {
+      if (g.titleHidden !== true) {
+        note('error', `常规浏览时分区标题「${g.title}」不该可见：它与左侧选中项重复`)
+      }
+    }
+    const probe = (zoomRow?.label ?? '').trim().slice(0, 3) || 'zoom'
+    await page.fill('.settings-search', probe)
+    await page.waitForTimeout(300)
+    const searching = await visibleGroups()
+    if (searching.length === 0) note('error', `搜索「${probe}」没有任何分区命中`)
+    for (const g of searching) {
+      if (g.titleHidden !== false) {
+        note('error', `搜索时分区 ${g.section} 的标题被藏了：跨分区命中要靠它说明属于哪一节`)
+      }
+    }
+    await page.fill('.settings-search', '')
+    await page.waitForTimeout(200)
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)
     note(
       'info',
-      `界面缩放：${z0.zoom} → ${z1.zoom} → 复位 ${z2.zoom}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}`,
+      `界面缩放：${z0.zoom} → ${z1.zoom} → 复位 ${z2.zoom}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}；` +
+        `分区标题 浏览时藏 ${browsing.length} 个，搜「${probe}」时露 ${searching.length} 个`,
     )
   }
 
