@@ -151,7 +151,7 @@ export function openTableEditor(opts: {
     btn.tabIndex = -1
     btn.title = label
     btn.setAttribute('aria-label', label)
-    btn.innerHTML = iconSvg(icon, 14)
+    btn.innerHTML = iconSvg(icon, 16)
     btn.addEventListener('click', run)
     return btn
   }
@@ -247,7 +247,7 @@ export function openTableEditor(opts: {
     const addRowBtn = document.createElement('button')
     addRowBtn.type = 'button'
     addRowBtn.className = 'table-editor-add-row'
-    addRowBtn.innerHTML = `${iconSvg('plus', 14)}<span>${t('tableAddRow')}</span>`
+    addRowBtn.innerHTML = `${iconSvg('plus', 16)}<span>${t('tableAddRow')}</span>`
     addRowBtn.addEventListener('click', () => {
       draft = addRow(draft)
       dirty = true
