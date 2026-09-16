@@ -4,8 +4,12 @@
 ;
 ; Tauri 的 bundle.fileAssociations 会建类键（这里即 "Markdown"，路径
 ; HKCU\Software\Classes\Markdown，installMode=currentUser 时 hive 由 SHCTX 决定），
-; 也建了 DefaultIcon 子键，但默认值是空的——资源管理器于是退化用白纸图标，
-; .md 跟「未知类型」长得一模一样。
+; 并把 DefaultIcon 指到应用图标（lector.exe,0）——文档图标于是变成满幅深色方块。
+;
+; 注意 Explorer 实际用哪条链取图标由 .md 的生效 ProgID 决定：
+; - 无 UserChoice 时走 Software\Classes\.md -> "Markdown"，改类键的 DefaultIcon 即可；
+; - 用户曾在「打开方式」里选过 Lector 时，UserChoice 的 ProgId 通常是
+;   "Applications\lector.exe"，类键被完全绕过——所以两处都要写（见宏内第二个 Write）。
 ;
 ; 图标刻意不用应用图标：应用图标是满幅的深色圆角方块，当文档图标用太重，
 ; 在一堆文件里也认不出「这是一份文档」。改用随包发的 markdown.ico
@@ -28,6 +32,8 @@
   ${Else}
     ${If} ${FileExists} "${LECTOR_FILE_ICON}"
       WriteRegStr SHCTX "Software\Classes\${LECTOR_FILE_CLASS}\DefaultIcon" "" "${LECTOR_FILE_ICON},0"
+      ; UserChoice 指向 "Applications\lector.exe" 时 Explorer 走这条链取图标
+      WriteRegStr SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe\DefaultIcon" "" "${LECTOR_FILE_ICON},0"
       DetailPrint "Lector: ${LECTOR_FILE_CLASS} icon -> ${LECTOR_FILE_ICON}"
     ${Else}
       ; 资源没落到位：退回 exe 自带的应用图标。难看，但总好过白纸。
@@ -43,6 +49,7 @@
   ; 只删图标值，不动类键本身：类键与 .md 关联的增删由安装器自身的关联逻辑负责
   ; （markdown.ico 本身也由安装器按 resources 清单在卸载时删掉）。
   DeleteRegValue SHCTX "Software\Classes\${LECTOR_FILE_CLASS}\DefaultIcon" ""
+  DeleteRegValue SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe\DefaultIcon" ""
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
 
