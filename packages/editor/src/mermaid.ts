@@ -40,7 +40,16 @@ function cachePut(key: string, svg: string): void {
 
 function getMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((m) => m.default)
+    // 加载失败**不能**留在缓存里：一次失败（例如依赖缓存过期，动态 import 拿到
+    // 504 Outdated Optimize Dep）会把整个会话钉死——之后每张图都拿到同一个已 reject 的
+    // promise，界面上一直是「渲染失败」，而重新加载明明已经能成功了。
+    // 清掉它，下一次渲染自己重试；失败本身仍由调用方照常报出来。
+    mermaidPromise = import('mermaid')
+      .then((m) => m.default)
+      .catch((err: unknown) => {
+        mermaidPromise = null
+        throw err
+      })
   }
   return mermaidPromise
 }

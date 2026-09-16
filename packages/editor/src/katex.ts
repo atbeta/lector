@@ -23,11 +23,18 @@ const CACHE_MAX = 200
 
 function getKatex(): Promise<Katex> {
   if (!katexPromise) {
+    // 同 mermaid：失败的 promise 不许留在缓存里，否则一次加载失败会让整篇文档的公式
+    // 一直渲染不出来，而重试本来就能成（清掉后下一次渲染自己重来）。
     katexPromise = Promise.all([
       import('katex'),
       // CSS 跟 katex JS 同时拉:Vite 抽成同一个 chunk,字体 woff2 也会内联
       import('katex/dist/katex.min.css'),
-    ]).then(([m]) => m.default)
+    ])
+      .then(([m]) => m.default)
+      .catch((err: unknown) => {
+        katexPromise = null
+        throw err
+      })
   }
   return katexPromise
 }
