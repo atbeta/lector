@@ -809,6 +809,8 @@ const summary = {
         count: opts.length,
         modes: opts.map((o) => o.dataset.mode),
         labels: opts.map((o) => o.querySelector('.mode-opt-label')?.textContent ?? ''),
+        icons: opts.map((o) => o.querySelectorAll('svg').length),
+        names: opts.map((o) => o.getAttribute('aria-label') ?? ''),
         activeCount: opts.filter((o) => o.classList.contains('active')).length,
         active: document.querySelector('.mode-opt.active')?.dataset.mode ?? null,
         aria: opts.filter((o) => o.getAttribute('aria-checked') === 'true').length,
@@ -816,7 +818,11 @@ const summary = {
       }
     })
     if (modeUi.count !== 3) note('error', `视图模式控件有 ${modeUi.count} 档（期望 3：阅读/编辑/源码）`)
-    if (modeUi.labels.some((l) => !l.trim())) note('error', `视图模式有档位没有文字标签：${JSON.stringify(modeUi.labels)}`)
+    // 三档「只要图标」是产品决定（顶栏更干净），所以不再要求文字标签；
+    // 但纯图标意味着**可访问名必须存在**——既没文字又没 aria-label 的控件，
+    // 读屏与悬浮提示双失，那是真缺陷，不是风格。
+    if (modeUi.icons.some((n) => n === 0)) note('error', `视图模式有档位没有图标：${JSON.stringify(modeUi.icons)}`)
+    if (modeUi.names.some((n) => !n.trim())) note('error', `视图模式有档位没有可访问名（aria-label）：${JSON.stringify(modeUi.names)}`)
     if (modeUi.activeCount !== 1) note('error', `视图模式同时有 ${modeUi.activeCount} 档处于选中态`)
     if (modeUi.aria !== 1) note('error', '视图模式的分段控件没有正确的 aria-checked（键盘/读屏拿不到当前档）')
     if (modeUi.active !== modeUi.htmlMode) {
@@ -903,6 +909,11 @@ const summary = {
       if (img.cursor !== 'pointer') note('error', `阅读里的图片光标是 ${img.cursor}，没有「可点击」的提示`)
       if (!img.loaded) note('error', '样本文档里的图片没加载出来（夹具路径不对？）')
       // 点击图片 → 弹「针对这张图」的动作菜单
+      //
+      // 先把图滚进视口再等滚动停：菜单遇滚动会收起（这是设计，防止菜单悬在已经移走的位置上），
+      // 而 playwright 的 click 会自己先滚动一次——直接点就会"点了没菜单"的假失败。
+      await page.evaluate(() => document.querySelector('.reading-prose img')?.scrollIntoView({ block: 'center' }))
+      await page.waitForTimeout(450)
       await page.click('.reading-prose img')
       await page.waitForTimeout(250)
       const menu = await page.evaluate(() => ({
@@ -910,8 +921,10 @@ const summary = {
         items: [...document.querySelectorAll('.context-menu .context-item')].map((b) => b.textContent),
       }))
       if (!menu.open) note('error', '点击图片没有弹出图片动作菜单')
-      else if (!menu.items.some((s) => s.includes('查看原图')))
-        note('error', `图片菜单里没有「查看原图」：${menu.items.join(' / ')}`)
+      // 按「位置/条数」判定，不按「文案」：实现里查看原图排第一，
+      // 而文案随语言变（门跑英文界面时是 View original）——按中文标签找会假失败。
+      else if (menu.items.length < 3)
+        note('error', `图片动作菜单只有 ${menu.items.length} 项（应为：查看原图 / 编辑源码 / 复制图片路径）`)
       // 菜单里的「查看原图」打开放大浮层
       await page.evaluate(() => {
         const btn = [...document.querySelectorAll('.context-menu .context-item')].find((b) =>

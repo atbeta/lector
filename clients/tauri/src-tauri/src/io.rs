@@ -526,7 +526,14 @@ pub fn open_path(app: &AppHandle, path: &str) {
   let pending = app.state::<PendingOpens>();
   pending.0.lock().unwrap().insert(label.clone(), path.to_string());
 
-  match build_doc_window(app, &label) {
+  // 标题在**建窗时**就设成目标文档的名字，而不是先写 "Lector" 等 Web 层来纠正：
+  // 首帧必然先出现那个占位标题，随后才切成文档名——用户看到的是"标题栏先闪一下
+  // Lector，再出现文档"。占位一旦被画出来就已经晚了，所以必须在这里给对。
+  let title = std::path::Path::new(path)
+    .file_name()
+    .and_then(|s| s.to_str())
+    .unwrap_or("Lector");
+  match build_doc_window(app, &label, title) {
     Ok(_win) => {
       let _ = registry.0.lock().unwrap().insert(key, label);
     }
@@ -622,7 +629,7 @@ pub fn ensure_main_window(app: &AppHandle) -> tauri::Result<()> {
   if app.get_webview_window("main").is_some() {
     return Ok(());
   }
-  build_doc_window(app, "main")?;
+  build_doc_window(app, "main", "Lector")?;
   Ok(())
 }
 
@@ -670,7 +677,7 @@ fn position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
   app.monitor_from_point(x, y).ok().flatten().is_some()
 }
 
-fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::WebviewWindow> {
+fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<tauri::WebviewWindow> {
   let chrome = window_chrome();
   let (w, h) = default_window_size(app);
   // 预读 window-state 存档，让窗口「出生即在正确位置」。
@@ -682,7 +689,7 @@ fn build_doc_window(app: &AppHandle, label: &str) -> tauri::Result<tauri::Webvie
   // 预应用几何是唯一两头都对的做法：插件的就绪时自动恢复仍会执行，同值幂等。
   let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
-    .title("Lector")
+    .title(title)
     .min_inner_size(480.0, 360.0)
     // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
     // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
