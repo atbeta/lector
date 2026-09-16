@@ -1,5 +1,6 @@
 import { defaultKeymap, history, historyKeymap, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
+import { languages } from '@codemirror/language-data'
 import { keymap, EditorView, highlightWhitespace } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
@@ -145,7 +146,11 @@ export function mountEditor(
   config: EditorialConfig,
 ): CmHandle {
   const extensions: Extension[] = [
-    config.language ?? markdown(),
+    // codeLanguages：围栏内代码按 info string（```ts / ```python…）挂对应语言的
+    // 解析器，编辑态与阅读态（Prism）同一覆盖面。language-data 按需懒加载，
+    // 只有真正聚焦到某语言的块才会载入那个解析器；token 色走下面的 syntaxHigh，
+    // 与阅读态同一套 --code-* 变量。
+    config.language ?? markdown({ codeLanguages: languages }),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
