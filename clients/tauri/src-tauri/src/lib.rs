@@ -38,9 +38,19 @@ pub fn run() {
     .manage(AllowedDirs::default())
     .manage(PendingOpens::default())
     .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-      for path in paths_from_argv(&argv) {
-        open_if_markdown(app, &path);
-      }
+      // 这个回调是在插件隐藏窗口的**窗口过程**里被调的（WM_COPYDATA 处理中，
+      // 见 tauri-plugin-single-instance 的 windows.rs）——和 snap.rs 踩过的是同一类坑：
+      // 在窗口过程里同步调 Tauri 建窗 API 会重入死锁，症状就是「双击再开一个 md，
+      // 新窗口卡死只能强杀」（第一个窗口走 setup，不在窗口过程里，所以没事）。
+      // 修法与 snap.rs 一致：先跳出窗口过程，把建窗丢给普通线程，
+      // 由它经事件循环回到主线程执行。
+      let app = app.clone();
+      let paths = paths_from_argv(&argv);
+      std::thread::spawn(move || {
+        for path in paths {
+          open_if_markdown(&app, &path);
+        }
+      });
     }))
     .plugin(tauri_plugin_dialog::init())
     // 窗口状态：退出时记住尺寸/位置/是否最大化，启动时恢复。
@@ -48,20 +58,25 @@ pub fn run() {
     // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
     .plugin(tauri_plugin_window_state::Builder::default().build())
     .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Debug)
-            .targets([
-              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-              // 落一份到文件：Windows 上用户是双击启动的，stdout 直接丢了——
-              // 排查"第二个窗口卡死"这类问题时，日志是唯一的证据来源。
-              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
-            ])
-            .build(),
-        )?;
-      }
+      // 日志三路：Stdout（开发）、Webview（控制台）、文件（Windows 双击启动时唯一能找回的）。
+      // 之前整段包在 cfg!(debug_assertions) 里——用户装的 release 包一条日志都没有，
+      // 排查「第二个窗口卡死」时无据可查（上次加的埋点就是这么丢的）。
+      // release 也落文件，级别降到 Info；文件在 %APPDATA%\com.lector.reader\logs\。
+      let level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+      } else {
+        log::LevelFilter::Info
+      };
+      app.handle().plugin(
+        tauri_plugin_log::Builder::default()
+          .level(level)
+          .targets([
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+          ])
+          .build(),
+      )?;
       let _ = menu::create(app.handle());
       let argv: Vec<String> = std::env::args().collect();
       let opened = paths_from_argv(&argv);
