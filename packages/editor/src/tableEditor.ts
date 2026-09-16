@@ -185,35 +185,43 @@ export function openTableEditor(opts: {
     hr.appendChild(headGutter)
     draft.header.forEach((cell, ci) => {
       const th = document.createElement('th')
-      th.appendChild(makeCell(-1, ci, cell))
+      const head = document.createElement('div')
+      head.className = 'table-editor-head'
+      head.appendChild(makeCell(-1, ci, cell))
       if (cols > 1) {
-        th.appendChild(
-          opButton(t('tableDelCol'), 'close', () => {
-            draft = deleteCol(draft, ci)
-            dirty = true
-            renderGrid()
-          }),
-        )
+        const del = opButton(t('tableDelCol'), 'close', () => {
+          draft = deleteCol(draft, ci)
+          dirty = true
+          renderGrid()
+        })
+        del.classList.add('table-editor-del')
+        head.appendChild(del)
       }
+      th.appendChild(head)
       hr.appendChild(th)
     })
     const addColTh = document.createElement('th')
     addColTh.className = 'table-editor-gutter'
-    addColTh.appendChild(
-      opButton(t('tableAddCol'), 'plus', () => {
-        draft = addCol(draft)
-        dirty = true
-        renderGrid()
-        focusCell(-1, draft.header.length - 1)
-      }),
-    )
+    const addColBtn = document.createElement('button')
+    addColBtn.type = 'button'
+    addColBtn.className = 'table-editor-add-col'
+    addColBtn.title = t('tableAddCol')
+    addColBtn.setAttribute('aria-label', t('tableAddCol'))
+    addColBtn.innerHTML = iconSvg('plus', 16)
+    addColBtn.addEventListener('click', () => {
+      draft = addCol(draft)
+      dirty = true
+      renderGrid()
+      focusCell(-1, draft.header.length - 1)
+    })
+    addColTh.appendChild(addColBtn)
     hr.appendChild(addColTh)
     thead.appendChild(hr)
 
     const tbody = document.createElement('tbody')
     draft.body.forEach((row, ri) => {
       const tr = document.createElement('tr')
-      // 左 gutter：↑/↓ 排序（悬停行时显现，到边 disabled）
+      // 左 gutter：↑/↓ 竖叠常显，到边 disabled
       const reorder = document.createElement('td')
       reorder.className = 'table-editor-reorder-gutter'
       const moveGroup = document.createElement('div')
@@ -228,13 +236,13 @@ export function openTableEditor(opts: {
       })
       const gutter = document.createElement('td')
       gutter.className = 'table-editor-gutter'
-      gutter.appendChild(
-        opButton(t('tableDelRow'), 'close', () => {
-          draft = deleteRow(draft, ri)
-          dirty = true
-          renderGrid()
-        }),
-      )
+      const del = opButton(t('tableDelRow'), 'close', () => {
+        draft = deleteRow(draft, ri)
+        dirty = true
+        renderGrid()
+      })
+      del.classList.add('table-editor-del')
+      gutter.appendChild(del)
       tr.appendChild(gutter)
       tbody.appendChild(tr)
     })
