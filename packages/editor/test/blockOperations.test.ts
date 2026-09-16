@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createSourceDocument, parseBlocks, serialize } from '@lector/core'
+import { createSourceDocument, parseBlocks, serialize, type BlockView } from '@lector/core'
 import { EditorState } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { sessionIsDirty } from '../src/sessionDirty.ts'
@@ -84,8 +84,91 @@ describe('deleteBlock', () => {
   })
 })
 
-describe('insertParagraphBefore/After', () => {
-  test('插入保序，撤销只移除插入的块', () => {
+/**
+ * 相邻两个内容块之间在**序列化后的文本里**必须至少隔着一个换行。
+ *
+ * 为什么单独立一条判据：块数组就是文档文本的顺序，而块与块之间的换行住在单独的
+ * gap 块里（块自己的 raw 不含尾部换行）。插入时把顺序插反——段落在前、缝隙在后——
+ * 编辑时完全看不出来（渲染是按块建 DOM，每块各占一行），只有在保存后的字节里才现形：
+ * 新段落粘在上一块的同一行。断言「块数组里 para 在 gap 前面」是抓不到这个的
+ * （原来那条测试就是这么写的，所以这个 bug 一路漏到了保存）。
+ */
+function gapsBetweenContentBlocks(blocks: readonly BlockView[], text: string): string[] {
+  const gaps: string[] = []
+  let cursor = 0
+  let prevEnd: number | null = null
+  for (const b of blocks) {
+    if (b.kind === 'unknown' && b.raw.trim() === '') continue
+    const at = text.indexOf(b.raw, cursor)
+    if (at < 0) continue
+    if (prevEnd !== null) gaps.push(text.slice(prevEnd, at))
+    prevEnd = at + b.raw.length
+    cursor = prevEnd
+  }
+  return gaps
+}
+
+describe('插入的块不能和相邻块粘在同一行', () => {
+  test('在 H2 后插入段落：存盘后是「## 标题\\n\\n新段落」，不是「## 标题新段落」', () => {
+    const s = makeSession('# 标题\n\n正文\n')
+    const { ops } = makeOps(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    // 用户在新段落里打字（走 setBlockRaw，与 CM 里输入等价）
+    ops.setBlockRaw(s.blocks.find((b) => b.id === s.focusedId)!, '新段落')
+    const text = serialize(s.blocks)
+    expect(text).toContain('# 标题\n\n新段落')
+    expect(text).not.toContain('# 标题新段落')
+  })
+
+  test('在块前插入段落：存盘后新段落自成一行', () => {
+    const s = makeSession('# 标题\n\n正文\n')
+    const { ops } = makeOps(s)
+    const para = s.blocks.find((b) => b.raw === '正文')!
+    ops.insertParagraphBefore(para.id)
+    ops.setBlockRaw(s.blocks.find((b) => b.id === s.focusedId)!, '新段落')
+    const text = serialize(s.blocks)
+    expect(text).toContain('新段落\n\n正文')
+    expect(text).not.toContain('新段落正文')
+  })
+
+  test('插入 mermaid 模板后同样自成一行', () => {
+    const s = makeSession('# 标题\n\n正文\n')
+    const { ops } = makeOps(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertMermaidAfter(h1.id)
+    const text = serialize(s.blocks)
+    expect(text).toMatch(/^# 标题\n\n```mermaid/)
+  })
+
+  test('文档末尾没有换行、且插在最后一块之后：仍然自成一行', () => {
+    // testdata/no-trailing-newline.md 就是这种形状：末尾没有空行缝可借，
+    // 插入时那对新块必须自己带缝（缝在前），不能指望后面有 gap 兜底。
+    const s = makeSession('甲')
+    const { ops } = makeOps(s)
+    const last = s.blocks.filter((b) => b.kind !== 'unknown').at(-1)!
+    ops.insertParagraphAfter(last.id)
+    ops.setBlockRaw(s.blocks.find((b) => b.id === s.focusedId)!, '新段落')
+    expect(serialize(s.blocks)).toBe('甲\n\n新段落')
+  })
+
+  test('所有插入路径：相邻内容块之间都隔着换行', () => {
+    const s = makeSession(DOC)
+    const { ops } = makeOps(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    ops.setBlockRaw(s.blocks.find((b) => b.id === s.focusedId)!, '甲')
+    const para = s.blocks.find((b) => b.raw === '第二段')!
+    ops.insertParagraphBefore(para.id)
+    ops.setBlockRaw(s.blocks.find((b) => b.id === s.focusedId)!, '乙')
+    const text = serialize(s.blocks)
+    const gaps = gapsBetweenContentBlocks(s.blocks, text)
+    expect(gaps.length).toBeGreaterThan(0)
+    expect(gaps.filter((g) => !g.includes('\n'))).toEqual([])
+  })
+})
+
+describe('insertParagraphBefore/After', () => {  test('插入保序，撤销只移除插入的块', () => {
     const s = makeSession(DOC)
     const { ops } = makeOps(s)
     const anchor = s.blocks.find((b) => b.raw === '第二段')!
@@ -102,7 +185,11 @@ describe('insertParagraphBefore/After', () => {
     ops.insertParagraphAfter(anchor.id)
     const idxAfter = s.blocks.findIndex((b) => b.id === anchor.id)
     expect(idxAfter).toBe(idx - 2)
-    expect(s.blocks[idxAfter + 1]!.kind).toBe('paragraph')
+    // 在「后」插入是缝在前、段落在后：块的 raw 不含尾部换行，换行由 gap 块持有。
+    // 这条以前断言的是 [anchor, paragraph, gap]（顺序反了），那正是「新段落粘在
+    // 标题同一行」的来源——块数组看着没问题，序列化出来才发现。
+    expect(s.blocks[idxAfter + 1]!.kind).toBe('unknown')
+    expect(s.blocks[idxAfter + 2]!.kind).toBe('paragraph')
   })
 })
 
@@ -180,7 +267,11 @@ describe('mergeBlock', () => {
     expect(ops.mergeBlock(emptyPara, view)).toBe(true)
     expect(s.blocks.find((b) => b.id === emptyPara.id)).toBeUndefined()
     expect(s.blocks.filter((b) => b.raw === '' && b.kind === 'paragraph').length).toBe(0)
-    expect(serialize(s.blocks)).toBe('甲\n\n\n')
+    // 回到插入前的字节：'甲\n'。
+    // 这条以前期望 '甲\n\n\n'——那是按「空段落排在缝前面」的旧顺序算出来的：
+    // 空段被吃掉、后插的那条缝留在原地，凭空多一行。顺序修正后，Backspace
+    // 撤掉的正是刚才那一次插入，一个字节都不多。
+    expect(serialize(s.blocks)).toBe('甲\n')
     expect(focusCalls.length).toBe(1)
     expect(focusCalls[0]!.id).toBe(prev.id)
     expect(focusCalls[0]!.intent).toEqual({ mode: 'end' })

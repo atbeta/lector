@@ -79,7 +79,10 @@ export function createBlockOperations({
     if (i < 0) return
     const at = session.blocks[i]!.end
     const { para, gap } = makeEmptyParagraph(at)
-    session.blocks.splice(i + 1, 0, para, gap)
+    // **顺序是「缝在前、段落在后」**：块的 raw 不含尾部换行，块之间的换行住在 gap 块里。
+    // 插反（para, gap）的后果是序列化出 `## 标题新段落`——渲染按块建 DOM，编辑时
+    // 每块各占一行，完全看不出来，只有存盘再打开才现形（更早还有一份 bug 就是这么漏的）。
+    session.blocks.splice(i + 1, 0, gap, para)
     session.originals.set(para.id, para.raw)
     session.originals.set(gap.id, gap.raw)
     blockUndoStack.push(t('menuUndoInsert'), () => {
@@ -135,7 +138,8 @@ export function createBlockOperations({
       mdast: null,
       dirty: true,
     }
-    session.blocks.splice(i + 1, 0, block, gap)
+    // 同 insertParagraphAfter：缝要在块之前，否则 mermaid 围栏会粘在上一块的行尾
+    session.blocks.splice(i + 1, 0, gap, block)
     session.originals.set(block.id, block.raw)
     session.originals.set(gap.id, gap.raw)
     blockUndoStack.push(t('menuUndoInsert'), () => {
