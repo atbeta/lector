@@ -132,9 +132,11 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       { label: t('imageView'), run: () => showInLightbox(img.src, img.alt) },
     ]
     if (target) {
-      items.push({ label: t('imageEditAlt'), run: () => void editImageAlt(target.block, target.index) })
-      items.push({ label: t('imageReplace'), run: () => replaceImageFile(target.block, target.index) })
-      items.push({ label: t('imageEditSource'), run: () => focusImageSource(target.block, target.index) })
+      // mutates：三项都会改文档（描述写进 alt、替换写盘、编辑源码把块切进 CM），
+      // 阅读档一律不出现——过滤在 documentMenus 的 forMode()
+      items.push({ label: t('imageEditAlt'), mutates: true, run: () => void editImageAlt(target.block, target.index) })
+      items.push({ label: t('imageReplace'), mutates: true, run: () => replaceImageFile(target.block, target.index) })
+      items.push({ label: t('imageEditSource'), mutates: true, run: () => focusImageSource(target.block, target.index) })
     }
     const local = assetLocalPath(img.src)
     if (local) {
@@ -153,6 +155,8 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       items.push({
         separatorBefore: true,
         label: t('imageUpload'),
+        // 上传会回写正文里的图片地址，属于改文档
+        mutates: true,
         run: () => void uploadImageAt(target.block, target.index, local),
       })
     }

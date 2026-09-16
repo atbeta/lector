@@ -16,6 +16,14 @@ export interface ContextMenuItem {
   /** 危险动作（删除类）用红色文字 */
   danger?: boolean
   disabled?: boolean
+  /**
+   * 会改动文档的动作。
+   *
+   * 只读档（阅读）不给这类项——规矩与过滤都在 documentMenus 的 forMode()：
+   * 菜单是阅读档与编辑档唯一共用的入口，漏一个「编辑表格」就等于阅读档能改文档。
+   * 只做复制、打开链接、查看原图这类不动内容的项不要标。
+   */
+  mutates?: boolean
   run?: () => void
 }
 

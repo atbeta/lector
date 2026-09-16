@@ -101,6 +101,8 @@ const menus = createDocumentMenus({
   files,
   imageMenuItems: images.imageMenuItems,
   contentEl,
+  // 菜单要分档：阅读档只给「读」的动作（见 documentMenus 的 forMode）
+  getViewMode: () => chrome.getViewMode(),
 })
 
 // 初始化：壳环境注入资源解析器 + 绑定事件

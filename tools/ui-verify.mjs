@@ -1059,6 +1059,99 @@ const summary = {
       note('error', `⌘Z 没能恢复删除的块：${afterDelete} → ${afterUndo}，期望回到 ${before}`)
     }
     note('info', `右键菜单：块 ${blockMenu.length} 项，删除+⌘Z 恢复 ${before}→${afterDelete}→${afterUndo}`)
+
+    // ── 阅读档只给「读」的动作 ──
+    //
+    // 菜单是阅读档与编辑档唯一共用的入口：点块进入编辑那条路本来就在只读档 return 了，
+    // 菜单一直没分档，于是阅读档右键表格会端出「编辑表格…」——从侧门把编辑能力放回了只读档。
+    //
+    // 判据刻意不按文案（页面没钉 locale）：只比**两档菜单的集合关系**。阅读档必须是
+    // 编辑档的严格子集，且不再含危险项（删除那类），同时复制项还在（别修成空菜单）。
+    const openMenuOn = async (sel) => {
+      await page.locator(sel).first().scrollIntoViewIfNeeded()
+      await page.waitForTimeout(250)
+      await rightClick(sel)
+      return page.evaluate(() => ({
+        items: [...document.querySelectorAll('.context-menu .context-item')].map((b) => (b.textContent ?? '').trim()),
+        dangers: document.querySelectorAll('.context-menu .context-item[data-danger="true"]').length,
+        sepFirst: document.querySelector('.context-menu')?.firstElementChild?.className === 'context-sep',
+      }))
+    }
+    const setMode = async (mode) => {
+      await page.locator(`.mode-opt[data-mode="${mode}"]`).click()
+      await page.waitForTimeout(320)
+    }
+    // 正文左留白：那里不属于任何块，拿到的是「段间空白」那份菜单。
+    // 必须自检落点——坐标偏一点就落在块上，那一层会静默变成「又测了一遍块菜单」。
+    const openBlankMenu = async () => {
+      const g = await page.evaluate(() => {
+        const content = document.getElementById('content')
+        content.scrollTop = 0
+        const blocks = [...document.querySelectorAll('#content > .block:not(.gap)')]
+        const b = blocks[1] ?? blocks[0]
+        const r = b.getBoundingClientRect()
+        const x = Math.round(r.left - 16)
+        const y = Math.round(r.top + r.height / 2)
+        const hit = document.elementFromPoint(x, y)
+        return { x, y, insideBlock: !!hit?.closest('.block') }
+      })
+      if (g.insideBlock) return { items: [], missed: true }
+      await page.mouse.click(g.x, g.y, { button: 'right' })
+      await page.waitForTimeout(250)
+      const items = await page.evaluate(() =>
+        [...document.querySelectorAll('.context-menu .context-item')].map((b) => (b.textContent ?? '').trim()),
+      )
+      return { items, missed: false }
+    }
+    const tableSel = '#content .block[data-kind="table"]'
+    await setMode('edit')
+    const tableEdit = await openMenuOn(tableSel)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    const blankEdit = await openBlankMenu()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    await setMode('read')
+    const tableRead = await openMenuOn(tableSel)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    const blankRead = await openBlankMenu()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+
+    if (tableEdit.items.length === 0) note('warn', '编辑档右键表格没给出菜单，阅读档的分档检查是空跑')
+    const leaked = tableRead.items.filter((l) => !tableEdit.items.includes(l))
+    if (leaked.length > 0) {
+      note('error', `阅读档的块菜单出现了编辑档没有的项：${JSON.stringify(leaked)}`)
+    }
+    if (tableRead.items.length >= tableEdit.items.length) {
+      note('error', `阅读档块菜单没有比编辑档少（${tableRead.items.length} vs ${tableEdit.items.length}）：「编辑表格…」那类改文档的动作还在`)
+    }
+    if (tableRead.dangers > 0) note('error', '阅读档块菜单里还有危险项（删除本块那类）')
+    if (tableRead.items.length < 3) {
+      note('error', `阅读档块菜单只剩 ${tableRead.items.length} 项：复制类动作不该被一起摘掉`)
+    }
+    if (tableRead.sepFirst) note('error', '阅读档块菜单首项是分隔线：过滤掉首项后没清 separatorBefore')
+
+    // 留白菜单同样分档（那里原本有「在下方插入段落」）；判据同上一律比集合，不认文案
+    if (blankEdit.missed || blankRead.missed) {
+      note('warn', '右键没落在正文留白上（坐标偏了），留白那一层没验到')
+    } else if (blankEdit.items.length === 0) {
+      note('warn', '编辑档右键留白没有菜单，这一层没验到')
+    } else if (blankRead.items.length >= blankEdit.items.length) {
+      note(
+        'error',
+        `阅读档的留白菜单没有比编辑档少（${blankRead.items.length} vs ${blankEdit.items.length}）：插入段落的入口还在`,
+      )
+    } else if (blankRead.items.length === 0) {
+      note('error', '阅读档的留白菜单空了：复制全文那类只读动作不该被一起摘掉')
+    }
+    note(
+      'info',
+      `只读档菜单：块 ${tableEdit.items.length} → ${tableRead.items.length} 项（危险项 ${tableRead.dangers}），` +
+        `留白 ${blankEdit.items.length} → ${blankRead.items.length} 项`,
+    )
+    await setMode('edit')
   }
 
   // 3.8) 阅读主题：纸墨与标定排版必须真的上屏

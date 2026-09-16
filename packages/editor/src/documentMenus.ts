@@ -8,21 +8,45 @@ import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
+import type { ViewMode } from './editorChrome.ts'
 
 export function createDocumentMenus({
   editor,
   files,
   imageMenuItems,
   contentEl,
+  getViewMode,
 }: {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
   files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'revealCurrent' | 'closeFile'>
   imageMenuItems: (img: HTMLImageElement) => ContextMenuItem[]
   contentEl: HTMLElement
+  getViewMode: () => ViewMode
 }) {
   // ───────────── 右键菜单 ─────────────
   // 分场景给菜单：读代码的要「复制」，改文档的要「删除/插入」，点了任务的想「勾选」。
   // 同一个菜单套所有场景会让每一项都显得可疑。
+
+  /**
+   * 只读档（阅读）只给「读」的动作。
+   *
+   * 阅读是主路径，编辑只是「顺手能改」。**右键菜单是两档唯一共用的入口**——
+   * 点块进入编辑那条路本来就在只读档 return 了（见 appBindings 的 click 处理），
+   * 而这份菜单一直没分档，于是阅读档右键表格会端出「编辑表格…」，
+   * 等于从侧门把编辑能力放回了只读档。
+   *
+   * 规矩只有这一条：标了 mutates 的项在阅读档一律不出现。新增会改文档的菜单项时
+   * 必须自己标上——所以下面每一项的 mutates 都是刻意写的，不是漏的。
+   */
+  function forMode(items: ContextMenuItem[]): ContextMenuItem[] {
+    if (getViewMode() !== 'read') return items
+    const kept = items.filter((i) => !i.mutates)
+    // 过滤后第一项不能还挂着分隔线，否则菜单顶上多一条横线
+    if (kept.length > 0 && kept[0]!.separatorBefore) {
+      kept[0] = { ...kept[0]!, separatorBefore: false }
+    }
+    return kept
+  }
 
   /** 编辑器（聚焦块）内的菜单：标准编辑动作。 */
   function editorMenuItems(): ContextMenuItem[] {
@@ -34,13 +58,17 @@ export function createDocumentMenus({
       }
     }
     return [
-      { label: t('menuUndo'), hint: mod('Z'), run: () => editor.getCmView() && undo(editor.getCmView()!) },
-      { label: t('menuRedo'), hint: modShift('Z'), run: () => editor.getCmView() && redo(editor.getCmView()!) },
-      { separatorBefore: true, label: t('menuCut'), hint: mod('X'), run: run('cut') },
+      // 撤销/重做/剪切/粘贴都会改文档，标上 mutates：它们在阅读档结构上就到不了
+      // （阅读档没有嵌着的 CM，见 editorChrome.setViewMode 的 defocus），
+      // 标了只是让「阅读档不给改文档的动作」这条规矩没有例外可钻。
+      { label: t('menuUndo'), hint: mod('Z'), mutates: true, run: () => editor.getCmView() && undo(editor.getCmView()!) },
+      { label: t('menuRedo'), hint: modShift('Z'), mutates: true, run: () => editor.getCmView() && redo(editor.getCmView()!) },
+      { separatorBefore: true, label: t('menuCut'), hint: mod('X'), mutates: true, run: run('cut') },
       { label: t('menuCopy'), hint: mod('C'), run: run('copy') },
       {
         label: t('menuPaste'),
         hint: mod('V'),
+        mutates: true,
         run: () => {
           // 走 readClipboard()：壳里是 IPC 命令（webview 自己的 readText 在 macOS 上
           // 一律被拒，菜单里那一项因此长期只会弹「请用 ⌘V」）。
@@ -68,7 +96,9 @@ export function createDocumentMenus({
     const preview = el.querySelector('.preview')
     const raw = block.raw
     const tableItems: ContextMenuItem[] =
-      block.kind === 'table' ? [{ label: t('menuEditTable'), run: () => editor.operations.openTableForBlock(block) }] : []
+      block.kind === 'table'
+        ? [{ label: t('menuEditTable'), mutates: true, run: () => editor.operations.openTableForBlock(block) }]
+        : []
     return [
       ...tableItems,
       {
@@ -91,6 +121,7 @@ export function createDocumentMenus({
       {
         separatorBefore: true,
         label: t('menuCutBlock'),
+        mutates: true,
         run: () => {
           void copyText(raw, t('menuCopied'))
           editor.operations.deleteBlock(block.id)
@@ -99,11 +130,25 @@ export function createDocumentMenus({
       {
         label: t('menuDeleteBlock'),
         danger: true,
+        mutates: true,
         run: () => editor.operations.deleteBlock(block.id),
       },
-      { separatorBefore: true, label: t('menuInsertBefore'), run: () => editor.operations.insertParagraphBefore(block.id) },
-      { label: t('menuInsertAfter'), run: () => editor.operations.insertParagraphAfter(block.id) },
-      { label: t('menuInsertMermaid'), run: () => editor.operations.insertMermaidAfter(block.id) },
+      {
+        separatorBefore: true,
+        label: t('menuInsertBefore'),
+        mutates: true,
+        run: () => editor.operations.insertParagraphBefore(block.id),
+      },
+      {
+        label: t('menuInsertAfter'),
+        mutates: true,
+        run: () => editor.operations.insertParagraphAfter(block.id),
+      },
+      {
+        label: t('menuInsertMermaid'),
+        mutates: true,
+        run: () => editor.operations.insertMermaidAfter(block.id),
+      },
     ]
   }
 
@@ -121,13 +166,21 @@ export function createDocumentMenus({
     const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
     // unknown 类是解析不出内容的块，给它一份「复制/删除本块」菜单只会让人误判
     if (!block || block.kind === 'unknown') return false
-    const items = blockMenuItems(block, blockEl)
+    const items = forMode(blockMenuItems(block, blockEl))
+    // 只读档过滤后可能一个都不剩（理论上不会：复制三项永远在），那就别弹空菜单
+    if (items.length === 0) return false
     appendSelectionCopy(items)
     showContextMenu(items, x, y)
     return true
   }
 
-  /** 任务项上的菜单。 */
+  /**
+   * 任务项上的菜单。
+   *
+   * ⚠ 有意不标 mutates：勾选任务在阅读档也允许。理由是「勾一下」是读的时候最顺手的动作，
+   * 为了它先切编辑档再切回来不合理（同一条决定见 appBindings 的复选框点击处理）。
+   * 这是「阅读档不给改文档」这条规矩唯一的例外，所以写在这里，不藏在标记里。
+   */
   function taskMenuItems(block: BlockView, itemIndex: number, checked: boolean): ContextMenuItem[] {
     return [
       {
@@ -249,7 +302,7 @@ export function createDocumentMenus({
     // 聚焦块的 CodeMirror：编辑菜单（撤销/复制/粘贴…）
     if (target.closest('.cm-content')) {
       e.preventDefault()
-      showContextMenu(editorMenuItems(), e.clientX, e.clientY)
+      showContextMenu(forMode(editorMenuItems()), e.clientX, e.clientY)
       return
     }
 
@@ -272,7 +325,7 @@ export function createDocumentMenus({
     if (target.closest('#content') && editor.getSession().source) {
       // 图片
       if (target.tagName === 'IMG' && target.closest('.reading-prose')) {
-        showContextMenu(imageMenuItems(target as HTMLImageElement), e.clientX, e.clientY)
+        showContextMenu(forMode(imageMenuItems(target as HTMLImageElement)), e.clientX, e.clientY)
         return
       }
 
@@ -293,7 +346,7 @@ export function createDocumentMenus({
           const items = Array.from(blockEl.querySelectorAll('li.task'))
           const idx = items.indexOf(li)
           const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
-          showContextMenu(taskMenuItems(block, idx, !!box?.checked), e.clientX, e.clientY)
+          showContextMenu(forMode(taskMenuItems(block, idx, !!box?.checked)), e.clientX, e.clientY)
           return
         }
       }
@@ -305,7 +358,8 @@ export function createDocumentMenus({
       // 没落在任何块上：段间空白缝（.block.gap 没有 blockId）、正文列的两侧留白、
       // 最后一段之后的那片空。右键这里想做的事，八成还是「在这儿加一段」，
       // 所以贴着最近的内容块给一份短菜单。
-      const items = blankAreaMenuItems(nearestBlockBefore(target))
+      const items = forMode(blankAreaMenuItems(nearestBlockBefore(target)))
+      if (items.length === 0) return
       appendSelectionCopy(items)
       showContextMenu(items, e.clientX, e.clientY)
       return
@@ -356,6 +410,7 @@ export function createDocumentMenus({
       {
         label: nearest ? t('menuInsertAfter') : t('menuInsertFirst'),
         disabled: !nearest,
+        mutates: true,
         run: () => nearest && editor.operations.insertParagraphAfter(nearest.id),
       },
       { separatorBefore: true, label: t('menuCopyAll'), run: () => void copyText(editor.allRawText(), t('menuCopied')) },
