@@ -23,6 +23,7 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
 
 - **Bun + TypeScript**（bun workspaces）。`packages/core` 无 DOM、测试先行：`bun test` 覆盖切片无缝覆盖全文、未编辑保存恒等、脏一块只动一块、CRLF/BOM 还原。
 - 质量门：`bun test` + `bun run typecheck`；改动完成前运行与变更范围匹配的检查。
+- 编辑器模块重构回归：先启动 Vite（端口 5199），再运行 `node tools/refactor-verify.mjs http://localhost:5199/`，覆盖大纲、阅读位置、复制、预览及入口初始化。
 - 代码注释中文；**用户文案 i18n（zh-CN + en）从第一天就做**，不后补。
 - 最小变更。不提交密钥。`testdata/` 只放自造夹具，不提交别人的私密笔记。
 - Commit messages：Conventional Commits，`type(scope): subject`，简洁英文。
