@@ -56,6 +56,17 @@ export interface EditorSettings {
   recoverUnsaved: boolean
   /** 用户自定义 CSS：原样注到样式表末尾，可覆盖任何内置规则 */
   customCss: string
+  /**
+   * mermaid 的额外配置（JSON），整份合进 `mermaid.initialize()`。
+   *
+   * 为什么是一段 JSON 而不是一排控件：mermaid 的配置面又宽又长（既有 themeVariables
+   * 那几十个色，也有 flowchart.curve / sequence.showSequenceNumbers / gantt.leftPadding
+   * 这类非颜色选项），做成 UI 必然是残缺的；而 mermaid 自己的文档写的就是这个 JSON 对象，
+   * 用户可以从文档里原样粘过来。危险的那几个键（securityLevel / startOnLoad /
+   * maxTextSize / suppressErrorRendering）在 mermaid 里是 secure keys，谁传都会被丢掉
+   * ——包括文档里的 `%%{init}%%` 指令——所以这里可以放行整份对象。
+   */
+  mermaidConfig: string
   autoCharacterPairs: boolean
   /** 关闭脏文档前确认（防数据丢失）。 */
   closeAlwaysConfirmsChanges: boolean
@@ -95,6 +106,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   uiZoom: 100,
   recoverUnsaved: true,
   customCss: '',
+  mermaidConfig: '',
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
@@ -169,6 +181,8 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     recoverUnsaved: typeof src.recoverUnsaved === 'boolean' ? src.recoverUnsaved : base.recoverUnsaved,
     // 限长：设置文件是被反复读写的小 JSON，不该成为存放整套主题的仓库
     customCss: String(src.customCss ?? base.customCss ?? '').slice(0, 20000),
+    // 同样限长：mermaid 配置能写很长（themeCSS 动辄上百行），但设置文件不该变成仓库
+    mermaidConfig: String(src.mermaidConfig ?? base.mermaidConfig ?? '').slice(0, 20000),
     imageMode: isImageMode(src.imageMode) ? src.imageMode : base.imageMode,
     imageAssetsDir: normalizeImageAssetsDir(src.imageAssetsDir),
     imageCommand: String(src.imageCommand ?? base.imageCommand ?? '').trim().slice(0, 512),

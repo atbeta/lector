@@ -88,3 +88,18 @@ describe('settings schema', () => {
     expect(normalizeSettings({ imageAssetsDir: '' }).imageAssetsDir).toBe('{filename}.assets')
   })
 })
+
+describe('mermaidConfig 字段', () => {
+  test('默认空、字符串透传、非法类型回退', () => {
+    expect(DEFAULT_SETTINGS.mermaidConfig).toBe('')
+    expect(normalizeSettings({ mermaidConfig: '{"theme":"dark"}' }).mermaidConfig).toBe('{"theme":"dark"}')
+    // 数字/对象之类的意外类型不该变成 "[object Object]" 进设置文件
+    expect(normalizeSettings({ mermaidConfig: 42 as unknown as string }).mermaidConfig).toBe('42')
+    expect(normalizeSettings({}).mermaidConfig).toBe('')
+  })
+
+  test('限长 20000：设置文件不该被当成主题仓库', () => {
+    const huge = 'x'.repeat(30000)
+    expect(normalizeSettings({ mermaidConfig: huge }).mermaidConfig.length).toBe(20000)
+  })
+})

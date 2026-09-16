@@ -2787,6 +2787,9 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 }
 .row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .row-hint { max-width: 46ch; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
+/* 提示位里的错误（如 mermaid 配置 JSON 不合法）：它不再是说明，是一句「你写错了」，
+   得和周围的灰字区分开。字形与位置不动，只换颜色——布局不跳。 */
+.row-hint[data-invalid='true'] { color: rgb(var(--destructive)); }
 .settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .settings-textarea {
   width: 100%;

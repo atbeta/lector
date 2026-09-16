@@ -1,6 +1,7 @@
 import { detectEnv, shellAssetResolver } from '@lector/shell-web'
 import { setAssetResolver } from './asset.ts'
-import { initSettings } from './settings.ts'
+import { initSettings, notify as notifySettings } from './settings.ts'
+import { mermaidRenderSignature } from './mermaid.ts'
 import { createSidebar } from './sidebar.ts'
 import { createOutline } from './outline.ts'
 import { createReadingPositionController } from './readingPositionController.ts'
@@ -117,6 +118,28 @@ if (detectEnv() === 'shell') {
 }
 files.bindShellEvents()
 files.bindCloseGuard()
+
+/**
+ * mermaid 的配色与选项是**烘进 SVG** 的（不像正文那样靠 CSS 变量自动跟随），
+ * 所以主题或用户配置一变就得重画图。
+ *
+ * 防抖 250ms：设置里的 mermaid 配置是个文本框，边打边生效，但每敲一个字符都重画
+ * 整篇文档没必要——用户停下来那一刻的结果才是他要看的。
+ * 指纹变了才重画：改缩进、改无关设置（字号之类）都不会走到这里。
+ */
+let mermaidSig = mermaidRenderSignature()
+let mermaidRedrawTimer: number | null = null
+notifySettings((s) => {
+  void s
+  const next = mermaidRenderSignature()
+  if (next === mermaidSig) return
+  mermaidSig = next
+  if (mermaidRedrawTimer !== null) window.clearTimeout(mermaidRedrawTimer)
+  mermaidRedrawTimer = window.setTimeout(() => {
+    mermaidRedrawTimer = null
+    void editor.render()
+  }, 250)
+})
 
 void (async () => {
   // 窗口外框（无标题栏）：平台判定 + Windows 自绘控件 + 顶栏滚动分隔。

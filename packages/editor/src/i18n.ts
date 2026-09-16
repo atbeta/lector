@@ -194,6 +194,11 @@ export const zh = {
   customCss: '自定义样式',
   customCssHint: '原样注入，排在所有内置样式之后，可直接覆盖任何规则。',
   customCssPlaceholder: '/* 例：.reading-prose { --quote-foreground: … } */',
+  mermaidConfig: 'Mermaid 配置',
+  mermaidConfigHint: 'JSON，整份并进 mermaid 的配置；单张图可用源码首行 %%{init}%% 单独覆盖。',
+  mermaidConfigPlaceholder:
+    '{\n  "theme": "neutral",\n  "flowchart": { "curve": "basis" },\n  "themeVariables": { "lineColor": "#7c8cf8" }\n}',
+  mermaidConfigInvalid: '不是合法 JSON：{error}',
   uiZoom: '界面缩放',
   readingThemeHint: '选一款主题会套用它的标定排版；之后仍可用下面的字号、行距、栏宽微调。',
   themeTweaked: '已微调',
@@ -419,6 +424,12 @@ const en: Record<keyof typeof zh, string> = {
   customCss: 'Custom CSS',
   customCssHint: 'Injected verbatim after all built-in styles, so it can override anything.',
   customCssPlaceholder: '/* e.g. .reading-prose { --quote-foreground: … } */',
+  mermaidConfig: 'Mermaid config',
+  mermaidConfigHint:
+    'JSON merged into mermaid options; one diagram can override it with an %%{init}%% first line.',
+  mermaidConfigPlaceholder:
+    '{\n  "theme": "neutral",\n  "flowchart": { "curve": "basis" },\n  "themeVariables": { "lineColor": "#7c8cf8" }\n}',
+  mermaidConfigInvalid: 'Not valid JSON: {error}',
   uiZoom: 'Interface zoom',
   readingThemeHint: 'Picking a theme applies its calibrated typography; you can still tweak size, leading and width below.',
   themeTweaked: 'Tweaked',

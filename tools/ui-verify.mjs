@@ -1724,6 +1724,37 @@ const summary = {
     }
     await page.keyboard.press('Escape')
   }
+
+  // 4b) 用户自定义 mermaid 配置：设置里那段 JSON 必须真的落到图上
+  //
+  // 判据用「配置里写的颜色出现在 SVG 里」：mermaid 的配色是**烘进 SVG** 的，
+  // 不重画就看不出来，所以这条同时守住了「配置生效」和「配置变了会重画」两件事。
+  // 走 localStorage 预置而不是去点设置面板：这条要验的是渲染链路，不是那个输入框。
+  {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'lector-settings',
+        JSON.stringify({ theme: 'light', mermaidConfig: '{"themeVariables":{"mainBkg":"#ff00aa"}}' }),
+      )
+    })
+    await page.goto(`${URL_ARG}?doc=mermaid`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('.mermaid-diagram .mermaid-svg svg', { timeout: 15000 }).catch(() => {})
+    await page.waitForTimeout(1200)
+    const custom = await page.evaluate(() => {
+      const svg = document.querySelector('.mermaid-diagram .mermaid-svg svg')
+      if (!svg) return { missing: true }
+      const node = svg.querySelector('.node rect, .node polygon')
+      return { inSvg: (svg.outerHTML ?? '').includes('#ff00aa'), fill: node ? getComputedStyle(node).fill : null }
+    })
+    if (custom.missing) note('warn', 'mermaid 样例没有渲染出图，用户 mermaid 配置这条没验到')
+    else if (!custom.inSvg) {
+      note('error', `设置里的 mermaid 配置没有落到图上（SVG 里找不到配置指定的 mainBkg）：fill=${custom.fill}`)
+    } else {
+      note('info', `mermaid 用户配置生效：节点填充 ${custom.fill}`)
+    }
+    await page.addInitScript(() => window.localStorage.removeItem('lector-settings'))
+  }
+
   // 3.9) 查找：第几处 / 共几处 + 命中高亮 + 关掉不留痕
   //
   // 这一组守的是「读文档时最常用的工具」，三件事缺一不可：

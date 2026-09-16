@@ -10,6 +10,7 @@
 //   （不依赖 LRU 库是为了零依赖；lector 其他地方如 imageBase64Cache 也是手写 LRU 风格。）
 
 import type mermaidApi from 'mermaid'
+import { getSettings } from './settings.ts'
 
 type Mermaid = typeof mermaidApi
 
@@ -133,19 +134,150 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
 function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   const next = theme === 'dark' ? 'dark' : 'default'
   const vars = themeVariablesFor(theme)
+  const user = effectiveUserConfig()
+  // 用户挑了 mermaid 内置主题 → **我们的调色板让位**。
+  // 不让位的话 `{"theme":"forest"}` 几乎看不出变化：我们绑了二十多个 themeVariables，
+  // 它们盖在内置主题之上，用户会以为「不支持」。让位 = 那个主题原样上屏。
+  //
+  // 两处不让位：
+  //   - 用户自己写了 themeVariables：那是明确要细调，在我们的基础上覆盖（逐层合并）；
+  //   - 字体：图里的字要和界面一致，那是全局观感，不属于「主题」这一层。
+  const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
+  const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
+  const baseVars: Record<string, string> =
+    userTheme && !userVars ? { fontFamily: vars.fontFamily ?? '' } : vars
   // 判重键里必须带上纸墨本身：阅读主题（纸 / 米黄 / 书）会改 --card / --foreground，
   // 只按 light/dark 判重的话，换成米黄纸面之后图还是旧的白底。
-  const key = `${next}::${vars.background}::${vars.primaryColor}::${vars.primaryBorderColor}::${vars.textColor}::${vars.lineColor}::${vars.fontFamily}`
+  // 也要带上用户配置：配置一变就得重新 initialize，否则新配置要等下次切主题才生效。
+  const key = `${next}::${baseVars.background ?? ''}::${baseVars.primaryColor ?? ''}::${baseVars.primaryBorderColor ?? ''}::${baseVars.textColor ?? ''}::${baseVars.lineColor ?? ''}::${baseVars.fontFamily}::${user.signature}`
   if (lastThemeKey === key) return
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    theme: next,
-    themeVariables: vars,
-    // 避免 mermaid 在失败时往 DOM 注入默认错误 UI（我们自己展示）
-    suppressErrorRendering: true,
-  })
+  mermaid.initialize(
+    mergeMermaidConfig(
+      {
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: next,
+        themeVariables: baseVars,
+        // 避免 mermaid 在失败时往 DOM 注入默认错误 UI（我们自己展示）
+        suppressErrorRendering: true,
+      },
+      user.config,
+    ),
+  )
   lastThemeKey = key
+}
+
+/**
+ * mermaid 列为 secure 的键：谁传都会被它自己丢掉——包括文档里的 `%%{init}%%` 指令
+ * （实测过：指令里写 `securityLevel: "loose"` 加 `click ... call fn()`，点击不会执行）。
+ *
+ * 我们**再手动剥一层**，不把安全属性寄托在库的内部实现上：将来 mermaid 调整那张表，
+ * 这一层还在。这几个键决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
+ */
+const MERMAID_SECURE_KEYS = [
+  'securityLevel',
+  'startOnLoad',
+  'maxTextSize',
+  'maxEdges',
+  'suppressErrorRendering',
+]
+
+/**
+ * 深合并：用户配置盖在我们的默认之上。用户配置里的 secure keys 一律忽略。
+ *
+ * 逐层合并（而不是整份替换）是必须的：用户只写 `{"themeVariables": {"lineColor": "red"}}`
+ * 时，其余几十个色仍要保留我们按主题算出来的值——整份替换会让图瞬间变回 mermaid 自带的
+ * 淡紫默认（那正是当初要绑 token 的原因）。数组与标量按「后者胜」处理。
+ */
+export function mergeMermaidConfig(
+  base: Record<string, unknown>,
+  user: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base }
+  for (const [k, v] of Object.entries(user)) {
+    if (MERMAID_SECURE_KEYS.includes(k)) continue
+    const prev = out[k]
+    const bothPlainObjects =
+      v !== null &&
+      typeof v === 'object' &&
+      !Array.isArray(v) &&
+      prev !== null &&
+      typeof prev === 'object' &&
+      !Array.isArray(prev)
+    out[k] = bothPlainObjects
+      ? mergeMermaidConfig(prev as Record<string, unknown>, v as Record<string, unknown>)
+      : v
+  }
+  return out
+}
+
+/**
+ * 解析用户配置。返回 null 表示「没有配置」，error 供设置面板显示。
+ *
+ * 只接受 JSON 对象：一段合法的 JSON 数组/数字对 mermaid 没有意义，早点说清楚比
+ * 让它悄悄不生效好。
+ */
+export function parseMermaidConfig(text: string): {
+  config: Record<string, unknown> | null
+  error: string | null
+} {
+  const raw = text.trim()
+  if (!raw) return { config: null, error: null }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    return { config: null, error: err instanceof Error ? err.message : String(err) }
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { config: null, error: 'not an object' }
+  }
+  return { config: parsed as Record<string, unknown>, error: null }
+}
+
+/**
+ * 由设置里的原文算出「本次生效的用户配置」。纯函数，单独测。
+ *
+ * 三种输入三种处置，别混：
+ *   - 合法对象 → 生效；
+ *   - **空** → 没有用户配置，回到默认（指纹也要清掉，否则清空输入框不生效）；
+ *   - 解析失败 → 沿用上一份能用的。用户是边打边看的，敲到一半必然不合法
+ *     （少个花括号而已），那时把图全渲染回默认色比什么都不做更糟。
+ */
+export function nextUserConfig(
+  text: string,
+  prev: { config: Record<string, unknown> | null; signature: string },
+): { config: Record<string, unknown> | null; signature: string } {
+  const { config, error } = parseMermaidConfig(text)
+  if (config) return { config, signature: JSON.stringify(config) }
+  if (!error) return { config: null, signature: '' }
+  return prev
+}
+
+let lastGoodConfig: Record<string, unknown> | null = null
+let lastGoodSignature = ''
+function effectiveUserConfig(): { config: Record<string, unknown>; signature: string } {
+  const next = nextUserConfig(getSettings().mermaidConfig ?? '', {
+    config: lastGoodConfig,
+    signature: lastGoodSignature,
+  })
+  lastGoodConfig = next.config
+  lastGoodSignature = next.signature
+  return { config: lastGoodConfig ?? {}, signature: lastGoodSignature }
+}
+
+/**
+ * 影响渲染结果的一切（明暗 + 纸面 + 用户配置）的指纹。
+ * 调用方用它判断「设置变了要不要重画」——mermaid 的配色是**烘进 SVG** 的，
+ * 不像正文那样靠 CSS 变量自动跟随：换阅读主题（纸 / 米黄 / 书）改的是 --card，
+ * 只看明暗的话图还停在旧纸面上。
+ */
+export function mermaidRenderSignature(): string {
+  const theme =
+    typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
+      ? 'dark'
+      : 'light'
+  return `${theme}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}`
 }
 
 /** 生成全局唯一的 mermaid render id（库要求 id 不重复）。 */
@@ -163,7 +295,10 @@ export async function renderMermaidSvg(
   theme: 'light' | 'dark',
   id = nextMermaidId(),
 ): Promise<string> {
-  const key = `${theme}::${code}`
+  // 缓存键必须带上用户配置与纸面：
+  //   - 配置改过之后，同一段源码的旧 SVG 就是错的；
+  //   - 换阅读主题会改 --card，而底色与墨色都烘在 SVG 里，不带上就永远返回旧纸面那张。
+  const key = `${theme}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 

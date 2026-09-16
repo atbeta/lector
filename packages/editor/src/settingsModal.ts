@@ -26,6 +26,7 @@ import { Segmented, Slider, Switch } from './ui.ts'
 import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
+import { parseMermaidConfig } from './mermaid.ts'
 import { testImageCommand, runImageCommand, appVersion } from '@lector/shell-web'
 
 let root: HTMLElement | null = null
@@ -359,6 +360,33 @@ export function openSettingsModal(onClose?: () => void) {
   cssRow.classList.add('settings-row-stack')
   advanced.appendChild(cssRow)
 
+  // mermaid 的额外配置。整份合并进 mermaid.initialize()：theme、themeVariables、
+  // themeCSS，以及各图种的选项（flowchart.curve / sequence.showSequenceNumbers /
+  // gantt.leftPadding…）。做成一段 JSON 而不是一排控件，是因为它的配置面又宽又长，
+  // 做成 UI 必然残缺；而 mermaid 自己文档写的就是这个对象，可以直接粘过来。
+  const mermaidBox = h('textarea', 'settings-textarea') as HTMLTextAreaElement
+  mermaidBox.value = getSettings().mermaidConfig ?? ''
+  mermaidBox.placeholder = t('mermaidConfigPlaceholder')
+  mermaidBox.spellcheck = false
+  mermaidBox.rows = 6
+  const mermaidHint = h('div', 'row-hint')
+  const mermaidRow = row(t('mermaidConfig'), mermaidBox)
+  mermaidRow.classList.add('settings-row-stack')
+  mermaidRow.querySelector('.row-text')?.appendChild(mermaidHint)
+  const syncMermaidHint = () => {
+    // 解析失败时**不**报错到控制台就完事：用户要在这里看到哪一行不对。
+    // 图不会跟着坏——坏的 JSON 期间沿用上一份能用的配置（见 mermaid.ts 的 effectiveUserConfig）。
+    const { error } = parseMermaidConfig(mermaidBox.value)
+    mermaidHint.textContent = error ? t('mermaidConfigInvalid', { error }) : t('mermaidConfigHint')
+    mermaidHint.dataset.invalid = error ? 'true' : 'false'
+  }
+  mermaidBox.addEventListener('input', () => {
+    syncMermaidHint()
+    apply((s) => ({ ...s, mermaidConfig: mermaidBox.value }))
+  })
+  syncMermaidHint()
+  advanced.appendChild(mermaidRow)
+
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
   // 这节没有可调的项，所以不做成左对齐的设置行，而是一张居中的名片：
@@ -460,6 +488,10 @@ export function openSettingsModal(onClose?: () => void) {
     wSlider.set(s.readingWidth)
     zoomSlider.set(s.uiZoom)
     if (document.activeElement !== cssBox) cssBox.value = s.customCss ?? ''
+    if (document.activeElement !== mermaidBox) {
+      mermaidBox.value = s.mermaidConfig ?? ''
+      syncMermaidHint()
+    }
     // 用 rAF 合并：拖滑块时 notify 每像素都响，画廊只需要每帧对齐一次
     if (!galleryTick) {
       galleryTick = true
