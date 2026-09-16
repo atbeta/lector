@@ -2475,7 +2475,13 @@ contentEl.addEventListener('click', (e) => {
     e.preventDefault()
     const href = link.getAttribute('href')
     if (href && /^(https?:|mailto:)/i.test(href)) {
-      window.open(href, '_blank', 'noopener,noreferrer')
+      // 壳里的 window.open 会被 webview 的新窗口策略拦掉（点了没反应）；
+      // 走 open_url 命令交给系统浏览器，scheme 白名单在 Rust 侧还有一道。
+      if (detectEnv() === 'shell') {
+        void openExternal(href).catch(() => showToast(t('menuOpenLinkFailed')))
+      } else {
+        window.open(href, '_blank', 'noopener,noreferrer')
+      }
     }
     return
   }
