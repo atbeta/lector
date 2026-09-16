@@ -1,7 +1,7 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Lector",
-  "version": "0.24.7",
+  "version": "0.24.8",
   "identifier": "com.lector.reader",
   "build": {
     "beforeDevCommand": "cd packages/editor && bun run dev",
