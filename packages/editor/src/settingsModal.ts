@@ -428,8 +428,9 @@ export function openSettingsModal(onClose?: () => void) {
         if (hit) visibleInSection++
       }
       el.hidden = visibleInSection === 0
-      // 标题行也跟着藏：搜索时每个分区只留命中的行，标题反而更清爽
-      el.querySelector<HTMLElement>('.settings-group-title')!.hidden = visibleInSection === 0
+      // 标题只在搜索时留下：常规浏览时左侧选中项已经写着这一节叫什么，右侧再顶一行
+      // 就是同一句话说两遍；而搜索结果跨分区，那些标题正是「这条命中属于哪一节」的答案。
+      el.querySelector<HTMLElement>('.settings-group-title')!.hidden = browsing || visibleInSection === 0
       visibleTotal += visibleInSection
     }
     empty.hidden = visibleTotal > 0

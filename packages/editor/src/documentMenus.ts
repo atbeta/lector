@@ -73,8 +73,9 @@ export function createDocumentMenus({
       ...tableItems,
       {
         separatorBefore: tableItems.length > 0,
+        // 不写 hint：标签自己已经说清是 Markdown（同下面两条「纯文本 / HTML」），
+        // 再在右端放一个 Markdown 就是同一句话说两遍；hint 那一栏留给快捷键。
         label: t('menuCopyBlock'),
-        hint: 'Markdown',
         run: () => void copyText(raw, t('menuCopied')),
       },
       {
