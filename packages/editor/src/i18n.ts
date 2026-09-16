@@ -199,6 +199,10 @@ export const zh = {
   sidebarResizeTip: '拖动调整宽度（双击复位）',
   mermaidLoading: '渲染中…',
   mermaidFailedWith: 'Mermaid 渲染失败：{error}',
+  mermaidLiveLabel: '实时预览',
+  menuInsertMermaid: '插入 Mermaid 图',
+  mermaidTemplate:
+    '```mermaid\nflowchart TD\n    A[开始] --> B{是否继续?}\n    B -->|是| C[处理任务]\n    B -->|否| D[结束]\n    C --> D\n```',
   // 阅读导航轨与表格编辑
   menuEditTable: '编辑表格…',
   menuUndoTable: '已还原表格修改',
@@ -408,6 +412,10 @@ const en: Record<keyof typeof zh, string> = {
   sidebarResizeTip: 'Drag to resize (double-click to reset)',
   mermaidLoading: 'Rendering…',
   mermaidFailedWith: 'Mermaid render failed: {error}',
+  mermaidLiveLabel: 'Live preview',
+  menuInsertMermaid: 'Insert Mermaid diagram',
+  mermaidTemplate:
+    '```mermaid\nflowchart TD\n    A[Start] --> B{Continue?}\n    B -->|Yes| C[Process]\n    B -->|No| D[End]\n    C --> D\n```',
   // Reading rail and table editor
   menuEditTable: 'Edit table…',
   menuUndoTable: 'Table edit reverted',

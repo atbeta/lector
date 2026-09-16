@@ -46,6 +46,8 @@ import { mountEditor, type CmHandle } from './cm.ts'
 import type { EditorView } from '@codemirror/view'
 import { renderBlockHtml, safeHref, preRenderMath } from './mdastHtml.ts'
 import { renderMermaidSvg } from './mermaid.ts'
+import { mermaidLanguage } from './mermaidLanguage.ts'
+import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
 import { setAssetResolver, setCurrentMdPath, assetLocalPath } from './asset.ts'
 import { baseName, docStem, isAbsolutePath } from './paths.ts'
 import { initSettings, resetFontSize, resetUiZoom, stepFontSize, stepUiZoom, getSettings } from './settings.ts'
@@ -201,7 +203,7 @@ if (titlebarEl) bindTitlebar(titlebarEl)
 // source: 全篇等宽源码，点块进该块的源码编辑。通读原文 / 批量改格式用。
 //
 // 三档**常驻**在顶栏右侧的分段控件里，当前档一眼可见。
-// 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要��
+// 旧版是一个三态循环按钮，��钮上画的是「下一个模式」的图标，用户永远要��
 // 「我现在在哪一档」；而且第三档叫「分屏」——屏幕上并没有第二条栏，
 // 名字在承诺一件不存在的事。名字与档位一起改了：阅读 / 编辑 / 源码。
 //
@@ -446,7 +448,7 @@ function revealActiveBranch(): void {
 function renderOutline() {
   if (largeMode) {
     // 大文件不建块，也就没有现成的标题列表。这里明确说明「不可用」，
-    // 而不是留一片空白让人以为文档没有标题。
+    // 而不是留一片空白让人以为文档��有标题。
     sidebar.body.innerHTML = ''
     const p = document.createElement('p')
     p.className = 'outline-empty'
@@ -608,7 +610,7 @@ function setActiveHeading(id: string | null, opts: { reveal?: boolean } = {}): v
 /**
  * 滚动反查当前小节：取「已经越过阅读线」的最后一个标题。
  *
- * 阅读线定在容器顶部下方 72px：标题刚进视口时就切过去太早
+ * 阅读线定在容器顶部���方 72px：标题刚进视口时就切过去太早
  * （读者还在看上一节的最后一段），太晚则高亮总是慢半拍。
  */
 function updateActiveHeading(): void {
@@ -790,6 +792,43 @@ function insertParagraphBefore(id: string): void {
   focusBlock(para.id)
 }
 
+/** 在块后插入 mermaid 模板并聚焦：骨架给足，改两笔就是一张能看的图。 */
+function insertMermaidAfter(id: string): void {
+  const i = blockIndex(id)
+  if (i < 0) return
+  const at = session.blocks[i]!.end
+  const raw = t('mermaidTemplate')
+  const block: BlockView = {
+    id: nextId(),
+    kind: 'code',
+    start: at,
+    end: at,
+    raw,
+    mdast: parseOne(raw),
+    dirty: true,
+  }
+  const gap: BlockView = {
+    id: nextId(),
+    kind: 'unknown',
+    start: at,
+    end: at,
+    raw: '\n\n',
+    mdast: null,
+    dirty: true,
+  }
+  session.blocks.splice(i + 1, 0, block, gap)
+  session.originals.set(block.id, block.raw)
+  session.originals.set(gap.id, gap.raw)
+  blockUndoStack.push(t('menuUndoInsert'), () => {
+    const removed = takeBlocks([block.id, gap.id])
+    if (removed.length) forgetBlocks(removed)
+  })
+  session.structuralDirty = true
+  markDirty()
+  render()
+  focusBlock(block.id)
+}
+
 /**
  * 块级撤销栈。
  *
@@ -856,7 +895,7 @@ function undoBlockOp(): boolean {
 /**
  * 删除块。
  *
- * 连同其后紧邻的空白缝一起删——只删内容会留下孤立的空行，
+ * 连同其后紧邻的空白缝一起���——只删内容会留下孤立的空行，
  * 用户看到的是「删了但版面又多空了一截」。
  * 首块删掉时把「前置」缝也带走（缝在它前面）。
  */
@@ -1045,6 +1084,7 @@ function blockMenuItems(block: BlockView, el: HTMLElement): ContextMenuItem[] {
     },
     { separatorBefore: true, label: t('menuInsertBefore'), run: () => insertParagraphBefore(block.id) },
     { label: t('menuInsertAfter'), run: () => insertParagraphAfter(block.id) },
+    { label: t('menuInsertMermaid'), run: () => insertMermaidAfter(block.id) },
   ]
 }
 
@@ -1076,7 +1116,7 @@ function linkMenuItems(href: string): ContextMenuItem[] {
 }
 
 /** 图片上的菜单。 */
-/** 图片在正文里的归属：哪个块、块内第几张（按渲染 DOM 顺序，与 listImages 对齐）。 */
+/** 图片在正文里的归属：哪个块、块内第几张（按��染 DOM 顺序，与 listImages 对齐）。 */
 function imageTarget(img: HTMLImageElement): { block: BlockView; index: number } | null {
   const blockEl = img.closest<HTMLElement>('.block')
   const id = blockEl?.dataset.blockId
@@ -1666,7 +1706,7 @@ function splitBlock(block: BlockView, view: EditorView): boolean {
   if (pos !== doc.length) return false // 只在块末分裂，规避光标映射复杂度
   const i = session.blocks.findIndex((b) => b.id === block.id)
   if (i < 0) return false
-  // 其后应是空白缝（段落间必有）
+  // 其后应是空白��（段落间必有）
   const gap = session.blocks[i + 1]
   if (!gap || gap.kind !== 'unknown' || gap.raw.trim() !== '') return false
   const gapRaw = gap.raw || '\n\n'
@@ -2126,6 +2166,19 @@ function moveAcrossBlocks(
   return true
 }
 
+/** 聚焦中的 mermaid 实时预览面板；块失焦/切换时随 CM 一起销毁。 */
+let mermaidPanel: MermaidLivePanel | null = null
+
+function destroyMermaidPanel(): void {
+  mermaidPanel?.destroy()
+  mermaidPanel = null
+}
+
+/** mermaid 围栏块：聚焦时挂实时预览、换专用语法高亮。 */
+function isMermaidBlock(block: BlockView): boolean {
+  return block.kind === 'code' && /^\s*```\s*mermaid\b/.test(block.raw)
+}
+
 function renderBlockContent(el: HTMLElement, block: BlockView) {
   if (isWhitespaceGap(block)) {
     el.className = 'block gap'
@@ -2142,6 +2195,8 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
     host.className = 'cm-host'
     applyBlockMeta(host, block)
     el.appendChild(host)
+    // mermaid 块：源码下方挂实时预览，语法高亮换专用分词器
+    const mermaid = isMermaidBlock(block)
     const config = {
       autoCharacterPairs: getSettings().autoCharacterPairs,
       showWhitespace: getSettings().showWhitespace,
@@ -2164,9 +2219,12 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
       (text) => {
         liveText.set(block.id, text)
         syncBlockText(block, text)
+        mermaidPanel?.update(text)
       },
       {
         ...config,
+        // mermaid 块换专用语法高亮（围栏 + 图类型 + 箭头 + 注释）
+        ...(mermaid ? { language: mermaidLanguage } : {}),
         // 选中文字 → 浮出格式浮条；空选区/失焦 → 收起。
         // 位置由 CM 自己算（coordsAtPos），浮条只负责摆和点。
         onSelectionChange: (sel) => {
@@ -2178,6 +2236,12 @@ function renderBlockContent(el: HTMLElement, block: BlockView) {
         },
       },
     )
+    if (mermaid) {
+      // 视图档切换等路径会不经 focusBlock 直接重挂载，先清掉旧面板的防抖计时器
+      destroyMermaidPanel()
+      mermaidPanel = createMermaidLivePanel(block.raw, (svg) => showSvgInLightbox(svg, 'mermaid'))
+      el.appendChild(mermaidPanel.el)
+    }
     const intent = caretIntent
     requestAnimationFrame(() => {
       if (!cm) return
@@ -2406,6 +2470,7 @@ function focusBlock(id: string, intent?: CaretIntent) {
     cm.destroy()
     cm = null
   }
+  destroyMermaidPanel()
   session.focusedId = id
   caretIntent = intent ?? null
   render()
@@ -2418,6 +2483,7 @@ function defocus() {
     cm.destroy()
     cm = null
   }
+  destroyMermaidPanel()
   session.focusedId = null
   render()
 }
@@ -2823,7 +2889,7 @@ window.addEventListener('keydown', (e) => {
 // 第一行的 defaultPrevented 守卫是 Windows 上必须有的：聚焦块里的裸 CM
 // 会接管自己认识的那些键并 preventDefault（Ctrl+E 行内代码、Ctrl+B 粗体…），
 // 而本监听挂在 window 的冒泡阶段——不守卫的话，Windows 用户按 Ctrl+E 会
-// **同时**给选中文字加行内代码并把视图切到源码档。CM 不负责 stopPropagation，
+// **同时**给选中文字加行内代码并把视图切到���码档。CM 不负责 stopPropagation，
 // 这层守卫是我们���己的责任。
 window.addEventListener('keydown', (e) => {
   if (e.defaultPrevented) return
@@ -2984,7 +3050,7 @@ async function persistToDisk(force = false): Promise<boolean> {
     void bindDocument(target)
     void watch(target)
   }
-  // 大文件：未编辑时直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
+  // 大文件：未编辑���直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
   // 会在"打开后原样保存"这一路径上改写换行字节（撞产品红线）。编辑过才用 CM 的文本。
   let normalized: string
   if (largeMode) {
@@ -3443,7 +3509,7 @@ export function countText(text: string): DocStats {
 }
 \`\`\`
 
-普通段落用于对比高度。
+普��段落用于对比高度。
 `
 
 // 预览用的 frontmatter 样例：属性卡 + 标签列表两种形状都要能看到

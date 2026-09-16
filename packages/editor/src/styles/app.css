@@ -197,7 +197,7 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「右（模式开关+图标）」切开。
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「��（模式开关+图标）」切开。
    HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in 复盘时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
@@ -580,7 +580,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 
 /* 标题留白：绝对值，按标题自己的字号给。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
-   标题的上方留白（松）与下方留��（���）都写死，正文块的下方不写 margin-bottom，
+   标题的上方留白（松）与下方留��（�����）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
 .block[data-kind='heading'] { margin-bottom: var(--space-tight); }
 .block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
@@ -972,7 +972,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
 .empty-state > *:nth-child(5) { animation-delay: 180ms; }
 /* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（最多 5 条）在极矮的
-   窗口里会把主按钮挤出视口，屏幕上就是"��空却有滚动条"（用户反馈过）。
+   窗口里会把主按钮挤出视口，屏幕上就���"��空却有滚动条"（用户反馈过）。
    阈值是算出来的，不是拍的：hero ≈176 + 列表(5 条)≈290 + 间距 46 + 内边距 96 ≈ 608，
    所以内容高 ≥640 就装得下——超过才需要藏。之前写 780 太保守，把大量正常窗口
    （高 DPI 缩放后 CSS 高度会明显变小）的列表也误藏了。
@@ -1184,12 +1184,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   tab-size: 2;
 }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
-   只上四类：注释 / 字符串 / 数字 / 关键词——���分辨，不��。
+   只上四类：注释 / 字符串 / 数字 / 关键���——���分辨，不��。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   结构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
+   ���构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -1535,6 +1535,51 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   font-variant: normal;
   font-variant-numeric: normal;
 }
+
+/* 聚焦块的实时预览面板：源码在上、图在下，与代码卡同一张卡的语言。 */
+.mermaid-live {
+  margin-top: 10px;
+  border: 1px solid rgb(var(--border) / 0.8);
+  border-radius: var(--radius-card);
+  background: rgb(var(--card));
+  overflow: hidden;
+}
+.mermaid-live-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+  border-bottom: 1px solid rgb(var(--border) / 0.6);
+}
+.mermaid-live-body {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+/* 重渲进行中：旧图压暗而不是闪没 */
+.mermaid-live-body.rendering {
+  opacity: 0.55;
+}
+.mermaid-live-body .mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-live-error {
+  display: none;
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgb(var(--danger, var(--muted-foreground)));
+  border-top: 1px solid rgb(var(--border) / 0.6);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mermaid-live.has-error .mermaid-live-error {
+  display: block;
+}
 .mermaid-status {
   color: rgb(var(--subtle-foreground));
   font-size: var(--text-sm);
@@ -1679,7 +1724,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 右键菜单 ─────────────
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
- * 视觉上按「浮层」处理：圆角、浮层投影、比正文更紧的行距。 */
+ * 视觉上按「浮���」处理：圆角、浮层投影、比正文更紧的行距。 */
 .context-menu {
   position: fixed;
   z-index: 210;
@@ -2643,14 +2688,14 @@ tr:hover .table-editor-op { opacity: 1; }
 /* ───────────── 空态的「最近打开」 ─────────────
  * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
  * 不做卡片、不做图标徽章、不用主色描边——这份列表是「接着读」，
- * 观感上应该接近目录页，而不是一排 App 图标。 */
+ * 观感上���该接近目录页，而不是一排 App 图标。 */
 .recent-block {
   margin-top: 46px;
   width: 100%;
   text-align: left;
 }
 /* 没有最近文件时的一句轻引导：把首屏那块空白变成"会长出东西"的留白，
-   而不是"没做完"。居中、弱色，重量不超过上面的定位语。 */
+   而不是"没做完"。居中、弱色，重量不超过上面的定位语�� */
 .recent-empty {
   margin: 0;
   text-align: center;
