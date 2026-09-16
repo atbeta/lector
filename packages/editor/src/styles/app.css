@@ -653,7 +653,9 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   border-radius: var(--radius-card);
 }
 
-/* ───────────── 查找栏：浮层，不是工具条 ───────────── */
+/* ───────────── 查找栏：浮层，不是工具条 ─────────────
+ * 三组：查询+开关、计数+翻页、替换。空计数必须不占位，
+ * 否则 Aa 和 ↑↓ 中间会空出一截（min-width:52px 的老毛病）。 */
 .find-bar {
   position: fixed;
   top: calc(48px + 10px);
@@ -663,13 +665,26 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  padding: 5px 6px;
   border-radius: var(--radius-card);
   background: rgb(var(--popover));
   box-shadow: var(--shadow-floating);
   animation: pop-in-centered var(--motion-slow) var(--ease-emphasized) both;
 }
 .find-bar .btn-icon { width: 28px; height: 28px; }
+.find-toggles,
+.find-nav {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.find-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 5px 4px;
+  background: rgb(var(--border));
+  flex: none;
+}
 /* 查找栏的 Aa/\b/.* 开关：created 时没 CSS 规则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
@@ -715,16 +730,22 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 .find-bar .find-input { width: 168px; }
 .find-bar .find-replace { width: 148px; }
-/* 「全部替换」四字不许折行：折行会让浮层高一倍、整排按钮错位 */
-.find-bar .find-replaceall { white-space: nowrap; }
+/* 「全部替换」跟输入框同高、有边，才读得出是按钮而不是一句旁注 */
+.find-bar .find-replaceall {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
 .find-count {
-  min-width: 52px;
-  padding: 0 4px;
-  text-align: center;
+  padding: 0 6px;
   font-size: var(--text-2xs);
   color: rgb(var(--subtle-foreground));
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+.find-count:empty { display: none; }
+.find-count[data-bad] { color: rgb(var(--destructive)); }
 
 /* ───────────── 侧栏：当前文档的目录 ─────────────
  * 停靠而非浮层：大纲属于文档本身，不是临时工具。

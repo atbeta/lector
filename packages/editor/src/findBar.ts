@@ -24,15 +24,20 @@ export function findBar(host: FindHost) {
   // 翻译成「区分大小写」反而占宽且不一眼可辨。含义交给 tooltip。
   bar.innerHTML = `
     <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
-    <button class="find-toggle find-case" data-tip="${t('findCase')}" aria-label="${t('findCase')}" aria-pressed="false">Aa</button>
-    <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
-    <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
-    <span class="find-count"></span>
-    <button class="btn-icon find-prev" aria-label="${t('findPrev')}">${iconSvg('chevronUp')}</button>
-    <button class="btn-icon find-next" aria-label="${t('findNext')}">${iconSvg('chevronDown')}</button>
+    <div class="find-toggles">
+      <button class="find-toggle find-case" data-tip="${t('findCase')}" aria-label="${t('findCase')}" aria-pressed="false">Aa</button>
+      <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
+      <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
+    </div>
+    <div class="find-nav">
+      <span class="find-count" aria-live="polite"></span>
+      <button class="btn-icon find-prev" aria-label="${t('findPrev')}">${iconSvg('chevronUp', 16)}</button>
+      <button class="btn-icon find-next" aria-label="${t('findNext')}">${iconSvg('chevronDown', 16)}</button>
+    </div>
+    <span class="find-sep" aria-hidden="true"></span>
     <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
-    <button class="btn find-replaceall">${t('replaceAll')}</button>
-    <button class="find-close btn-icon" aria-label="${t('close')}">${iconSvg('close')}</button>
+    <button class="btn btn-ghost find-replaceall">${t('replaceAll')}</button>
+    <button class="find-close btn-icon" aria-label="${t('close')}">${iconSvg('close', 16)}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!
@@ -101,7 +106,7 @@ export function findBar(host: FindHost) {
       count.textContent = q.value ? t('noResults') : ''
       return
     }
-    // 「第几处 / 共几处」：只有总数时，用户不知道自己走到哪了
+    // 短格式 1/12：长句会把浮层撑开一截，空查询时还占着 52px 空洞
     count.textContent = t('matchPosition', { i: cursor + 1, n: total })
   }
 
@@ -110,6 +115,8 @@ export function findBar(host: FindHost) {
     const total = ms.reduce((a, m) => a + m.count, 0)
     if (cursor >= total) cursor = 0
     updateCount(total)
+    prev.disabled = next.disabled = total === 0
+    repAll.disabled = total === 0
     for (const m of ms) host.scrollTo(m.id)
     // 空查询/无效模式时先把上一轮的标记拆干净（否则残留在正文里）
     if (total === 0) clearFindHighlight(contentRoot())
@@ -180,5 +187,6 @@ export function findBar(host: FindHost) {
   document.addEventListener('keydown', onKey)
 
   document.body.appendChild(bar)
+  refresh()
   q.focus()
 }
