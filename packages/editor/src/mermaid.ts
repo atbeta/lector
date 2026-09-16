@@ -51,6 +51,13 @@ function cssRgbToken(name: string, fallback: string): string {
   return raw ? `rgb(${raw})` : fallback
 }
 
+/** 读取原始 CSS 变量值（不包 rgb()），用于字体族这类非颜色 token。 */
+function cssRawToken(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return raw || fallback
+}
+
 /**
  * mermaid 的调色板绑到我们的 token：图里的纸、墨、线全部跟主题走。
  *
@@ -72,8 +79,16 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
   const ink = t('--foreground', dark ? '#f4f4f6' : '#101014')
   const line = t('--muted-foreground', dark ? '#9e9ea8' : '#5c5c66')
   const border = t('--border', dark ? '#38383f' : '#e0e0e4')
+  // 字体绑到应用 UI 字体（Inter / --font-sans）。不设的话 mermaid 用自带默认
+  // "trebuchet ms"（Windows 系统字体，其他平台各自回退），导致图表字体和界面
+  // 完全脱节、且各编辑器观感不一。显式绑定后写进 SVG 内部 <style>，全平台一致。
+  const fontFamily = cssRawToken(
+    '--font-sans',
+    'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  )
   return {
     background: card,
+    fontFamily,
     // 流程图 / 状态图 / 大部分图
     primaryColor: muted,
     primaryBorderColor: primary,
@@ -111,7 +126,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   const vars = themeVariablesFor(theme)
   // 判重键里必须带上纸墨本身：阅读主题（纸 / 米黄 / 书）会改 --card / --foreground，
   // 只按 light/dark 判重的话，换成米黄纸面之后图还是旧的白底。
-  const key = `${next}::${vars.background}::${vars.primaryColor}::${vars.primaryBorderColor}::${vars.textColor}::${vars.lineColor}`
+  const key = `${next}::${vars.background}::${vars.primaryColor}::${vars.primaryBorderColor}::${vars.textColor}::${vars.lineColor}::${vars.fontFamily}`
   if (lastThemeKey === key) return
   mermaid.initialize({
     startOnLoad: false,
