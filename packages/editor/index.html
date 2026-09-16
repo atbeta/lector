@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lector</title>
+    <script>
+      // 标题必须在**首帧之前**就正确，否则会先闪一下占位的 "Lector" 再变成文档名。
+      // 壳在建窗时把文档名通过 initialization_script 放进 window.__lectorTitle，
+      // 这段内联脚本在 <head> 里同步执行——比应用脚本更早，也没有网络依赖。
+      // 浏览器预览里没有这个变量，退回占位（那时标题由应用自己维护）。
+      if (window.__lectorTitle) document.title = window.__lectorTitl...[truncated]
     <link rel="icon" href="/lector-mark.svg" type="image/svg+xml" />
     <script>
       // 防闪烁：在样式与模块加载之前定好主题。

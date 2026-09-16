@@ -55,6 +55,9 @@ pub fn run() {
             .targets([
               tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
               tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+              // 落一份到文件：Windows 上用户是双击启动的，stdout 直接丢了——
+              // 排查"第二个窗口卡死"这类问题时，日志是唯一的证据来源。
+              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
             ])
             .build(),
         )?;

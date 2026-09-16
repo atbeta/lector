@@ -26,9 +26,12 @@ interface LoadStateDeps {
 
 /** 标题栏副标题 / document.title / session 标题占位:三处保持一致。 */
 function resetTitle(fileNameEl: HTMLElement): void {
-  fileNameEl.textContent = 'Lector'
-  fileNameEl.dataset.untitled = 'true'
-  document.title = 'Lector'
+  // 空态：回到应用名。但**如果壳已经把文档名交给页面**（正在打开某个文件），
+  // 就不能写回占位——那正是"先闪 Lector、再出现文档"的中间态。
+  const boot = (window as { __lectorTitle?: string }).__lectorTitle
+  fileNameEl.textContent = boot ?? 'Lector'
+  fileNameEl.dataset.untitled = boot ? 'false' : 'true'
+  document.title = boot ?? 'Lector'
 }
 
 /**

@@ -534,7 +534,8 @@ pub fn open_path(app: &AppHandle, path: &str) {
     .and_then(|s| s.to_str())
     .unwrap_or("Lector");
   match build_doc_window(app, &label, title) {
-    Ok(_win) => {
+    Ok(_w) => {
+      log::info!("[win] 文档窗口已就绪 {label}");
       let _ = registry.0.lock().unwrap().insert(key, label);
     }
     Err(e) => {
@@ -702,6 +703,13 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title(title)
+    // 把文档名交给页面：<head> 里的内联脚本在首帧之前就用它替换占位标题。
+    // 只设窗口标题不够——页面加载后会按自己的逻辑写标题（见 resetTitle），
+    // 那一下就会把 "Lector" 闪出来。
+    .initialization_script(&format!(
+      "window.__lectorTitle = \"{}\";",
+      title.replace('\\', "\\\\").replace('"', "\\\"")
+    ))
     .min_inner_size(480.0, 360.0)
     // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
     // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
@@ -736,7 +744,9 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
       // x=20 是 macOS 惯例（第一颗按钮距左边缘 20pt），顶栏左内边距留了 80px 给它。
       .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
   }
+  log::info!("[win] 准备建窗 {label}");
   let win = builder.build()?;
+  log::info!("[win] 建窗完成 {label}");
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
   // 几何已在 builder 阶段预应用（见上方注释）；window-state 插件在窗口就绪时
