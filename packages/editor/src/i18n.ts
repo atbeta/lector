@@ -203,6 +203,13 @@ export const zh = {
   menuInsertMermaid: '插入 Mermaid 图',
   mermaidTemplate:
     '```mermaid\nflowchart TD\n    A[开始] --> B{是否继续?}\n    B -->|是| C[处理任务]\n    B -->|否| D[结束]\n    C --> D\n```',
+  tableMoveUp: '上移此行',
+  tableMoveDown: '下移此行',
+  imageEditAlt: '编辑描述…',
+  imageReplace: '替换图片…',
+  imageReplaced: '已替换图片',
+  imageUndoAlt: '编辑图片描述',
+  imageUndoReplace: '替换图片',
   // 阅读导航轨与表格编辑
   menuEditTable: '编辑表格…',
   menuUndoTable: '已还原表格修改',
@@ -416,6 +423,13 @@ const en: Record<keyof typeof zh, string> = {
   menuInsertMermaid: 'Insert Mermaid diagram',
   mermaidTemplate:
     '```mermaid\nflowchart TD\n    A[Start] --> B{Continue?}\n    B -->|Yes| C[Process]\n    B -->|No| D[End]\n    C --> D\n```',
+  tableMoveUp: 'Move row up',
+  tableMoveDown: 'Move row down',
+  imageEditAlt: 'Edit description…',
+  imageReplace: 'Replace image…',
+  imageReplaced: 'Image replaced',
+  imageUndoAlt: 'Edit image description',
+  imageUndoReplace: 'Replace image',
   // Reading rail and table editor
   menuEditTable: 'Edit table…',
   menuUndoTable: 'Table edit reverted',

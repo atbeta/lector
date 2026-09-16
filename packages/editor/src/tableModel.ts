@@ -135,6 +135,16 @@ export function deleteRow(table: ParsedTable, row: number): ParsedTable {
   return { ...t, body: t.body.filter((_, i) => i !== row) }
 }
 
+/** 把第 from 行移到 to 行（其余行顺延）；越界或原地返回原表。 */
+export function moveRow(table: ParsedTable, from: number, to: number): ParsedTable {
+  const t = padTable(table)
+  if (from < 0 || from >= t.body.length || to < 0 || to >= t.body.length || from === to) return t
+  const body = [...t.body]
+  const [row] = body.splice(from, 1)
+  body.splice(to, 0, row!)
+  return { ...t, body }
+}
+
 /** 至少保留 1 列 */
 export function deleteCol(table: ParsedTable, col: number): ParsedTable {
   const t = padTable(table)

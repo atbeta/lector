@@ -39,6 +39,8 @@ const PATHS: Record<string, string> = {
   trash: `<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`,
   // 放大镜（供 mermaid 放大提示用）
   zoomIn: `<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>`,
+  // 加号（表格加行/加列）
+  plus: `<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>`,
 }
 
 // 窗口控件用 1px 细线（Windows 原生观感），与上面 2px 的工具图标区分开：

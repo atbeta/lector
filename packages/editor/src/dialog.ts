@@ -73,6 +73,71 @@ export async function confirmDiscard(): Promise<boolean> {
   return id === 'discard'
 }
 
+/** 带输入框的小模态：确认返回输入值；取消 / Esc / 点遮罩返回 null。 */
+export function showPrompt(opts: { title: string; value: string }): Promise<string | null> {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div')
+    backdrop.className = 'modal-backdrop'
+    const card = document.createElement('div')
+    card.className = 'modal-card dialog-card'
+    const header = document.createElement('div')
+    header.className = 'modal-header'
+    const h = document.createElement('h2')
+    h.className = 'modal-title'
+    h.textContent = opts.title
+    header.appendChild(h)
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'dialog-input'
+    input.value = opts.value
+    input.spellcheck = false
+    let done = false
+    const finish = (v: string | null) => {
+      if (done) return
+      done = true
+      document.removeEventListener('keydown', onKey)
+      backdrop.remove()
+      resolve(v)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        finish(null)
+      }
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault()
+        finish(input.value)
+      }
+    })
+    const footer = document.createElement('div')
+    footer.className = 'modal-footer'
+    const cancelBtn = document.createElement('button')
+    cancelBtn.type = 'button'
+    cancelBtn.className = 'btn btn-ghost'
+    cancelBtn.textContent = t('cancel')
+    cancelBtn.addEventListener('click', () => finish(null))
+    const okBtn = document.createElement('button')
+    okBtn.type = 'button'
+    okBtn.className = 'btn btn-primary'
+    okBtn.textContent = t('done')
+    okBtn.addEventListener('click', () => finish(input.value))
+    footer.append(cancelBtn, okBtn)
+    card.append(header, input, footer)
+    backdrop.appendChild(card)
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) finish(null)
+    })
+    document.addEventListener('keydown', onKey)
+    document.body.appendChild(backdrop)
+    requestAnimationFrame(() => {
+      input.focus()
+      input.select()
+    })
+  })
+}
+
 export async function chooseConflict(): Promise<'overwrite' | 'reload' | null> {
   const id = await showDialog({
     title: t('conflictTitle'),

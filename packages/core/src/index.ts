@@ -35,4 +35,4 @@ export {
   type ReadingThemeId,
 } from './readingThemes.ts'
 export { decodeEntities, htmlToMarkdown } from './htmlToMarkdown.ts'
-export { listImages, replaceImageUrl, type ImageRef } from './images.ts'
+export { listImages, replaceImageUrl, replaceImageAlt, type ImageRef } from './images.ts'

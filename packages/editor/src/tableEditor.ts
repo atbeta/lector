@@ -5,11 +5,13 @@
 // 而表格恰好是「结构上想网格、存储上要源码」的典型——弹窗管网格，写回管源码。
 
 import { t } from './i18n.ts'
+import { iconSvg } from './icons.ts'
 import {
   addCol,
   addRow,
   deleteCol,
   deleteRow,
+  moveRow,
   padTable,
   parseTable,
   serializeTable,
@@ -46,7 +48,8 @@ export function openTableEditor(opts: {
   title.textContent = t('tableTitle')
   const sourceBtn = document.createElement('button')
   sourceBtn.type = 'button'
-  sourceBtn.className = 'btn'
+  // 次要动作统一 ghost（与 dialog.ts 的确认/取消同一套语言）
+  sourceBtn.className = 'btn btn-ghost'
   sourceBtn.textContent = t('tableEditSource')
   const doneBtn = document.createElement('button')
   doneBtn.type = 'button'
@@ -120,6 +123,18 @@ export function openTableEditor(opts: {
       }
       focusCell(nextRow, col)
     })
+    // Alt+↑/↓ 整行上移/下移（表头 row=-1 不参与）；移完焦点跟到新位置
+    ta.addEventListener('keydown', (e) => {
+      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.isComposing) return
+      e.preventDefault()
+      if (row < 0) return
+      const to = e.key === 'ArrowUp' ? row - 1 : row + 1
+      if (to < 0 || to >= draft.body.length) return
+      draft = moveRow(draft, row, to)
+      dirty = true
+      renderGrid()
+      focusCell(to, col)
+    })
     requestAnimationFrame(autogrow)
     return ta
   }
@@ -128,15 +143,29 @@ export function openTableEditor(opts: {
     bodyEl.querySelector<HTMLTextAreaElement>(`textarea[data-row="${row}"][data-col="${col}"]`)?.focus()
   }
 
-  function ghostButton(label: string, glyph: '+' | '×', run: () => void): HTMLButtonElement {
+  /** 结构操作小按钮：统一用图标库的 Feather 线性图标，不再用裸文字符号。 */
+  function opButton(label: string, icon: string, run: () => void): HTMLButtonElement {
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.className = 'table-editor-op'
     btn.tabIndex = -1
     btn.title = label
     btn.setAttribute('aria-label', label)
-    btn.textContent = glyph
+    btn.innerHTML = iconSvg(icon, 14)
     btn.addEventListener('click', run)
+    return btn
+  }
+
+  /** 行排序按钮：到边自动 disabled；点击后焦点落到移动行的第一个单元格。 */
+  function moveButton(label: string, icon: string, from: number, to: number): HTMLButtonElement {
+    const btn = opButton(label, icon, () => {
+      draft = moveRow(draft, from, to)
+      dirty = true
+      renderGrid()
+      focusCell(to, 0)
+    })
+    btn.classList.add('table-editor-move')
+    btn.disabled = to < 0 || to >= draft.body.length
     return btn
   }
 
@@ -150,12 +179,16 @@ export function openTableEditor(opts: {
 
     const thead = document.createElement('thead')
     const hr = document.createElement('tr')
+    // 左侧排序 gutter 的表头占位（与数据行的 ↑/↓ 对齐）
+    const headGutter = document.createElement('th')
+    headGutter.className = 'table-editor-reorder-gutter'
+    hr.appendChild(headGutter)
     draft.header.forEach((cell, ci) => {
       const th = document.createElement('th')
       th.appendChild(makeCell(-1, ci, cell))
       if (cols > 1) {
         th.appendChild(
-          ghostButton(t('tableDelCol'), '×', () => {
+          opButton(t('tableDelCol'), 'close', () => {
             draft = deleteCol(draft, ci)
             dirty = true
             renderGrid()
@@ -167,7 +200,7 @@ export function openTableEditor(opts: {
     const addColTh = document.createElement('th')
     addColTh.className = 'table-editor-gutter'
     addColTh.appendChild(
-      ghostButton(t('tableAddCol'), '+', () => {
+      opButton(t('tableAddCol'), 'plus', () => {
         draft = addCol(draft)
         dirty = true
         renderGrid()
@@ -180,6 +213,14 @@ export function openTableEditor(opts: {
     const tbody = document.createElement('tbody')
     draft.body.forEach((row, ri) => {
       const tr = document.createElement('tr')
+      // 左 gutter：↑/↓ 排序（悬停行时显现，到边 disabled）
+      const reorder = document.createElement('td')
+      reorder.className = 'table-editor-reorder-gutter'
+      const moveGroup = document.createElement('div')
+      moveGroup.className = 'table-editor-move-group'
+      moveGroup.append(moveButton(t('tableMoveUp'), 'chevronUp', ri, ri - 1), moveButton(t('tableMoveDown'), 'chevronDown', ri, ri + 1))
+      reorder.appendChild(moveGroup)
+      tr.appendChild(reorder)
       row.forEach((cell, ci) => {
         const td = document.createElement('td')
         td.appendChild(makeCell(ri, ci, cell))
@@ -188,7 +229,7 @@ export function openTableEditor(opts: {
       const gutter = document.createElement('td')
       gutter.className = 'table-editor-gutter'
       gutter.appendChild(
-        ghostButton(t('tableDelRow'), '×', () => {
+        opButton(t('tableDelRow'), 'close', () => {
           draft = deleteRow(draft, ri)
           dirty = true
           renderGrid()
@@ -198,12 +239,15 @@ export function openTableEditor(opts: {
       tbody.appendChild(tr)
     })
     const addTr = document.createElement('tr')
+    const addGutterL = document.createElement('td')
+    addGutterL.className = 'table-editor-reorder-gutter'
+    addTr.appendChild(addGutterL)
     const addTd = document.createElement('td')
     addTd.colSpan = cols
     const addRowBtn = document.createElement('button')
     addRowBtn.type = 'button'
     addRowBtn.className = 'table-editor-add-row'
-    addRowBtn.textContent = `+ ${t('tableAddRow')}`
+    addRowBtn.innerHTML = `${iconSvg('plus', 14)}<span>${t('tableAddRow')}</span>`
     addRowBtn.addEventListener('click', () => {
       draft = addRow(draft)
       dirty = true

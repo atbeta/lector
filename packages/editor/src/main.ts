@@ -11,6 +11,7 @@ import {
   serialize,
   listImages,
   replaceImageUrl,
+  replaceImageAlt,
   type BlockKind,
   type BlockView,
   countText,
@@ -76,7 +77,7 @@ import {
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
 import { openAppearancePop } from './appearancePop.ts'
-import { chooseConflict, confirmDiscard, showDialog } from './dialog.ts'
+import { chooseConflict, confirmDiscard, showDialog, showPrompt } from './dialog.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { createUndoStack } from './undoStack.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
@@ -198,14 +199,14 @@ if (titlebarEl) bindTitlebar(titlebarEl)
 //
 // 默认 read——多数场景是「读」不是「改」。
 //
-// read:   只读预览。点块不进编辑；mermaid / 图片点开放大。
+// read:   只读预览。点块不进编辑；mermaid / 图��点开放大。
 // edit:   预览 + 点块就地编辑（改哪块点哪块）。这是「顺手能改」的主路径。
 // source: 全篇等宽源码，点块进该块的源码编辑。通读原文 / 批量改格式用。
 //
 // 三档**常驻**在顶栏右侧的分段控件里，当前档一眼可见。
 // 旧版是一个三态循环按钮，��钮上画的是「下一个模式」的图标，用户永远要��
 // 「我现在在哪一档」；而且第三档叫「分屏」——屏幕上并没有第二条栏，
-// 名字在承诺一件不存在的事。名字与档位一起改了：阅读 / 编辑 / 源码。
+// 名字在承诺一件不存在的事。名字与档位一起改���：阅读 / 编辑 / 源码。
 //
 // 状态走 html[data-mode]——样式 / 点击 / 快捷键都只看这一个属性。
 // 快捷键：⌘1 / ⌘2 / ⌘3 直选，⌘E 循环。
@@ -559,7 +560,7 @@ function jumpToHeading(id: string): void {
   const el = blocksEl.get(id)
   if (!el) return
   el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  // 立刻把高亮切过去：平滑滚动期间用户已经认为自己在那一节了，
+  // 立刻把高亮切过��：平滑滚动期间用户已经认为自己在那一节了，
   // 等滚动结束再变会显得迟滞。
   setActiveHeading(id, { reveal: true })
 }
@@ -1165,6 +1166,53 @@ async function uploadImageAt(block: BlockView, index: number, absPath: string): 
   }
 }
 
+/** 编辑图片描述（alt）：小输入框确认后只改 `![…]` 那一段，URL 不动。 */
+async function editImageAlt(block: BlockView, index: number): Promise<void> {
+  const img = listImages(block.raw)[index]
+  if (!img) return
+  const next = await showPrompt({ title: t('imageEditAlt'), value: img.alt })
+  if (next === null || next === img.alt) return
+  const md = replaceImageAlt(block.raw, index, next)
+  if (md == null) {
+    showToast(t('imageFailed'))
+    return
+  }
+  const before = block.raw
+  setBlockRaw(block, md)
+  blockUndoStack.push(t('imageUndoAlt'), () => setBlockRaw(block, before))
+  render()
+}
+
+/** 替换图片文件：选新图 → 走同一条落盘链路 → 只换 URL 段，alt 保留。 */
+function replaceImageFile(block: BlockView, index: number): void {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    if (!file) return
+    void (async () => {
+      try {
+        const src = await persistImageBytes(file.name, file)
+        if (!src) return
+        const md = replaceImageUrl(block.raw, index, src)
+        if (md == null) {
+          showToast(t('imageFailed'))
+          return
+        }
+        const before = block.raw
+        setBlockRaw(block, md)
+        blockUndoStack.push(t('imageUndoReplace'), () => setBlockRaw(block, before))
+        render()
+        showToast(t('imageReplaced'))
+      } catch (err) {
+        showToast(`${t('imageFailed')}：${String(err)}`)
+      }
+    })()
+  })
+  input.click()
+}
+
 /**
  * 图片动作菜单：只放「针对这一张图」能做的事。
  *
@@ -1178,6 +1226,8 @@ function imageMenuItems(img: HTMLImageElement): ContextMenuItem[] {
     { label: t('imageView'), run: () => showInLightbox(img.src, img.alt) },
   ]
   if (target) {
+    items.push({ label: t('imageEditAlt'), run: () => void editImageAlt(target.block, target.index) })
+    items.push({ label: t('imageReplace'), run: () => replaceImageFile(target.block, target.index) })
     items.push({ label: t('imageEditSource'), run: () => focusImageSource(target.block, target.index) })
   }
   const local = assetLocalPath(img.src)
@@ -1287,7 +1337,7 @@ function appendSelectionCopy(items: ContextMenuItem[]): void {
   })
 }
 
-/** 右键入口：按目标决定给哪套菜单。 */
+/** ��键入口：按目标决定给哪套菜单。 */
 function onContextMenu(e: MouseEvent): void {
   const target = e.target as HTMLElement | null
   if (!target) return
@@ -1742,7 +1792,7 @@ function splitBlock(block: BlockView, view: EditorView): boolean {
   return true
 }
 
-/** 空段块首 Backspace → 删除该空段并上移，与上一内容块合并。 */
+/** 空段块首 Backspace → 删除该空段并上移，与上���内容块合并。 */
 function mergeBlock(block: BlockView, view: EditorView): boolean {
   const doc = view.state.doc.toString()
   if (doc.trim() !== '') return false
@@ -2664,60 +2714,62 @@ function insertImageMarkdownAtCaret(md: string) {
   appendImageParagraph(md)
 }
 
-async function ingestImageFile(file: File, name: string | null, insertRef?: { type: 'caret'; } | { type: 'afterBlock'; blockId: string } | null) {
-  if (!name) return
+/**
+ * 图片字节 → 落盘 → 返回可直接写进 `]()` 的 src。
+ * 命令模式返回图床 URL（失败回退本地相对路径），其余模式返回相对路径。
+ * 插入（粘贴/拖入）与「替换图片」共用这一条链路，模式逻辑只此一份。
+ */
+async function persistImageBytes(name: string, file: File): Promise<string | null> {
   if (file.size > MAX_IMAGE_BYTES) {
     showToast(t('imageTooLarge'))
-    return
+    return null
   }
   if (detectEnv() !== 'shell' || !session.source) {
     showToast(t('imageNeedFile'))
-    return
+    return null
   }
-  try {
-    const bytes = await file.arrayBuffer()
-    // 同一张图在本会话内粘 N 次只占一份磁盘：按内容 hash 复用上次返回的路径。
-    // 跨会话的 map 会重置——按 hash 查 image-assets 目录里是下个迭代的事。
-    const hash = await imageContentHash(bytes)
-    const existing = findDedupImage(hash)
-    if (existing) {
-      insertImage(insertRef, imageMarkdown(existing))
-      return
-    }
-    const bytes_base64 = fileToBase64(bytes)
+  const bytes = await file.arrayBuffer()
+  // 同一张图在本会话内粘 N 次只占一份磁盘：按内容 hash 复用上次返回的路径。
+  // 跨会话的 map 会重置——按 hash 查 image-assets 目录里是下个迭代的事。
+  const hash = await imageContentHash(bytes)
+  const existing = findDedupImage(hash)
+  if (existing) return existing
+  const bytes_base64 = fileToBase64(bytes)
 
-    // 模式 → 落盘子目录：images（旧行为）/ assets 模板 / command 时也先落 assets 副本。
-    const s = getSettings()
-    let subdir: string | null = null
-    let local: { relative_path: string; abs_path: string | null } | null = null
-    if (s.imageMode === 'command' || s.imageMode === 'assets') {
-      const stem = docStem(session.source.path)
-      const expanded = expandImageDir(s.imageAssetsDir, stem) ?? 'images'
-      local = await saveImage(session.source.path, name, bytes_base64, expanded)
-      if (s.imageMode === 'command') {
-        // 命令模式：本地副本已在 assets 里，传图床拿 URL，失败静默回退本地。
-        const { command, preArgs } = splitUploadCommand(s.imageCommand)
-        let insertedLocal = local.relative_path
-        if (command && local.abs_path) {
-          const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], local.abs_path, s.imageCommandTimeoutMs).catch(() => null)
-          if (res?.ok && res.url) {
-            rememberImage(hash, res.url)
-            insertImage(insertRef, imageMarkdown(res.url))
-            return
-          }
-          showToast(`${t('imageUploadFailed')}：${res?.error ?? 'unknown'}`)
+  // 模式 → 落盘子目录：images（旧行为）/ assets 模板 / command 时也先落 assets 副本。
+  const s = getSettings()
+  let local: { relative_path: string; abs_path: string | null }
+  if (s.imageMode === 'command' || s.imageMode === 'assets') {
+    const stem = docStem(session.source.path)
+    const expanded = expandImageDir(s.imageAssetsDir, stem) ?? 'images'
+    local = await saveImage(session.source.path, name, bytes_base64, expanded)
+    if (s.imageMode === 'command') {
+      // 命令模式：本地副本已在 assets 里，传图床拿 URL，失败静默回退本地。
+      const { command, preArgs } = splitUploadCommand(s.imageCommand)
+      if (command && local.abs_path) {
+        const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], local.abs_path, s.imageCommandTimeoutMs).catch(() => null)
+        if (res?.ok && res.url) {
+          rememberImage(hash, res.url)
+          return res.url
         }
-        rememberImage(hash, insertedLocal)
-        insertImage(insertRef, imageMarkdown(insertedLocal))
-        return
+        showToast(`${t('imageUploadFailed')}：${res?.error ?? 'unknown'}`)
       }
-    } else {
-      // 缺省 / images：保持老的 images/ 目录。
-      local = await saveImage(session.source.path, name, bytes_base64, 'images')
+      rememberImage(hash, local.relative_path)
+      return local.relative_path
     }
-    const rel = local!.relative_path
-    rememberImage(hash, rel)
-    insertImage(insertRef, imageMarkdown(rel))
+  } else {
+    // 缺省 / images：保持老的 images/ 目录。
+    local = await saveImage(session.source.path, name, bytes_base64, 'images')
+  }
+  rememberImage(hash, local.relative_path)
+  return local.relative_path
+}
+
+async function ingestImageFile(file: File, name: string | null, insertRef?: { type: 'caret'; } | { type: 'afterBlock'; blockId: string } | null) {
+  if (!name) return
+  try {
+    const src = await persistImageBytes(name, file)
+    if (src != null) insertImage(insertRef, imageMarkdown(src))
   } catch (err) {
     showToast(`${t('imageFailed')}：${String(err)}`)
   }

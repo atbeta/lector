@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { listImages, replaceImageUrl } from '../src/images.ts'
+import { listImages, replaceImageAlt, replaceImageUrl } from '../src/images.ts'
 
 describe('listImages', () => {
   test('单张行内图片：url/alt/位置都对', () => {
@@ -60,5 +60,35 @@ describe('replaceImageUrl', () => {
     const imgs = listImages(out)
     expect(imgs[0]!.url).toBe('1.png')
     expect(imgs[1]!.url).toBe('https://cdn/x.png')
+  })
+})
+
+describe('replaceImageAlt', () => {
+  test('只换目标 alt，URL 与其余字节不变', () => {
+    const raw = '前 ![旧](a.png) 后 ![b](b.png)'
+    const out = replaceImageAlt(raw, 0, '新描述')
+    expect(out).toBe('前 ![新描述](a.png) 后 ![b](b.png)')
+  })
+
+  test('alt 里的方括号转义，roundtrip 解析还原', () => {
+    const raw = '![a](x.png)'
+    const out = replaceImageAlt(raw, 0, '注[1]')!
+    expect(out).toBe('![注\\[1\\]](x.png)')
+    expect(listImages(out)[0]!.alt).toBe('注[1]')
+  })
+
+  test('空 alt 合法（清空描述）', () => {
+    expect(replaceImageAlt('![旧](x.png)', 0, '')).toBe('![](x.png)')
+  })
+
+  test('编号越界 / 无图返回 null', () => {
+    expect(replaceImageAlt('![a](x.png)', 2, 'y')).toBeNull()
+    expect(replaceImageAlt('无图', 0, 'y')).toBeNull()
+  })
+
+  test('换 alt 不影响后续 replaceImageUrl 的定位', () => {
+    const raw = '![a](1.png) ![b](2.png)'
+    const out = replaceImageAlt(raw, 0, '更长的描述')!
+    expect(replaceImageUrl(out, 1, '9.png')).toBe('![更长的描述](1.png) ![b](9.png)')
   })
 })

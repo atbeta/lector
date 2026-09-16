@@ -7,6 +7,7 @@ import {
   addRow,
   deleteCol,
   deleteRow,
+  moveRow,
   padTable,
   parseTable,
   serializeTable,
@@ -113,5 +114,33 @@ describe('grid mutations', () => {
     const lines = md.split('\n')
     expect(lines[1]).toBe('| --- | --- | --- |')
     expect(parseTable(lines).body).toEqual([['', '', '']])
+  })
+
+  test('moveRow 下移：目标行与中间行顺延', () => {
+    const t = parseTable(['| a |', '|---|', '| 1 |', '| 2 |', '| 3 |'])
+    const moved = moveRow(t, 0, 2)
+    expect(moved.body.map((r) => r[0])).toEqual(['2', '3', '1'])
+  })
+
+  test('moveRow 上移对称', () => {
+    const t = parseTable(['| a |', '|---|', '| 1 |', '| 2 |', '| 3 |'])
+    const moved = moveRow(t, 2, 0)
+    expect(moved.body.map((r) => r[0])).toEqual(['3', '1', '2'])
+  })
+
+  test('moveRow 越界 / 原地返回等价表', () => {
+    const t = parseTable(['| a |', '|---|', '| 1 |', '| 2 |'])
+    expect(moveRow(t, 0, 5).body).toEqual(t.body)
+    expect(moveRow(t, -1, 0).body).toEqual(t.body)
+    expect(moveRow(t, 1, 1).body).toEqual(t.body)
+  })
+
+  test('moveRow 后序列化仍是合法 GFM（roundtrip）', () => {
+    const t = parseTable(['| a | b |', '|---|---|', '| 1 | 2 |', '| 3 | 4 |'])
+    const md = serializeTable(moveRow(t, 1, 0))
+    expect(parseTable(md.split('\n')).body).toEqual([
+      ['3', '4'],
+      ['1', '2'],
+    ])
   })
 })

@@ -81,3 +81,20 @@ export function replaceImageUrl(raw: string, index: number, url: string): string
   if (raw[urlEnd] !== ')' && !/\s/.test(raw[urlEnd] ?? '')) return null
   return raw.slice(0, urlStart) + url + raw.slice(urlEnd)
 }
+
+/**
+ * 把第 index 张图片的 alt 换掉，其余字节原样保留。
+ *
+ * 同 replaceImageUrl 的思路：只动 `![` 与 `](` 之间那一段，URL 部分一个字节不碰。
+ * 新 alt 里的 `[` `]` 转义成 `\[` `\]`（CommonMark 惯例），其余字符原样保留。
+ * index 越界 / 语法畸形（`![` 或 `](` 对不上）返回 null，调用方放弃改写。
+ */
+export function replaceImageAlt(raw: string, index: number, alt: string): string | null {
+  const img = listImages(raw)[index]
+  if (!img) return null
+  if (raw[img.start] !== '!' || raw[img.start + 1] !== '[') return null
+  const open = raw.indexOf('](', img.start + 2)
+  if (open < 0 || open >= img.end) return null
+  const escaped = alt.replace(/[[\]]/g, '\\$&')
+  return raw.slice(0, img.start + 2) + escaped + raw.slice(open)
+}

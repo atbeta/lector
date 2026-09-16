@@ -580,7 +580,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 
 /* 标题留白：绝对值，按标题自己的字号给。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
-   标题的上方留白（松）与下方留��（�����）都写死，正文块的下方不写 margin-bottom，
+   标题的上方留白（松）与下方留����������）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
 .block[data-kind='heading'] { margin-bottom: var(--space-tight); }
 .block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
@@ -972,7 +972,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
 .empty-state > *:nth-child(5) { animation-delay: 180ms; }
 /* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（最多 5 条）在极矮的
-   窗口里会把主按钮挤出视口，屏幕上就���"��空却有滚动条"（用户反馈过）。
+   窗口里会把主按钮挤出视口，屏���上就���"��空却有滚动条"（用户反馈过）。
    阈值是算出来的，不是拍的：hero ≈176 + 列表(5 条)≈290 + 间距 46 + 内边距 96 ≈ 608，
    所以内容高 ≥640 就装得下——超过才需要藏。之前写 780 太保守，把大量正常窗口
    （高 DPI 缩放后 CSS 高度会明显变小）的列表也误藏了。
@@ -1184,7 +1184,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   tab-size: 2;
 }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
-   只上四类：注释 / 字符串 / 数字 / 关键���——���分辨，不��。
+   只上四类：注释 / 字符串 / ���字 / 关键���——���分辨，不��。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
@@ -1409,7 +1409,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: 4px;
 }
 
-/* 未知 / yaml / html 降级 — 等宽源�� */
+/* ���知 / yaml / html 降级 — 等宽源�� */
 .preform {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -1626,7 +1626,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   border-radius: 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  /* 字号与行距跟阅读/编辑态完全一致。
+  /* 字号与行距跟阅读/编辑态完���一致。
      源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
      读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
   font-size: var(--reading-font-size);
@@ -2325,8 +2325,10 @@ html.lightbox-open #content { overflow: hidden; }
 .table-editor-card {
   display: flex;
   flex-direction: column;
-  width: min(880px, calc(100vw - 48px));
-}
+  /* 列多的表（5 列以上）也放得下：卡片放宽一档，配合单元格 min-width 收窄，
+     常见表不再出横向滚动条 */
+  width: min(960px, calc(100vw - 48px));
+  }
 .table-editor-card .modal-header .btn { margin-left: 8px; }
 .table-editor-card .modal-header .btn:first-of-type { margin-left: auto; }
 .table-editor-body {
@@ -2344,7 +2346,9 @@ html.lightbox-open #content { overflow: hidden; }
 .table-editor-grid textarea {
   display: block;
   width: 100%;
-  min-width: 8rem;
+  /* 之前 8rem：列一多整网最小宽撑破卡片，出横向滚动条。4.5rem 足够放下
+     光标和几个字，长内容靠 textarea 换行消化 */
+  min-width: 4.5rem;
   resize: none;
   overflow: hidden;
   box-sizing: border-box;
@@ -2367,6 +2371,17 @@ html.lightbox-open #content { overflow: hidden; }
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
 .table-editor-gutter { width: 30px; min-width: 30px; }
+/* 左侧排序 gutter：↑/↓ 并排，悬停行时显现 */
+.table-editor-reorder-gutter { width: 56px; min-width: 56px; }
+.table-editor-move-group {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 7px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+tr:hover .table-editor-move-group,
+tr:focus-within .table-editor-move-group { opacity: 1; }
 .table-editor-op {
   display: inline-flex;
   align-items: center;
@@ -2378,6 +2393,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-radius: 6px;
   background: transparent;
   color: rgb(var(--subtle-foreground));
+  cursor: pointer;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -2386,7 +2402,20 @@ html.lightbox-open #content { overflow: hidden; }
     background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
+.table-editor-op svg { display: block; }
 .table-editor-op:hover { background: rgb(var(--accent)); color: rgb(var(--foreground)); }
+.table-editor-op:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.table-editor-op:disabled {
+  opacity: 0.25;
+  cursor: default;
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+}
+/* 排序按钮挂在 move-group 里，不吃 op 的 7px 顶距 */
+.table-editor-move-group .table-editor-op { margin-top: 0; }
 /* 加列按钮是网格的唯一常显入口；删除按钮悬停所在行/列表头才出现 */
 .table-editor-gutter .table-editor-op { opacity: 0.55; }
 tr:hover .table-editor-op { opacity: 1; }
@@ -2409,14 +2438,38 @@ tr:hover .table-editor-op { opacity: 1; }
   color: rgb(var(--muted-foreground));
   font-size: var(--text-sm);
   cursor: pointer;
+  /* 图标 + 文案同排居中 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: border-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard),
+  color var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard);
 }
 .table-editor-add-row:hover {
   border-color: rgb(var(--primary) / 0.6);
   color: rgb(var(--foreground));
   background: var(--primary-softer);
+  }
+
+/* showPrompt 的输入框：与表格单元格同一套字段语言 */
+.dialog-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--paper));
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.dialog-input:focus-visible {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
 }
 
 
