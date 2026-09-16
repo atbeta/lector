@@ -115,6 +115,20 @@ Web 打开一篇文档后登记到当前窗口（对话框打开的 main 窗口�
 invoke('bind_document', { path: string }) → boolean
 ```
 
+### `open_link`
+
+打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个新窗口（`open_path` 那条路）。
+
+Web 层只传「当前文档路径 + 链接原文」——**相对路径怎么解析、允不允许，全在壳侧**。链接是文档内容，属不可信输入，判定必须待在能看清真实文件系统的那一层。
+
+尺度**比相对图片宽，这是有意的**：相对图片锁在文档目录树内，因为它是渲染时自动加载的（无手势，一份文档就能静默读盘）；链接是手势门控的（用户点了才走），结果只是开一个只读窗口显示文件，没有外发通道、不执行脚本、不写目标。所以相对路径（含 `../`）、绝对路径、`file://` 都认，与 Typora 对齐。剩下的门槛是零成本的三道：扩展名限 `.md/.markdown/.txt`、目标必须是存在的普通文件、其它 scheme 一律拒。
+
+失败时返回短码字符串：`bad_href` / `scheme` / `missing` / `not_text`，由 Web 层翻成人话。
+
+```ts
+invoke('open_link', { docPath: string, href: string }) → void
+```
+
 ### `read_clipboard`
 
 读系统剪贴板文本，右键菜单里的「粘贴」用。
@@ -199,6 +213,7 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-09-17：补 `open_link`（文档里的本地链接：相对路径按当前文档解析，开新窗口/聚焦已有窗口；路径判定在壳侧，尺度与相对图片不同，理由见该节）。
 - 2026-09-17：补 `read_clipboard`（壳装 `tauri-plugin-clipboard-manager`，但只经自定义命令暴露读；webview 自己的 `readText()` 在 macOS 上必被拒，右键菜单的「粘贴」因此一直失败）。不动 capabilities：插件命令不开给 webview。
 - 2026-09-03：补「最近打开」（壳单点 `lector-recent.json` + 原生菜单）与「另存为」（dialog save + `write_file` force）；`write_file` 目标不存在时直接写；`bind_document` 副作用收白名单、记最近、重建菜单。
 - 2026-08-31：补 `bind_document` / `save_image`（粘贴拖入图片写 `./images/`）。

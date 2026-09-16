@@ -1205,6 +1205,32 @@ const summary = {
       await page.waitForTimeout(200)
       await page.evaluate(() => window.getSelection()?.removeAllRanges())
     }
+
+    // ── 阅读档里点本地链接：必须有交代 ──
+    //
+    // 以前这里是 preventDefault() 之后**什么都不做**：本地链接点了没反应。
+    // 浏览器预览里没有壳，所以落到「本地文件要在应用里打开」的提示上；真机里它开新窗口
+    // （同一文件已打开就聚焦那个窗口）。判据只看**有没有提示**，不认文案。
+    await setMode('read')
+    const linkClicked = await page.evaluate(() => {
+      const a = document.querySelector('#content .reading-prose a')
+      const toast = document.getElementById('lector-toast')
+      if (toast) toast.textContent = ''
+      if (!a) return false
+      a.setAttribute('href', 'ch2.md')
+      a.scrollIntoView({ block: 'center' })
+      a.click()
+      return true
+    })
+    await page.waitForTimeout(350)
+    const linkToast = await page.evaluate(() => document.getElementById('lector-toast')?.textContent ?? '')
+    if (!linkClicked) note('warn', '样本文档里没有链接，本地链接点击这条没验到')
+    else if (!linkToast) {
+      note('error', '阅读档点本地链接没有任何交代：preventDefault 之后不能什么都不做')
+    } else {
+      note('info', `阅读档点本地链接 → 提示「${linkToast}」`)
+    }
+    await setMode('edit')
   }
 
   // 3.8) 阅读主题：纸墨与标定排版必须真的上屏

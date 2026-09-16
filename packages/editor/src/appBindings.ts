@@ -1,10 +1,11 @@
-import { detectEnv, openExternal, onMenu } from '@lector/shell-web'
+import { detectEnv, onMenu } from '@lector/shell-web'
 import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
 import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
+import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
@@ -49,18 +50,18 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
     }
     const link = (e.target as HTMLElement).closest('a')
     if (link && !link.closest('.cm-host')) {
+      const href = link.getAttribute('href') ?? ''
+      const kind = classifyHref(href)
+      // 一律 preventDefault：链接绝不能交给 webview 自己导航——本地点一下会整页跳走
+      // 或 404（壳里更糟：webview 离开应用页面）。要做什么由我们决定。
       e.preventDefault()
-      const href = link.getAttribute('href')
-      if (href && /^(https?:|mailto:)/i.test(href)) {
-        // 壳里的 window.open 会被 webview 的新窗口策略拦掉（点了没反应）；
-        // 走 open_url 命令交给系统浏览器，scheme 白名单在 Rust 侧还有一道。
-        if (detectEnv() === 'shell') {
-          void openExternal(href).catch(() => showToast(t('menuOpenLinkFailed')))
-        } else {
-          window.open(href, '_blank', 'noopener,noreferrer')
-        }
+      // 分档见 linkOpen.ts：阅读档直接点就开；编辑/源码档要 Cmd/Ctrl，
+      // 不加修饰键就**不 return**，落到下面的聚焦逻辑——在那一档里点链接的第一含义
+      // 是「进这一块改」，跟点块里别的地方是同一件事。
+      if (shouldOpenHref(kind, chrome.getViewMode(), e.metaKey || e.ctrlKey)) {
+        void openHref(kind, href, editor.getSession().source?.path ?? null)
+        return
       }
-      return
     }
     // 任务复选框：点一下直接改写源码里的 [ ]/[x]，而不是进源码编辑。
     // 只读模式同样可用——勾选是「顺手改」，不该被要求先切编辑档。

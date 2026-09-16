@@ -32,6 +32,9 @@ tauri-plugin-clipboard-manager = "2"
 # 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。
 tauri-plugin-window-state = "2"
 notify = "8.0.0"
+# 只为解析文档里的 file:// 链接（百分号转义、Windows 盘符、UNC 都比手写稳）。
+# tauri 自己已经把它拉进依赖图了，这里只是正式声明。
+url = "2"
 
 # 仅 Windows 用：透明无边框窗口 + Mica/Acrylic 材质换系统圆角与原生投影
 # （io.rs::apply_platform_window_tweaks）。

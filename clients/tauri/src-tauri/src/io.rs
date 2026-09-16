@@ -58,6 +58,93 @@ fn canonical(path: &str) -> Option<PathBuf> {
   fs::canonicalize(path).ok()
 }
 
+/// 本应用能打开的文档扩展名表（open_if_markdown 与 open_link 共用一份）。
+pub fn is_text_doc(path: &std::path::Path) -> bool {
+  matches!(
+    path.extension()
+      .and_then(|e| e.to_str())
+      .map(str::to_lowercase)
+      .as_deref(),
+    Some("md") | Some("markdown") | Some("txt")
+  )
+}
+
+/// 把文档里的链接解析成一个待打开的本地路径。只解析，不碰文件系统。
+///
+/// **尺度比相对图片宽，这是有意的**：相对图片必须锁在文档目录树内（防路径穿越），
+/// 因为图片是渲染时**自动加载**的，没有用户手势——一份文档就能静默去读机器上的文件。
+/// 链接则是**手势门控**的：用户真的点了才走，结果也只是开一个只读窗口显示那个文件，
+/// 没有外发通道、不执行脚本、不写目标。所以相对路径（含 `../`）、绝对路径、`file://`
+/// 都认，跟 Typora 对齐。剩下的门槛都是零成本的那几道：扩展名、存在性、scheme。
+fn resolve_link_target(doc_path: &str, href: &str) -> Result<PathBuf, String> {
+  let raw = href.trim();
+  if raw.is_empty() {
+    return Err("bad_href".into());
+  }
+  // 锚点与查询串不是路径的一部分（文内锚点本轮不做）
+  let cut = raw.find(['#', '?']).unwrap_or(raw.len());
+  let path_part = &raw[..cut];
+  if path_part.is_empty() {
+    return Err("bad_href".into());
+  }
+
+  if path_part.to_ascii_lowercase().starts_with("file://") {
+    // 交给 url：百分号转义、Windows 盘符、UNC 它都比手写稳
+    let u = url::Url::parse(path_part).map_err(|_| "bad_href".to_string())?;
+    return u.to_file_path().map_err(|_| "bad_href".to_string());
+  }
+
+  // Windows 盘符（`C:\` / `C:/`）看着像 scheme，先认出来，别被下面的判断误杀
+  let b = path_part.as_bytes();
+  let is_drive = b.len() >= 2
+    && b[0].is_ascii_alphabetic()
+    && b[1] == b':'
+    && (b.len() == 2 || matches!(b[2], b'/' | b'\\'));
+  if !is_drive {
+    if let Some(i) = path_part.find(':') {
+      let scheme = &path_part[..i];
+      let looks_like_scheme = !scheme.is_empty()
+        && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
+      // http / mailto / obsidian 这些 web 层已经分过流；走到这里说明不是预期的输入，
+      // 明确拒掉而不是拿去拼路径
+      if looks_like_scheme {
+        return Err("scheme".into());
+      }
+    }
+  }
+
+  let p = PathBuf::from(path_part);
+  if p.is_absolute() {
+    return Ok(p);
+  }
+  // 相对路径按当前文档所在目录解析。文档路径必须是绝对路径：壳里它来自对话框/argv，
+  // 一定绝对；不是绝对就说明前端传错了东西，宁可拒掉也不要按进程 CWD 拼出一个
+  // "碰巧存在"的路径
+  let doc = PathBuf::from(doc_path.trim());
+  if doc_path.trim().is_empty() || !doc.is_absolute() {
+    return Err("bad_href".into());
+  }
+  let dir = doc.parent().ok_or_else(|| "bad_href".to_string())?;
+  Ok(dir.join(p))
+}
+
+/// 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个新窗口。
+///
+/// 路径解析与校验都在这里（web 层只传「当前文档 + 链接原文」）——`paths.ts` 顶上
+/// 那句「真正的路径权威在壳侧」就是这条。
+#[tauri::command]
+pub fn open_link(app: AppHandle, doc_path: String, href: String) -> Result<(), String> {
+  let target = resolve_link_target(&doc_path, &href)?;
+  if !target.is_file() {
+    return Err("missing".into());
+  }
+  if !is_text_doc(&target) {
+    return Err("not_text".into());
+  }
+  open_path(&app, &target.to_string_lossy());
+  Ok(())
+}
+
 /// 原子写：同目录 temp + rename。Windows 先删目标再 rename。
 pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
   let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
@@ -1118,5 +1205,81 @@ mod tests {
     let r = run_command("/this/does/not/exist/__nope__", &[], "/tmp/x.png", 1000);
     assert!(!r.ok);
     assert!(r.error.is_some());
+  }
+
+  // ── 文档里的本地链接：路径解析（open_link） ──
+  //
+  // 这一段是**不可信内容**进来的地方，规则要么对要么全错，所以逐条钉住。
+
+  #[test]
+  fn link_relative_resolves_against_document_dir() {
+    let got = resolve_link_target("/docs/book/ch1.md", "ch2.md").unwrap();
+    assert_eq!(got, PathBuf::from("/docs/book/ch2.md"));
+
+    let got = resolve_link_target("/docs/book/ch1.md", "./sub/ch2.md").unwrap();
+    assert_eq!(got, PathBuf::from("/docs/book/./sub/ch2.md"));
+
+    // 允许 ../ 出去：尺度对齐 Typora（手势门控，见函数上的说明）
+    let got = resolve_link_target("/docs/book/ch1.md", "../other/ch2.md").unwrap();
+    assert_eq!(got, PathBuf::from("/docs/book/../other/ch2.md"));
+  }
+
+  #[test]
+  fn link_strips_fragment_and_query() {
+    assert_eq!(
+      resolve_link_target("/docs/a.md", "ch2.md#小节").unwrap(),
+      PathBuf::from("/docs/ch2.md")
+    );
+    assert_eq!(
+      resolve_link_target("/docs/a.md", "ch2.md?x=1#y").unwrap(),
+      PathBuf::from("/docs/ch2.md")
+    );
+    // 纯锚点没有路径可开
+    assert_eq!(resolve_link_target("/docs/a.md", "#小节"), Err("bad_href".into()));
+  }
+
+  #[test]
+  fn link_absolute_and_file_url() {
+    assert_eq!(
+      resolve_link_target("/docs/a.md", "/tmp/b.md").unwrap(),
+      PathBuf::from("/tmp/b.md")
+    );
+    assert_eq!(
+      resolve_link_target("/docs/a.md", "file:///tmp/it%20has%20spaces.md").unwrap(),
+      PathBuf::from("/tmp/it has spaces.md")
+    );
+  }
+
+  #[test]
+  fn link_rejects_other_schemes_but_not_windows_drive() {
+    assert_eq!(resolve_link_target("/docs/a.md", "http://x/y.md"), Err("scheme".into()));
+    assert_eq!(resolve_link_target("/docs/a.md", "obsidian://open?vault=x"), Err("scheme".into()));
+    // 盘符不是 scheme：C:/ 开头的绝对路径要认（Windows 上全靠这条）
+    #[cfg(windows)]
+    assert_eq!(
+      resolve_link_target("C:\\docs\\a.md", "D:/other/b.md").unwrap(),
+      PathBuf::from("D:/other/b.md")
+    );
+    // 非 Windows 上盘符路径当普通绝对路径处理即可，至少不能被当成 scheme 拒掉
+    #[cfg(not(windows))]
+    assert!(resolve_link_target("/docs/a.md", "D:/other/b.md").is_ok());
+  }
+
+  #[test]
+  fn link_requires_absolute_document_path() {
+    // 文档路径不是绝对路径 → 拒。否则会按进程 CWD 拼出一个"碰巧存在"的路径
+    assert_eq!(resolve_link_target("a.md", "b.md"), Err("bad_href".into()));
+    assert_eq!(resolve_link_target("", "b.md"), Err("bad_href".into()));
+    assert_eq!(resolve_link_target("/docs/a.md", "   "), Err("bad_href".into()));
+  }
+
+  #[test]
+  fn text_doc_extension_table() {
+    for ok in ["a.md", "a.MD", "a.markdown", "a.txt"] {
+      assert!(is_text_doc(std::path::Path::new(ok)), "{ok} 应当可打开");
+    }
+    for no in ["a.pdf", "a.png", "a", "a.md.bak"] {
+      assert!(!is_text_doc(std::path::Path::new(no)), "{no} 不该可打开");
+    }
   }
 }

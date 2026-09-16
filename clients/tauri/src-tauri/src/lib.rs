@@ -11,12 +11,8 @@ use io::{open_path, PendingOpens, WatcherStore, WindowRegistry};
 use protocol::AllowedDirs;
 
 fn open_if_markdown(app: &AppHandle, path: &str) {
-  let p = PathBuf::from(path);
-  let is_md = matches!(
-    p.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref(),
-    Some("md") | Some("markdown") | Some("txt")
-  );
-  if is_md {
+  // 扩展名表与 open_link 共用一份（io::is_text_doc）
+  if io::is_text_doc(&PathBuf::from(path)) {
     open_path(app, path);
   }
 }
@@ -109,6 +105,7 @@ pub fn run() {
       io::watch,
       io::take_pending_open,
       io::read_clipboard,
+      io::open_link,
       io::load_settings,
       io::save_settings,
       io::bind_document,

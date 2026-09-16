@@ -153,6 +153,21 @@ export async function revealInFolder(path: string): Promise<void> {
 }
 
 /**
+ * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个新窗口。
+ *
+ * Web 层只传「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
+ * **全在壳侧**（paths.ts 顶上那句「真正的路径权威在壳侧」就是这条）。
+ * 链接是文档内容，属不可信输入，所以判定必须待在能看清真实文件系统的那一层。
+ * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方翻成人话。
+ */
+export async function openLink(docPath: string, href: string): Promise<void> {
+  if (detectEnv() !== 'shell') throw new Error('openLink() 仅壳环境可用')
+  const { invoke } = await tauriApi()
+  // 参数名必须 camelCase：Tauri v2 按 camelCase 反序列化命令参数（同 save_image 的 docPath）
+  await invoke('open_link', { docPath, href })
+}
+
+/**
  * 读系统剪贴板（右键菜单的「粘贴」用）。
  *
  * 壳里走自定义命令 read_clipboard。**不能直接用 navigator.clipboard.readText()**：
