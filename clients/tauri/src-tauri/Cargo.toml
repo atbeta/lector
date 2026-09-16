@@ -21,6 +21,12 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-single-instance = "2"
+# 剪贴板**读**：webview 的 navigator.clipboard.readText() 在 macOS 的 WKWebView 里
+# 一律被拒（Tauri v2 把剪贴板从 core 挪到了独立插件，不装就没有这条能力），
+# 于是右键菜单里的「粘贴」永远失败。Windows/WebView2 上本来就通，
+# 装它是为了让两个平台行为一致。只开 allow-read-text——写（复制）走 navigator 一直好用，
+# 不给多余的能力。
+tauri-plugin-clipboard-manager = "2"
 # 记住窗口尺寸/位置/最大化状态，下次启动恢复。
 # 官方插件（crates.io 上的 tauri-plugin-window-state），只在 Rust 侧使用，
 # 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。

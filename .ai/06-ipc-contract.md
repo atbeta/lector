@@ -115,6 +115,16 @@ Web 打开一篇文档后登记到当前窗口（对话框打开的 main 窗口�
 invoke('bind_document', { path: string }) → boolean
 ```
 
+### `read_clipboard`
+
+读系统剪贴板文本，右键菜单里的「粘贴」用。
+
+Web 层的 `navigator.clipboard.readText()` 在 macOS 的 WKWebView 里一律被拒（Tauri 2 的剪贴板能力在 `tauri-plugin-clipboard-manager` 里，而壳不把插件命令开放给 webview——同文件读写那条规矩），菜单里那一项因此长期只能弹「请用 ⌘V」。写（复制/剪切）不走这里：`writeText` / `execCommand` 一直好用，不必多开能力。
+
+```ts
+invoke('read_clipboard') → string
+```
+
 ### `save_image`
 
 把位图写到该文档同目录的子目录下，返回正斜杠相对路径和落盘绝对路径。仅当 `path` 已 bind / 在路径表中。文件名由壳再消毒；重名自动加 `-2`。
@@ -189,6 +199,7 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-09-17：补 `read_clipboard`（壳装 `tauri-plugin-clipboard-manager`，但只经自定义命令暴露读；webview 自己的 `readText()` 在 macOS 上必被拒，右键菜单的「粘贴」因此一直失败）。不动 capabilities：插件命令不开给 webview。
 - 2026-09-03：补「最近打开」（壳单点 `lector-recent.json` + 原生菜单）与「另存为」（dialog save + `write_file` force）；`write_file` 目标不存在时直接写；`bind_document` 副作用收白名单、记最近、重建菜单。
 - 2026-08-31：补 `bind_document` / `save_image`（粘贴拖入图片写 `./images/`）。
 - 2026-08-31：命令名去掉 `lector:` 前缀以符合 Tauri 2 ACL；读/写收回 Rust；补 `take_pending_open` 与写回真实 mtime。

@@ -206,6 +206,20 @@ pub fn watch(path: String, app: AppHandle) -> Result<bool, String> {
   Ok(true)
 }
 
+/// 读系统剪贴板（右键菜单里的「粘贴」用）。
+///
+/// 为什么不让 web 层直接调 clipboard-manager 插件：这里只走自定义命令，
+/// 不给 webview 开插件通配能力（同文件读写那条规矩，见 capabilities 的说明）。
+///
+/// **必须是 async**：插件自己警告 read_text 不能跑在主线程（Linux 上会死锁，
+/// 尤其是复制源就是本应用里刚复制的文本时）。同步命令默认在主线程执行，
+/// 这个函数体里没有 await，所以它只借到 async 运行时的线程上跑，不会挡 UI。
+#[tauri::command]
+pub async fn read_clipboard(app: AppHandle) -> Result<String, String> {
+  use tauri_plugin_clipboard_manager::ClipboardExt;
+  app.clipboard().read_text().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn take_pending_open(window: tauri::Window, app: AppHandle) -> Option<String> {
   let pending = app.state::<PendingOpens>();

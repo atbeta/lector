@@ -1,6 +1,6 @@
 import type { BlockView } from '@lector/core'
 import { undo, redo } from '@codemirror/commands'
-import { openExternal } from '@lector/shell-web'
+import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
 import { showContextMenu, type ContextMenuItem } from './contextMenu.ts'
@@ -42,10 +42,10 @@ export function createDocumentMenus({
         label: t('menuPaste'),
         hint: mod('V'),
         run: () => {
-          // 剪贴板读取在部分 webview 里被拒；失败就给明确提示，
-          // 不要让用户以为是应用坏了。
-          void navigator.clipboard
-            .readText()
+          // 走 readClipboard()：壳里是 IPC 命令（webview 自己的 readText 在 macOS 上
+          // 一律被拒，菜单里那一项因此长期只会弹「请用 ⌘V」）。
+          // 仍然留失败回执：浏览器预览和真的读不到时，要告诉用户走 ⌘V，别让人以为应用坏了。
+          void readClipboard()
             .then((text) => {
               const view = editor.getCmView()
               if (!text || !view) return
@@ -186,10 +186,10 @@ export function createDocumentMenus({
     ]
   }
 
-  /** 把剪贴板文本插到输入框光标处。execCommand('paste') 在 webview 里被禁，只能自己读。 */
+  /** 把剪贴板文本插到输入框光标处。execCommand('paste') 在 webview 里被禁，只能自己读（走壳的命令）。 */
   async function pasteIntoField(field: HTMLElement): Promise<void> {
     try {
-      const text = await navigator.clipboard.readText()
+      const text = await readClipboard()
       if (!text) return
       field.focus()
       if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {

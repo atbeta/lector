@@ -152,6 +152,23 @@ export async function revealInFolder(path: string): Promise<void> {
   await invoke('reveal_in_folder', { path })
 }
 
+/**
+ * 读系统剪贴板（右键菜单的「粘贴」用）。
+ *
+ * 壳里走自定义命令 read_clipboard。**不能直接用 navigator.clipboard.readText()**：
+ * Tauri v2 把剪贴板挪进了独立插件，壳没把它开放给 web 层，于是在 macOS 的 WKWebView 里
+ * 这个调用一律被拒——菜单里那一项以前永远失败，只能弹「请用 ⌘V」。
+ * 浏览器预览（vite dev）里没有壳，退回 navigator.clipboard，那条路本来就是通的。
+ *
+ * 注意它**只读**：复制/剪切仍走 navigator.clipboard.writeText / execCommand，
+ * 那两条路在 webview 里一直好用，不需要多开一条能力。
+ */
+export async function readClipboard(): Promise<string> {
+  if (detectEnv() !== 'shell') return navigator.clipboard.readText()
+  const { invoke } = await tauriApi()
+  return invoke<string>('read_clipboard')
+}
+
 /** 应用版本：壳里读 tauri.conf.json 的版本（构建期固化）；浏览器预览没有壳，报 'dev'。 */
 export async function appVersion(): Promise<string> {
   if (detectEnv() !== 'shell') return 'dev'

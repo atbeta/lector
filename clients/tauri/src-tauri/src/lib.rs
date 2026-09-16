@@ -53,6 +53,9 @@ pub fn run() {
       });
     }))
     .plugin(tauri_plugin_dialog::init())
+    // 剪贴板读：右键菜单里的「粘贴」靠它（web 的 navigator.clipboard.readText
+    // 在 macOS webview 里必被拒，见 Cargo.toml 注释）。
+    .plugin(tauri_plugin_clipboard_manager::init())
     // 窗口状态：退出时记住尺寸/位置/是否最大化，启动时恢复。
     // 必须在建窗口（setup 里的 ensure_main_window）**之前**注册——
     // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
@@ -105,6 +108,7 @@ pub fn run() {
       io::reveal_in_folder,
       io::watch,
       io::take_pending_open,
+      io::read_clipboard,
       io::load_settings,
       io::save_settings,
       io::bind_document,
