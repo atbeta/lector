@@ -580,7 +580,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 
 /* 标题留白：绝对值，按标题自己的字号给。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
-   标题的上方留白（松）与下方留白（紧）都写死，正文块的下方不写 margin-bottom，
+   标题的上方留白（松）与下方留��（紧）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
 .block[data-kind='heading'] { margin-bottom: var(--space-tight); }
 .block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
@@ -656,7 +656,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 /* ───────────── 查找栏：浮层，不是工具条 ───────────── */
 .find-bar {
   position: fixed;
-  top: 58px;
+  top: calc(48px + 10px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 90;
@@ -1184,12 +1184,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   tab-size: 2;
 }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
-   只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。
+   只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不��。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   结构词（keyword/tag/selector/函数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
+   结构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -1251,11 +1251,13 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 链接：默认就看得见是链接（旧版把链接做成和正文一样，读者找不到） */
 .reading-prose a {
   color: rgb(var(--primary));
-  text-decoration: none;
-  border-bottom: 1px solid rgb(var(--primary) / 0.3);
-  transition: border-color var(--motion-fast) var(--ease-standard);
+  text-decoration-line: underline;
+  text-decoration-color: rgb(var(--primary) / 0.62);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion-fast) var(--ease-standard);
 }
-.reading-prose a:hover { border-bottom-color: rgb(var(--primary)); }
+.reading-prose a:hover { text-decoration-color: rgb(var(--primary)); }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
@@ -1313,7 +1315,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 
 /* 任务复选框 — 对齐 NoteFast 自绘 checkbox。
-   未勾选时也要看得见：边框走 border-strong 实色，不用 alpha 叠。 */
+   未勾选时也要看得见：边框走 border-strong 实色，���用 alpha 叠。 */
 .reading-prose input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
@@ -1332,8 +1334,8 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .reading-prose input[type='checkbox']:hover { border-color: rgb(var(--primary)); }
 .reading-prose input[type='checkbox']:checked {
-  background-color: rgb(var(--primary));
-  border-color: rgb(var(--primary));
+  background-color: rgb(var(--primary) / 0.9);
+  border-color: rgb(var(--primary) / 0.9);
 }
 .reading-prose input[type='checkbox']:checked::after {
   content: '';
@@ -1690,7 +1692,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   gap: 12px;
   width: 100%;
   padding: 6px 10px;
-  /* 鼠标右键是"指针操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
+  /* 鼠标右键是"指��操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
      键盘用户仍有可见焦点，由下面 :focus-visible 那条负责。 */
   outline: none;
   border: 0;
@@ -2730,17 +2732,15 @@ tr:hover .table-editor-op { opacity: 1; }
 }
 #titlebar {
   height: 48px;
-  border-bottom: 1px solid rgb(var(--border-subtle) / 0.56);
+  border-bottom: 1px solid transparent;
 }
-#titlebar.scrolled { border-bottom-color: transparent; }
+#titlebar.scrolled { border-bottom-color: rgb(var(--border-subtle) / 0.56); }
 html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
+html[data-shell='windows'] .find-bar { top: 42px; }
 .titlebar-title { font-weight: 550; }
 .titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
-.btn-icon:hover:not(:disabled),
-.btn:hover:not(:disabled) { transform: translateY(-1px); }
-.btn-icon:active:not(:disabled),
-.btn:active:not(:disabled) { transform: translateY(0); }
 .sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
+html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 .sidebar-head { padding-top: 16px; }
 #statusbar {
   height: 32px;
@@ -2749,7 +2749,6 @@ html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
 }
 .reading-prose p { text-wrap: pretty; }
 .reading-prose h1 { margin-bottom: 0.18em; }
-.reading-prose h2 { padding-bottom: 0.18em; border-bottom: 1px solid rgb(var(--border-subtle) / 0.72); }
 .reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 

@@ -181,8 +181,9 @@ settingsBtn.setAttribute('aria-label', t('settingsAria'))
 settingsBtn.dataset.tip = t('settingsAria')
 openBtn.dataset.tip = t('openAria')
 // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
-keyboardBtn.innerHTML = iconSvg('keyboard', 16)
-// 键盘按钮不带 tooltip：悬停 250ms 就会展开快捷键悬浮卡，
+  keyboardBtn.innerHTML = iconSvg('keyboard', 16)
+  keyboardBtn.setAttribute('aria-label', t('shortcutTitle'))
+  // 键盘按钮不带 tooltip：悬停 250ms 就会展开快捷键悬浮卡，
 // 再叠一个「键盘快捷键」气泡只会正好盖住卡片标题
 bindShortcutsButton(keyboardBtn)
 dirtyDot.dataset.tip = t('dirtyTitle')
@@ -200,7 +201,7 @@ if (titlebarEl) bindTitlebar(titlebarEl)
 // source: 全篇等宽源码，点块进该块的源码编辑。通读原文 / 批量改格式用。
 //
 // 三档**常驻**在顶栏右侧的分段控件里，当前档一眼可见。
-// 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要问
+// 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要��
 // 「我现在在哪一档」；而且第三档叫「分屏」——屏幕上并没有第二条栏，
 // 名字在承诺一件不存在的事。名字与档位一起改了：阅读 / 编辑 / 源码。
 //
@@ -2823,7 +2824,7 @@ window.addEventListener('keydown', (e) => {
 // 会接管自己认识的那些键并 preventDefault（Ctrl+E 行内代码、Ctrl+B 粗体…），
 // 而本监听挂在 window 的冒泡阶段——不守卫的话，Windows 用户按 Ctrl+E 会
 // **同时**给选中文字加行内代码并把视图切到源码档。CM 不负责 stopPropagation，
-// 这层守卫是我们自己的责任。
+// 这层守卫是我们���己的责任。
 window.addEventListener('keydown', (e) => {
   if (e.defaultPrevented) return
   const mod = e.metaKey || e.ctrlKey
