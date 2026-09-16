@@ -109,7 +109,7 @@ bindImageTransfer({
   getBlocks: () => editor.getSession().blocks,
   ingestImageFile: (f, name, ref) => images.ingestImageFile(f, name, ref),
 })
-bindAppEvents({ editor, files, chrome, outline })
+bindAppEvents({ editor, files, chrome, outline, menus })
 if (detectEnv() === 'shell') {
   setAssetResolver(shellAssetResolver)
 }

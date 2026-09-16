@@ -100,6 +100,10 @@
   /* 聚焦块的极淡衬底：让人知道「这块在编辑」，但不打断阅读节奏 */
   --block-focus-bg: rgb(var(--primary) / 0.035);
   --block-hover-bg: rgb(26 25 22 / 0.022);
+  /* 悬停块的左缘轨道：回答「这块从哪到哪」。底色（2% 纸灰）只够说「这块可点」，
+     说不出边界在哪；轨道是一条 2px 的线，比底色具体，又比实色结构线轻一档，
+     不至于读成「引用条」（引用条是 --border-strong 实色，且在块内左缘）。 */
+  --block-rail: rgb(var(--border-strong) / 0.55);
 
   /* ───────────── 半径 ───────────── */
   --radius: 6px;
@@ -223,6 +227,8 @@ html[data-theme='dark'] {
 
   --block-focus-bg: rgb(var(--primary) / 0.08);
   --block-hover-bg: rgb(255 255 255 / 0.028);
+  /* 暗色下底色差更小，轨道要更实一点才看得见（见亮色块的说明） */
+  --block-rail: rgb(var(--border-strong) / 0.6);
 
   --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4),
     0 8px 20px rgb(0 0 0 / 0.32);

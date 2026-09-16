@@ -561,7 +561,14 @@ html[data-mode='read'] .block:not(.gap) { cursor: default; }
 html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 /* 悬停提示「这块可点」；聚焦块给极淡靛蓝衬底，替代以前的重边框 */
 .block:not(.gap):hover { background: var(--block-hover-bg); }
-.block.focused { background: var(--block-focus-bg); }
+/* 聚焦块：衬底 + 一圈同样克制的描边。
+   衬底只有 3.5% 靛蓝，能说出「这块在编辑」，说不出边界在哪；描边补上那半句。
+   用 box-shadow 而不是 border：不参与布局，预览↔编辑切换（.cm-host 带负边距）时
+   框不会跳一下。1px 是刻意的——这里要的是「不显眼但看得出」，不是选中框。 */
+.block.focused {
+  background: var(--block-focus-bg);
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.18);
+}
 .block.gap {
   height: 0;
   margin: 0;
@@ -577,6 +584,71 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
    「上方留白」（松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
+
+/* ───────────── 块指示器（左缘轨道 + 把手） ─────────────
+   解决的问题：一个块的边界在哪。而**每个档只出一样东西**：
+     只读档  → 左缘轨道（下面是它的规则）
+     编辑档  → 三个点的把手（见下方 .block-handle）
+     源码档  → 同样是把手
+   为什么不是「都出」：编辑/源码档的边界早已被回答了两次——悬停时整块衬底
+   （.block-hover-bg 是满块宽的），源码档还有 .source-view 自己的 2px 左边线。
+   再叠一条轨道，就是三条线说同一件事；源码档尤其像 bug（两条同宽同色的竖线并排）。
+   只读档没有衬底、没有左边线、也没有把手，轨道在那里才是唯一答案。
+
+   指示器都长在块的**左外侧**留白里，不能画在块内左缘：引用块的 3px 竖线就贴着块左缘
+   （.reading-prose 没有横向内边距），画在块内会和它糊成一条。
+   #content 的 padding-inline 保证左侧至少 32px（见上方「正文容器」），那条带子就是
+   指示器的场地；下面的负 left 与那个 32px 是隐式耦合的，改 padding-inline 时要一起看。 */
+.block-rail {
+  position: absolute;
+  left: -14px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--block-rail);
+  /* display 门控而不是 opacity：切档时不该有一次淡入淡出，那是两个档在打架 */
+  display: none;
+  opacity: 0;
+  /* 它只是指示，不是靶子：不能挡住正文两侧留白上的点击与框选 */
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+html[data-mode='read'] .block:not(.gap) > .block-rail { display: block; }
+/* 轨道说的是边界，不是控件——它在只读档出现，不违反「只读面不放可点的东西」 */
+html[data-mode='read'] .block:not(.gap):hover > .block-rail { opacity: 1; }
+/* 引用块不出轨道：它自己那条 3px 竖线（.reading-prose blockquote）就压在块左缘，
+   而且同样贯穿整块高度——边界它已经说清楚了，再来一条只会读成重复的「两条线」 */
+html[data-mode='read'] .block[data-kind='blockquote'] > .block-rail { display: none; }
+
+.block-handle {
+  position: absolute;
+  /* 落在左留白带的中线上：32px 的带子，把手 18px 宽、中心在块左缘外 15px */
+  left: -24px;
+  top: 3px;
+  display: none;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+/* 把手只在编辑/源码档出现。只读档的阅读面上不放可点的控件——同上方
+   「只读悬停去掉背景」那条决定。这里用 data-mode 而不是渲染时判断：
+   切档只是换个属性，不必重渲染整篇块。 */
+html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
+.block:not(.gap):hover > .block-handle { opacity: 1; }
+.block-handle:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
 
 /* 标题留白：绝对值，按标题自己的字号给。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。

@@ -10,6 +10,7 @@ import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
 import type { EditorChrome } from './editorChrome.ts'
 import type { createOutline } from './outline.ts'
+import type { DocumentMenus } from './documentMenus.ts'
 import type { Sidebar } from './sidebar.ts'
 import type { createReadingPositionController } from './readingPositionController.ts'
 
@@ -18,10 +19,26 @@ interface AppBindingsDeps {
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
   chrome: Pick<EditorChrome, 'elements' | 'getViewMode' | 'setViewMode' | 'toggleMode'>
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
+  /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
+  menus: Pick<DocumentMenus, 'openBlockMenu'>
 }
 
-export function bindAppEvents({ editor, files, chrome, outline }: AppBindingsDeps): void {
+export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBindingsDeps): void {
   chrome.elements.contentEl.addEventListener('click', (e) => {
+    // 块把手：它只负责唤出块菜单，**不聚焦、不进入编辑**——
+    // 「点块正文」才是进来改，「点把手」是管理这一块，两件事不能混成一个动作。
+    // 放在最前面：它比下面那些判断都更具体（选区、链接、复选框都不可能落在把手上）。
+    const handle = (e.target as HTMLElement).closest<HTMLElement>('.block-handle')
+    if (handle) {
+      e.preventDefault()
+      const blockEl = handle.closest<HTMLElement>('.block')
+      if (blockEl) {
+        // 从把手的右下角展开：把手本身、以及这一块的第一行都不被菜单压住
+        const rect = handle.getBoundingClientRect()
+        menus.openBlockMenu(blockEl, rect.right, rect.bottom)
+      }
+      return
+    }
     // 拖选之后松开鼠标：click 事件仍会触发，handler 会跑去 focusBlock()，
     // 而 focusBlock 会 render()，把选中的节点清掉——视觉上就是「选中瞬间消失」。
     // mouseup 不会清选区；到 click 触发时 sel 仍是非折叠的，拦下即可。

@@ -106,6 +106,26 @@ export function createDocumentMenus({
     ]
   }
 
+  /**
+   * 在 (x, y) 弹出某个块的块级菜单。返回是否弹出了。
+   *
+   * 右键与左侧块把手共用这一份：把手存在的意义就是让这份菜单可被发现
+   * （此前它只能靠右键猜）。菜单内容只有一份真相，两条入口不许各写一套。
+   *
+   * 返回 false 让右键那条路继续往下走（落到「段间空白」菜单），
+   * 不能悄悄吞掉——右键本来就没有反馈，吞了等于点了没反应。
+   */
+  function openBlockMenu(blockEl: HTMLElement, x: number, y: number): boolean {
+    const id = blockEl.dataset.blockId
+    const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
+    // unknown 类是解析不出内容的块，给它一份「复制/删除本块」菜单只会让人误判
+    if (!block || block.kind === 'unknown') return false
+    const items = blockMenuItems(block, blockEl)
+    appendSelectionCopy(items)
+    showContextMenu(items, x, y)
+    return true
+  }
+
   /** 任务项上的菜单。 */
   function taskMenuItems(block: BlockView, itemIndex: number, checked: boolean): ContextMenuItem[] {
     return [
@@ -279,14 +299,7 @@ export function createDocumentMenus({
 
       // 预览块
       const blockEl = target.closest('.block') as HTMLElement | null
-      const id = blockEl?.dataset.blockId
-      const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
-      if (block && blockEl && block.kind !== 'unknown') {
-        const items = blockMenuItems(block, blockEl)
-        appendSelectionCopy(items)
-        showContextMenu(items, e.clientX, e.clientY)
-        return
-      }
+      if (blockEl && openBlockMenu(blockEl, e.clientX, e.clientY)) return
 
       // 没落在任何块上：段间空白缝（.block.gap 没有 blockId）、正文列的两侧留白、
       // 最后一段之后的那片空。右键这里想做的事，八成还是「在这儿加一段」，
@@ -364,7 +377,7 @@ export function createDocumentMenus({
     sel?.addRange(range)
   }
 
-  return { onContextMenu, selectAllText }
+  return { onContextMenu, openBlockMenu, selectAllText }
 }
 
 export type DocumentMenus = ReturnType<typeof createDocumentMenus>

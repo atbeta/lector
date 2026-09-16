@@ -13,6 +13,7 @@ import {
 import type { EditorView } from '@codemirror/view'
 import { mountEditor, type CmHandle } from './cm.ts'
 import { renderBlockHtml, preRenderMath } from './mdastHtml.ts'
+import { iconSvg } from './icons.ts'
 import { mermaidLanguage } from './mermaidLanguage.ts'
 import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
 import { setCurrentMdPath } from './asset.ts'
@@ -252,7 +253,11 @@ export function createDocumentEditor({
     applyKeyedChildren(contentEl, desired)
     for (const block of session.blocks) {
       const el = blocksEl.get(block.id)
-      if (el) renderBlockContent(el, block)
+      if (el) {
+        renderBlockContent(el, block)
+        // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
+        appendBlockChrome(el, block)
+      }
     }
   }
 
@@ -274,6 +279,41 @@ export function createDocumentEditor({
     applyBlockMeta(el, block)
     if (isWhitespaceGap(block)) el.classList.add('gap')
     return el
+  }
+
+  /**
+   * 块的边界指示器（完整理由见 app.css 的「块指示器」段）。两个节点都挂，
+   * 由样式按 `html[data-mode]` 决定哪一个上场——**每档只出一样东西**：
+   *   - 轨道：只读档。那里没有衬底、没有左边线、也没有把手，边界只有它说。
+   *   - 把手：编辑/源码档。把右键那份块菜单显性化（此前只能靠右键猜出来）。
+   * 用样式而不是渲染时判断，切档才不用重渲染整篇块。
+   *
+   * 每轮渲染重建，不维护第二份「把手表」：renderBlockContent 会 replaceChildren，
+   * 那种平行 Map 迟早和 blocksEl 走岔（换文件、块被删时要各清一次，漏一处就是幽灵节点）。
+   */
+  function appendBlockChrome(el: HTMLElement, block: BlockView): void {
+    // 段间空白缝（.gap）零高、pointer-events:none：没有表面，也没有「一块」可言
+    if (isWhitespaceGap(block)) return
+
+    const rail = document.createElement('div')
+    rail.className = 'block-rail'
+    rail.setAttribute('aria-hidden', 'true')
+    el.appendChild(rail)
+
+    // 把手只在「点得开菜单」的块上长出来：unknown 是解析不出内容的降级块（见 core/parse.ts
+    // 的尾部残余兜底），它没有块菜单。有把手却点了没反应，比没有把手更糟——
+    // 把手出现本身就该是「这里有菜单」的承诺。
+    if (block.kind === 'unknown') return
+
+    const handle = document.createElement('button')
+    handle.type = 'button'
+    handle.className = 'block-handle'
+    // 不进 Tab 序：一篇文档几百个块，逐个 Tab 过去等于键盘不可用。
+    // 块菜单本身还有右键和（将来的）快捷键这两条路。
+    handle.tabIndex = -1
+    handle.setAttribute('aria-label', t('blockActions'))
+    handle.innerHTML = iconSvg('grip', 16)
+    el.appendChild(handle)
   }
 
   /** 方向键顶到块边界 → 跳到相邻可聚焦块，并接上光标列。 */
