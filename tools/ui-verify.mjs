@@ -1152,6 +1152,59 @@ const summary = {
         `留白 ${blankEdit.items.length} → ${blankRead.items.length} 项`,
     )
     await setMode('edit')
+
+    // ── 有选区时右键，焦点不许离开正文 ──
+    //
+    // 焦点一走，WebKit 就不再绘制选区高亮（选区还在、⌘C 也复制得到，但用户看不到
+    // 自己选了什么——而右键菜单里恰恰有「复制选中的文字」）。真机壳就是 WebKit。
+    // Chromium 复现不出这个症状（它照常绘制选区），所以这里钉的是**成因**：
+    // 焦点没被抢走，那条路就不会丢高亮。见 contextMenu.ts 里的说明。
+    //
+    // 落点必须自检：右键落在**选区之外**（含被状态栏之类的浮层盖住）时，浏览器自己
+    // 就会把选区清掉，那是浏览器的行为、不是这里的缺陷；不自检的话这条会假红。
+    const selProbe = await page.evaluate(() => {
+      const paras = [...document.querySelectorAll('#content .block[data-kind="paragraph"] .reading-prose p')]
+      for (const para of paras) {
+        const node = para.firstChild
+        if (!node || node.nodeType !== 3 || node.textContent.length < 6) continue
+        // 先滚到视口中间再量：上一步的探测可能把正文滚到别处，落在视口外的点
+        // elementFromPoint 返回 null，会被下面的自检挡掉
+        para.scrollIntoView({ block: 'center' })
+        const r = document.createRange()
+        r.setStart(node, 0)
+        r.setEnd(node, 6)
+        const box = r.getBoundingClientRect()
+        const x = Math.round(box.left + box.width / 2)
+        const y = Math.round(box.top + box.height / 2)
+        // 命中的元素必须仍在这一段正文里：否则说明点被浮层盖住或落在视口外
+        if (!document.elementFromPoint(x, y)?.closest('.reading-prose')) continue
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(r)
+        return { x, y, text: sel.toString() }
+      }
+      return null
+    })
+    if (!selProbe) {
+      note('warn', '段落里取不到可选的文本节点，右键保选区这条没验到')
+    } else {
+      await page.mouse.click(selProbe.x, selProbe.y, { button: 'right' })
+      await page.waitForTimeout(260)
+      const after = await page.evaluate(() => ({
+        active: document.activeElement?.className ?? '',
+        sel: window.getSelection()?.toString() ?? '',
+      }))
+      if (after.active.includes('context-menu')) {
+        note('error', '有选区时右键把焦点抢进了菜单：WebKit 下选区高亮会因此消失')
+      }
+      if (after.sel !== selProbe.text) {
+        note('error', `右键后选区变了：${JSON.stringify(selProbe.text)} → ${JSON.stringify(after.sel)}`)
+      }
+      note('info', `有选区右键：焦点=${after.active || '(正文)'}，选区 ${after.sel.length} 字未丢`)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+      await page.evaluate(() => window.getSelection()?.removeAllRanges())
+    }
   }
 
   // 3.8) 阅读主题：纸墨与标定排版必须真的上屏
