@@ -9,7 +9,8 @@
       // 壳在建窗时把文档名通过 initialization_script 放进 window.__lectorTitle，
       // 这段内联脚本在 <head> 里同步执行——比应用脚本更早，也没有网络依赖。
       // 浏览器预览里没有这个变量，退回占位（那时标题由应用自己维护）。
-      if (window.__lectorTitle) document.title = window.__lectorTitl...[truncated]
+      if (window.__lectorTitle) document.title = window.__lectorTitle
+    </script>
     <link rel="icon" href="/lector-mark.svg" type="image/svg+xml" />
     <script>
       // 防闪烁：在样式与模块加载之前定好主题。
