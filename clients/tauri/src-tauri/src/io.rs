@@ -601,16 +601,28 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
     crate::snap::install(
       hwnd.0 as isize,
       move || {
-        // tauri 没有 toggle_maximize，用 is_maximized 自己分派
-        if toggle_win.is_maximized().unwrap_or(false) {
-          let _ = toggle_win.unmaximize();
-        } else {
-          let _ = toggle_win.maximize();
-        }
+        // 这个闭包是在**窗口过程**里被调的（WM_* 处理中），而 Tauri 的窗口 API
+        // 会把调用派回主线程并等待结果——在窗口过程里重入就是死锁。
+        // 实测症状：第一个窗口正常，再开第二个直接卡死、必须强杀。
+        // 所以先跳出当前线程再碰 Tauri：窗口过程立刻返回，宿主线程自己去等。
+        let w = toggle_win.clone();
+        std::thread::spawn(move || {
+          // tauri 没有 toggle_maximize，用 is_maximized 自己分派
+          if w.is_maximized().unwrap_or(false) {
+            let _ = w.unmaximize();
+          } else {
+            let _ = w.maximize();
+          }
+        });
       },
       move |hovering| {
-        // 只发给本窗口：裸 emit 会广播，所有窗口的最大化按钮会一起亮
-        let _ = hover_win.emit_to(EventTarget::webview_window(label.clone()), "lector:win-max-hover", hovering);
+        // 同上：窗口过程里不能直接调 Tauri。emit_to 也要走一遍宿主线程。
+        // 只发给本窗口：裸 emit 会广播，所有窗口的最大化按钮会一起亮。
+        let w = hover_win.clone();
+        let lbl = label.clone();
+        std::thread::spawn(move || {
+          let _ = w.emit_to(EventTarget::webview_window(lbl), "lector:win-max-hover", hovering);
+        });
       },
     );
   }
