@@ -25,13 +25,13 @@ payload: { path: string }
 - 当前窗口有脏块 → 先弹「丢弃 / 取消」（v1 简化：丢弃并打开）。
 - 若该 `.md` 已由另一窗口打开 → 转发给壳，由壳协调（见「窗口协调」）。
 
-### `lector:save-request` —— 菜单 / ⌘S 触发的保存
-
-Web 收到后自行执行 `invoke('lector:write_file', …)`，并回报结果。壳不替 Web 保存。
+### `lector:menu` —— 菜单 / 快捷键动作
 
 ```ts
-payload: { path: string }
+payload: { action: string }   // 如 'save-as'
 ```
+
+原生菜单（macOS 有，Windows/Linux 走自绘顶栏）与全局快捷键触发的动作经此下发。**保存不在这条链路里**：⌘S 由 Web 自己处理，菜单的 Save 也走 `lector:menu`，壳不替 Web 保存。
 
 ### `lector:file-changed` —— 磁盘外部变更（watch 回调）
 
@@ -40,6 +40,29 @@ payload: { path: string, mtimeMs: number }
 ```
 
 Web 展示「磁盘已变，覆盖 / 重新加载」，用户选择后再动。
+
+### `lector:drag-hover` / `lector:drop-files` —— 拖放通道
+
+原生拖放（`RunEvent::WindowEvent` 的 `DragDropEvent`）归壳：WebView 的 `File` 对象拿不到磁盘路径，所以**文档必须走原生**。
+
+```ts
+// 拖入内容类型变化：悬停提示亮灭
+'lector:drag-hover' → 'image' | 'doc' | 'other' | 'none'
+// 图片落下：路径 + 逻辑像素坐标（物理像素已按窗口缩放折算）
+'lector:drop-files'   → { paths: string[], x: number, y: number }
+```
+
+- 图片：壳把**逻辑坐标**给 Web，由 `elementFromPoint` 决定插到哪个块附近。
+- 文档（`.md/.markdown/.txt`）：**不经过 Web**，壳直接 `emit('lector:open')` 给拖入的那个窗口就地打开（`lector:open` 自带「先读后确认脏文档」）。多个文档只开第一个——就地打开语义下逐个确认反而混乱。
+- Drop 时壳会补发一次 `drag-hover: none`：Windows 不保证 Drop 之后还有 `Leave` 事件，不清提示会一直挂着。
+
+### `lector:win-max-hover` —— 自绘最大化按钮的悬停
+
+```ts
+payload: boolean
+```
+
+Windows 无边框窗口的 Snap 覆盖层会接管最大化按钮的鼠标事件，`:hover` 因此不会自己亮；壳在窗口过程里收到悬停后转告 Web 层补这颗按钮的悬停态。**只发给本窗口**（裸 `emit` 会广播，所有窗口的最大化按钮会一起亮）。
 
 ### `lector:asset`（协议注入）—— 相对图片资源
 
@@ -50,6 +73,8 @@ lector-file:///<baseDir>/<relative-path>#mtime
 ```
 
 Web 侧通过 `resolveImageSrc` 构造。壳侧解析：归一化后校验 `relative-path` 不越出 `<baseDir>`，否则返回 403（防穿越）。
+
+`baseDir` **不经过单独的查询命令**（早期有一条 `dir_for`，已删）：白名单在 `bind_document` / `read_file` 时按「本窗口打开过的文件」重建，因此协议只映射当前窗口真的打开过的目录树。
 
 ---
 
@@ -68,6 +93,14 @@ invoke('read_file', { path: string }) → {
   mtime_ms: number
 }
 ```
+
+### `read_file_bytes`
+
+```ts
+invoke('read_file_bytes', { path: string }) → number[]
+```
+
+拖入图片的字节读取：Web 拿到后包成 `File` 走既有插入管线（落点定位、复制进子目录、插相对路径都不变）。与 `read_file` 同权限模型——用户**显式拖入**的文件，读它的字节就是「插入」这个动作的一部分。返回原始 `number[]`（壳不 base64，Web 侧拷进定长缓冲当 `BlobPart`）。
 
 ### `write_file`
 
@@ -91,13 +124,19 @@ invoke('write_file', { path: string, content: string, mtime_ms: number, force?: 
 invoke('watch', { path: string }) → { ok: boolean }
 ```
 
-### `dir_for`
+### `open_url` / `open_with_default` / `reveal_in_folder`
 
-取某文档所在目录（baseDir），供相对图片协议与粘贴落盘定位。
+壳作为「系统集成代理」的三条最小出口：
 
 ```ts
-invoke('dir_for', { path: string }) → { base_dir: string }
+invoke('open_url', { url: string }) → void           // 用系统浏览器打开 http/https/mailto
+invoke('open_with_default', { path: string }) → void // 用系统默认应用打开当前文件
+invoke('reveal_in_folder', { path: string }) → void  // 在文件管理器里显示（Finder 显示 / 资源管理器选中）
 ```
+
+- `open_url` 的**白名单在壳侧**：只放行 `http://` / `https://` / `mailto:`。入参是文档内容里的 href，而文档不可信——少了这道，一篇 md 里的 `file:///…` 或自定义协议就能被一键触发（Web 侧的 `safeHref` 只是第一道）。
+- `open_with_default` / `reveal_in_folder` 只接受**绝对路径**（来自 Web 侧当前文档），不扩大权限面。
+- `reveal_in_folder` 在 Windows 上要把 `/` 统一成 `\`：`explorer /select,` 认不出混合分隔符，会把整串当无效目标、退到默认目录（表现为「打开了桌面」）。
 
 ### `take_pending_open`
 
@@ -179,11 +218,36 @@ invoke('run_image_command', {
 
 读写 app 配置目录 `lector-settings.json`。
 
+### `recent_list` / `recent_clear`
+
+```ts
+invoke('recent_list') → string[]   // 新在前
+invoke('recent_clear') → void
+```
+
+壳一直在维护 `lector-recent.json`，但早先只喂给**原生菜单**；而 Windows / Linux 不建原生菜单（避开初始化闪现），那份列表在界面上没有任何入口——数据在，用户够不着。于是开两个最小接口：读列表（空态展示）与清空（只读不给清等于耍流氓）。**写入仍然只在壳里发生**，Web 拿到的只是这两个动作。
+
+### `webview_ready`
+
+```ts
+invoke('webview_ready') → void
+```
+
+Web 层就绪信号，页面加载后每个窗口各调一次。Windows 上此刻 WebView2 必然可见且已置顶，`snap` 覆盖层此时 raise 才能稳稳压在它上面（竞态细节见 `snap.rs::raise`）。命令按调用方窗口各自处理，天然多窗口安全。
+
+### `print_to_pdf`
+
+```ts
+invoke('print_to_pdf', { path: string }) → void
+```
+
+把当前窗口渲染成 PDF 写到 `path`（路径来自 dialog 的 `save()`）。Windows 上走 WebView2 的 `PrintToPdf`，那是**异步 COM 调用**：结果经完成回调送达，所以命令只发起调用不阻塞，再用 channel + 超时把结果带回命令线程。版式由 `html.printing` 那套样式负责（Web 侧在调用前后挂/摘类）。
+
 ---
 
 ## 最近打开与另存为
 
-**最近打开**：壳单点维护配置目录 `lector-recent.json`（字符串数组，新在前，≤20，去重）。Web 无读接口。
+**最近打开**：壳单点维护配置目录 `lector-recent.json`（字符串数组，新在前，≤20，去重）。Web 侧只有 `recent_list` / `recent_clear` 两个最小接口（空态展示与清空）；**写入仍然只在壳里发生**。
 
 - 记入时机：`bind_document`（覆盖对话框打开、双击关联、argv、单实例转发、另存为后切换全部路径）。
 - 展示：原生菜单 File > Open Recent。条目 id `recent-<i>`；点击由壳直接 `open_path`（已开则聚焦，未开新窗口），**不经 Web**。文件已不存在 → 从列表移除并重建菜单。
@@ -213,6 +277,7 @@ Web 侧不维护跨窗口状态；「最近打开」仅壳单点读写用户目�
 
 ## 变更记录
 
+- 2026-09-17：按代码逐条对齐。补 8 条**没记录**的命令：`read_file_bytes`（拖入图片取字节）、`open_url` / `open_with_default` / `reveal_in_folder`（系统集成三出口）、`recent_list` / `recent_clear`（Windows/Linux 没有原生菜单，最近打开原本在界面上够不着）、`webview_ready`（snap 覆盖层的就绪信号）、`print_to_pdf`（导出 PDF）。补 4 个没记录的事件：`lector:menu`（菜单/快捷键动作，取代已不存在的 `lector:save-request`）、`lector:drag-hover` / `lector:drop-files`（原生拖放通道）、`lector:win-max-hover`（自绘最大化按钮悬停）。删掉 `dir_for`（命令已移除，baseDir 由 `bind_document` / `read_file` 时重建的协议白名单决定）。
 - 2026-09-17：补 `open_link`（文档里的本地链接：相对路径按当前文档解析，开新窗口/聚焦已有窗口；路径判定在壳侧，尺度与相对图片不同，理由见该节）。
 - 2026-09-17：补 `read_clipboard`（壳装 `tauri-plugin-clipboard-manager`，但只经自定义命令暴露读；webview 自己的 `readText()` 在 macOS 上必被拒，右键菜单的「粘贴」因此一直失败）。不动 capabilities：插件命令不开给 webview。
 - 2026-09-03：补「最近打开」（壳单点 `lector-recent.json` + 原生菜单）与「另存为」（dialog save + `write_file` force）；`write_file` 目标不存在时直接写；`bind_document` 副作用收白名单、记最近、重建菜单。
