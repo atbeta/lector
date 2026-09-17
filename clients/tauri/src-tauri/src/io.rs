@@ -177,7 +177,7 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
-  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进��议白名单。
+  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进����议白名单。
   // 不能等 bind_document：前端拿到内容就渲染，图片请求可能早于 bind_document 到达，
   // 那时白名单还没有这个目录 → 403 → 图片塌成 0 高（切一次档才恢复）。
   protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
@@ -423,7 +423,7 @@ fn sanitize_image_name(name: &str) -> Option<String> {
   }
   let mut out = String::new();
   for c in stem.chars() {
-    // 用 Unicode 的 is_alphanumeric（而非 ascii）：要和前端 safeDropName 的
+    // 用 Unicode 的 is_alphanumeric（而非 ascii）：要和��端 safeDropName 的
     // `\p{L}\p{N}` 保持一致，否则「截图_2026.png」拖进来会被落成「--_2026.png」。
     if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
       out.push(c);
@@ -697,6 +697,100 @@ pub fn webview_ready(window: tauri::WebviewWindow) {
   let _ = window;
 }
 
+// ── 后台打印窗口导出 ─────────────────────────────────────────────────
+// 主窗口不挂打印样式（否则导出期间应用白屏、按钮/大纲全部消失）——导出在
+// 一个离屏打印窗口里完成：必须 visible（WebView2 对不可见窗口会挂起渲染，
+// PrintToPdf 不可靠，wry 建窗时 SetIsVisible(attributes.visible)），但定位在
+// 屏幕外 + 不进任务栏，用户全程无感。窗口加载同一入口页，初始化脚本注入
+// __lectorPrintJob（文档路径），web 层走真实渲染管线装载后回调放行。
+
+static PRINT_SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+static PRINT_WAITERS: std::sync::Mutex<
+  Option<std::collections::HashMap<String, tauri::async_runtime::Sender<Result<(), String>>>>,
+> = std::sync::Mutex::new(None);
+
+fn take_print_waiter(label: &str) -> Option<tauri::async_runtime::Sender<Result<(), String>>> {
+  PRINT_WAITERS
+    .lock()
+    .unwrap()
+    .get_or_insert_with(std::collections::HashMap::new)
+    .remove(label)
+}
+
+/// 后台导出：建离屏打印窗口装载 `doc_path` 的文档，渲染就绪后对它执行
+/// PrintToPdf 写入 `path`，最后销毁窗口。主窗口全程不动。
+#[tauri::command]
+pub async fn export_pdf_background(
+  app: tauri::AppHandle,
+  path: String,
+  doc_path: String,
+) -> Result<(), String> {
+  let label = format!(
+    "print-{}",
+    PRINT_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+  );
+  let (tx, mut rx) = tauri::async_runtime::channel::<Result<(), String>>(1);
+  PRINT_WAITERS
+    .lock()
+    .unwrap()
+    .get_or_insert_with(std::collections::HashMap::new)
+    .insert(label.clone(), tx.clone());
+
+  // 文档路径经初始化脚本注入（serde_json 字符串 = 合法 JS 字面量，路径天然安全）。
+  let script = format!(
+    "window.__lectorPrintJob = {};",
+    serde_json::to_string(&doc_path).unwrap_or_else(|_| "\"\"".into())
+  );
+  let win = tauri::WebviewWindowBuilder::new(&app, label.clone(), tauri::WebviewUrl::default())
+    .title("Lector Print")
+    .visible(true)
+    .skip_taskbar(true)
+    .position(-32000.0, -32000.0)
+    .inner_size(860.0, 1200.0)
+    .initialization_script(&script)
+    .build()
+    .map_err(|e| {
+      take_print_waiter(&label);
+      e.to_string()
+    })?;
+
+  // 看门狗：web 端 60 秒内没就绪（渲染卡死/脚本异常）就放行错误，窗口照常清理。
+  {
+    let tx = tx.clone();
+    let label2 = label.clone();
+    std::thread::spawn(move || {
+      std::thread::sleep(std::time::Duration::from_secs(60));
+      if let Some(t) = take_print_waiter(&label2) {
+        let _ = t.send(Err("打印窗口渲染超时".into()));
+      }
+    });
+  }
+
+  let result = match rx.recv().await {
+    Some(r) => r,
+    None => Err("打印窗口通道中断".into()),
+  };
+  take_print_waiter(&label);
+
+  let print_result = match result {
+    Ok(()) => crate::pdf::render_pdf(win.clone(), path).await,
+    Err(e) => Err(e),
+  };
+  let _ = win.destroy();
+  print_result
+}
+
+/// 打印窗口的 web 层渲染完成（或失败）时回调。按调用方窗口 label 放行等待者。
+#[tauri::command]
+pub fn print_job_done(window: tauri::WebviewWindow, error: Option<String>) {
+  if let Some(tx) = take_print_waiter(window.label()) {
+    let _ = tx.send(match error {
+      Some(e) => Err(e),
+      None => Ok(()),
+    });
+  }
+}
+
 #[cfg(target_os = "windows")]
 fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
   use window_vibrancy::{apply_acrylic, apply_mica};
@@ -817,7 +911,7 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
   // 主题早应用：把设置里的明暗模式在首帧前交给页面（index.html 的内联脚本消费）。
   // 前端 load_settings 要等模块加载完才到——深色用户会先看到一帧浅色再变深，
-  // 系统浅色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
+  // 系统��色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
   let theme_mode = app
     .path()
     .app_config_dir()
@@ -1192,7 +1286,7 @@ mod tests {
     assert_eq!(sanitize_image_name("photo.png").as_deref(), Some("photo.png"));
     assert_eq!(sanitize_image_name("a/../x.PNG").as_deref(), Some("x.png"));
     assert_eq!(sanitize_image_name("weird name.webp").as_deref(), Some("weird-name.webp"));
-    // 中文名要留住（与前端 safeDropName 的 \p{L} 对齐），不能被整段换成 '-'
+    // 中文名要留住（与前端 safeDropName 的 \p{L} 对���），不能被整段换成 '-'
     assert_eq!(sanitize_image_name("截图_2026.png").as_deref(), Some("截图_2026.png"));
     assert!(sanitize_image_name("../x.png").is_none() || sanitize_image_name("../x.png").as_deref() == Some("x.png"));
     assert!(sanitize_image_name("x.txt").is_none());

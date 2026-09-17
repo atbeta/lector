@@ -287,7 +287,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     exportBtn.addEventListener('click', () => {
       defocus()
       const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
-      void exportPdf(`${name}.pdf`)
+      void exportPdf(`${name}.pdf`, getSession().source?.path ?? null)
         .then((r) => {
           if (r === 'saved') showToast(t('pdfSaved'))
         })

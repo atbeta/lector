@@ -94,14 +94,16 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 }
 
 /**
- * 导出 PDF：壳里先选路径，再交给壳层 WebView2 PrintToPdf（渲染引擎与应用相同，
- * 中文 / mermaid / KaTeX 原样进 PDF）。浏览器（vite 预览）退化为系统打印。
- *
- * 打印样式挂在 html.printing 类上（app.css），不用 @media print——WebView2 的
- * PrintToPdf 按屏幕媒体渲染，媒体查询不生效。这里负责类的生命周期：
- * 挂上 → 等两帧（样式生效 + 布局完成）→ 打印 → 摘掉（finally 保证恢复）。
+ * 导出 PDF：壳里先选路径，再交给壳层的**后台打印窗口**（io.rs::export_pdf_background）
+ * ——离屏窗口用真实渲染管线装载文档后 PrintToPdf，主窗口全程不动（不挂打印样式、
+ * 不白屏、按钮大纲不消失）。浏览器（vite 预览）退化为系统打印：打印样式挂在
+ * html.printing 类上（app.css，不用 @media print——WebView2 按屏幕媒体渲染），
+ * 挂上 → 等两帧 → window.print() → 摘掉。
  */
-export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
+export async function exportPdf(
+  defaultName: string,
+  docPath: string | null,
+): Promise<'saved' | 'cancelled' | 'print'> {
   const root = document.documentElement
   // 等两帧：第一帧让 .printing 的样式参与布局，第二帧确保重排完成再打印。
   const nextFrame = () =>
@@ -128,15 +130,17 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   })
   if (!target) return 'cancelled'
-  root.classList.add('printing')
-  try {
-    await nextFrame()
-    const { invoke } = await tauriApi()
-    await invoke('print_to_pdf', { path: target })
-  } finally {
-    root.classList.remove('printing')
-  }
+  const { invoke } = await tauriApi()
+  await invoke('export_pdf_background', { path: target, docPath })
   return 'saved'
+}
+
+/** 后台打印窗口的 web 层渲染完成（或失败）时通知壳放行 PrintToPdf。 */
+export async function printJobDone(error: string | null): Promise<void> {
+  const { invoke } = await tauriApi()
+  await invoke('print_job_done', { error }).catch((err) =>
+    console.error('[lector] print_job_done', err),
+  )
 }
 
 /**
@@ -223,7 +227,7 @@ export async function revealInFolder(path: string): Promise<void> {
 /**
  * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个���窗口。
  *
- * Web 层只传「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
+ * Web 层只���「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
  * **全在壳侧**（paths.ts 顶上那句「真正的路径权威在壳侧」就是这条）。
  * 链接是文档内容，属不可信输入，所以判定必须待在能看清真实文件系统的那一层。
  * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方��成人话。
@@ -432,7 +436,7 @@ export function bindTitlebar(dragEl: HTMLElement): void {
  * 不能只改 DOM。浏览器预览下拿不到壳，回调保持空实现，调用方据此渲染
  * 「在���但不可用」的假控件，保证没有壳的环境也能调版式。
  *
- * 返回清理函数（移除监听的 Promise 落地前调用也安全）。
+ * 返回清理函数（移除监听的 Promise 落地前调用也安全）���
  */
 export function bindWindowControls(opts: {
   onMinimize: () => void

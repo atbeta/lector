@@ -1598,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────────�����
+/* ───────────── Mermaid 图表 ────────────�������
  * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
@@ -1644,7 +1644,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性泄漏：阅读区在文���层������ Inter 的花式变体
+/* 堵住字体特性泄漏：阅读区���文���层������ Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -2881,7 +2881,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 .shortcuts-pop {
   position: fixed;
   z-index: 100;
-  /* 三组并排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
+  /* 三组���排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
   display: flex;
   flex-wrap: wrap;
   gap: 10px 26px;
@@ -3060,7 +3060,7 @@ html.is-empty #content {
   background: transparent;
   border-inline-color: transparent;
   box-shadow: none;
-  /* 空态是「一页��页」，��容整��居中于整窗。
+  /* ��态是「一页��页」，��容整��居中于整窗。
      #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
      块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
   display: flex;
@@ -3226,6 +3226,20 @@ html.printing .reading-prose pre.has-ln > code {
 }
 html.printing .reading-prose img {
   max-width: 100%;
+}
+/* 代码卡头部条（语言标 + 复制键）与行号是屏幕交互件，纸上无意义还占宽。 */
+html.printing .code-bar {
+  display: none !important;
+}
+html.printing .ln-gutter {
+  display: none !important;
+}
+html.printing .reading-prose pre.has-ln {
+  display: block;
+}
+/* 段间距收紧：屏幕阅读的松段距在纸上显得散。 */
+html.printing .reading-prose p {
+  margin: 0 0 0.55em;
 }
 html.printing a {
   text-decoration: none;
