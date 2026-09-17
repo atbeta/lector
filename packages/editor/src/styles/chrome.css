@@ -701,6 +701,11 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
 .sidebar-head,
 .sidebar-body {
   width: calc(var(--sidebar-w) - 1px);
+  /* 本仓库没有全局 box-sizing。不补这行，width 是内容宽、再叠加左右各 8px 的
+     padding，head/body 会比侧栏宽 16px：右侧留白被裁掉，而且 .sidebar-body 变成
+     可横向滚动的盒子——点大纲条目时 scrollIntoView 会把它滚 8px，左侧留白当场消失
+     （「有时有、点一下又没了」就是这一下）。 */
+  box-sizing: border-box;
 }
 /* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
    保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。

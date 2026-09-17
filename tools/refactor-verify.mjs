@@ -121,6 +121,29 @@ const mountPreferenceOutline = async () => {
   }
 
   try {
+    // 大纲条目的 scrollIntoView 不许把侧栏横向滚走。
+    // head/body 若是 content-box，width 会再叠加左右 padding 而宽出侧栏，
+    // .sidebar（overflow: hidden）因此可横滚；点条目时被滚 8px，左侧留白当场消失
+    // ——这就是「有时有、点一下又没了」。判据直接量滚动容器的横向溢出与 scrollLeft。
+    const bars = await page.evaluate(() => {
+      const side = document.querySelector('#sidebar')
+      const body = document.querySelector('.sidebar-body')
+      const pick = (el) => ({
+        scrollLeft: el.scrollLeft,
+        overflowX: el.scrollWidth - el.clientWidth,
+      })
+      return { side: pick(side), body: pick(body) }
+    })
+    assert.equal(bars.side.scrollLeft, 0, `sidebar scrolled horizontally: ${bars.side.scrollLeft}`)
+    assert.ok(bars.side.overflowX <= 0, `sidebar has horizontal overflow: ${bars.side.overflowX}px`)
+    assert.equal(bars.body.scrollLeft, 0, `sidebar body scrolled horizontally: ${bars.body.scrollLeft}`)
+    assert.ok(bars.body.overflowX <= 0, `sidebar body has horizontal overflow: ${bars.body.overflowX}px`)
+    ok('outline click: sidebar stays put (no horizontal scroll, left padding intact)')
+  } catch (e) {
+    fail('outline click sidebar padding', e)
+  }
+
+  try {
     await page.click('.mode-opt[data-mode="source"]')
     await page.waitForSelector('#content .source-view', { timeout: 10000 })
     await page.click('.mode-opt[data-mode="read"]')
