@@ -48,6 +48,10 @@ body.app {
    改宽度只改这一处。 */
 :root { --sidebar-w: 288px; }
 html.sidebar-docked body.app { grid-template-columns: var(--sidebar-w) 1fr; }
+/* 启动首帧不播侧栏变宽动画：停靠类与宽度变量都是 JS 首次应用，过渡活着的话开窗
+   会看到侧栏从 0 播一段变宽。sidebar-boot 由 sidebar.ts 在首次应用前加上、首帧
+   绘制后移除——之后的开合/拖拽照常过渡。 */
+html.sidebar-boot body.app { transition: none; }
 body {
   margin: 0;
   height: 100%;

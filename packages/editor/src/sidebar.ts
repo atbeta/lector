@@ -77,6 +77,12 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   el.id = 'sidebar'
   el.setAttribute('aria-label', t('outlineTitle'))
 
+  // 启动期压制网格过渡：body.app 的 grid-template-columns 带过渡，而停靠类与宽度
+  // 变量都是本次初始化里首次应用——不压的话开窗会看到侧栏从 0 播一段变宽动画。
+  // 首帧直接就位；双 rAF 后移除，之后的开合/拖拽照常过渡。
+  const root = document.documentElement
+  root.classList.add('sidebar-boot')
+
   // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
   // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。
   // 宽度先于下边的把手初始化：把手一建出来就要把当前值写进 aria-valuenow。
@@ -199,6 +205,8 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
 
   /** 浮层模式的「点外关闭 / Esc 关闭」解绑句柄 */
   let detachOverlay: (() => void) | null = null
+  // 关闭时的延迟隐藏定时器：轨道过渡走完才真正 hidden（见 apply）
+  let hideTimer: ReturnType<typeof setTimeout> | undefined
 
   function applyOverlayClose(active: boolean): void {
     if (active === (detachOverlay !== null)) return
@@ -229,8 +237,20 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     const root = document.documentElement
     root.classList.toggle('sidebar-docked', m === 'docked')
     root.classList.toggle('sidebar-overlay', m === 'overlay')
-    el.toggleAttribute('hidden', !open)
-    el.setAttribute('aria-hidden', String(!open))
+    if (open) {
+      // 开：立刻显示，内容由变宽的轨道逐步揭示（head/body 锁宽不重排，见 chrome.css）
+      clearTimeout(hideTimer)
+      el.removeAttribute('hidden')
+      el.setAttribute('aria-hidden', 'false')
+    } else {
+      el.setAttribute('aria-hidden', 'true')
+      // 关：不能立刻 hidden——内容会瞬间消失，只剩一条空轨道在收缩，看着像闪断。
+      // 让轨道过渡先把侧栏收进去，走完再真正隐藏。
+      clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => {
+        if (!open) el.setAttribute('hidden', '')
+      }, 240)
+    }
     applyOverlayClose(m === 'overlay')
     grip.setAttribute('aria-valuenow', String(width))
   }
@@ -241,6 +261,12 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     writePref(open)
     apply()
     opts.onToggle?.(open)
+
+  // 双 rAF：确保带 sidebar-boot 的首帧已经绘制完再恢复过渡。单 rAF 会在同一帧内
+  // 加类又删类，过渡抑制可能不生效，动画又回来了。
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => root.classList.remove('sidebar-boot'))
+  })
   }
 
   apply()

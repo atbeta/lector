@@ -371,11 +371,13 @@ html.is-empty .recent-block { max-width: none; margin-inline: 0; }
   justify-content: center;
   background: rgb(var(--primary) / 0.07);
   pointer-events: none; /* 不能挡 drop 事件本身 */
-  font-size: var(--text-h3);
-  font-weight: 600;
   color: rgb(var(--primary));
   border: 2px dashed rgb(var(--primary) / 0.6);
   border-radius: 8px;
+}
+.drop-overlay svg {
+  width: 48px;
+  height: 48px;
 }
 
 /* ───────────── 大文件：整篇裸 CM6 ─────────────

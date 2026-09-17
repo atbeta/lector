@@ -695,6 +695,13 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   border-right: 1px solid rgb(var(--border-subtle));
 }
 .sidebar[hidden] { display: none; }
+/* 开合动画期间内容不重排：轨道伸缩时 aside 宽度逐帧变化，内容若跟着伸缩，目录
+   文字会逐帧挤压换行（发皱）。head/body 锁在停靠宽度上（-1px = 右边框），超出
+   部分由 aside 的 overflow: hidden 裁掉——动画变成干净的揭示/收起，文字纹丝不动。 */
+.sidebar-head,
+.sidebar-body {
+  width: calc(var(--sidebar-w) - 1px);
+}
 /* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
    保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。
    只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
