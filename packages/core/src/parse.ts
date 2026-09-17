@@ -1,5 +1,8 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { gfm } from 'micromark-extension-gfm'
+// gfm@3.0 还没把脚注并入包内（3.1.0 才加），显式补上 tokenizer；
+// mdast 侧处理器 mdast-util-gfm 已自带（footnoteDefinition 能解析就是证明）。
+import { gfmFootnote } from 'micromark-extension-gfm-footnote'
 import { math } from 'micromark-extension-math'
 import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
@@ -48,7 +51,9 @@ const markMdastExtension = {
   },
 }
 const extensions = (
-  ENABLE_GFM ? [gfm(), math(), frontmatter(), markExtension] : [math(), frontmatter(), markExtension]
+  ENABLE_GFM
+    ? [gfm(), gfmFootnote(), math(), frontmatter(), markExtension]
+    : [math(), frontmatter(), markExtension]
 ) as FromMarkdownOptions['extensions']
 const mdastExtensions = (
   ENABLE_GFM

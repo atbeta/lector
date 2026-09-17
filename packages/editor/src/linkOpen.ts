@@ -71,6 +71,13 @@ export function githubSlug(text: string): string {
 export function scrollToAnchor(target: string, root: HTMLElement): boolean {
   const want = decodeURIComponent(target).trim().toLowerCase()
   if (!want) return false
+  // 精确 id 优先（脚注定义 id="fn-…"、脚注引用 id="fnref-…" 等非标题锚点），
+  // 没有再走标题 slug 匹配。
+  const byId = root.querySelector(`#${CSS.escape(want)}`)
+  if (byId) {
+    byId.scrollIntoView({ behavior: 'auto', block: 'start' })
+    return true
+  }
   const seen = new Map<string, number>()
   for (const h of root.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
     const base = githubSlug(h.textContent ?? '')

@@ -4,6 +4,7 @@
 import { resolveImageSrc } from './asset.ts'
 import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
+import { t } from './i18n.ts'
 import { parseBlockRoots } from '@lector/core'
 
 type Node =
@@ -193,11 +194,12 @@ function inlineNode(n: Node): string {
     }
     case 'footnoteReference':
       // 脚注引用：渲染成上标序号并链接到文末定义。锚点统一用 identifier
-      // （mdast 保证它在同一篇内唯一；label 只��源码里的原样代号，可能重复）。
+      // （mdast 保证它在同一篇内唯一；label 只是源码里的原样代号，可能重复）。
+      // id="fnref-…" 供定义侧的跳回链接定位。
       {
         const id = n.identifier ?? n.label ?? ''
         const shown = n.label ?? n.identifier ?? ''
-        return `<sup class="footnote-ref"><a href="#fn-${esc(id)}">[${esc(shown)}]</a></sup>`
+        return `<sup class="footnote-ref" id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">[${esc(shown)}]</a></sup>`
       }
     case 'break':
       return '<br />'
@@ -443,9 +445,10 @@ function blockToHtml(n: Node): string {
     case 'footnoteDefinition':
       // 脚注定义：渲染成带锚点的一段脚注，内容来自 children（paragraph/list 等）。
       // id 用 identifier，与行内出处链接的 #fn-<id> 对上；label 无则退回 identifier。
+      // 末尾的 ↩ 跳回链接指向引用处的 id="fnref-<id>"（GitHub 同款闭环）。
       return `<div class="footnote-definition" id="fn-${esc(n.identifier ?? n.label ?? '')}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span>${(n.children ?? [])
         .map((c) => blockToHtml(c))
-        .join('')}</div>`
+        .join('')}<a class="footnote-backref" href="#fnref-${esc(n.identifier ?? n.label ?? '')}" aria-label="${esc(t('footnoteBack'))}">↩</a></div>`
     case 'html': {
       // 块级 HTML：details 折叠块白名单放行，其余安全降级为等宽源码
       const details = renderDetailsBlock(n.value ?? '')

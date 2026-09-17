@@ -39,12 +39,13 @@ test('脚注：引用与定义都能在预览里看到（不再隐身）', () =>
   const md = '正文引用[^1]和[^two]。\n\n[^1]: 第一条脚注。\n\n[^two]: 第二条脚注。\n'
   const blocks = parseBlocks(md)
   const html = blocks.map((b) => renderBlockHtml(b.mdast, b.raw)).join('')
-  // 引用 → 上标链接，指向定义锚点
-  expect(html).toContain('<sup class="footnote-ref"><a href="#fn-1">[1]</a></sup>')
-  expect(html).toContain('<sup class="footnote-ref"><a href="#fn-two">[two]</a></sup>')
-  // 定义 → 内容可见、带锚点、带序号
+  // 引用 → 上标链接，指向定义锚点；id="fnref-…" 供定义侧跳回
+  expect(html).toContain('<sup class="footnote-ref" id="fnref-1"><a href="#fn-1">[1]</a></sup>')
+  expect(html).toContain('<sup class="footnote-ref" id="fnref-two"><a href="#fn-two">[two]</a></sup>')
+  // 定义 → 内容可见、带锚点、带序号、带 ↩ 跳回链接
   expect(html).toContain('id="fn-1"')
   expect(html).toContain('第一条脚注')
   expect(html).toContain('id="fn-two"')
   expect(html).toContain('第二条脚注')
+  expect(html).toContain('<a class="footnote-backref" href="#fnref-1"')
 })
