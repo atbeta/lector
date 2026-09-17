@@ -77,6 +77,12 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   el.id = 'sidebar'
   el.setAttribute('aria-label', t('outlineTitle'))
 
+  // 启动期压制网格过渡：body.app 的 grid-template-columns 带 0.21s 过渡，而
+  // 停靠类与宽度变量都在本次初始化里首次应用——不压的话开窗会看到侧栏从 0
+  // 播一段变宽动画。首帧直接就位；双 rAF 后移除，之后的开合/拖拽照常过渡。
+  const root = document.documentElement
+  root.classList.add('sidebar-boot')
+
   // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
   // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。
   // 宽度先于下边的把手初始化：把手一建出来就要把当前值写进 aria-valuenow。
@@ -246,6 +252,12 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   apply()
   // 初始状态也要通知一次，否则按钮的亮/灭与实际不符
   opts.onToggle?.(open)
+
+  // 双 rAF：确保带 sidebar-boot 的首帧已经绘制完再恢复过渡。单 rAF 会在
+  // 同一帧内加类又删类，过渡抑制可能不生效，动画又回来了。
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => root.classList.remove('sidebar-boot'))
+  })
 
   return {
     el,
