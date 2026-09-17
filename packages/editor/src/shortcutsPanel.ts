@@ -10,8 +10,8 @@ import { mod, modShift } from './keys.ts'
 //
 // 提示语（tooltip）不再附带快捷键——这份表是**唯一**面向用户的键位说明。
 //
-// ⚠ 这份表必须与 main.ts 的 keydown 处理、cm.ts 的键位映射保持一致：
-//   两边改动要同时改。面板与实际按键不一致，比没有面板更糟——
+// ⚠ 这份表必须与 shortcutDispatch.ts 的判定表、cm.ts 的键位映射保持一致：
+//   两处改动要同时改。面板与实际按键不一致，比没有面板更糟——
 //   用户会照着按，然后以为功能坏了。
 export interface ShortcutGroup {
   title: string

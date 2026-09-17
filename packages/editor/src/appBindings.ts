@@ -7,6 +7,7 @@ import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
 import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
+import { resolveShortcut } from './shortcutDispatch.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
 import type { EditorChrome } from './editorChrome.ts'
@@ -110,119 +111,77 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
     editor.focusBlock(id, { mode: 'coords', x: e.clientX, y: e.clientY })
   })
 
-  // 块级撤销：只有没聚焦编辑器时才接管 ⌘Z（编辑器里那是 CM 的文字撤销）
+  // 全局快捷键的判定表在 shortcutDispatch.ts（纯的，可单测）。这里只做两件事：
+  // 把事件与编辑器状态翻译成 hints，执行返回的动作。聚焦块里的裸 CM 会 preventDefault
+  // 自己认识的键（Ctrl+E 行内代码、Ctrl+B 粗体…），表里靠 defaultPrevented 让位。
   window.addEventListener('keydown', (e) => {
-    if (!(e.metaKey || e.ctrlKey) || e.shiftKey) return
-    if (e.key.toLowerCase() !== 'z') return
-    if (editor.getSession().focusedId !== null || editor.getCmView()) return
-    if (editor.operations.undoBlockOp()) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-  })
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && editor.getSession().focusedId !== null) {
-      e.preventDefault()
-      editor.defocus()
-    }
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
-      e.preventDefault()
-      void files.saveAsFlow()
+    const action = resolveShortcut({
+      mod: e.metaKey || e.ctrlKey,
+      shift: e.shiftKey,
+      key: e.key,
+      defaultPrevented: e.defaultPrevented,
+      focusedBlock: editor.getSession().focusedId !== null,
+      editorMounted: editor.getCmView() !== null,
+      hasSource: editor.getSession().source !== null,
+    })
+    if (!action) return
+    // 块级撤销是唯一可能「什么都没撤销」的动作：只有真的撤销了才拦事件。
+    if (action.kind === 'undo-block') {
+      if (editor.operations.undoBlockOp()) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
       return
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault()
-      // 直接走存盘，不通过按钮的 click：
-      // 按钮在「没有未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
-      // 快捷键因此会被自己的禁用态吃掉。存盘是文档级动作，不该受控件状态影响。
-      void files.persistToDisk()
-    }
-  })
-
-  // Windows / Linux 上不设原生菜单（避免初始化闪现）：原菜单里这些快捷键
-  // 由 Web 层接管。macOS 上同名的菜单项仍有这些快捷键，双重注册不冲突——
-  // 菜单项是系统级的，这里是 web 级的，各管各的。
-  //
-  // 第一行的 defaultPrevented 守卫是 Windows 上必须有的：聚焦块里的裸 CM
-  // 会接管自己认识的那些键并 preventDefault（Ctrl+E 行内代码、Ctrl+B 粗体…），
-  // 而本监听挂在 window 的冒泡阶段——不守卫的话，Windows 用户按 Ctrl+E 会
-  // **同时**给选中文字加行内代码并把视图切到源码档。CM 不负责 stopPropagation，
-  // 这层守卫是我们自己的责任。
-  window.addEventListener('keydown', (e) => {
-    if (e.defaultPrevented) return
-    const mod = e.metaKey || e.ctrlKey
-    if (!mod) return
-    // ⌘O 打开
-    if (!e.shiftKey && e.key === 'o') {
-      e.preventDefault()
-      chrome.elements.openBtn.click()
-      return
-    }
-    // ⌘R 从磁盘重载
-    if (!e.shiftKey && e.key === 'r') {
-      e.preventDefault()
-      void files.reloadFromDisk()
-      return
-    }
-    // ⌘W 有文档 = 关闭文件回首页（首页是「最近打开」的唯一入口）；
-    // 无文档 = 关窗。Windows 上最后一个窗口关闭即退出应用——这就是「退出快捷键」；
-    // macOS 上窗口关了应用留在 Dock，系统惯例如此。不拦的话 WebView2 对
-    // Ctrl+W 没有默认行为，按了等于没按。关窗走 onCloseRequested 的脏检查。
-    if (!e.shiftKey && e.key.toLowerCase() === 'w') {
-      e.preventDefault()
-      if (editor.getSession().source) void files.closeFile()
-      else void closeWindow()
-      return
-    }
-    // ⌘⇧O 大纲
-    if (e.shiftKey && e.key.toLowerCase() === 'o') {
-      e.preventDefault()
-      chrome.elements.outlineBtn.click()
-      return
-    }
-    // ⌘, 设置
-    if (!e.shiftKey && e.key === ',') {
-      e.preventDefault()
-      chrome.elements.settingsBtn.click()
-      return
-    }
-    // ⌘0 恢复默认字号（⌘0 在部分键盘上与 ⌘) 同位）
-    // ⌘/Ctrl + = - 0 → **界面缩放**（浏览器与各应用的通用约定，演示时一按就大）
-    // ⇧⌘/⇧Ctrl + = - 0 → 正文字号（只改正文）
-    // 换位之前 ⌘+ 改的是正文字号：在「投屏给别人看」这个场景下，
-    // 用户想要的是整个界面变大，而不是只有正文——按惯例把它让给界面缩放，
-    // 正文字号仍留着 shift 变体和设置里的滑块。
-    const zoomKey = e.key
-    if (!e.shiftKey && (zoomKey === '=' || zoomKey === '+')) {
-      e.preventDefault()
-      stepUiZoom(1)
-      return
-    }
-    if (!e.shiftKey && zoomKey === '-') {
-      e.preventDefault()
-      stepUiZoom(-1)
-      return
-    }
-    if (!e.shiftKey && (zoomKey === '0' || zoomKey === ')')) {
-      e.preventDefault()
-      resetUiZoom()
-      return
-    }
-    if (e.shiftKey && (zoomKey === '+' || zoomKey === '=' || zoomKey === '*')) {
-      e.preventDefault()
-      stepFontSize(1)
-      return
-    }
-    if (e.shiftKey && (zoomKey === '_' || zoomKey === '-')) {
-      e.preventDefault()
-      stepFontSize(-1)
-      return
-    }
-    if (e.shiftKey && (zoomKey === ')' || zoomKey === '0')) {
-      e.preventDefault()
-      resetFontSize()
-      return
+    e.preventDefault()
+    switch (action.kind) {
+      case 'leave-edit':
+        editor.defocus()
+        break
+      case 'save-as':
+        void files.saveAsFlow()
+        break
+      case 'save':
+        // 直接走存盘，不通过按钮的 click：按钮在「没有未保存改动」时是禁用的，
+        // 而禁用的按钮 click() 不会触发任何东西——快捷键因此会被自己的禁用态吃掉。
+        // 存盘是文档级动作，不该受控件状态影响。
+        void files.persistToDisk()
+        break
+      case 'open':
+        chrome.elements.openBtn.click()
+        break
+      case 'reload':
+        void files.reloadFromDisk()
+        break
+      case 'close-file':
+        void files.closeFile()
+        break
+      case 'close-window':
+        void closeWindow()
+        break
+      case 'toggle-outline':
+        chrome.elements.outlineBtn.click()
+        break
+      case 'open-settings':
+        chrome.elements.settingsBtn.click()
+        break
+      case 'ui-zoom':
+        if (action.dir === 0) resetUiZoom()
+        else stepUiZoom(action.dir)
+        break
+      case 'font-size':
+        if (action.dir === 0) resetFontSize()
+        else stepFontSize(action.dir)
+        break
+      case 'find':
+        editor.openFind()
+        break
+      case 'cycle-mode':
+        chrome.toggleMode()
+        break
+      case 'set-mode':
+        chrome.setViewMode(VIEW_MODES[action.index]!)
+        break
     }
   })
 
@@ -236,27 +195,6 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
   chrome.elements.outlineBtn.addEventListener('click', () => outline.toggleOutline())
 
   chrome.elements.findBtn.addEventListener('click', () => editor.openFind())
-  window.addEventListener('keydown', (e) => {
-    // 同上：块内编辑器已接管的键不再走全局（见上面那段注释）
-    if (e.defaultPrevented) return
-    if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-      e.preventDefault()
-      editor.openFind()
-    }
-    // ⌘E 循环 read → edit → source → read
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'e') {
-      e.preventDefault()
-      chrome.toggleMode()
-      return
-    }
-    // ⌘1/2/3 直选档位——循环要按很多次才能到位，直选不用
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === '1' || e.key === '2' || e.key === '3')) {
-      e.preventDefault()
-      chrome.setViewMode(VIEW_MODES[Number(e.key) - 1]!)
-      return
-    }
-  })
-
   chrome.elements.saveBtn.addEventListener('click', () => void files.persistToDisk())
   // 原生菜单
   if (detectEnv() !== 'shell') return
