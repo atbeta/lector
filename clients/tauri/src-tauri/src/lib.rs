@@ -1,5 +1,6 @@
 mod io;
 mod menu;
+mod pdf;
 mod protocol;
 #[cfg(target_os = "windows")]
 mod snap;
@@ -114,6 +115,7 @@ pub fn run() {
       io::test_image_command,
       io::recent_list,
       io::recent_clear,
+      pdf::print_to_pdf,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");

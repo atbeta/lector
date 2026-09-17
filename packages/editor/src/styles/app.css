@@ -1382,7 +1382,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，容易读成
+     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，��易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -1644,7 +1644,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性泄漏：阅读区在文档层开了 Inter 的花式变体
+/* 堵住字体特性泄漏：阅读区在文档层开��� Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -3060,7 +3060,7 @@ html.is-empty #content {
   background: transparent;
   border-inline-color: transparent;
   box-shadow: none;
-  /* 空态是「一页扉页」，内容整体居中于整窗。
+  /* 空态是「一页扉页」，内容整��居中于整窗。
      #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
      块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
   display: flex;
@@ -3143,6 +3143,71 @@ html.large-file .mode-switch { display: none; }
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
  * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
  * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
+/* ───────────── 打印 / 导出 PDF ─────────────
+ * 壳层 PrintToPdf 与浏览器 window.print() 共用这一份样式。原则：
+ * 只印正文——壳（顶栏/状态栏/侧栏/查找条/toast）全部退场；
+ * 强制浅色（PDF 的归宿是分享与打印，深色没有意义）；
+ * 代码块、表格、图片不跨页断行，标题不孤行。 */
+@media print {
+  #titlebar,
+  #statusbar,
+  .sidebar,
+  .find-bar,
+  .lector-toast,
+  .mode-switch,
+  .window-controls,
+  .dirty-dot {
+    display: none !important;
+  }
+  /* 强制浅色：覆写主题 token，深色主题下导出也是白纸黑字。
+     选择器与主题规则同权重、位置在其后——打印时恒胜出。 */
+  :root,
+  html[data-theme='dark'] {
+    --paper: 255 255 255;
+    --shell: 255 255 255;
+    --foreground: 17 17 17;
+    --muted: 245 245 245;
+    --border: 224 224 224;
+    --border-subtle: 235 235 235;
+    --subtle-foreground: 110 110 110;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  /* 正文列占满页面：去掉窗口布局的留白与最大宽 */
+  #content {
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+  .reading-prose pre,
+  .reading-prose table,
+  .reading-prose img,
+  .reading-prose blockquote {
+    break-inside: avoid;
+  }
+  .reading-prose h1,
+  .reading-prose h2,
+  .reading-prose h3,
+  .reading-prose h4,
+  .reading-prose h5,
+  .reading-prose h6 {
+    break-after: avoid;
+  }
+  /* 代码块在纸上没有横向滚动：换行铺开 */
+  .reading-prose pre,
+  .reading-prose pre.has-ln > code {
+    overflow: visible;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

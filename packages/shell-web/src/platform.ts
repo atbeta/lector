@@ -93,6 +93,27 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
   })
 }
 
+/**
+ * 导出 PDF：壳里先选路径，再交给壳层 WebView2 PrintToPdf（渲染引擎与应用相同，
+ * 中文 / mermaid / KaTeX 原样进 PDF）。浏览器（vite 预览）退化为系统打印——
+ * 打印 CSS（app.css 的 @media print）两边共用。
+ */
+export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
+  if (detectEnv() !== 'shell') {
+    window.print()
+    return 'print'
+  }
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const target = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  })
+  if (!target) return 'cancelled'
+  const { invoke } = await tauriApi()
+  await invoke('print_to_pdf', { path: target })
+  return 'saved'
+}
+
 export async function read(path: string): Promise<ReadResult> {
   if (detectEnv() !== 'shell') {
     throw new Error('read() 仅壳环境可用')

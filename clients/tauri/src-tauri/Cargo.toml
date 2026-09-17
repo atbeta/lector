@@ -40,6 +40,11 @@ url = "2"
 # （io.rs::apply_platform_window_tweaks）。
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8.0"
+# PDF 导出（pdf.rs）：WebView2 PrintToPdf 的 COM 互操作。
+# 版本必须与 wry 拉入的一致（Cargo.lock 里 webview2-com 0.38 / windows 0.61）——
+# 出现两个版本时 ICoreWebView2Controller 类型对不上，编译直接失败。
+webview2-com = "0.38"
+windows-core = "0.61"
 # Snap Layouts 覆盖层（snap.rs）：不绘制的子窗口对 WM_NCHITTEST 回答 HTMAXBUTTON
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",

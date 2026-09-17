@@ -1,9 +1,10 @@
 import { countText, formatCount, readingMinutes } from '@lector/core'
-import { bindTitlebar } from '@lector/shell-web'
+import { bindTitlebar, exportPdf } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
+import { showToast } from './feedback.ts'
 import type { DocumentSession } from './documentSession.ts'
 
 // ───────────── 三视图模式 read / edit / source ─────────────
@@ -58,6 +59,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   const statusRight = document.getElementById('status-right')!
 
   const keyboardBtn = document.getElementById('keyboard-btn') as HTMLButtonElement
+  const exportBtn = document.getElementById('export-btn') as HTMLButtonElement
   const titlebarEl = document.getElementById('titlebar')
 
   /** 把文件名写进顶栏：主名 + 弱化的扩展名。 */
@@ -277,6 +279,20 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     settingsBtn.setAttribute('aria-label', t('settingsAria'))
     settingsBtn.dataset.tip = t('settingsAria')
     openBtn.dataset.tip = t('openAria')
+    // 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
+    // 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
+    exportBtn.innerHTML = iconSvg('fileDown', 16)
+    exportBtn.setAttribute('aria-label', t('exportPdfTip'))
+    exportBtn.dataset.tip = t('exportPdfTip')
+    exportBtn.addEventListener('click', () => {
+      defocus()
+      const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
+      void exportPdf(`${name}.pdf`)
+        .then((r) => {
+          if (r === 'saved') showToast(t('pdfSaved'))
+        })
+        .catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
+    })
     // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
     keyboardBtn.innerHTML = iconSvg('keyboard', 16)
     keyboardBtn.setAttribute('aria-label', t('shortcutTitle'))
