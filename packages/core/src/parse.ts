@@ -54,7 +54,10 @@ const markMdastExtension = {
     },
   },
 }
-const extensions = (
+// 扩展清单导出给 images.ts 复用：图片定位必须和主解析对同一块文本看到
+// 完全相同的语法集，两份清单迟早漂移（0.27.3 的 CI 挂掉就是 images.ts
+// 还 import 已移除的 gfm 捆绑包暴露出来的）。
+export const extensions = (
   ENABLE_GFM
     ? [
         gfmAutolinkLiteral(),
@@ -69,7 +72,7 @@ const extensions = (
       ]
     : [math(), frontmatter(), markExtension]
 ) as FromMarkdownOptions['extensions']
-const mdastExtensions = (
+export const mdastExtensions = (
   ENABLE_GFM
     ? [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
     : [mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
@@ -222,7 +225,7 @@ export function parseBlocks(text: string): BlockView[] {
  * 中间的 markdown 内容、`</details>` 会被切成多个块——阅读时整段降级成
  * 源码。这里把「开标签块 … 配对闭标签块」的连续跨度合并成一块（raw 仍
  * 覆盖原文，拼接恒等不破），渲染层（mdastHtml 的 details 白名单）拿到完整
- * 值后重解析内部 markdown。找不到配对闭标签就不合并，维持逐块降级。
+ * 值后重解析内部 markdown。找不到配对闭标签就不合并，维���逐块降级。
  */
 function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView[] {
   const out: BlockView[] = []

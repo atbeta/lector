@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfmFromMarkdown } from 'mdast-util-gfm'
-import { gfm } from 'micromark-extension-gfm'
 import { decodeEntities, htmlToMarkdown } from '../src/htmlToMarkdown.ts'
+// 用产品同款的共享扩展清单读回（gfm 捆绑包已移除，见 parse.ts）
+import { extensions, mdastExtensions } from '../src/parse.ts'
 
 /** 用真实的解析器把结果读回来——转出来的 Markdown 必须自己站得住。 */
 function mdast(md: string): any {
-  return fromMarkdown(md, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  return fromMarkdown(md, { extensions, mdastExtensions })
 }
 
 /** 只要节点结构，不要位置信息。 */

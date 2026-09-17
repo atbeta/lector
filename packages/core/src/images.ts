@@ -6,15 +6,9 @@
 // 只会把用户的链接悄悄改坏。纯函数，测试先行。
 
 import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfm } from 'micromark-extension-gfm'
-import { math } from 'micromark-extension-math'
-import { frontmatter } from 'micromark-extension-frontmatter'
-import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
-import { gfmFromMarkdown } from 'mdast-util-gfm'
-import { mathFromMarkdown } from 'mdast-util-math'
-
-const extensions = [gfm(), math(), frontmatter()]
-const mdastExtensions = [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown()]
+// 扩展清单与主解析共享（见 parse.ts 导出处注释）：这里只找 image 节点的
+// position，但语法集必须一致，否则同一块文本两处解析出的 position 会分歧。
+import { extensions, mdastExtensions } from './parse.ts'
 
 export interface ImageRef {
   url: string
