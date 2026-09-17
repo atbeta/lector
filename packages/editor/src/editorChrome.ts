@@ -1,5 +1,5 @@
 import { countText, formatCount, readingMinutes } from '@lector/core'
-import { bindTitlebar, exportPdf } from '@lector/shell-web'
+import { bindTitlebar, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { iconSvg } from './icons.ts'
@@ -306,16 +306,26 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
           })
           if (go !== 'go') return
         }
-        // 深色主题先翻到 light——必须走 setThemeMode 正规管道：mermaid 的重画
-        // 挂在设置通知上，直接改 data-theme 属性它不重画，SVG 里烘着的深色会
-        // 原样进纸（0.26.6 教训）。浅色 mermaid = default 主题 + 靛蓝主色，
-        // 白底蓝图。导出完翻回原设置。
+        // 浏览器预览：系统打印对话框，到此为止。
+        if (detectEnv() !== 'shell') {
+          await exportPdf(`${name}.pdf`)
+          return
+        }
+        // 时序（0.26.7 教训：所有视觉变化必须在选完路径之后）：
+        // 存盘对话框（纯原生窗口，页面不动）→ 翻 light → 等 mermaid 重画
+        // → 摊平 + 捕获 → 翻回。翻转必须走 setThemeMode 正规管道：mermaid 的
+        // 重画挂在设置通知上，直接改 data-theme 属性它不重画，SVG 里烘着的
+        // 深色会原样进纸。浅色 mermaid = default 主题 + 靛蓝主色，白底蓝图。
+        const target = await savePdfDialog(`${name}.pdf`)
+        if (!target) return
         const mode = getSettings().theme
         const flip = document.documentElement.getAttribute('data-theme') === 'dark'
         if (flip) setThemeMode('light')
         try {
-          const r = await exportPdf(`${name}.pdf`, t('pdfExporting'))
-          if (r === 'saved') showToast(t('pdfSaved'))
+          // 等 mermaid 重画（250ms 去抖 + SVG 渲染）完成再摊平。
+          if (flip) await new Promise((r) => setTimeout(r, 900))
+          await exportPdfTo(target, t('pdfExporting'))
+          showToast(t('pdfSaved'))
         } finally {
           if (flip) setThemeMode(mode)
         }

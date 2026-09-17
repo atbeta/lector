@@ -94,20 +94,30 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 }
 
 /**
- * 导出 PDF：主窗口挂 .printing（打印样式，app.css）后交给壳层 PrintToPdf。
- * 遮罩（.pdf-exporting）只盖**准备阶段**（摊平布局）——PrintToPdf 捕获的就是
- * 屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF 只有一张
- * spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感），打印完恢复。
- * 深色主题的翻转是**调用方**的职责（editorChrome 走 setThemeMode 正规管道，
- * mermaid 的重画挂在设置通知上——直接改 data-theme 属性它不重画，SVG 里烘着
- * 的深色会原样进纸）。捕获可能很慢（大文档），页面内任何指示器都会进纸——
- * 这段的反馈走忙光标 + 窗口标题（busyTitle），都不参与渲染捕获。
- * 浏览器退化为系统打印。
+ * PDF 存盘对话框。纯原生窗口，不碰页面——调用方先问路径、后做任何视觉变化
+ * （翻主题、摊平布局都在用户确认路径之后，0.26.7 教训：翻转在对话框前执行，
+ * 用户看到的是「点导出→界面变白」）。浏览器环境返回 null（调用方走 window.print）。
  */
-export async function exportPdf(
-  defaultName: string,
-  busyTitle?: string,
-): Promise<'saved' | 'cancelled' | 'print'> {
+export async function savePdfDialog(defaultName: string): Promise<string | null> {
+  if (detectEnv() !== 'shell') return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const target = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  })
+  return target ?? null
+}
+
+/**
+ * 对已选定的路径执行导出：主窗口挂 .printing（打印样式，app.css）后交给壳层
+ * PrintToPdf。遮罩（.pdf-exporting）只盖准备阶段（摊平布局）——PrintToPdf
+ * 捕获的就是屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF
+ * 只有一张 spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感）。
+ * 捕获可能很慢（大文档），页面内任何指示器都会进纸——这段的反馈走忙光标 +
+ * 窗口标题（busyTitle），都不参与渲染捕获。主题翻转是调用方的职责
+ * （editorChrome 走 setThemeMode 正规管道，mermaid 的重画挂在设置通知上）。
+ */
+export async function exportPdfTo(path: string, busyTitle?: string): Promise<'saved'> {
   const root = document.documentElement
   const nextFrame = () =>
     new Promise<void>((resolve) => {
@@ -117,32 +127,11 @@ export async function exportPdf(
         })
       })
     })
-  if (detectEnv() !== 'shell') {
-    root.classList.add('printing')
-    try {
-      await nextFrame()
-      window.print()
-    } finally {
-      root.classList.remove('printing')
-    }
-    return 'print'
-  }
-  // 存盘对话框先弹（原生窗口，不受页面样式影响），确认了才开始动界面。
-  const { save } = await import('@tauri-apps/plugin-dialog')
-  const target = await save({
-    defaultPath: defaultName,
-    filters: [{ name: 'PDF', extensions: ['pdf'] }],
-  })
-  if (!target) return 'cancelled'
-
   const overlay = document.createElement('div')
   overlay.className = 'pdf-exporting'
   document.body.appendChild(overlay)
 
   try {
-    // 主题翻转（调用方在弹对话框前已做）触发的 mermaid 重画通常在用户选路径
-    // 期间就完成了；这里再留 300ms 兜底快速路径的情况。
-    await new Promise((r) => setTimeout(r, 300))
     root.classList.add('printing')
     await nextFrame()
     // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
@@ -154,7 +143,7 @@ export async function exportPdf(
     root.classList.add('pdf-busy')
     try {
       const { invoke } = await tauriApi()
-      await invoke('print_to_pdf', { path: target })
+      await invoke('print_to_pdf', { path })
     } finally {
       root.classList.remove('pdf-busy')
       document.title = prevTitle
@@ -164,6 +153,30 @@ export async function exportPdf(
     root.classList.remove('printing')
     overlay.remove()
   }
+}
+
+/**
+ * 浏览器（vite 预览）退化路径：系统打印对话框。打印样式挂在 html.printing
+ * 类上（app.css，不用 @media print——WebView2 按屏幕媒体渲染）。
+ */
+export async function exportPdf(defaultName: string): Promise<'print'> {
+  const root = document.documentElement
+  const nextFrame = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      })
+    })
+  root.classList.add('printing')
+  try {
+    await nextFrame()
+    window.print()
+  } finally {
+    root.classList.remove('printing')
+  }
+  return 'print'
 }
 
 /**
@@ -204,7 +217,7 @@ export async function save(
 ): Promise<SaveResult> {
   if (detectEnv() === 'shell') {
     const { invoke } = await tauriApi()
-    // 参数名必须 camelCase：Tauri v2 的命令参数默认按 camelCase 反序列化，
+    // 参数名必须 camelCase：Tauri v2 的命令参数默��按 camelCase 反序列化，
     // 传 mtime_ms 会得到「invalid args `mtimeMs` for command `write_file`」——
     // 报错里说的是 Rust 期望的名字（camelCase），所以看到 mtime_ms 反而以为是对的。
     return invoke<SaveResult>('write_file', { path, content, mtimeMs: mtime_ms, force })
