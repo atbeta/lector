@@ -281,7 +281,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     openBtn.dataset.tip = t('openAria')
     // 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
     // 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
-    exportBtn.innerHTML = iconSvg('fileDown', 16)
+    exportBtn.innerHTML = iconSvg('fileOutput', 16)
     exportBtn.setAttribute('aria-label', t('exportPdfTip'))
     exportBtn.dataset.tip = t('exportPdfTip')
     exportBtn.addEventListener('click', () => {

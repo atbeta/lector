@@ -225,7 +225,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交给系统���览器打开。
+/// 正文里的链接交给系������览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -834,7 +834,18 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
     .shadow(true)
     .decorations(chrome.decorations);
   if let Some((x, y, sw, sh, maximized)) = saved {
-    builder = builder.inner_size(sw, sh).position(x, y);
+    // 存档是物理像素（window-state 插件按 PhysicalPosition/PhysicalSize 存取），
+    // 而 builder 的 position/inner_size 是逻辑像素（tauri 文档原文）。不换算的话
+    // HiDPI 屏（125%/150% 缩放）上预应用的位置和尺寸都按缩放偏大，插件就绪时
+    // 再按物理值恢复一次——窗口「出现在一个位置、随后挪到另一个位置」。
+    // 按落点显示器的缩放折算成逻辑值，预应用与插件恢复重合，不再跳动。
+    let scale = app
+      .monitor_from_point(x, y)
+      .ok()
+      .flatten()
+      .map(|m| m.scale_factor())
+      .unwrap_or(1.0);
+    builder = builder.position(x / scale, y / scale).inner_size(sw / scale, sh / scale);
     if maximized {
       builder = builder.maximized(true);
     }
