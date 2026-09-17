@@ -11,7 +11,9 @@ use std::{
 };
 use notify::RecommendedWatcher;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+  webview::PageLoadEvent, AppHandle, Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder,
+};
 
 use crate::protocol;
 
@@ -895,6 +897,27 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   {
     builder = builder.transparent(chrome.transparent);
   }
+  // Windows：窗口先藏起来，等页面加载完再显示。
+  //
+  // 透明窗口在 WebView2 读出首帧之前是**完全透明**的——这类窗口没有重定向位图，
+  // 客户端区域整块交给 DWM 合成，桌面就直接透过来了。冷启动时 WebView2 要起进程、
+  // 建渲染器，那几百毫秒里用户看到的就是一个"透明框"。
+  //
+  // 藏起来等加载完再显示就没有这一帧：index.html 的内联脚本在解析时就铺好了
+  // 主题画布色（tokens 的 --background），所以窗口第一次出现时已经是正确底色。
+  //
+  // 只管 Windows：macOS 上隐藏窗口会让 WKWebView 挂起乃至终结内容进程（见上面
+  // 预读几何那段注释），而且 macOS 用原生边框、窗口本来就不透明，没有这个问题。
+  #[cfg(target_os = "windows")]
+  {
+    builder = builder
+      .visible(false)
+      .on_page_load(|win, payload| {
+        if matches!(payload.event(), PageLoadEvent::Finished) {
+          let _ = win.show();
+        }
+      });
+  }
   #[cfg(target_os = "macos")]
   {
     builder = builder
@@ -910,6 +933,19 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   log::info!("[win] 建窗完成 {label}");
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
+  // 兜底：页面加载没能完成时（devUrl 挂了、前端在解析前就抛错）别把窗口永远藏着。
+  // 2.5s 是「页面加载」的宽限量级——正常路径下 on_page_load 早就 show 过了。
+  #[cfg(target_os = "windows")]
+  {
+    let guard = win.clone();
+    std::thread::spawn(move || {
+      std::thread::sleep(std::time::Duration::from_millis(2500));
+      if matches!(guard.is_visible(), Ok(false)) {
+        log::warn!("[win] page never finished loading, showing anyway");
+        let _ = guard.show();
+      }
+    });
+  }
   // 几何已在 builder 阶段预应用（见上方注释）。window-state 插件的自动恢复已关
   // （lib.rs with_dont_restore）：它恢复时窗口已可见，且它不做离屏过滤——
   // 换过显示器布局后会把窗口从居中位置拽回存档的屏外坐标，用户看到的就是
