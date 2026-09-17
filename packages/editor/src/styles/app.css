@@ -184,7 +184,7 @@ button, a, input, [role='slider'], [role='switch'] {
  *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
  *  2. 右侧是固定的一排按钮，宽度��预测，所以用 absolute + margin:auto 夹在
  *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
- *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
+ *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上���孤零零飘着，
  *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
 .titlebar-lead {
   display: flex;
@@ -577,7 +577,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   height: 0;
   margin: 0;
   padding: 0;
-  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折叠，
+  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折���，
      间距就变成「有空行缝时相加、没有时取最大」，同一份文档两种节奏。 */
   pointer-events: none;
   cursor: default;
@@ -614,7 +614,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   /* display 门控而不是 opacity：切档时不该有一次淡入淡出，那是两个档在打架 */
   display: none;
   opacity: 0;
-  /* 它只是指示，不是靶子：不能挡住正文两侧留白上的点击与框选 */
+  /* 它只是指示���不是靶子：不能挡住正文两侧留白上的点击与框选 */
   pointer-events: none;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
@@ -845,6 +845,14 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   border-right: 1px solid rgb(var(--border-subtle));
 }
 .sidebar[hidden] { display: none; }
+/* 开合动画期间内容不重排：轨道伸缩时 aside 宽度逐帧变化，内容若跟着伸缩，
+   目录文字会逐帧挤压换行（发皱）。head/body 锁在停靠宽度上（-1px = 右边框，
+   与拉伸时的内容盒等宽），超出部分由 aside 的 overflow: hidden 裁掉——
+   动画变成干净的揭示/收起，文字纹丝不动。 */
+.sidebar-head,
+.sidebar-body {
+  width: calc(var(--sidebar-w) - 1px);
+}
 /* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
    保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。
    只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
@@ -1157,7 +1165,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── Tip 浮层 ─────────────
  * 替代原生 title=，让悬浮提示与设计语言一致（不出现黄底黑字
- * 系统色块）。全局单例（body 直接挂一个），位置由 tip.ts 计���。 */
+ * 系统色块）。全局单例（body 直���挂一个），位置由 tip.ts 计���。 */
 .tip {
   position: fixed;
   z-index: 100;
@@ -1281,7 +1289,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 /* 空段落块（空文档合成的那块、或被删空的段落）失焦后预览是空的，
    会塌成零高——看起来「块没了」，也点不进去（空文档就此锁死）。
-   给它一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
+   给��一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
 .block:not(.gap) .preform:empty {
   min-height: 1.62em;
 }
@@ -1590,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   background: rgb(var(--accent));
 }
 /* 折行开关：与复制键同款 24px 方键。推到条右端的是它（带着复制键组成
-   右侧按钮组）——推力原来在复制键上，折行键插进去后会被留在语言标旁边。 */
+   右侧按钮组）——推力���来在复制键上，折行键插进去后会被留在语言标旁边。 */
 .code-wrap-toggle {
   margin-left: auto;
   display: inline-grid;
@@ -2045,7 +2053,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   background: transparent;
 }
 
-/* ───────────── 图片 / 图表放大（lightbox） ─────────────
+/* ───────────── 图片 / ��表放大（lightbox） ─────────────
  * 两层职责：
  *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
  *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
@@ -2365,7 +2373,7 @@ html.lightbox-open #content { overflow: hidden; }
   line-height: 1.55;
   color: rgb(var(--subtle-foreground));
 }
-/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高矮不一，
+/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高��不一，
    反而比多滚动一屏更难看。 */
 .settings-gallery { padding: 4px 0 6px; }
 

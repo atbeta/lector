@@ -197,7 +197,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   grip.addEventListener('dblclick', onGripReset)
   grip.setAttribute('aria-valuenow', String(width))
 
-  // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态行（见 index.html 注释）
+  // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态��（见 index.html 注释）
   const content = document.getElementById('content')
   content?.parentElement?.insertBefore(el, content)
 
@@ -205,7 +205,31 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
 
   /** 浮层模式的「点外关闭 / Esc 关闭」解绑句柄 */
   let detachOverlay: (() => void) | null = null
+  // 关闭时的延迟隐藏定时器：轨道过渡走完才真正 hidden（见 apply）
+  let hideTimer: ReturnType<typeof setTimeout> | undefined
 
+  function apply(): void {
+    const m = mode()
+    const root = document.documentElement
+    root.classList.toggle('sidebar-docked', m === 'docked')
+    root.classList.toggle('sidebar-overlay', m === 'overlay')
+    if (open) {
+      // 开：立刻显示，内容由变宽的轨道逐步揭示（head/body 锁宽不重排，见 app.css）
+      clearTimeout(hideTimer)
+      el.removeAttribute('hidden')
+      el.setAttribute('aria-hidden', 'false')
+    } else {
+      el.setAttribute('aria-hidden', 'true')
+      // 关：不能立刻 hidden——内容会瞬间消失，只剩一条空轨道在收缩，看着像闪断。
+      // 让轨道过渡（--motion-slow 210ms）先把侧栏收进去，走完再真正隐藏。
+      clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => {
+        if (!open) el.setAttribute('hidden', '')
+      }, 240)
+    }
+    applyOverlayClose(m === 'overlay')
+    grip.setAttribute('aria-valuenow', String(width))
+  }
   function applyOverlayClose(active: boolean): void {
     if (active === (detachOverlay !== null)) return
     if (!active) {
@@ -228,17 +252,6 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
       document.removeEventListener('mousedown', onDown, true)
       document.removeEventListener('keydown', onKey)
     }
-  }
-
-  function apply(): void {
-    const m = mode()
-    const root = document.documentElement
-    root.classList.toggle('sidebar-docked', m === 'docked')
-    root.classList.toggle('sidebar-overlay', m === 'overlay')
-    el.toggleAttribute('hidden', !open)
-    el.setAttribute('aria-hidden', String(!open))
-    applyOverlayClose(m === 'overlay')
-    grip.setAttribute('aria-valuenow', String(width))
   }
 
   function setOpen(next: boolean): void {
