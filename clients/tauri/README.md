@@ -20,7 +20,20 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 
 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe`
 （安装器，`installMode: currentUser`，无需管理员），CI 另附一份免安装的
-`lector-portable.exe`，推 `v*` tag 时挂到 draft release。
+`lector-portable.zip`（`lector.exe` + `resources\markdown.ico` + 关联脚本，见 `portable/`），
+推 `v*` tag 时挂到 release。
+
+### 便携版的文件关联（portable/*.cmd）
+
+便携包没有安装器写注册表，关联靠两个 `.cmd`：`register-file-assoc.cmd` /
+`unregister-file-assoc.cmd`。要点：
+
+- `.reg` 静态文件写不了相对路径（`DefaultIcon` 和 `shell\open\command` 都要绝对路径，
+  而解压到哪只有用户机器知道），所以用 `%~dp0` 自动探测目录的 `.cmd`，双击即生效。
+- 只写 `HKCU`，不需要管理员权限；ProgID 用独立的 `Lector.Portable.Markdown`，
+  与 NSIS 安装器的 `Markdown` 类键互不覆盖，谁后注册谁生效。
+- 卸载脚本只在 `.md` 仍指向便携版 ProgID 时才摘除，不误伤用户后来设置的其它程序。
+- CI 冒烟测试会解包断言 exe / 图标 / 两个脚本都在 zip 里，再启动进程验活。
 
 ### 窗口边框只有一个来源（踩过两次）
 

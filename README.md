@@ -33,7 +33,7 @@ node tools/release.mjs 0.2.0
 CI 接着在 Windows 上重跑全套检查（含静默安装与注册表校验），然后自动发布：
 
 - `Lector_<版本>_x64-setup.exe` —— 安装器，无需管理员权限，装完带 `.md` / `.markdown` / `.txt` 关联与图标
-- `lector-portable.exe` —— 免安装，双击即用
+- `lector-portable.zip` —— 免安装，解压即用；内含 `.md` 图标与关联脚本，双击 `register-file-assoc.cmd` 即建立关联（`unregister-file-assoc.cmd` 取消）
 - `SHA256SUMS.txt` —— 校验和
 
 tag 与版本号对不上、或哪个文件漏改了，CI 在第一分钟就拦下来，不会发出一个版本号对不上的包。
