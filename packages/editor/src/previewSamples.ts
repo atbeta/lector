@@ -16,7 +16,7 @@ export function countText(text: string): DocStats {
 }
 \`\`\`
 
-普��段落用于对比高度。
+普通段落用于对比高度。
 `
 
 // 预览用的 frontmatter 样例：属性卡 + 标签列表两种形状都要能看到
