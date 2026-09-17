@@ -82,7 +82,7 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
     item.type = 'button'
     item.className = 'recent-item'
     item.dataset.path = path
-    item.dataset.tip = path
+    // 不设 data-tip：列表项本身内联显示文件名 + 目录，悬浮再弹一遍完整路径是噪音。
     const text = document.createElement('span')
     text.className = 'recent-text'
     const name = document.createElement('span')
@@ -154,7 +154,7 @@ export function renderEmptyState(deps: LoadStateDeps): void {
 /**
  * 加载中间态:中央 22px 转圈 + 「加载中…」。点「打开」/ 冷启动带 argv 时显示
  * ——这时不该有「打开文件」按钮等空态 UI(会让人误以为可以重复点)。
- * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退回 renderEmptyState。
+ * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退�� renderEmptyState。
  */
 export function renderLoadingState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''
