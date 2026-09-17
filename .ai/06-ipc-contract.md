@@ -235,6 +235,16 @@ invoke('webview_ready') → void
 
 Web 层就绪信号，页面加载后每个窗口各调一次。Windows 上此刻 WebView2 必然可见且已置顶，`snap` 覆盖层此时 raise 才能稳稳压在它上面（竞态细节见 `snap.rs::raise`）。命令按调用方窗口各自处理，天然多窗口安全。
 
+### `set_zoom`
+
+```ts
+invoke('set_zoom', { scale: number }) → void
+```
+
+界面缩放：调 WebView 的原生 zoom factor（1 = 100%）。**不是**给 `<html>` 打 CSS `zoom`——那只缩放绘制、不改布局视口，会把 `100vh` 高的骨架放大到窗口外（放大时状态行被顶出去、缩小时底部留空带）。原生 zoom 改的是布局视口本身，等同浏览器 Ctrl+±。范围 0.2–5.0 兜底。
+
+壳侧 PDF 导出（`print_to_pdf`）期间会临时复位到 1 再还原，避免打印带上缩放。
+
 ### `print_to_pdf`
 
 ```ts

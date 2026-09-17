@@ -10,6 +10,7 @@ import {
   type TauriApi,
 } from './core.ts'
 import { save } from './fs.ts'
+import { applyUiZoom, currentUiZoom } from './window.ts'
 
 /**
  * PDF 存盘对话框。纯原生窗口，不碰页面——调用方先问路径、后做任何视觉变化
@@ -65,19 +66,28 @@ export async function exportPdfTo(
     // 「正在生成」，而不是应用自己变了颜色（0.26.8 教训：翻转在遮罩前，
     // 遮罩又只盖两帧，全程等于没有 loading）。
     await prepare?.()
-    root.classList.add('printing')
-    await nextFrame()
-    // 遮罩不摘，盖满捕获全程（见函数头注释：@media print 让它不进 PDF）。
-    // 捕获期反馈：遮罩 spinner + 忙光标 + 窗口标题 + 任务栏进度。
-    const prevTitle = document.title
-    if (busyTitle) document.title = busyTitle
-    root.classList.add('pdf-busy')
+    // 导出固定按 100% 排：用户可能开着 150% 界面缩放，打印管线带着缩放会改变分页。
+    // 复位放在 prepare 之后——prepare 里的 setThemeMode 会走 setSettings → applyVars
+    // 再按用户档位缩放一次，放在前面会被它覆盖。
+    const prevZoom = currentUiZoom()
+    await applyUiZoom(1)
     try {
-      const { invoke } = await tauriApi()
-      await invoke('print_to_pdf', { path })
+      root.classList.add('printing')
+      await nextFrame()
+      // 遮罩不摘，盖满捕获全程（见函数头注释：@media print 让它不进 PDF）。
+      // 捕获期反馈：遮罩 spinner + 忙光标 + 窗口标题 + 任务栏进度。
+      const prevTitle = document.title
+      if (busyTitle) document.title = busyTitle
+      root.classList.add('pdf-busy')
+      try {
+        const { invoke } = await tauriApi()
+        await invoke('print_to_pdf', { path })
+      } finally {
+        root.classList.remove('pdf-busy')
+        document.title = prevTitle
+      }
     } finally {
-      root.classList.remove('pdf-busy')
-      document.title = prevTitle
+      await applyUiZoom(prevZoom)
     }
     return 'saved'
   } finally {
@@ -102,12 +112,16 @@ export async function exportPdf(defaultName: string): Promise<'print'> {
         })
       })
     })
+  // 系统打印同样按 100%：浏览器预览的 CSS zoom 会带着缩放一起进打印预览。
+  const prevZoom = currentUiZoom()
+  await applyUiZoom(1)
   root.classList.add('printing')
   try {
     await nextFrame()
     window.print()
   } finally {
     root.classList.remove('printing')
+    await applyUiZoom(prevZoom)
   }
   return 'print'
 }

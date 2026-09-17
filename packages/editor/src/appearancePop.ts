@@ -116,7 +116,10 @@ export function openAppearancePop(anchor: HTMLElement): void {
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') closeAppearancePop()
   }
-  const onViewport = () => closeAppearancePop()
+  // 视口变化时**重新贴回按钮**，而不是关闭：界面缩放走壳的原生 zoom，改缩放会触发
+  // resize——若在这里关面板，「调界面缩放」刚一拖面板就没了。窗口真被 resize 时
+  // 跟着按钮走也比关掉更合理。
+  const onViewport = () => place(pop, anchor)
 
   document.addEventListener('mousedown', onDown, true)
   document.addEventListener('keydown', onKey)

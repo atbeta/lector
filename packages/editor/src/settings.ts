@@ -6,7 +6,7 @@ import {
   type ReadingThemeId,
   type ThemeMode,
 } from '@lector/core'
-import { loadSettings, saveSettings } from '@lector/shell-web'
+import { applyUiZoom, loadSettings, saveSettings } from '@lector/shell-web'
 
 let current: EditorSettings = DEFAULT_SETTINGS
 const listeners = new Set<(s: EditorSettings) => void>()
@@ -41,11 +41,10 @@ function applyVars(s: EditorSettings) {
   root.style.setProperty('--reading-font-size', `${s.fontSize}px`)
   root.style.setProperty('--reading-line-height', `${s.lineHeight}`)
   root.style.setProperty('--reading-max-w', `${s.readingWidth}px`)
-  // 界面缩放：整页等比。
-  // 用 CSS zoom 而不是 transform: scale —— zoom 参与布局，顶栏/状态行/浮层/命中区
-  // 一起等比变化，不会出现「看得见但点不到」；transform 只做视觉缩放，命中区还在原位。
-  // Chromium（WebView2）与 WebKit（WKWebView）都支持。
-  root.style.setProperty('zoom', String(s.uiZoom / 100))
+  // 界面缩放：整页等比。壳里走 WebView 原生 zoom（见 shell-web/window.ts applyUiZoom）
+  // ——它改布局视口，100vh 骨架跟着窗口走。**不要**在这里打 CSS zoom 到 <html>：
+  // 那只缩放绘制、不改视口，放大时状态行被顶出窗口、缩小时底部留空带。
+  void applyUiZoom(s.uiZoom / 100)
   root.classList.toggle('font-serif', s.fontFamily === 'serif')
   // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
   // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。

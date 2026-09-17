@@ -12,6 +12,37 @@ import {
 
 
 /**
+ * 上一次应用过的界面缩放（1 = 100%）。
+ * 壳侧的原生 zoom 没有 getter；PDF 导出前后要临时复位、之后再还原，所以在这层记住它。
+ */
+let appliedZoom = 1
+
+export function currentUiZoom(): number {
+  return appliedZoom
+}
+
+/**
+ * 应用界面缩放。
+ *
+ * 壳里走 WebView 的**原生 zoom**（壳命令 `set_zoom`）：它改的是布局视口，`100vh`
+ * 骨架会跟着窗口重新排版（与浏览器 Ctrl+± 同一套）。**不能**把 CSS `zoom` 打在
+ * `<html>` 上——那只缩放绘制、不改布局视口：`100vh` 骨架会被放大到窗口外，而且
+ * `getBoundingClientRect()` 与 CSS 长度不再同一坐标系，浮层定位（外观面板等）会跳。
+ *
+ * 浏览器预览没有原生 zoom，**直接不缩放**（不再退回 CSS zoom，理由同上）；界面缩放
+ * 是壳的能力，浏览器里只保留设置链路。
+ */
+export async function applyUiZoom(scale: number): Promise<void> {
+  // applyVars 会在任何设置变化时被调；缩放值没变就别再走一趟 IPC。
+  if (scale === appliedZoom) return
+  appliedZoom = scale
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('set_zoom', { scale }).catch((err) => console.error('[lector] set_zoom', err))
+}
+
+
+/**
  * 关闭当前窗口（Ctrl/⌘W 在无文档时的语义 = Windows 上退出应用）。
  * 走 onCloseRequested 的脏检查路径——有未保存改动时 Web 层的确认弹窗仍然生效。
  * 浏览器预览没有窗口可关，空实现。

@@ -185,6 +185,24 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
     }
   })
 
+  // 界面缩放：Ctrl/⌘ + 滚轮（触控板捏合也会被浏览器报成 ctrl+wheel）。
+  // 与快捷键走同一个 stepUiZoom；节流，免得一次惯性滚动连跳好几档。
+  // 图片灯箱自己也处理修饰键滚轮（zoomView.ts），它先 preventDefault，这里放行。
+  let lastZoomWheel = 0
+  window.addEventListener(
+    'wheel',
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      if (e.defaultPrevented) return
+      e.preventDefault()
+      const now = Date.now()
+      if (now - lastZoomWheel < 120) return
+      lastZoomWheel = now
+      stepUiZoom(e.deltaY < 0 ? 1 : -1)
+    },
+    { passive: false },
+  )
+
   chrome.elements.openBtn.addEventListener('click', () => void files.openFromShellOrDialog())
 
   // 「外观」= 明暗 + 阅读主题。不是一个「切换深浅色」按钮：

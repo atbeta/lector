@@ -1815,35 +1815,13 @@ const summary = {
     note('info', `查找：${opened.label} → ${after}；命中 ${opened.hits} 处，关闭后残留 ${closed.hits}`)
   }
 
-  // 3.10) 界面缩放：整页等比（含壳），且设置里能读出当前档位
+  // 3.10) 界面缩放：设置链路（快捷键真的改值、读数跟着变、⌘0 复位）
   //
-  // 判据分两层，缺一层就退化：
-  //   - 只放大正文 = 正文字号，不是界面缩放，所以顶栏/状态行必须跟着大；
-  //   - 设置里的读数必须存在，否则用户完全看不出线停在哪一档
-  //     （滑块的读数是与 root 平级的独立元素，用错行容器就会静默丢失）。
+  // 真正的「整页等比」由壳的原生 WebView zoom 完成（见 .ai/06-ipc-contract.md 的
+  // set_zoom）。浏览器里没有原生 zoom，量不到视觉，所以这里守的是设置链路：
+  // 快捷键必须真的改到 uiZoom、读数必须跟着变、⌘0 必须回到 100%。
+  // 读数本身还必须存在：滑块的读数是与 root 平级的独立元素，用错行容器会静默丢失。
   {
-    const readZoom = () =>
-      page.evaluate(() => ({
-        zoom: Number(getComputedStyle(document.documentElement).zoom || '1'),
-        titleH: Math.round(document.getElementById('titlebar').getBoundingClientRect().height),
-        statusH: Math.round(document.getElementById('statusbar').getBoundingClientRect().height),
-      }))
-    const z0 = await readZoom()
-    await page.keyboard.press(`${MOD}+=`)
-    await page.waitForTimeout(250)
-    const z1 = await readZoom()
-    if (!(z1.zoom > z0.zoom)) note('error', `⌘/Ctrl + = 没有放大界面：zoom ${z0.zoom} → ${z1.zoom}`)
-    if (!(z1.titleH > z0.titleH && z1.statusH > z0.statusH)) {
-      note(
-        'error',
-        `界面缩放没有作用到壳上（那只是正文字号）：顶栏 ${z0.titleH}→${z1.titleH}，状态行 ${z0.statusH}→${z1.statusH}`,
-      )
-    }
-    await page.keyboard.press(`${MOD}+0`)
-    await page.waitForTimeout(250)
-    const z2 = await readZoom()
-    if (Math.abs(z2.zoom - 1) > 0.001) note('error', `⌘/Ctrl + 0 没有回到 100%：${z2.zoom}`)
-
     await page.click('#settings-btn')
     await page.waitForTimeout(400)
     const zoomRow = await page.evaluate(() => {
@@ -1861,6 +1839,24 @@ const summary = {
     else if (!/%$/.test(zoomRow.value)) {
       note('error', `界面缩放的读数没有渲染：${JSON.stringify(zoomRow.value)}（slider 的 readout 是独立元素，必须用 cellRow）`)
     }
+
+    // 快捷键链路：读数在设置面板里实时跟着变（settingsModal 订阅了设置通知）。
+    const readZoomValue = () =>
+      page.evaluate(() => {
+        const row = [...document.querySelectorAll('.settings-row.cell')].find(
+          (r) => (r.textContent ?? '').includes('界面缩放') || (r.textContent ?? '').includes('Interface zoom'),
+        )
+        return (row?.querySelector('.slider-value')?.textContent ?? '').trim()
+      })
+    const z0 = await readZoomValue()
+    await page.keyboard.press(`${MOD}+=`)
+    await page.waitForTimeout(250)
+    const z1 = await readZoomValue()
+    if (z1 === z0) note('error', `⌘/Ctrl + = 没有改变界面缩放：${z0} → ${z1}`)
+    await page.keyboard.press(`${MOD}+0`)
+    await page.waitForTimeout(250)
+    const z2 = await readZoomValue()
+    if (z2 !== '100%') note('error', `⌘/Ctrl + 0 没有回到 100%：${z2}`)
 
     // 分区标题的显隐：浏览时藏（左侧选中项已经写着这一节叫什么，右侧再顶一行是同一句话说两遍），
     // 搜索时露（结果跨分区，那些标题正是「这条命中属于哪一节」的答案）。
@@ -1902,7 +1898,7 @@ const summary = {
     await page.waitForTimeout(250)
     note(
       'info',
-      `界面缩放：${z0.zoom} → ${z1.zoom} → 复位 ${z2.zoom}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}；` +
+      `界面缩放快捷键：${z0} → ${z1} → 复位 ${z2}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}；` +
         `分区标题 浏览时藏 ${browsing.length} 个，搜「${probe}」时露 ${searching.length} 个`,
     )
   }
@@ -1951,6 +1947,42 @@ const summary = {
       if (box.count >= 2 && noResize && box.maxOverflow <= 1 && box.hScroll <= 0) {
         note('info', `高级 textarea：${box.count} 个，resize=none，右侧留白完好`)
       }
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+  }
+
+  // 3.10c) 图片插入方式：说明一行/两行切换时，右侧选择器不许上下跳
+  //
+  // 三档的说明文案行数不同（自定义上传那档更长），行高一变，垂直居中的控件就会被
+  // 顶下去。这里直接量控件顶边：三档必须一样。规则见 .settings-row.has-hint 的对齐。
+  {
+    await page.click('#settings-btn')
+    await page.waitForTimeout(400)
+    await page.evaluate(() => {
+      const nav = [...document.querySelectorAll('.settings-nav-item')].find((b) =>
+        /图片|Images/i.test(b.textContent ?? ''),
+      )
+      nav?.click()
+    })
+    await page.waitForTimeout(300)
+    const tops = {}
+    for (const v of ['images', 'assets', 'command']) {
+      const opt = await page.$(`.settings-group[data-section="images"] .seg-item[data-v="${v}"]`)
+      if (!opt) continue
+      await opt.click()
+      await page.waitForTimeout(150)
+      tops[v] = await page.evaluate(() => {
+        const box = document.querySelector('.settings-group[data-section="images"] .segmented')
+        return box ? Math.round(box.getBoundingClientRect().top) : null
+      })
+    }
+    const vals = Object.values(tops).filter((v) => v !== null)
+    if (vals.length < 3) note('error', '图片插入方式没有三档，无法核对对齐')
+    else if (new Set(vals).size !== 1) {
+      note('error', `图片插入方式换档时选择器上下跳：各档顶边 ${JSON.stringify(tops)}`)
+    } else {
+      note('info', `图片插入方式：三档选择器顶边一致（${vals[0]}px），说明换行不顶控件`)
     }
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)

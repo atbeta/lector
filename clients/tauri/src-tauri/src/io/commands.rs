@@ -369,6 +369,22 @@ pub fn webview_ready(window: tauri::WebviewWindow) {
   let _ = window;
 }
 
+/// 界面缩放：改 WebView 的**原生 zoom factor**，而不是给 `<html>` 打 CSS `zoom`。
+///
+/// CSS zoom 只缩放绘制、不改布局视口：`100vh` 高的骨架按未缩放视口排完、再被整体
+/// 放大/缩小，于是放大时状态行被顶到窗口外（还要滚一下才够得着），缩小时窗口底部留
+/// 一条空带。原生 zoom 改的是布局视口本身（和浏览器 Ctrl+± 同一套），`100vh` 始终
+/// 等于可见高度，命中区与坐标也跟着缩放。
+///
+/// 范围与前端 `uiZoom` 的 clamp（70–160）一致，这里放宽到 0.2–5.0 只为兜底防脏值。
+#[tauri::command]
+pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Result<(), String> {
+  if !scale.is_finite() || !(0.2..=5.0).contains(&scale) {
+    return Err("zoom scale out of range".into());
+  }
+  window.set_zoom(scale).map_err(|e| e.to_string())
+}
+
 // ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
 // 契约：`executable [args…] <图片绝对路径>` → stdout 每行一个 http(s) URL。
 // 注意：这是「用户显式配置要执行什么」的退路，不是 Web 层可随手调用的任意 shell。
