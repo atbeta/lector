@@ -69,6 +69,13 @@
   --primary-softer: rgb(var(--primary) / 0.05);
   --selection: rgb(var(--primary) / 0.14);
 
+  /* ───────────── 图表强调色（mermaid） ───────────── */
+  /* 图表的描边/节点强调。默认（与 focus）是靛蓝：那两套主题的 --primary 是
+     石墨，拿它画图会得到一张没有色相的灰图。自带强调色的阅读主题
+     （纸/书/手册/米黄）在 reading-themes.css 里各自覆盖这一条，让图跟着纸色走。
+     必须与 --primary 分开：primary 在无品牌色的主题里本来就是墨色。 */
+  --diagram-accent: 79 70 229;   /* #4F46E5 */
+
   /* ───────────── 墨色按钮（最强行动色） ───────────── */
   /* 墨色：toast、跳转高亮这类「最强、不带品牌色」的动作 */
   --ink: 28 25 23;
@@ -211,6 +218,9 @@ html[data-theme='dark'] {
   --primary-soft: rgb(var(--primary) / 0.18);
   --primary-softer: rgb(var(--primary) / 0.10);
   --selection: rgb(var(--primary) / 0.34);
+
+  /* 深底上的图表强调色：同一支靛蓝提亮一档（见浅色处说明）。 */
+  --diagram-accent: 139 139 240;  /* #8B8BF0 */
 
   --ink: 240 238 235;
   --ink-foreground: 26 25 22;

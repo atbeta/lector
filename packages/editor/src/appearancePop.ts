@@ -1,4 +1,4 @@
-// 「外观」浮层：明暗 + 阅读主题，点顶栏的 Aa 按钮弹出。
+// 「外观」浮层：明暗 + 阅读主题 + 两个排版旋钮，点顶栏的 Aa 按钮弹出。
 //
 // 为什么是一个浮层而不是「点一下换一个主题」的循环按钮：
 //   - 循环按钮只能换「下一个」，想跳到某一款得点很多次，还会经过不想看的主题；
@@ -6,12 +6,23 @@
 //
 // 为什么不用设置弹窗：换主题是「读着读着顺手换一下」的动作，不该打断阅读
 // （弹窗会把正文全遮住），所以要能一边看着正文一边换。
+// 栏宽与界面缩放是同一类动作——也要能看着正文调——所以一并放在这里。
 
-import { getSettings, notify, setReadingTheme, setThemeMode } from './settings.ts'
+import { getSettings, notify, setReadingTheme, setSettings, setThemeMode } from './settings.ts'
 import { appearanceControls } from './themeGallery.ts'
+import { Slider } from './ui.ts'
+import { t } from './i18n.ts'
 
 let root: HTMLElement | null = null
 let dispose: (() => void) | null = null
+
+/** 排版行左侧的标签格（与滑块的三个格子同处一个网格，见 .appearance-quick）。 */
+function labelCell(text: string): HTMLElement {
+  const el = document.createElement('span')
+  el.className = 'appearance-label'
+  el.textContent = text
+  return el
+}
 
 export function closeAppearancePop(): void {
   dispose?.()
@@ -32,10 +43,48 @@ export function openAppearancePop(anchor: HTMLElement): void {
   pop.setAttribute('role', 'dialog')
   pop.setAttribute('aria-modal', 'false')
 
-  // 每次设置变化都重画：选中态、「已微调」标记、明暗分段的指示器都要跟着走。
-  // 重画整块而不是局部打补丁——这块面板很小，重画比维护增量更新便宜。
+  // 主题那半块随设置重画；排版两个旋钮是常驻 DOM——拖动中途重建元素会直接掐断
+  // 这次拖动（指针捕获跑在已被删除的节点上）。
+  const themeHost = document.createElement('div')
+
+  const width = Slider(
+    getSettings().readingWidth,
+    480,
+    1600,
+    16,
+    (v) => setSettings({ ...getSettings(), readingWidth: v }),
+    (n) => `${n}px`,
+  )
+  const zoom = Slider(
+    getSettings().uiZoom,
+    70,
+    160,
+    10,
+    (v) => setSettings({ ...getSettings(), uiZoom: v }),
+    (n) => `${n}%`,
+  )
+  // 三列网格而不是「每行一个 flex」：两行的标签宽度不同，各自 flex 会让两个
+  // 滑块的起点错开；同一个网格里列宽才是共享的，也就不会写死 em 去赌文案长度。
+  const quick = document.createElement('div')
+  quick.className = 'appearance-quick'
+  quick.append(labelCell(t('readingWidth')), width.root, width.readout)
+  quick.append(labelCell(t('uiZoom')), zoom.root, zoom.readout)
+
+  pop.append(themeHost, quick)
+
+  // 只在「与画廊有关」的字段变化时重建主题块。栏宽也在签名里（换主题会套用它
+  // 的标定栏宽，卡片上的「已微调」标记也看它），但拖动滑块只重建主题块，
+  // 旋钮本身原地不动。
+  let themeSig = ''
   const render = () => {
-    pop.replaceChildren(
+    const s = getSettings()
+    const sig = [s.theme, s.readingTheme, s.fontFamily, s.fontSize, s.lineHeight, s.readingWidth].join('|')
+    if (sig === themeSig) {
+      place(pop, anchor)
+      return
+    }
+    themeSig = sig
+    themeHost.replaceChildren(
       appearanceControls({
         settings: getSettings,
         onThemeMode: setThemeMode,
@@ -45,7 +94,12 @@ export function openAppearancePop(anchor: HTMLElement): void {
     place(pop, anchor)
   }
   render()
-  const off = notify(render)
+  const off = notify((s) => {
+    // 换主题会连带改这套排版的字号/行距/栏宽，滑块必须跟着走，否则读数就是说谎
+    width.set(s.readingWidth)
+    zoom.set(s.uiZoom)
+    render()
+  })
 
   // 定位：贴着按钮的下沿，右对齐——顶栏按钮在右边，面板往左展开才不会出屏。
   function place(el: HTMLElement, at: HTMLElement): void {

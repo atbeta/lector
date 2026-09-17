@@ -97,6 +97,7 @@ html[data-theme='dark'] [data-reading-theme='default'] {
   --accent: 240 235 228;
   --secondary: 243 238 232;
   --primary: 150 62 45;
+  --diagram-accent: 150 62 45;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 122 50 36;
   --primary-foreground: 255 255 255;
   --border: 228 222 213;
@@ -128,6 +129,7 @@ html[data-theme='dark'] [data-reading-theme='paper'] {
   --accent: 48 44 40;
   --secondary: 42 38 34;
   --primary: 232 156 128;
+  --diagram-accent: 232 156 128;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 242 176 152;
   --primary-foreground: 30 20 14;
   --border: 60 55 50;
@@ -167,6 +169,7 @@ html[data-reading-theme='paper'] .reading-prose blockquote {
   --accent: 239 235 227;
   --secondary: 242 238 230;
   --primary: 60 74 128;
+  --diagram-accent: 60 74 128;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 44 56 104;
   --primary-foreground: 255 255 255;
   --border: 226 221 211;
@@ -198,6 +201,7 @@ html[data-theme='dark'] [data-reading-theme='book'] {
   --accent: 50 47 43;
   --secondary: 44 41 37;
   --primary: 158 174 226;
+  --diagram-accent: 158 174 226;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 178 192 240;
   --primary-foreground: 20 24 44;
   --border: 62 58 53;
@@ -245,6 +249,7 @@ html[data-reading-theme='book'] .reading-prose h2 { font-weight: 620; }
   --accent: 238 238 242;
   --secondary: 241 241 245;
   --primary: 37 99 235;
+  --diagram-accent: 37 99 235;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 29 78 216;
   --primary-foreground: 255 255 255;
   --border: 222 224 230;
@@ -275,6 +280,7 @@ html[data-theme='dark'] [data-reading-theme='manual'] {
   --accent: 40 43 49;
   --secondary: 36 39 45;
   --primary: 122 162 247;
+  --diagram-accent: 122 162 247;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 148 182 250;
   --primary-foreground: 12 20 40;
   --border: 52 56 63;
@@ -389,6 +395,7 @@ html[data-reading-theme='focus'] .reading-prose h2 { font-weight: 600; letter-sp
   --accent: 236 225 205;
   --secondary: 234 223 202;
   --primary: 138 74 40;
+  --diagram-accent: 138 74 40;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 116 60 32;
   --primary-foreground: 255 255 255;
   --border: 219 205 181;
@@ -419,6 +426,7 @@ html[data-theme='dark'] [data-reading-theme='sepia'] {
   --accent: 58 50 38;
   --secondary: 52 45 34;
   --primary: 226 168 110;
+  --diagram-accent: 226 168 110;   /* 图表跟着这套主题的强调色走（见 tokens.css 的 --diagram-accent） */
   --primary-hover: 238 186 134;
   --primary-foreground: 38 26 14;
   --border: 66 56 42;

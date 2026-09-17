@@ -83,22 +83,28 @@ html[data-theme='dark'] body {
 }
 
 /* ───────────── 滚动条 ─────────────
- * 默认隐形，仅在「正在滚动」时短暂露出（main.ts 翻 html.is-scrolling 类，
- * 停 600ms 后移除）。不悬停显、不常驻——长文阅读时静态视觉里多一根
- * 半透明条会跟文字抢层级，安静状态下越少越好。
+ * 细、静止时隐形，滚动中或鼠标进容器时现身。
  *
- * 形状参数：8px 总宽 + 2px 透明边框 = 4px 视觉滑块。
- * 颜色用 --foreground / 0.3（滚动时显出）+ 0.4（鼠标在滑块上），
- * 跟主题绑定，不另设 token。
+ * 为什么不是「只在滚动时露」：要拖它得先看见它，悬停是最直接的意图信号，
+ * 两个条件都触发、颜色一致。
+ *
+ * 颜色用 --foreground 加透明度：随主题走，但**透明度必须够**。深色下
+ * --foreground 是近白，0.12 合成出来只有 ~1.5:1 —— 等于没有（曾经还有第二条
+ * `*:hover` 规则以 0.12 盖在所有内层滚动容器上，暗色下滚动条就是这么消失的）。
+ * 0.4 在浅色约 2.7:1、深色约 3.5:1；静止时仍是透明的，阅读不受打扰。
  *
  * 标准属性（scrollbar-width / scrollbar-color）与 ::-webkit-scrollbar 同时写是
- * 安全的：Chromium 在有标准属性时忽略伪元素，老引擎反过来——正好互为兜底。 */
+ * 安全的：Chromium 在有标准属性时忽略伪元素，老引擎反过来——正好互为兜底。
+ * 注意 `::-webkit-scrollbar` 不带选择器即等价于 `*::`，所有滚动容器都吃得到，
+ * 不需要（也不要）再写第二条 `*` 规则——两条规则并存必然有一方被静默盖掉。 */
 html {
-  scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-html.is-scrolling {
-  scrollbar-color: rgb(var(--foreground) / 0.3) transparent;
+/* 细档要写在 * 上：scrollbar-width 不继承，只写 html 的话内层容器
+   （#content、侧栏、代码块）会退回系统默认那根粗条。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
@@ -112,15 +118,26 @@ html.is-scrolling {
   border-radius: 99px;
   background-clip: content-box;
   border: 2px solid transparent;
-  transition: background-color var(--motion-fast) var(--ease-standard);
+  /* 0.3s 延迟：滚动停止后滑块停留一会儿再淡出 */
+  transition: background-color var(--motion-base) var(--ease-standard) 0.3s;
 }
-html.is-scrolling ::-webkit-scrollbar-thumb {
-  background: rgb(var(--foreground) / 0.3);
+/* 滚动中（main.ts 在 html 上翻 is-scrolling）或悬停在该容器内。
+ * html.is-scrolling * 是必须的：内层容器（#content、侧栏、代码块）各有自己的
+ * scrollbar-color，只写 html 的话它们不继承、滚动中也不会显现。 */
+html.is-scrolling,
+html.is-scrolling *,
+*:hover {
+  scrollbar-color: rgb(var(--foreground) / 0.4) transparent;
+}
+html.is-scrolling ::-webkit-scrollbar-thumb,
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.4);
   background-clip: content-box;
   border: 2px solid transparent;
+  transition-delay: 0s;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--foreground) / 0.45);
+  background: rgb(var(--foreground) / 0.55);
   background-clip: content-box;
   border: 2px solid transparent;
 }
@@ -1997,50 +2014,6 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   background: rgb(var(--border-subtle));
 }
 
-/* ───────────── 滚动条：细、默认隐形、悬停才现身 ─────────────
- * 浏览器默认滚动条（十几 px、常驻、带轨道）在阅读器里是一道持续的竖线，
- * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出���。
- * 可见宽度 = 8px 轨道减掉两侧各 2px 透明边框 = 4px——像纸边的一根细线，但仍好抓。
- * Chromium 对滚动条伪元素的 transition 支持不稳，退化成「立即隐藏」也成立。 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-/* :hover 沿祖先链传播：悬停容器内任意位置即显现它的滑块（Firefox 即时切换，不可过渡） */
-*:hover {
-  scrollbar-color: rgb(var(--foreground) / 0.14) transparent;
-}
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 99px;
-  background-clip: content-box;
-  border: 2px solid transparent;
-  /* 0.5s 延迟是刻意的：滚动停止后拇指停留一会儿再淡出 */
-  transition: background-color var(--motion-base) var(--ease-standard) 0.5s;
-}
-*:hover::-webkit-scrollbar-thumb {
-  background: rgb(var(--foreground) / 0.12);
-  background-clip: content-box;
-  border: 2px solid transparent;
-  transition-delay: 0s;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--foreground) / 0.22);
-  background-clip: content-box;
-  border: 2px solid transparent;
-  transition-delay: 0s;
-}
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
 /* ───────────── 图片 / 图表放大（lightbox） ─────────────
  * 两层职责：
  *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
@@ -2339,6 +2312,20 @@ html.lightbox-open #content { overflow: hidden; }
   border-bottom: 1px solid rgb(var(--border-subtle));
 }
 .appearance-label { font-size: var(--text-base); color: rgb(var(--foreground)); }
+/* 排版两个旋钮（列宽 / 界面缩放）：与上面的画布线隔开，读作另一组。
+ * 一个网格装两行六格：列宽由两行共享，标签长短不一也不会让滑块起点错开。 */
+.appearance-quick {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(var(--border-subtle));
+}
+/* 读数本身沿用 .slider-value（右对齐、等宽数字），只去掉它给 flex 行留的左间距——
+ * 这里读数是独立的一格，间距由网格 gap 负责。 */
+.appearance-quick .slider-value { margin-left: 0; }
 .appearance-group-label {
   margin: 14px 0 8px;
   font-size: var(--text-2xs);
@@ -2836,14 +2823,9 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* 减弱动态效果 */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+/* 减弱动态效果
+ * （唯一的全局守卫在文件末尾——那里也解释了为什么 mermaid 子树被排除在外。
+ *  这里曾经还有一份一模一样的拷贝，两份 !important 全局规则只在互相遮蔽。） */
 
 
 /* ───────────── 设置面板：两栏 ─────────────
@@ -3383,14 +3365,28 @@ html.printing a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  /* 全局压掉动效，但**放过 mermaid 画出来的图**。
+   *
+   * 这不是审美问题，是正确性：mermaid 的布局测量依赖它自己那条 transition 的时长，
+   * 把 transition-duration 压成 0.01ms 会让它的 getBBox() 算出一个巨大的包围盒——
+   * 实测 viewBox 变成 4141×2103（正确的第一张图是 838×190），图缩成角落里的一小团。
+   * 系统里开了「减弱动态效果」的用户一进来就会看到这个（Edge/WebView2 上稳定复现；
+   * 逐条剥离验证过：只有 transition-duration 这一条会引发，删掉它立刻恢复正常）。
+   *
+   * 所以这里用 :not() 把 mermaid 的两处 DOM 整个排除掉：
+   *   - .mermaid-render-host —— 隐藏的临时容器，mermaid 在**这里**量尺寸（关键）；
+   *   - .mermaid-svg        —— 量完搬进来的成品，静态图。
+   * :not() 里放后代选择器是 Selectors 4 的写法（Chromium 支持，本项目只跑
+   * WebView2/WebKit）。少关一张静态图的动效，远好过把它画坏。 */
+  *:not(.mermaid-render-host *, .mermaid-svg *),
+  *:not(.mermaid-render-host *, .mermaid-svg *)::before,
+  *:not(.mermaid-render-host *, .mermaid-svg *)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* 转圈是「还在走」的唯一信号，压掉它等于让人以为卡死了 */
   .loading-spinner {
     animation-duration: 2s !important;
     animation-iteration-count: infinite !important;

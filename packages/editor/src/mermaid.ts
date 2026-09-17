@@ -112,10 +112,12 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
   const ink = t('--foreground', dark ? '#f4f4f6' : '#101014')
   const line = t('--muted-foreground', dark ? '#9e9ea8' : '#5c5c66')
   const border = t('--border', dark ? '#38383f' : '#e0e0e4')
-  // 图表专属强调色：靛蓝。应用的 --primary 是暖黑（纸墨设计），往它混色只会
-  // 得到灰调——图的「活」感需要真实色相。靛蓝与暖纸底对比和谐（原回退值即
-  // 靛蓝，本就是设计意图），且不随 --primary 变化，保证图表观感稳定。
-  const diagramAccent = dark ? '#8b8bf0' : '#4f46e5'
+  // 图表强调色：读 --diagram-accent。
+  // 以前这里写死靛蓝，理由是「--primary 在默认主题里是暖黑，绑它图就永远是灰的」。
+  // 那个理由只对默认/focus 成立，代价却是所有主题共用一支靛蓝——米黄纸面上的一张
+  // 靛蓝图就是用户说的「不匹配」。现在由主题自己表态：tokens.css 给靛蓝兜底，
+  // 纸/书/手册/米黄在 reading-themes.css 里各自覆盖成自己的强调色。
+  const diagramAccent = t('--diagram-accent', dark ? '#8b8bf0' : '#4f46e5')
   // 节点底：纸色往靛蓝混 12%（暗色 16%——暗底上浅调要更浓才可感知）。
   // 注意方向：card 是基底、accent 是掺入色，掺多了会变回饱和主色。
   const nodeTint = mixColor(card, diagramAccent, dark ? 0.16 : 0.12)
@@ -316,7 +318,8 @@ export function mermaidRenderSignature(): string {
     typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
       ? 'dark'
       : 'light'
-  return `${theme}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}`
+  // 纸面 + 图表强调色都要进签名：两者都烘进 SVG，换主题时必须重画。
+  return `${theme}::${cssRgbToken('--card', '')}::${cssRgbToken('--diagram-accent', '')}::${effectiveUserConfig().signature}`
 }
 
 /** 生成全局唯一的 mermaid render id（库要求 id 不重复）。 */
@@ -347,7 +350,7 @@ export async function renderMermaidSvg(
   // 看着像「条前面的纯文字」）。保底宽度 + min-width 锁 + 容器横向滚动，
   // 窄栏也能完整读图——其他甘特渲染器都是这个策略。
   const canvasWidth = isGanttSource(code) ? Math.max(measured, 1000) : measured
-  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
+  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${cssRgbToken('--diagram-accent', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 
@@ -359,6 +362,10 @@ export async function renderMermaidSvg(
   // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
   // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
   const tmp = document.createElement('div')
+  // 这个类名是给 app.css 的 reduced-motion 守卫看的：那条守卫会把全局的
+  // transition-duration 压成 0.01ms，而 mermaid 正是在这里量尺寸的——
+  // 被压过的时长会让它的包围盒算飞（详见 app.css 里的注释）。
+  tmp.className = 'mermaid-render-host'
   tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${canvasWidth}px`
   document.body.appendChild(tmp)
   try {
