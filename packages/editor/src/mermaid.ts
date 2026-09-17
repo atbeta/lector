@@ -180,7 +180,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   //
   // 两处不让位：
   //   - 用户自己写了 themeVariables：那是明确要细调，在我们的基础上覆盖（逐层合并）；
-  //   - 字体：图里的字要和界面���致，那是全局观感，不属于「主题」这一层。
+  //   - 字体：图里的字要和界面����致，那是全局观感，不属于「主题」这一层。
   const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
   const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
   const baseVars: Record<string, string> =
@@ -333,13 +333,21 @@ export async function renderMermaidSvg(
   code: string,
   theme: 'light' | 'dark',
   id = nextMermaidId(),
+  columnWidth?: number,
 ): Promise<string> {
   // 缓存键必须带上用户配置、纸面与栏宽：
   //   - 配置改过之后，同一段源码的旧 SVG 就是错的；
   //   - 换阅读主题会改 --card，而底色与墨色都烘在 SVG 里，不带上就永远返回旧纸面那张；
   //   - 画布自然宽按测量时的栏宽定（甘特尤甚），栏宽变了必须绕开缓存重画。
-  const columnWidth = document.querySelector('.reading-prose')?.clientWidth || 800
-  const key = `${theme}::${columnWidth}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
+  //   栏宽由调用方传入（图所在容器的实际宽度）——全局 querySelector 会抓到
+  //   文档里第一个 .reading-prose，多栏/测试环境下量错对象。
+  const measured = columnWidth || document.querySelector('.reading-prose')?.clientWidth || 800
+  // 甘特画布保底 1000px：任务条宽度 = 跨度天数占比 × 画布，40 天跨度里 2 天的
+  // 任务在 760px 画布上只有 ~36px，装不下四个汉字的任务名（标签溢出到条外，
+  // 看着像「条前面的纯文字」）。保底宽度 + min-width 锁 + 容器横向滚动，
+  // 窄栏也能完整读图——其他甘特渲染器都是这个策略。
+  const canvasWidth = isGanttSource(code) ? Math.max(measured, 1000) : measured
+  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 
@@ -351,7 +359,7 @@ export async function renderMermaidSvg(
   // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
   // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
   const tmp = document.createElement('div')
-  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${columnWidth}px`
+  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${canvasWidth}px`
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)

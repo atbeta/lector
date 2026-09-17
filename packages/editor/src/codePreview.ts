@@ -163,7 +163,10 @@ export function decorateCodeBlock(preview: HTMLElement): void {
       const gen = ++renderGen
       const theme: 'light' | 'dark' =
         document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
-      return renderMermaidSvg(source, theme)
+      // 栏宽传图所在容器的实际宽度：缓存键与画布自然宽都按它算，
+      // 栏宽变化后的重渲才能绕开旧缓存、画出匹配新宽度的图。
+      const width = Math.round(diagram.clientWidth) || undefined
+      return renderMermaidSvg(source, theme, undefined, width)
         .then((svg) => {
           if (gen !== renderGen || !diagram.isConnected) return
           diagram.replaceChildren()
