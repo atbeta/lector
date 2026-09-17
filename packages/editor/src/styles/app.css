@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「�������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「���������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1598,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────────�������
+/* ───────────── Mermaid 图表 ────────────���������
  * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
@@ -1644,7 +1644,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性泄漏：阅读区���文���层������ Inter 的花式变体
+/* 堵住字体特性泄漏：阅���区���文���层������ Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -2172,7 +2172,7 @@ html.lightbox-open #content { overflow: hidden; }
 
 /* ───────────── 查找命中 ────────��────
  * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
- * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭�� */
 .find-hit {
   border-radius: 2px;
   padding: 0 1px;
@@ -3143,6 +3143,34 @@ html.large-file .mode-switch { display: none; }
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
  * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
  * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
+/* ───────────── 导出遮罩 ─────────────
+ * 导出期间盖住整个窗口：布局摊平、壳隐藏的过程不该被看见——
+ * 看起来是「正在生成 PDF」而不是「应用坏了」。 */
+.pdf-exporting {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--paper) / 0.72);
+  backdrop-filter: blur(2px);
+}
+.pdf-exporting::after {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgb(var(--foreground) / 0.18);
+  border-top-color: rgb(var(--foreground) / 0.65);
+  animation: pdf-spin 0.8s linear infinite;
+}
+@keyframes pdf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ───────────── 打印 / 导出 PDF ─────────────
  * 样式挂在 html.printing 类上，不用 @media print——WebView2 的 PrintToPdf
  * 按屏幕媒体渲染（实测：深色主题导出 = 浅字白纸、侧栏照印、滚动容器截成一页），

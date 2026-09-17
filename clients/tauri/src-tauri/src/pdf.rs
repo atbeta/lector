@@ -93,8 +93,3 @@ mod imp {
 pub async fn print_to_pdf(window: tauri::WebviewWindow, path: String) -> Result<(), String> {
   imp::print_to_pdf(window, path).await
 }
-
-/// 供后台打印窗口（io.rs::export_pdf_background）复用：对指定窗口执行 PrintToPdf。
-pub async fn render_pdf(window: tauri::WebviewWindow, path: String) -> Result<(), String> {
-  imp::print_to_pdf(window, path).await
-}

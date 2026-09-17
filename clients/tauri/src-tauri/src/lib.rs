@@ -126,8 +126,6 @@ pub fn run() {
       io::recent_clear,
       pdf::print_to_pdf,
       io::webview_ready,
-      io::export_pdf_background,
-      io::print_job_done,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");

@@ -94,18 +94,14 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 }
 
 /**
- * 导出 PDF：壳里先选路径，再交给壳层的**后台打印窗口**（io.rs::export_pdf_background）
- * ——离屏窗口用真实渲染管线装载文档后 PrintToPdf，主窗口全程不动（不挂打印样式、
- * 不白屏、按钮大纲不消失）。浏览器（vite 预览）退化为系统打印：打印样式挂在
- * html.printing 类上（app.css，不用 @media print——WebView2 按屏幕媒体渲染），
- * 挂上 → 等两帧 → window.print() → 摘掉。
+ * 导出 PDF：主窗口挂 .printing（打印样式，app.css）后交给壳层 PrintToPdf。
+ * 导出期间盖一层全屏遮罩（.pdf-exporting）——布局摊平、壳隐藏的过程被遮住，
+ * 看起来是「正在生成」而不是「应用坏了」。深色主题下先翻到 light 再打印：
+ * mermaid 的配色烘在 SVG 里（不跟 CSS 变量），只有主题翻转 + 现有的重画
+ * 监听（250ms 去抖）能给它浅色配色；打印完翻回来。浏览器退化为系统打印。
  */
-export async function exportPdf(
-  defaultName: string,
-  docPath: string | null,
-): Promise<'saved' | 'cancelled' | 'print'> {
+export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
   const root = document.documentElement
-  // 等两帧：第一帧让 .printing 的样式参与布局，第二帧确保重排完成再打印。
   const nextFrame = () =>
     new Promise<void>((resolve) => {
       requestAnimationFrame(() => {
@@ -114,33 +110,37 @@ export async function exportPdf(
         })
       })
     })
-  if (detectEnv() !== 'shell') {
-    root.classList.add('printing')
-    try {
-      await nextFrame()
-      window.print()
-    } finally {
-      root.classList.remove('printing')
-    }
-    return 'print'
-  }
-  const { save } = await import('@tauri-apps/plugin-dialog')
-  const target = await save({
-    defaultPath: defaultName,
-    filters: [{ name: 'PDF', extensions: ['pdf'] }],
-  })
-  if (!target) return 'cancelled'
-  const { invoke } = await tauriApi()
-  await invoke('export_pdf_background', { path: target, docPath })
-  return 'saved'
-}
+  const overlay = document.createElement('div')
+  overlay.className = 'pdf-exporting'
+  document.body.appendChild(overlay)
 
-/** 后台打印窗口的 web 层渲染完成（或失败）时通知壳放行 PrintToPdf。 */
-export async function printJobDone(error: string | null): Promise<void> {
-  const { invoke } = await tauriApi()
-  await invoke('print_job_done', { error }).catch((err) =>
-    console.error('[lector] print_job_done', err),
-  )
+  const prevTheme = root.getAttribute('data-theme')
+  const flipToLight = prevTheme === 'dark'
+  if (flipToLight) root.setAttribute('data-theme', 'light')
+
+  try {
+    // 主题翻转后等 mermaid 重画（250ms 去抖 + 渲染）；浅色主题直接过。
+    await new Promise((r) => setTimeout(r, flipToLight ? 900 : 0))
+    root.classList.add('printing')
+    await nextFrame()
+    if (detectEnv() !== 'shell') {
+      window.print()
+      return 'print'
+    }
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const target = await save({
+      defaultPath: defaultName,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (!target) return 'cancelled'
+    const { invoke } = await tauriApi()
+    await invoke('print_to_pdf', { path: target })
+    return 'saved'
+  } finally {
+    root.classList.remove('printing')
+    if (flipToLight) root.setAttribute('data-theme', prevTheme ?? 'dark')
+    overlay.remove()
+  }
 }
 
 /**

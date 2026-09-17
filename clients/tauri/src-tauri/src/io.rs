@@ -225,7 +225,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交���系��������览器打开。
+/// 正文里的链接交�����系��������览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -423,7 +423,7 @@ fn sanitize_image_name(name: &str) -> Option<String> {
   }
   let mut out = String::new();
   for c in stem.chars() {
-    // 用 Unicode 的 is_alphanumeric（而非 ascii）：��和��端 safeDropName 的
+    // 用 Unicode 的 is_alphanumeric（而非 ascii��：��和��端 safeDropName 的
     // `\p{L}\p{N}` 保持一致，否则「截图_2026.png」拖进来会被落成「--_2026.png」。
     if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
       out.push(c);
@@ -695,117 +695,6 @@ pub fn webview_ready(window: tauri::WebviewWindow) {
   }
   #[cfg(not(target_os = "windows"))]
   let _ = window;
-}
-
-// ── 后台打印窗口导出 ─────────────────────────────────────────────────
-// 主窗口不挂打印样式（否则导出期间应用白屏、按钮/大纲全部消失）——导出在
-// 一个离屏打印窗口里完成：必须 visible（WebView2 对不可见窗口会挂起渲染，
-// PrintToPdf 不可靠，wry 建窗时 SetIsVisible(attributes.visible)），但定位在
-// 屏幕外 + 不进任务栏，用户全程无感。窗口加载同一入口页，初始化脚本注入
-// __lectorPrintJob（文档路径），web 层走真实渲染管线装载后回调放行。
-
-static PRINT_SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-static PRINT_WAITERS: std::sync::Mutex<
-  Option<std::collections::HashMap<String, tauri::async_runtime::Sender<Result<(), String>>>>,
-> = std::sync::Mutex::new(None);
-
-fn take_print_waiter(label: &str) -> Option<tauri::async_runtime::Sender<Result<(), String>>> {
-  PRINT_WAITERS
-    .lock()
-    .unwrap()
-    .get_or_insert_with(std::collections::HashMap::new)
-    .remove(label)
-}
-
-/// 后台导出：建离屏打印窗口装载 `doc_path` 的文档，渲染就绪后对它执行
-/// PrintToPdf 写入 `path`，最后销毁窗口。主窗口全程不动。
-#[tauri::command]
-pub async fn export_pdf_background(
-  app: tauri::AppHandle,
-  path: String,
-  doc_path: String,
-) -> Result<(), String> {
-  let label = format!(
-    "print-{}",
-    PRINT_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-  );
-  let (tx, mut rx) = tauri::async_runtime::channel::<Result<(), String>>(1);
-  PRINT_WAITERS
-    .lock()
-    .unwrap()
-    .get_or_insert_with(std::collections::HashMap::new)
-    .insert(label.clone(), tx.clone());
-
-  // 文档路径经初始化脚本注入（serde_json 字符串 = 合法 JS 字面量，路径天然安全）。
-  let script = format!(
-    "window.__lectorPrintJob = {};",
-    serde_json::to_string(&doc_path).unwrap_or_else(|_| "\"\"".into())
-  );
-  let win = tauri::WebviewWindowBuilder::new(&app, label.clone(), tauri::WebviewUrl::default())
-    .title("Lector Print")
-    .visible(true)
-    .skip_taskbar(true)
-    .inner_size(760.0, 900.0)
-    .initialization_script(&script)
-    .build()
-    .map_err(|e| {
-      take_print_waiter(&label);
-      e.to_string()
-    })?;
-
-  // builder 的 position(-32000) 实测会被部分 Windows 环境忽略（0.26.3：窗口
-  // 出现在默认位置、1200 逻辑高≈满屏）。建好后运行时再摆一次：右下角只留
-  // 80px 边角在屏内——窗口保持「可见」（WebView2 对不可见/被完全遮挡的窗口
-  // 会节流渲染，PrintToPdf 依赖渲染管线），但几乎不被注意到。
-  {
-    let placed = app
-      .primary_monitor()
-      .ok()
-      .flatten()
-      .map(|m| {
-        let s = m.size();
-        let scale = m.scale_factor();
-        (s.width as f64 / scale, s.height as f64 / scale)
-      })
-      .unwrap_or((-32000.0, -32000.0));
-    let _ = win.set_position(tauri::LogicalPosition::new(placed.0 - 680.0, placed.1 - 820.0));
-  }
-
-  // 看门狗：web 端 60 秒内没就绪（渲染卡死/脚本异常）就放行错误，窗口照常清理。
-  {
-    let tx = tx.clone();
-    let label2 = label.clone();
-    std::thread::spawn(move || {
-      std::thread::sleep(std::time::Duration::from_secs(60));
-      if let Some(t) = take_print_waiter(&label2) {
-        let _ = t.send(Err("打印窗口渲染超时".into()));
-      }
-    });
-  }
-
-  let result = match rx.recv().await {
-    Some(r) => r,
-    None => Err("打印窗口通道中断".into()),
-  };
-  take_print_waiter(&label);
-
-  let print_result = match result {
-    Ok(()) => crate::pdf::render_pdf(win.clone(), path).await,
-    Err(e) => Err(e),
-  };
-  let _ = win.destroy();
-  print_result
-}
-
-/// 打印窗口的 web 层渲染完成（或失败）时回调。按调用方窗口 label 放行等待者。
-#[tauri::command]
-pub fn print_job_done(window: tauri::WebviewWindow, error: Option<String>) {
-  if let Some(tx) = take_print_waiter(window.label()) {
-    let _ = tx.send(match error {
-      Some(e) => Err(e),
-      None => Ok(()),
-    });
-  }
 }
 
 #[cfg(target_os = "windows")]
@@ -1396,7 +1285,7 @@ mod tests {
     let doc = abs_path("book/ch1.md");
     let doc = doc.to_str().unwrap();
 
-    // 链接原文一律写成带 `/` 的样子：那是作者在 md 里实际会写的形态
+    // 链接原文一律写成带 `/` 的样子：那是作者在 md 里实际��写的形态
     assert_eq!(segs(&resolve_link_target(doc, "ch2.md").unwrap()), segs(&abs_path("book/ch2.md")));
     assert_eq!(
       segs(&resolve_link_target(doc, "./sub/ch2.md").unwrap()),
