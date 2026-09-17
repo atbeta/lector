@@ -5,6 +5,58 @@ import { t } from './i18n.ts'
 import { copyText } from './feedback.ts'
 
 /**
+ * 代码块折行偏好（notefast 同款思路，原生 TS 版）：localStorage 存开关，
+ * documentElement 挂 .code-wrap 类让所有代码块即时生效，自定义事件让已渲染
+ * 的按钮同步按下态。这是显示偏好不是文档数据，进 localStorage 合理。
+ */
+const CODE_WRAP_KEY = 'lector_code_wrap'
+const CODE_WRAP_EVENT = 'lector:code-wrap'
+
+function readCodeWrap(): boolean {
+  try {
+    return localStorage.getItem(CODE_WRAP_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeCodeWrap(wrap: boolean): void {
+  try {
+    localStorage.setItem(CODE_WRAP_KEY, wrap ? '1' : '0')
+  } catch {
+    /* 隐私模式等存不进就只当次会话生效 */
+  }
+  document.documentElement.classList.toggle('code-wrap', wrap)
+  window.dispatchEvent(new Event(CODE_WRAP_EVENT))
+}
+
+// 模块加载即应用偏好，首屏渲染的代码块就是正确状态。
+document.documentElement.classList.toggle('code-wrap', readCodeWrap())
+
+function syncWrapButton(btn: HTMLElement): void {
+  const on = readCodeWrap()
+  btn.innerHTML = iconSvg('wrap', 14)
+  btn.classList.toggle('is-active', on)
+  btn.setAttribute('aria-pressed', String(on))
+  const tip = on ? t('codeScroll') : t('codeWrap')
+  btn.setAttribute('aria-label', tip)
+  btn.dataset.tip = tip
+}
+
+// 每个按钮各挂一个 window 监听会随块重渲染累积泄漏——全局只装一个，
+// 事件来了同步当前 DOM 里所有折行按钮。
+let wrapSyncInstalled = false
+function ensureWrapSync(): void {
+  if (wrapSyncInstalled) return
+  wrapSyncInstalled = true
+  window.addEventListener(CODE_WRAP_EVENT, () => {
+    for (const btn of document.querySelectorAll<HTMLElement>('.code-wrap-toggle')) {
+      syncWrapButton(btn)
+    }
+  })
+}
+
+/**
  * 代码块加「语言标签 + 复制」。
  *
  * 读代码时的实际需求：想知道这是什么语言、想把这段拿走。
@@ -33,7 +85,7 @@ function decorateCopyButton(btn: HTMLElement): void {
   })
 }
 
-/** 代码卡头部条：语言标在左、复制键在右，收在代码区域内部（notefast 同款结构）。 */
+/** 代码卡头部条：语言标在左、折行与复制键在右，收在代码区域内部（notefast 同款结构）。 */
 function makeCodeBar(lang: string, getText: () => string): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'code-bar'
@@ -43,6 +95,16 @@ function makeCodeBar(lang: string, getText: () => string): HTMLElement {
     label.textContent = lang
     bar.appendChild(label)
   }
+  ensureWrapSync()
+  const wrapBtn = document.createElement('button')
+  wrapBtn.type = 'button'
+  wrapBtn.className = 'code-wrap-toggle'
+  syncWrapButton(wrapBtn)
+  wrapBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    writeCodeWrap(!readCodeWrap())
+  })
+  bar.appendChild(wrapBtn)
   const copy = document.createElement('button')
   copy.type = 'button'
   copy.className = 'code-copy'

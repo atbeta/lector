@@ -198,7 +198,7 @@ button, a, input, [role='slider'], [role='switch'] {
   -webkit-app-region: no-drag;
 }
 /* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in ����时 ui-verify
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—���read in ����时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -1588,6 +1588,32 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--foreground));
   background: rgb(var(--accent));
 }
+/* 折行开关：与复制键同款 24px 方键，排在复制键左侧（margin-left:auto 在复制键上） */
+.code-wrap-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+}
+.code-wrap-toggle:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+.code-wrap-toggle.is-active {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+/* 折行态：长行折返，不再横向滚动 */
+.code-wrap .code-card pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 /* 卡的内部不再有自己的边界与底色 */
 .code-card .reading-prose pre,
 .block[data-kind='code'] .reading-prose pre {
@@ -2046,7 +2072,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
   width: 100%;
   height: 100%;
-  /* 外框尺寸已由 zoomView 精确算好，图片层不能再自我限制，
+  /* 外框尺寸已由 zoomView 精确��好，图片层不能再自我限制，
      否则 mermaid 写在 svg 上的 max-width 会把图形钉死在左上角 */
   max-width: none;
   max-height: none;
@@ -3106,7 +3132,7 @@ html.is-empty #content {
   /* 扉页不滚：内容始终放得下（矮窗由媒体查询收掉最近列表）。
      顺便挡掉入场动画期间 transform 撑出的瞬时滚动条。 */
   overflow: hidden;
-  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下对称 */
+  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下��称 */
   padding: 28px 24px;
 }
 /* 加载态与空态同一套居中：转圈落在整窗中心，而不是吊在上半屏 */
@@ -3225,7 +3251,7 @@ html.pdf-busy * {
   cursor: progress !important;
 }
 
-/* ───────────── 打印 / 导出 PDF ─────────────
+/* ───────────── 打印 / 导出 PDF ───��─────────
  * 样式挂在 html.printing 类上，不用 @media print——WebView2 的 PrintToPdf
  * 按屏幕媒体渲染（实测：深色主题导出 = 浅字白纸、侧栏照印、滚动容器截成一页），
  * 媒体查询根本不会生效。exportPdf（platform.ts）在调用打印前后挂/摘这个类，
