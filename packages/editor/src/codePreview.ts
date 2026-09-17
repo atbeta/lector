@@ -155,33 +155,60 @@ export function decorateCodeBlock(preview: HTMLElement): void {
       showSvgInLightbox(new XMLSerializer().serializeToString(svgEl), 'mermaid')
     })
 
-    const theme: 'light' | 'dark' =
-      document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
-    let cancelled = false
-    renderMermaidSvg(source, theme)
-      .then((svg) => {
-        if (cancelled) return
-        diagram.replaceChildren()
-        const inner = document.createElement('div')
-        inner.className = 'mermaid-svg'
-        inner.innerHTML = svg
-        diagram.appendChild(inner)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const msg = err instanceof Error ? err.message : String(err)
-        diagram.replaceChildren()
-        const errBox = document.createElement('div')
-        errBox.className = 'mermaid-error'
-        errBox.textContent = t('mermaidFailedWith', { error: msg })
-        const fallback = document.createElement('pre')
-        fallback.className = 'mermaid-source'
-        const fallbackCode = document.createElement('code')
-        fallbackCode.textContent = source
-        fallback.appendChild(fallbackCode)
-        diagram.appendChild(errBox)
-        diagram.appendChild(fallback)
-      })
+    // 渲染入口抽成函数：首渲与栏宽变化后的重渲共用。代数守卫丢弃过期结果
+    // （重渲进行中又触发重渲时，只有最新一次落笔）；主题每次重读，切深色模式
+    // 后的重渲直接拿到新纸面。
+    let renderGen = 0
+    const renderInto = (): Promise<void> => {
+      const gen = ++renderGen
+      const theme: 'light' | 'dark' =
+        document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+      return renderMermaidSvg(source, theme)
+        .then((svg) => {
+          if (gen !== renderGen || !diagram.isConnected) return
+          diagram.replaceChildren()
+          const inner = document.createElement('div')
+          inner.className = 'mermaid-svg'
+          inner.innerHTML = svg
+          diagram.appendChild(inner)
+        })
+        .catch((err: unknown) => {
+          if (gen !== renderGen || !diagram.isConnected) return
+          const msg = err instanceof Error ? err.message : String(err)
+          diagram.replaceChildren()
+          const errBox = document.createElement('div')
+          errBox.className = 'mermaid-error'
+          errBox.textContent = t('mermaidFailedWith', { error: msg })
+          const fallback = document.createElement('pre')
+          fallback.className = 'mermaid-source'
+          const fallbackCode = document.createElement('code')
+          fallbackCode.textContent = source
+          fallback.appendChild(fallbackCode)
+          diagram.appendChild(errBox)
+          diagram.appendChild(fallback)
+        })
+    }
+    renderInto()
+
+    // 栏宽变化（拖窗口、开关侧栏、调最大宽度）后重渲染：画布自然宽烘在 SVG 里，
+    // 不重画的话窄栏甘特的短任务条装不下任务名，标签溢出到条外。diagram 是块级
+    // 盒，宽度跟栏走、与内部 SVG 无关——观察它不会因重画自身而循环。首帧回调
+    // 只记基准宽度不重画（首渲已在跑）；之后宽度变化超过阈值才防抖重画。
+    let baseWidth = 0
+    let roTimer: ReturnType<typeof setTimeout> | undefined
+    const ro = new ResizeObserver(() => {
+      const w = Math.round(diagram.clientWidth)
+      if (w === 0 || !diagram.isConnected) return
+      if (baseWidth === 0) {
+        baseWidth = w
+        return
+      }
+      if (Math.abs(w - baseWidth) < 16) return
+      baseWidth = w
+      clearTimeout(roTimer)
+      roTimer = setTimeout(renderInto, 250)
+    })
+    ro.observe(diagram)
 
     return
   }

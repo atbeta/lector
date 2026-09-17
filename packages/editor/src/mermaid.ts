@@ -180,7 +180,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   //
   // 两处不让位：
   //   - 用户自己写了 themeVariables：那是明确要细调，在我们的基础上覆盖（逐层合并）；
-  //   - 字体：图里的字要和界面��致，那是全局观感，不属于「主题」这一层。
+  //   - 字体：图里的字要和界面���致，那是全局观感，不属于「主题」这一层。
   const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
   const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
   const baseVars: Record<string, string> =
@@ -334,10 +334,12 @@ export async function renderMermaidSvg(
   theme: 'light' | 'dark',
   id = nextMermaidId(),
 ): Promise<string> {
-  // 缓存键必须带上用户配置与纸面：
+  // 缓存键必须带上用户配置、纸面与栏宽：
   //   - 配置改过之后，同一段源码的旧 SVG 就是错的；
-  //   - 换阅读主题会改 --card，而底色与墨色都烘在 SVG 里，不带上就永远返回旧纸面那张。
-  const key = `${theme}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
+  //   - 换阅读主题会改 --card，而底色与墨色都烘在 SVG 里，不带上就永远返回旧纸面那张；
+  //   - 画布自然宽按测量时的栏宽定（甘特尤甚），栏宽变了必须绕开缓存重画。
+  const columnWidth = document.querySelector('.reading-prose')?.clientWidth || 800
+  const key = `${theme}::${columnWidth}::${cssRgbToken('--card', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 
@@ -348,13 +350,12 @@ export async function renderMermaidSvg(
   // 下，量到的宽度不可控（实测 288px，整张甘特缩在左边）。传入宽度等于阅读栏宽
   // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
   // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
-  const columnWidth = document.querySelector('.reading-prose')?.clientWidth || 800
   const tmp = document.createElement('div')
   tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${columnWidth}px`
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)
-    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装不下任务名，
+    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装���下任务名，
     // 标签居中溢出到条外，看着像「条前面的纯文字」。锁最小宽度 = 不缩于自然宽，
     // 窄栏走容器横向滚动（.mermaid-diagram 已有 overflow-x: auto）。
     if (isGanttSource(code)) {
@@ -372,7 +373,17 @@ export async function renderMermaidSvg(
   }
 }
 
-/** 测试��子：清空缓存。生产代码不要调。 */
+/** 测试钩子：清空缓存。生产代码不要调。 */
 export function _resetCacheForTests(): void {
   svgCache.clear()
+}
+
+/** 首个有效行（跳过空行与 %% 注释）是否为 gantt——只有甘特需要锁最小宽度。 */
+function isGanttSource(code: string): boolean {
+  for (const line of code.split('\n')) {
+    const t = line.trim()
+    if (t === '' || t.startsWith('%%')) continue
+    return t === 'gantt' || t.startsWith('gantt ')
+  }
+  return false
 }
