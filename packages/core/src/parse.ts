@@ -46,6 +46,7 @@ function makeContentBlock(
   start: number,
   end: number,
   text: string,
+  mdastOverride?: unknown,
 ): BlockView {
   const kind = KIND_MAP[node.type] ?? 'unknown'
   return {
@@ -54,9 +55,30 @@ function makeContentBlock(
     start,
     end,
     raw: text.slice(start, end),
-    mdast: node,
+    mdast: mdastOverride ?? node,
     dirty: false,
   }
+}
+
+/**
+ * 把表格 raw 尾部连续的无管道行切出来。
+ *
+ * GFM 规范里表格只在空行或另一个块级结构开始处结束，普通段落行不算——
+ * 于是表格后紧跟的图片/文字行会被当成「单格行」吸进表格，图片渲染成
+ * <td> 里的图被单元格宽度压得很小。这里把尾部无管道行还成独立块：
+ * 只是重新分块，拼接字节不变。单列表格的无管道正文行会被误切，
+ * 但那种写法罕见且有歧义，阅读优先。
+ */
+function carveTableTail(raw: string): { table: string; tail: string } | null {
+  const lines = raw.split('\n')
+  let i = lines.length
+  while (i > 0 && !lines[i - 1]!.includes('|')) i--
+  // 整段无管道（不可能是表格）或尾部没有无管道行：不切
+  if (i === 0 || i === lines.length) return null
+  const tail = lines.slice(i).join('\n')
+  if (tail.trim() === '') return null
+  // 表格块收下最后一行行尾的换行符，切出块从行首开始——两块无缝拼接
+  return { table: lines.slice(0, i).join('\n') + '\n', tail }
 }
 
 /** 由 mdast 节点类型映射 BlockKind。 */
@@ -73,6 +95,8 @@ export function kindFromMdast(node: unknown): BlockKind {
  * 保证：blocks[0].start === 0；blocks[i].end === blocks[i+1].start；
  * last.end === text.length；拼接还原全文。mdast 子节点不带块尾空行，
  * 块间空隙（空行/空白）合成 unknown 块，**绝不丢空行**。
+ * 表格后紧跟的段落行会被 GFM 吸进表格，这里切出来还成独立块
+ * （见 carveTableTail），拼接仍恒等。
  * 空文档给一块可聚焦空段落，否则无法开始输入。
  */
 export function parseBlocks(text: string): BlockView[] {
@@ -115,8 +139,27 @@ export function parseBlocks(text: string): BlockView[] {
     // 防御重叠：从 cursor 裁剪（mdast 正常不重叠，此分支仅安全）
     const clipS = Math.max(s, cursor)
     if (clipS < e) {
-      blocks.push(makeContentBlock(node, clipS, e, text))
-      cursor = e
+      // 表格尾部被 GFM 吸进去的段落行：切出来还成独立块（见 carveTableTail）
+      const carved = node.type === 'table' ? carveTableTail(text.slice(clipS, e)) : null
+      if (carved) {
+        const tEnd = clipS + carved.table.length
+        // 原表格节点的 rows 还含被吸进去的行，用截断后的 raw 重解析
+        blocks.push(makeContentBlock(node, clipS, tEnd, text, parseOne(carved.table)))
+        const tailRoot = parseOne(carved.tail)
+        blocks.push({
+          id: `b${tEnd}:${e}`,
+          kind: kindFromMdast(tailRoot),
+          start: tEnd,
+          end: e,
+          raw: text.slice(tEnd, e),
+          mdast: tailRoot,
+          dirty: false,
+        })
+        cursor = e
+      } else {
+        blocks.push(makeContentBlock(node, clipS, e, text))
+        cursor = e
+      }
     }
   }
 
