@@ -5,6 +5,7 @@ import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 import { showDialog } from './dialog.ts'
+import { getSettings, setThemeMode } from './settings.ts'
 import { showToast } from './feedback.ts'
 import type { DocumentSession } from './documentSession.ts'
 
@@ -305,8 +306,19 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
           })
           if (go !== 'go') return
         }
-        const r = await exportPdf(`${name}.pdf`, t('pdfExporting'))
-        if (r === 'saved') showToast(t('pdfSaved'))
+        // 深色主题先翻到 light——必须走 setThemeMode 正规管道：mermaid 的重画
+        // 挂在设置通知上，直接改 data-theme 属性它不重画，SVG 里烘着的深色会
+        // 原样进纸（0.26.6 教训）。浅色 mermaid = default 主题 + 靛蓝主色，
+        // 白底蓝图。导出完翻回原设置。
+        const mode = getSettings().theme
+        const flip = document.documentElement.getAttribute('data-theme') === 'dark'
+        if (flip) setThemeMode('light')
+        try {
+          const r = await exportPdf(`${name}.pdf`, t('pdfExporting'))
+          if (r === 'saved') showToast(t('pdfSaved'))
+        } finally {
+          if (flip) setThemeMode(mode)
+        }
       })().catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
     })
     // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。

@@ -95,14 +95,19 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 
 /**
  * 导出 PDF：主窗口挂 .printing（打印样式，app.css）后交给壳层 PrintToPdf。
- * 遮罩（.pdf-exporting）只盖**准备阶段**（翻主题、摊平布局）——PrintToPdf
- * 捕获的就是屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF
- * 只有一张 spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感），
- * 打印完恢复。深色主题下先翻到 light：mermaid 配色烘在 SVG 里（不跟 CSS
- * 变量），只有主题翻转 + 现有的重画监听（250ms 去抖）能给它浅色配色。
+ * 遮罩（.pdf-exporting）只盖**准备阶段**（摊平布局）——PrintToPdf 捕获的就是
+ * 屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF 只有一张
+ * spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感），打印完恢复。
+ * 深色主题的翻转是**调用方**的职责（editorChrome 走 setThemeMode 正规管道，
+ * mermaid 的重画挂在设置通知上——直接改 data-theme 属性它不重画，SVG 里烘着
+ * 的深色会原样进纸）。捕获可能很慢（大文档），页面内任何指示器都会进纸——
+ * 这段的反馈走忙光标 + 窗口标题（busyTitle），都不参与渲染捕获。
  * 浏览器退化为系统打印。
  */
-export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
+export async function exportPdf(
+  defaultName: string,
+  busyTitle?: string,
+): Promise<'saved' | 'cancelled' | 'print'> {
   const root = document.documentElement
   const nextFrame = () =>
     new Promise<void>((resolve) => {
@@ -133,13 +138,11 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
   const overlay = document.createElement('div')
   overlay.className = 'pdf-exporting'
   document.body.appendChild(overlay)
-  const prevTheme = root.getAttribute('data-theme')
-  const flipToLight = prevTheme === 'dark'
-  if (flipToLight) root.setAttribute('data-theme', 'light')
 
   try {
-    // 主题翻转后等 mermaid 重画（250ms 去抖 + 渲染）；浅色主题直接过。
-    await new Promise((r) => setTimeout(r, flipToLight ? 900 : 0))
+    // 主题翻转（调用方在弹对话框前已做）触发的 mermaid 重画通常在用户选路径
+    // 期间就完成了；这里再留 300ms 兜底快速路径的情况。
+    await new Promise((r) => setTimeout(r, 300))
     root.classList.add('printing')
     await nextFrame()
     // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
@@ -159,7 +162,6 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
     return 'saved'
   } finally {
     root.classList.remove('printing')
-    if (flipToLight) root.setAttribute('data-theme', prevTheme ?? 'dark')
     overlay.remove()
   }
 }
@@ -435,7 +437,7 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 /**
  * 无标题栏：在 titlebar 空白处按下即拖��窗口。
  *
- * 双击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
+ * ��击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
  * 两处都监听会让一次双击触发两次 toggle，窗口原地闪一下。
  */
 export function bindTitlebar(dragEl: HTMLElement): void {
