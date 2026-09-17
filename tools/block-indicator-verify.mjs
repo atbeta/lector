@@ -6,12 +6,14 @@
 //
 // 用法：先起 Vite（端口 5199），再 `node tools/block-indicator-verify.mjs http://localhost:5199/`
 import assert from 'node:assert/strict'
-import { chromium } from 'playwright'
+import { launchBrowser, exitSkipped } from './browser.mjs'
 
 const URL_ARG = process.argv[2] ?? 'http://localhost:5199/'
 const SHOT_DIR = process.env.SHOT_DIR ?? ''
 
-const browser = await chromium.launch()
+// 没有浏览器就跳过：这些脚本量的是真实渲染，服务器上跑不了是常态。
+const browser = await launchBrowser()
+if (!browser) exitSkipped('渲染层验证', process.argv.includes('--strict'))
 // 钉住界面语言：菜单项断言要读标签，跟着机器语言飘会让这条检查时红时绿。
 const page = await browser.newPage({
   viewport: { width: 1360, height: 900 },

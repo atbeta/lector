@@ -8,6 +8,7 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "verify:ui": "node tools/verify-ui.mjs",
     "tauri:dev": "tauri dev --config clients/tauri/src-tauri/tauri.conf.json --no-watch",
     "tauri:build": "tauri build --config clients/tauri/src-tauri/tauri.conf.json"
   },

@@ -9,7 +9,7 @@
 // 用法：node tools/ui-verify.mjs [url]
 // 需要先起 vite dev。退出码非 0 表示有硬问题。
 
-import { chromium } from 'playwright'
+import { launchBrowser, exitSkipped } from './browser.mjs'
 
 const URL_ARG = process.argv[2] ?? 'http://localhost:5199/'
 
@@ -336,7 +336,9 @@ const PROBE = `(() => {
   }
 })()`
 
-const browser = await chromium.launch()
+// 没有浏览器就跳过：这些脚本量的是真实渲染，服务器上跑不了是常态。
+const browser = await launchBrowser()
+if (!browser) exitSkipped('渲染层验证', process.argv.includes('--strict'))
 const page = await browser.newPage({ viewport: { width: 1200, height: 820 }, deviceScaleFactor: 2 })
 
 const consoleErrors = []

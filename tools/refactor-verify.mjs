@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
-import { chromium } from 'playwright'
+import { launchBrowser, exitSkipped } from './browser.mjs'
 
 const URL_ARG = process.argv[2] ?? 'http://localhost:5199/'
 
-const browser = await chromium.launch()
+// 没有浏览器就跳过：这些脚本量的是真实渲染，服务器上跑不了是常态。
+const browser = await launchBrowser()
+if (!browser) exitSkipped('渲染层验证', process.argv.includes('--strict'))
 const results = []
 const ok = (name) => results.push(['PASS', name])
 const fail = (name, err) => results.push(['FAIL', `${name}: ${err?.message ?? err}`])
