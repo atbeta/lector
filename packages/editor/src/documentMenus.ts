@@ -4,6 +4,7 @@ import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
 import { showContextMenu, type ContextMenuItem } from './contextMenu.ts'
+import { resolveMenuDecision } from './menuTarget.ts'
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
 import type { DocumentEditor } from './documentEditor.ts'
@@ -270,115 +271,132 @@ export function createDocumentMenus({
     })
   }
 
-  /** ��键入口：按目标决定给哪套菜单。 */
+  /** 右键入口：按目标决定给哪套菜单。
+   *
+   * 这里只做两件事：把 DOM 探测翻译成 MenuHints、按纯函数给出的结论执行。
+   * **优先级规则一律不写在这**（见 menuTarget.ts 的说明）。 */
   function onContextMenu(e: MouseEvent): void {
     const target = e.target as HTMLElement | null
     if (!target) return
 
-    // 顶栏文件名：文件级动作（联动其他应用、显示位置、复制路径）+ 关闭文件
-    if (target.closest('.titlebar-title')) {
-      const path = files.currentDiskPath()
-      const items: ContextMenuItem[] = []
-      if (path) {
-        items.push(
-          { label: t('menuOpenDefault'), run: () => void files.openDefaultApp() },
-          { label: t('menuReveal'), run: () => void files.revealCurrent() },
-          { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
-        )
-      }
-      if (editor.getSession().source) {
-        items.push({
-          separatorBefore: items.length > 0,
-          label: t('menuCloseFile'),
-          run: () => void files.closeFile(),
-        })
-      }
-      // 无论有没有东西可给，都要吞掉默认菜单：顶栏不该冒出浏览器的「检查元素」
-      e.preventDefault()
-      if (items.length > 0) showContextMenu(items, e.clientX, e.clientY)
-      return
-    }
-
-    // 聚焦块的 CodeMirror：编辑菜单（撤销/复制/粘贴…）
-    if (target.closest('.cm-content')) {
-      e.preventDefault()
-      showContextMenu(forMode(editorMenuItems()), e.clientX, e.clientY)
-      return
-    }
-
-    // 输入控件：给应用自己的编辑菜单，而不是放行 webview 那份（带「检查元素」）
+    const session = editor.getSession()
+    const link = target.closest('a') as HTMLAnchorElement | null
+    const blockEl = target.closest('.block') as HTMLElement | null
     const field = target.closest('input, textarea, [contenteditable="true"]') as HTMLElement | null
-    if (field) {
-      e.preventDefault()
-      showContextMenu(fieldMenuItems(field), e.clientX, e.clientY)
-      return
-    }
+    const task = taskHit(target)
 
-    // 到这儿还没命中，就先把 webview 默认菜单吞掉。
-    //
-    // 它端出来的是浏览器的那一份：刷新 / 打印 / 后退 / 检查元素，"检查元素"更是
-    // 直接把 F12 开发者工具递给普通用户——这在一个本地 Markdown 阅读器里是纯噪音。
-    // 所以**每个表面都必须显式决定给什么**，不能让默认菜单从缝里漏出来。
+    const decision = resolveMenuDecision({
+      inTitlebarTitle: !!target.closest('.titlebar-title'),
+      inEditor: !!target.closest('.cm-content'),
+      inField: !!field,
+      inContent: !!target.closest('#content'),
+      hasSource: !!session.source,
+      inProse: !!target.closest('.reading-prose'),
+      isImage: target.tagName === 'IMG',
+      linkHref: link ? (link.getAttribute('href') ?? '') : null,
+      inTask: !!task,
+      inBlock: !!blockEl,
+      hasSelection: (window.getSelection()?.toString() ?? '').length > 0,
+    })
+
+    // 所有分支都要吞掉 webview 的默认菜单（刷新 / 打印 / 检查元素）——它不属于这个应用。
+    // 原来的写法是在每个 return 之前各写一遍，漏一处就会从缝里漏出「检查元素」。
     e.preventDefault()
 
-    // 正文里的块：文档自己的菜单（图片 / 链接 / 任务 / 块 / 段间空白）
-    if (target.closest('#content') && editor.getSession().source) {
-      // 图片
-      if (target.tagName === 'IMG' && target.closest('.reading-prose')) {
+    switch (decision.kind) {
+      case 'titlebar': {
+        const path = files.currentDiskPath()
+        const items: ContextMenuItem[] = []
+        if (path) {
+          items.push(
+            { label: t('menuOpenDefault'), run: () => void files.openDefaultApp() },
+            { label: t('menuReveal'), run: () => void files.revealCurrent() },
+            { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
+          )
+        }
+        if (session.source) {
+          items.push({
+            separatorBefore: items.length > 0,
+            label: t('menuCloseFile'),
+            run: () => void files.closeFile(),
+          })
+        }
+        if (items.length > 0) showContextMenu(items, e.clientX, e.clientY)
+        return
+      }
+
+      case 'editor':
+        showContextMenu(forMode(editorMenuItems()), e.clientX, e.clientY)
+        return
+
+      case 'field':
+        // field 由上面同一份 hints 算出，非空；用守卫而不是 `!`——类型不该靠断言维持
+        if (field) showContextMenu(fieldMenuItems(field), e.clientX, e.clientY)
+        return
+
+      case 'image':
         showContextMenu(forMode(imageMenuItems(target as HTMLImageElement)), e.clientX, e.clientY)
         return
-      }
 
-      // 链接
-      const link = target.closest('a') as HTMLAnchorElement | null
-      if (link && link.closest('.reading-prose')) {
-        showContextMenu(linkMenuItems(link.getAttribute('href') ?? ''), e.clientX, e.clientY)
+      case 'link':
+        showContextMenu(linkMenuItems(decision.href), e.clientX, e.clientY)
+        return
+
+      case 'task':
+        if (task) {
+          showContextMenu(forMode(taskMenuItems(task.block, task.index, task.checked)), e.clientX, e.clientY)
+        }
+        return
+
+      case 'block':
+        // openBlockMenu 自己判断这个块有没有可给的菜单；给不出就落到下面的留白分支
+        if (blockEl && openBlockMenu(blockEl, e.clientX, e.clientY)) return
+        showBlankAreaMenu(target, e)
+        return
+
+      case 'blankArea':
+        showBlankAreaMenu(target, e)
+        return
+
+      // 正文之外选中了文字：只给「复制」——这些地方以前被兜底糊了整份文档菜单，连复制都做不到
+      case 'copySelection': {
+        const selected = window.getSelection()?.toString() ?? ''
+        showContextMenu(
+          [{ label: t('menuCopy'), hint: mod('C'), run: () => void copyText(selected, t('menuCopied')) }],
+          e.clientX,
+          e.clientY,
+        )
         return
       }
 
-      // 任务项：按渲染顺序定位到源码里第几条任务
-      const li = target.closest('li.task') as HTMLLIElement | null
-      if (li) {
-        const blockEl = li.closest('.block') as HTMLElement | null
-        const id = blockEl?.dataset.blockId
-        const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
-        if (block && blockEl) {
-          const items = Array.from(blockEl.querySelectorAll('li.task'))
-          const idx = items.indexOf(li)
-          const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
-          showContextMenu(forMode(taskMenuItems(block, idx, !!box?.checked)), e.clientX, e.clientY)
-          return
-        }
-      }
-
-      // 预览块
-      const blockEl = target.closest('.block') as HTMLElement | null
-      if (blockEl && openBlockMenu(blockEl, e.clientX, e.clientY)) return
-
-      // 没落在任何块上：段间空白缝（.block.gap 没有 blockId）、正文列的两侧留白、
-      // 最后一段之后的那片空。右键这里想做的事，八成还是「在这儿加一段」，
-      // 所以贴着最近的内容块给一份短菜单。
-      const items = forMode(blankAreaMenuItems(nearestBlockBefore(target)))
-      if (items.length === 0) return
-      appendSelectionCopy(items)
-      showContextMenu(items, e.clientX, e.clientY)
-      return
+      // 其余地方（空白、不可选中的 chrome）：默认菜单已吞，不再弹任何东西——
+      // 原生应用在非交互区域右键就是这个行为，弹一份「猜你想干什么」的菜单才是噪音。
+      case 'none':
+        return
     }
+  }
 
-    // 正文之外、又选中了文字的表面（设置里的说明、侧栏、状态行…）：只给「复制」。
-    // 这些地方以前被「没落在块上」的兜底糊了整份文档菜单，连复制都做不到。
-    const selected = window.getSelection()?.toString() ?? ''
-    if (selected) {
-      showContextMenu(
-        [{ label: t('menuCopy'), hint: mod('C'), run: () => void copyText(selected, t('menuCopied')) }],
-        e.clientX,
-        e.clientY,
-      )
-      return
-    }
+  /** 段间空白 / 正文列留白：贴着最近的内容块给一份短菜单（八成还是「在这儿加一段」）。 */
+  function showBlankAreaMenu(target: HTMLElement, e: MouseEvent): void {
+    const items = forMode(blankAreaMenuItems(nearestBlockBefore(target)))
+    if (items.length === 0) return
+    appendSelectionCopy(items)
+    showContextMenu(items, e.clientX, e.clientY)
+  }
 
-    // 其余地方（空白、不可选中的 chrome）：默认菜单已吞，不再弹任何东西——
-    // 原生应用在非交互区域右键就是这个行为，弹一份「猜你想干什么」的菜单才是噪音。
+  /**
+   * li.task → 它所属的块、块内第几条、当前是否勾选。
+   * 定位不到块（块 id 对不上、块未知）就当没命中，交给后面的分支处理。
+   */
+  function taskHit(target: HTMLElement): { block: BlockView; index: number; checked: boolean } | null {
+    const li = target.closest('li.task') as HTMLLIElement | null
+    const blockEl = li?.closest('.block') as HTMLElement | null
+    const id = blockEl?.dataset.blockId
+    const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
+    if (!li || !blockEl || !block) return null
+    const items = Array.from(blockEl.querySelectorAll('li.task'))
+    const box = li.querySelector('input[type=checkbox]') as HTMLInputElement | null
+    return { block, index: items.indexOf(li), checked: !!box?.checked }
   }
 
   /**
