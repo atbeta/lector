@@ -270,9 +270,9 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     findBtn.innerHTML = iconSvg('search', 16)
     findBtn.setAttribute('aria-label', t('findAria'))
     findBtn.dataset.tip = t('findAria')
-    // 「外观」按钮：图标用 Aa（打字/排版），不是月亮/太阳——
-    // 它打开的不只是明暗，还有阅读主题。太阳月亮会把功能说小一半。
-    appearanceBtn.innerHTML = iconSvg('type', 16)
+  // 「外观」按钮：调色盘——明暗 + 阅读主题都在这里面。之前用「T」（type 图标）
+  // 会被误读成文字排版配置；月亮/太阳又只覆盖明暗一半。调色盘是「外观」的通用语言。
+  appearanceBtn.innerHTML = iconSvg('palette', 16)
     appearanceBtn.setAttribute('aria-label', t('themeAria'))
     appearanceBtn.dataset.tip = t('themeAria')
     settingsBtn.innerHTML = iconSvg('settings', 16)

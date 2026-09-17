@@ -177,7 +177,7 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
-  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进协议白名单。
+  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进��议白名单。
   // 不能等 bind_document：前端拿到内容就渲染，图片请求可能早于 bind_document 到达，
   // 那时白名单还没有这个目录 → 403 → 图片塌成 0 高（切一次档才恢复）。
   protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
@@ -225,7 +225,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交给系统浏览器打开。
+/// 正文里的链接交给系统���览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -802,19 +802,31 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   // 创建即 content process terminated；可见窗口能自动 reload 恢复，隐藏窗口不会）。
   // 预应用几何是唯一两头都对的做法：插件的就绪时自动恢复仍会执行，同值幂等。
   let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
+  // 主题早应用：把设置里的明暗模式在首帧前交给页面（index.html 的内联脚本消费）。
+  // 前端 load_settings 要等模块加载完才到——深色用户会先看到一帧浅色再变深，
+  // 系统浅色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
+  let theme_mode = app
+    .path()
+    .app_config_dir()
+    .ok()
+    .and_then(|dir| fs::read_to_string(dir.join("lector-settings.json")).ok())
+    .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+    .and_then(|v| v.get("theme").and_then(|t| t.as_str()).map(str::to_string))
+    .unwrap_or_default();
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title(title)
     // 把文档名交给页面：<head> 里的内联脚本在首帧之前就用它替换占位标题。
     // 只设窗口标题不够——页面加载后会按自己的逻辑写标题（见 resetTitle），
     // 那一下就会把 "Lector" 闪出来。
     .initialization_script(&format!(
-      "window.__lectorTitle = \"{}\";",
-      title.replace('\\', "\\\\").replace('"', "\\\"")
+      "window.__lectorTitle = \"{}\"; window.__lectorTheme = \"{}\";",
+      title.replace('\\\\', "\\\\\\\\").replace('"', "\\\\\\\""),
+      theme_mode.replace('\\\\', "\\\\\\\\").replace('"', "\\\\\\\"")
     ))
     .min_inner_size(480.0, 360.0)
     // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
     // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
-    // 我们的拖放逻辑（落点定位、复制进 assets）全在 Web 层，用不到原生通道。
+    // 我们的拖放逻辑（落���定位、复制进 assets）全在 Web 层，用不到原生通道。
     .disable_drag_drop_handler()
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
@@ -850,8 +862,10 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   log::info!("[win] 建窗完成 {label}");
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
-  // 几何已在 builder 阶段预应用（见上方注释）；window-state 插件在窗口就绪时
-  // 还会自动恢复一次，与这里的值相同，幂等。
+  // 几何已在 builder 阶段预应用（见上方注释）。window-state 插件的自动恢复已关
+  // （lib.rs with_dont_restore）：它恢复时窗口已可见，且它不做离屏过滤——
+  // 换过显示器布局后会把窗口从居中位置拽回存档的屏外坐标，用户看到的就是
+  // 「打开时位置跳一下」。恢复只走预应用这一条路，保存仍归插件。
   Ok(win)
 }
 
@@ -1213,7 +1227,7 @@ mod tests {
 
   /// 平台无关的测试用绝对路径。
   ///
-  /// **不能写死 `/docs/book/ch1.md`**：Windows 上 `/…` 不是绝对路径（缺盘符前缀），
+  /// **不能写死 `/docs/book/ch1.md`**：Windows 上 `/…` 不是绝对路径（缺盘��前缀），
   /// `Path::is_absolute()` 为 false，于是会被 resolve_link_target 里那条
   /// 「文档路径必须是绝对路径」的守卫拒掉——上一版就是这么在 Windows runner 上
   /// 挂了三条（本机 macOS 全绿，只有 CI 的 Windows 作业才看得见）。

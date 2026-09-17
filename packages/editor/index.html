@@ -15,26 +15,29 @@
     <script>
       // 防闪烁：在样式与模块加载之前定好主题。
       //
-      // 主题的真身在设置里（core 的 EditorSettings.theme），壳里存 app 配置目录的
-      // lector-settings.json、浏览器里存 localStorage['lector-settings']。
-      // 这里必须读同一个 key：早期版本读的是 'lector-theme'，而全仓库没有任何地方
-      // 写它，等于防闪烁从未生效——深色用户每次启动都会先闪一下白再变黑。
-      //
-      // 壳环境下读不到配置文件（要走 IPC，来不及），只能按系统偏好预判；
-      // 设置加载完会立刻纠正。这一小段闪动在壳里暂时无法根除，
-      // 要彻底解决得由 Rust 把主题注入到 HTML。
+      // 主题来源优先级：壳注入（Rust 建窗时同步读 lector-settings.json 塞进
+      // window.__lectorTheme，见 io.rs build_doc_window）→ localStorage（浏览器
+      // 预览）→ 系统偏好。壳注入是唯一能拿到「设置=dark 而系统=light」的路径——
+      // 此前缺它，深色用户每次启动都先闪一帧浅色再变深。
       ;(function () {
         try {
           var m = window.matchMedia('(prefers-color-scheme: dark)')
-          var theme = null
-          var raw = localStorage.getItem('lector-settings')
-          if (raw) {
-            var parsed = JSON.parse(raw)
-            if (parsed && (parsed.theme === 'dark' || parsed.theme === 'light')) theme = parsed.theme
+          var mode = window.__lectorTheme
+          if (mode !== 'dark' && mode !== 'light' && mode !== 'system') {
+            mode = null
+            var raw = localStorage.getItem('lector-settings')
+            if (raw) {
+              var parsed = JSON.parse(raw)
+              if (parsed && (parsed.theme === 'dark' || parsed.theme === 'light' || parsed.theme === 'system')) mode = parsed.theme
+            }
           }
-          var resolved = theme || (m.matches ? 'dark' : 'light')
-          document.documentElement.setAttribute('data-theme', resolved)
-          document.documentElement.setAttribute('data-theme-mode', theme || 'system')
+          var resolved = mode === 'dark' || mode === 'light' ? mode : m.matches ? 'dark' : 'light'
+          var de = document.documentElement
+          de.setAttribute('data-theme', resolved)
+          de.setAttribute('data-theme-mode', mode || 'system')
+          // CSS 还没加载，先把画布底色铺上（tokens.css 的 --background 两端值）——
+          // 首帧即目标颜色，没有过渡。
+          de.style.background = resolved === 'dark' ? 'rgb(15 14 13)' : 'rgb(247 246 243)'
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light')
         }
