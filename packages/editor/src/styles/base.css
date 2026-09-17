@@ -1,0 +1,160 @@
+
+/* 阅读排版可配置变量（设置面板覆写，defaults 见下） */
+:root {
+  --reading-font-size: var(--text-reading);
+  --reading-line-height: 1.75;
+  --reading-font: var(--font-sans);
+}
+
+/* 衬线阅读字体栈 */
+:root.font-serif {
+  --reading-font: var(--font-serif);
+}
+
+/* ───────────── 基础 ───────────── */
+/* hidden 属性必须真的藏得住。
+ * 本文件里大量组件用 display:flex / grid 声明自己，作者样式会盖过 UA 的
+ * [hidden]{display:none}——于是 el.hidden = true 对它们完全无效（设置面板
+ * 的搜索过滤与图片档位显隐都栽在这上面）。用 !important 把这条语义钉死。 */
+[hidden] { display: none !important; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  height: 100%;
+  /* 告诉 UA 当前配色方案，否则深色下原生控件/滚动条/默认按钮仍是浅色，糊在黑暗主题里 */
+  color-scheme: light;
+}
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* 应用骨架：一行三列的网格。
+   顶栏与状态行通栏（壳），中间一行 [侧栏 | 正文]。
+   侧栏宽度用 grid 轨道过渡——正文的左右居中随之连续变化，不会瞬移。 */
+body.app {
+  display: grid;
+  grid-template-columns: 0 1fr;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'bar bar'
+    'side content'
+    'status status';
+  height: 100vh;
+  transition: grid-template-columns var(--motion-slow) var(--ease-emphasized);
+}
+/* 侧栏宽度的唯一来源。JS（sidebar.ts 的 SIDEBAR_W 与标题夹取）与 CSS 都读它，
+   改宽度只改这一处。 */
+:root { --sidebar-w: 288px; }
+html.sidebar-docked body.app { grid-template-columns: var(--sidebar-w) 1fr; }
+body {
+  margin: 0;
+  height: 100%;
+  /* 正文只有 42rem，宽窗口下两侧会是「空白」而不是「底色」。
+     极淡的天光让纸面像有光源，而不是被裁掉的一块白。
+     用「从顶边淡出」而不是椭圆：椭圆在空态（没有正文遮住它）会显出一个
+     有边界的灰斑，看起来像没擦干净的选区。线性渐隐没有闭合轮廓。
+     光色跟主题的墨色走（不是写死的冷灰）：米黄/纸主题下，一束冷光会把
+     整张暖纸染脏——那是「没做完」最典型的痕迹。 */
+  background:
+    linear-gradient(to bottom, rgb(var(--foreground) / 0.018), transparent 280px),
+    rgb(var(--background));
+  background-repeat: no-repeat;
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;              /* CJK 多行舒适行高 */
+  letter-spacing: 0.006em;       /* 雅黑小字号加一点点距救清晰度 */
+  font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02';
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme='dark'] body {
+  background:
+    linear-gradient(to bottom, rgb(var(--foreground) / 0.05), transparent 280px),
+    rgb(var(--background));
+  background-repeat: no-repeat;
+}
+::selection {
+  background: var(--selection);
+  color: rgb(var(--foreground));
+}
+
+/* ───────────── 滚动条 ─────────────
+ * 细、静止时隐形，滚动中或鼠标进容器时现身。
+ *
+ * 为什么不是「只在滚动时露」：要拖它得先看见它，悬停是最直接的意图信号，
+ * 两个条件都触发、颜色一致。
+ *
+ * 颜色用 --foreground 加透明度：随主题走，但**透明度必须够**。深色下
+ * --foreground 是近白，0.12 合成出来只有 ~1.5:1 —— 等于没有（曾经还有第二条
+ * `*:hover` 规则以 0.12 盖在所有内层滚动容器上，暗色下滚动条就是这么消失的）。
+ * 0.4 在浅色约 2.7:1、深色约 3.5:1；静止时仍是透明的，阅读不受打扰。
+ *
+ * 标准属性（scrollbar-width / scrollbar-color）与 ::-webkit-scrollbar 同时写是
+ * 安全的：Chromium 在有标准属性时忽略伪元素，老引擎反过来——正好互为兜底。
+ * 注意 `::-webkit-scrollbar` 不带选择器即等价于 `*::`，所有滚动容器都吃得到，
+ * 不需要（也不要）再写第二条 `*` 规则——两条规则并存必然有一方被静默盖掉。 */
+html {
+  scrollbar-color: transparent transparent;
+}
+/* 细档要写在 * 上：scrollbar-width 不继承，只写 html 的话内层容器
+   （#content、侧栏、代码块）会退回系统默认那根粗条。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  background-clip: content-box;
+  border: 2px solid transparent;
+  /* 0.3s 延迟：滚动停止后滑块停留一会儿再淡出 */
+  transition: background-color var(--motion-base) var(--ease-standard) 0.3s;
+}
+/* 滚动中（main.ts 在 html 上翻 is-scrolling）或悬停在该容器内。
+ * html.is-scrolling * 是必须的：内层容器（#content、侧栏、代码块）各有自己的
+ * scrollbar-color，只写 html 的话它们不继承、滚动中也不会显现。 */
+html.is-scrolling,
+html.is-scrolling *,
+*:hover {
+  scrollbar-color: rgb(var(--foreground) / 0.4) transparent;
+}
+html.is-scrolling ::-webkit-scrollbar-thumb,
+*:hover::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.4);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  transition-delay: 0s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--foreground) / 0.55);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ───────────── 焦点环（唯一方案：:focus-visible） ───────────── */
+:focus-visible {
+  outline: none;
+}
+:is(button, a, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--ring) / 0.55);
+  outline-offset: 2px;
+  border-radius: var(--radius-btn);
+}
+
+/* 交互节奏全局统一 */
+button, a, input, [role='slider'], [role='switch'] {
+  transition-timing-function: var(--ease-standard);
+  transition-duration: var(--motion-fast);
+}

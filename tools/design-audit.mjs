@@ -9,7 +9,7 @@
 // 为什么需要它：模型侧看不到图，而设计里有相当一部分是硬指标——
 // 正文对比度够不够（WCAG AA）、强调色有没有被滥用、字阶是不是成体系、
 // 阴影是不是彩色投影、有没有硬编码的时长/颜色绕过 token。
-// 这些都能从 tokens.css / app.css 直接算，比截图更可靠，也能进 CI。
+// 这些都能从 tokens.css 与各 partial 直接算，比截图更可靠，也能进 CI。
 //
 // 用法：node tools/design-audit.mjs
 
@@ -28,7 +28,20 @@ function stripCssComments(css) {
 }
 
 const TOKENS = stripCssComments(readFileSync(join(ROOT, 'packages/editor/src/styles/tokens.css'), 'utf8'))
-const APP = stripCssComments(readFileSync(join(ROOT, 'packages/editor/src/styles/app.css'), 'utf8'))
+
+// app.css 现在只是入口清单（五条 @import，见该文件的说明）。直接读它等于什么都没
+// 体检——必须顺着 @import 把 partial 按顺序拼回来，顺序就是层叠顺序。
+// tokens / reading-themes 跳过：它们各自有专门的检查，混进来会把 --primary 的
+// 统计口径也一起改了（那两处是「定义」，不是「用」）。
+const STYLES_DIR = join(ROOT, 'packages/editor/src/styles')
+const SEPARATELY_AUDITED = ['tokens.css', 'reading-themes.css']
+function readCssBundle(entry) {
+  const text = readFileSync(entry, 'utf8')
+  return text.replace(/@import\s+'\.\/([^']+)';/g, (whole, name) =>
+    SEPARATELY_AUDITED.includes(name) ? '' : readCssBundle(join(STYLES_DIR, name)),
+  )
+}
+const APP = stripCssComments(readCssBundle(join(STYLES_DIR, 'app.css')))
 
 /** 取某个主题块里的 token 定义（light = :root，dark = html[data-theme='dark']）。 */
 function parseTokens(css) {
@@ -135,7 +148,7 @@ for (const theme of ['light', 'dark']) {
 // ── 2. 强调色用量：靛蓝只能出现在选中/主按钮/焦点环/链接 ──
 const APP_ALLOWED_PRIMARY = ['a', 'a:hover', '.btn-primary', '.slider-fill', '.switch-track.on', 'outline', 'focus-visible', 'block-focus-bg', 'accent', 'selection']
 const primaryUses = [...APP.matchAll(/rgb\(var\(--primary[^)]*\)\)/g)].length
-note(primaryUses > 40 ? 'warn' : 'ok', `app.css 里 primary 出现 ${primaryUses} 次（选择器层面；过多说明强调失效）`)
+note(primaryUses > 40 ? 'warn' : 'ok', `样式表里 primary 出现 ${primaryUses} 次（选择器层面；过多说明强调失效）`)
 
 // ── 3. token 绕过：硬编码颜色 / 时长 / 缓动 ──
 // 一定要在**去掉注释之后**扫：注释里提到某个 hex（「这里曾经写死 #4f46e5」）
@@ -149,9 +162,9 @@ const hardColors = [...APP_CODE.matchAll(/#[0-9a-f]{3,8}\b/gi)]
   .filter((c) => !ALLOWED_HARD_COLORS.includes(c.toLowerCase()))
 const hardDurations = [...APP_CODE.matchAll(/(?:transition|animation)[^;]*?\b(\d{2,4})ms/g)].map((m) => m[0])
 const rgbLiterals = [...APP_CODE.matchAll(/rgba?\(\s*\d/g)].map((m) => m[0])
-if (hardColors.length) note('warn', `app.css 硬编码颜色 ${hardColors.length} 处：${hardColors.slice(0, 6).join(' ')}`)
-if (rgbLiterals.length) note('warn', `app.css 裸 rgb() 数值 ${rgbLiterals.length} 处（应走 token）`)
-if (hardDurations.length) note('info', `app.css 直接写时长 ${hardDurations.length} 处（应走 --motion-*）`)
+if (hardColors.length) note('warn', `样式表硬编码颜色 ${hardColors.length} 处：${hardColors.slice(0, 6).join(' ')}`)
+if (rgbLiterals.length) note('warn', `样式表裸 rgb() 数值 ${rgbLiterals.length} 处（应走 token）`)
+if (hardDurations.length) note('info', `样式表直接写时长 ${hardDurations.length} 处（应走 --motion-*）`)
 
 // ── 4. 阴影：禁止彩色投影（品牌靛蓝做投影） ──
 const shadowVals = Object.entries(tokens.light)

@@ -1,0 +1,848 @@
+/* ──────────���── 右键菜单 ──────────��──
+ * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
+ * 视觉上按「浮���」处理：圆角、浮层投影、比正文更紧的行距。 */
+.context-menu {
+  position: fixed;
+  z-index: 210;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-fast) var(--ease-emphasized) both;
+  outline: none;
+}
+/* 右键菜单不吃全局那圈焦点环（app.css 顶部的 :focus-visible 用 --ring 画蓝边）。
+   菜单是靠右键唤出的瞬态浮层，环一道蓝边既难看也无信息量——
+   选中态已经由菜单项自己的底色表达；键��用户看到的也是那个底色。 */
+.context-menu:focus-visible,
+.context-item:focus-visible {
+  outline: none;
+}
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  /* 鼠标右键是"指��操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
+     键盘用户仍有可见焦点，由下面 :focus-visible 那条负责。 */
+  outline: none;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: default;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.context-item > span:first-child { flex: 1 1 auto; min-width: 0; }
+.context-item:hover:not(:disabled),
+.context-item:focus-visible:not(:disabled) { background: var(--primary-soft); outline: none; }
+/* 删除类动作用红色：菜单里唯一的危险项必须一眼可辨 */
+.context-item[data-danger='true'] { color: rgb(var(--destructive)); }
+.context-item[data-danger='true']:hover:not(:disabled) { background: var(--destructive-soft); }
+.context-item:disabled { color: rgb(var(--subtle-foreground)); cursor: default; }
+.context-hint {
+  flex: 0 0 auto;
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.context-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgb(var(--border-subtle));
+}
+
+/* ───────────── 图片 / 图表放大（lightbox） ─────────────
+ * 两层职责：
+ *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
+ *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
+ * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
+ * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
+ * 于是「小图居中、大图可拖」是���一段 CSS 的结果。详见 zoomView.ts。 */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgb(var(--overlay) / 0.72);
+  backdrop-filter: blur(6px);
+  /* 同 .modal-backdrop：带 blur 的遮罩不渐入，否则虚化渐变像卡 */
+}
+.lightbox[hidden] { display: none; }
+.lb-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  /* 滚动条出现时不要挤压画布，否则打开瞬间图会跳一下 */
+  scrollbar-gutter: stable;
+}
+.lb-canvas.lb-grabbing { cursor: grabbing; }
+.lb-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 4vmin;
+  box-sizing: border-box;
+}
+/* 媒体外框：垫一层随主题走的纸。
+   mermaid 的 SVG 本身没有背景矩形，直接浮在半透明遮罩上看着像背景丢了；
+   垫纸既补背景，也顺手给照片一个画框。 */
+.lb-media {
+  flex: 0 0 auto;
+  border-radius: var(--radius-card);
+  background: rgb(var(--paper));
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+}
+/* 量不出自然尺寸时的退路：撑满画布，至少还能看 */
+.lb-media--auto {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.lb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 外框尺寸已由 zoomView 精确��好，图片层不能再自我限制，
+     否则 mermaid 写在 svg 上的 max-width 会把图形钉死在左上角 */
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+}
+.lb-media--auto .lb-img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 左���角：缩放读数 + ���势提示 */
+.lb-hud {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.lb-zoom-readout {
+  padding: 3px 8px;
+  border-radius: var(--radius-btn);
+  background: rgb(var(--overlay-foreground) / 0.12);
+  color: rgb(var(--overlay-foreground) / 0.9);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.lb-zoom-hint {
+  color: rgb(var(--overlay-foreground) / 0.6);
+  font-size: var(--text-2xs);
+}
+@media (max-width: 720px) {
+  .lb-zoom-hint { display: none; }
+}
+
+/* 右下角：缩放控制。只在缩放后出现「适应窗口」——没缩放时它是个空动作。 */
+.lb-tools {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--overlay-foreground) / 0.12);
+  backdrop-filter: blur(8px);
+}
+.lb-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--overlay-foreground) / 0.85);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.lb-tool:hover { background: rgb(var(--overlay-foreground) / 0.18); color: rgb(var(--overlay-foreground)); }
+.lb-tool--icon { font-size: 15px; line-height: 1; }
+.lb-tool[hidden] { display: none; }
+.lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(var(--overlay-foreground) / 0.14);
+  color: rgb(var(--overlay-foreground) / 0.85);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.lightbox-close:hover {
+  background: rgb(var(--overlay-foreground) / 0.26);
+  color: rgb(var(--overlay-foreground));
+}
+/* 浮层打开时锁住正文滚动 */
+html.lightbox-open #content { overflow: hidden; }
+
+/* ───────────── Toast ────────���──── */
+.lector-toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 100;
+  padding: 7px 13px;
+  border-radius: 99px;
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-foreground));
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-floating);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--ease-enter),
+    transform var(--motion-base) var(--ease-enter);
+}
+.lector-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ───────────── 设置弹层 ───────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(var(--overlay) / var(--overlay-alpha));
+  backdrop-filter: blur(var(--overlay-blur));
+  /* 遮罩不渐入：opacity 动画会把 backdrop-filter 的虚化也带着从无到有，
+     看起来像卡。压暗 + 虚化第一帧就位，入场感交给卡片自己的 pop-in。 */
+}
+.modal-card {
+  width: min(600px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: rgb(var(--popover));
+  color: rgb(var(--foreground));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-floating);
+  /* 150ms：弹窗入场要干脆。210ms（--motion-slow）配着瞬时遮罩反而显得拖 */
+  animation: pop-in var(--motion-base) var(--ease-emphasized) both;
+}
+.modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  background: rgb(var(--popover));
+  border-bottom: 1px solid rgb(var(--border-subtle));
+}
+.modal-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.modal-header .btn-icon { margin-left: auto; }
+.modal-body { padding: 0; }
+
+/* ───────────── 查找命中 ────────��────
+ * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我��的纸墨不搭�� */
+.find-hit {
+  border-radius: 2px;
+  padding: 0 1px;
+  background: rgb(var(--primary) / 0.18);
+  color: inherit;
+}
+.find-hit--current {
+  background: rgb(var(--primary) / 0.42);
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.5);
+}
+
+/* ───────────── 选区浮条（编辑态） ─────────────
+ * 选中文字后浮在选区上方的一小条格式��钮。定位与关闭规则在 selectionBubble.ts，
+ * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），
+ * 但在暗色下也要看得清——它是浮在**正文**上的，不是浮在遮罩上。 */
+.selection-bubble {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+}
+.selection-bubble[hidden] { display: none; }
+.selection-bubble-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.selection-bubble-btn:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+.selection-bubble-btn svg { display: block; }
+
+/* ───────────── 外观浮层（顶栏 Aa 按钮） ─────────────
+ * 浮层而不是弹窗：换主题是「读着读着顺手换一下」的动作，不该把正文整块遮住——
+ * 用户要一边看着自己的文章一边试主题。 */
+.appearance-pop {
+  position: fixed;
+  z-index: 90;
+  width: 520px;
+  max-width: calc(100vw - 24px);
+  max-height: min(72vh, 620px);
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  border-radius: var(--radius-xl);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-base) var(--ease-emphasized) both;
+}
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+}
+.appearance-label { font-size: var(--text-base); color: rgb(var(--foreground)); }
+/* 排版两个旋钮（列宽 / 界面缩放）：与上面的画布线隔开，读作另一组。
+ * 一个网格装两行六格：列宽由两行共享，标签长短不一也不会让滑块起点错开。 */
+.appearance-quick {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(var(--border-subtle));
+}
+/* 读数本身沿用 .slider-value（右对齐、等宽数字），只去掉它给 flex 行留的左间距——
+ * 这里读数是独立的一格，间距由网格 gap 负责。 */
+.appearance-quick .slider-value { margin-left: 0; }
+.appearance-group-label {
+  margin: 14px 0 8px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.theme-grid {
+  /* minmax(0, 1fr) 而不是 1fr：网格项的默认最小宽度是 min-content，
+     卡片里的样例行是 nowrap，min-content 会很宽——两列一起把浮层顶破，
+     右列的卡直接被裁在面板外面。所有参与网格的可收缩盒子都要显式 min-width: 0。 */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.appearance-hint {
+  margin: 10px 2px 0;
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+  color: rgb(var(--subtle-foreground));
+}
+/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高矮不一，
+   反而比多滚动一屏更难看。 */
+.settings-gallery { padding: 4px 0 6px; }
+
+.settings-section { padding: 6px 18px 10px; }
+/* 分组标签：小、大写、淡。分组一眼可见，又不抢正文。 */
+.settings-row-label {
+  margin: 14px 0 2px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+}
+.settings-row:last-child { border-bottom: none; }
+.row-label { font-size: var(--text-base); }
+.settings-row.cell { padding-right: 2px; }
+
+/* 分段选择器（滑块指示器） */
+.segmented {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius-btn);
+  background: rgb(var(--muted));
+}
+.seg-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: 4px;
+  background: rgb(var(--paper));
+  box-shadow: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  transition: left var(--motion-base) var(--ease-emphasized),
+    width var(--motion-base) var(--ease-emphasized);
+}
+.seg-item {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: rgb(var(--muted-foreground));
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+.seg-item.active { color: rgb(var(--foreground)); }
+
+/* 滑块（自绘） */
+.slider {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  outline: none;
+}
+.slider-track {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.slider-fill {
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(var(--primary));
+  transition: width var(--motion-fast) var(--ease-standard);
+}
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: rgb(var(--paper));
+  border: 1.5px solid rgb(var(--primary));
+  box-shadow: 0 1px 3px rgb(var(--shadow-color) / 0.16);
+  transform: translate(-50%, -50%);
+  transition: box-shadow var(--motion-fast) var(--ease-standard);
+}
+.slider:hover .slider-thumb { box-shadow: 0 0 0 5px var(--primary-softer); }
+.slider:focus-visible .slider-thumb { box-shadow: 0 0 0 5px var(--primary-soft); }
+.slider-value {
+  min-width: 48px;
+  margin-left: 10px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+  color: rgb(var(--muted-foreground));
+}
+
+/* 开关 */
+.switch {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.switch-track {
+  width: 36px;
+  height: 21px;
+  border-radius: 999px;
+  background: rgb(var(--border-strong) / 0.5);
+  transition: background var(--motion-base) var(--ease-standard);
+  position: relative;
+}
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  /* 开关滑块固定纯白：它坐��彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.2);
+  transition: transform var(--motion-base) var(--ease-emphasized);
+}
+.switch-track.on { background: rgb(var(--primary)); }
+.switch-track.on::after { transform: translateX(15px); }
+
+.modal-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  background: rgb(var(--popover));
+  border-top: 1px solid rgb(var(--border-subtle));
+}
+/* 小确认框：不要 sticky 头/脚 + 两条通栏分割线——那是给大弹窗（设置/表格）用的。
+   一个标题、一句话、两个按钮的卡片，靠留白分层就够；分割线一多就显糙。 */
+.dialog-card {
+  width: min(392px, calc(100vw - 48px));
+  padding: 20px 20px 16px;
+}
+.dialog-card .modal-header {
+  position: static;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+.dialog-card .modal-title { font-size: var(--text-md); }
+.dialog-card .modal-footer {
+  position: static;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+  gap: 6px;
+}
+.dialog-card .btn { min-height: 34px; padding: 0 14px; }
+.dialog-body {
+  margin: 0;
+  padding: 8px 0 20px;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: rgb(var(--muted-foreground));
+}
+
+/* ───────────── 表格编辑弹窗 ─────────────
+ * 网格管结构、源码管存储：单元格是自适应高度的 textarea，
+ * Enter 跳下一行（末行自动补行），行列增删走两侧窄轨。
+ *
+ * 结���轨必须常显、对齐、不叠在格子上：
+ *  1. 打开时首格自动聚焦——列删除绝不能跟 :focus-within，否则只有首列冒出 X。
+ *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角���定位（会漂在 gutter 右上角）。
+ *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled ��影。 */
+.table-editor-card {
+  display: flex;
+  flex-direction: column;
+  /* 列多的表（5 列以上）也放得下：卡片放宽一档，配合单元格 min-width 收窄，
+     常见表不再出横向滚动条 */
+  width: min(960px, calc(100vw - 48px));
+}
+.table-editor-card .modal-header .btn { margin-left: 8px; }
+.table-editor-card .modal-header .btn:first-of-type { margin-left: auto; }
+.table-editor-body {
+  overflow: auto;
+  padding: 16px 18px 18px;
+  max-height: min(70vh, 640px);
+}
+.table-editor-grid {
+  border-collapse: separate;
+  border-spacing: 6px;
+  width: 100%;
+}
+.table-editor-grid th,
+.table-editor-grid td { position: relative; padding: 0; vertical-align: top; }
+/* 两侧结构轨跟单元格同高：specificity 必须压过上面的 td{top}，
+   否则 26px 的 X 会贴在格子顶上——左边 ↑↓ 叠满 36px 看不出来，右边一眼假。 */
+.table-editor-grid .table-editor-gutter,
+.table-editor-grid .table-editor-reorder-gutter { vertical-align: middle; }
+.table-editor-grid textarea {
+  display: block;
+  width: 100%;
+  /* 之前 8rem：列一多整网最小宽撑破卡片，出横向滚动条。4.5rem 足够放下
+     光标和几个字，长内容靠 textarea 换行消化 */
+  min-width: 4.5rem;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--paper));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.table-editor-grid th textarea {
+  font-weight: 600;
+  background: rgb(var(--muted) / 0.5);
+}
+.table-editor-grid textarea:focus-visible {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+/* 表��格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截�� */
+.table-editor-head { position: relative; }
+.table-editor-head:has(.table-editor-del) textarea { padding-right: 28px; }
+.table-editor-head .table-editor-del {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  opacity: 0;
+  pointer-events: none;
+}
+.table-editor-head:hover .table-editor-del {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* 左右结构轨同一套 36px 模数：左 ↑↓ 竖叠铺满，右 X / 加列也是 36×36，
+   和单元格最低高度齐平，视觉上才是「嵌在行里」而不是飘在角落。 */
+.table-editor-gutter {
+  width: 36px;
+  min-width: 36px;
+}
+.table-editor-reorder-gutter {
+  width: 28px;
+  min-width: 28px;
+}
+.table-editor-move-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+}
+/* 结构操作按钮。padding 必须归零：全局 button 带内边距，会把 svg 压扁。 */
+.table-editor-op {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+  cursor: pointer;
+  transition: opacity var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.table-editor-op svg { display: block; flex: none; }
+.table-editor-op:hover { background: rgb(var(--accent)); color: rgb(var(--foreground)); }
+.table-editor-op:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.table-editor-op:disabled {
+  opacity: 0.22;
+  cursor: default;
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+}
+.table-editor-move-group .table-editor-op {
+  width: 24px;
+  height: 18px;
+  border-radius: 5px;
+  opacity: 0.55;
+}
+.table-editor-move-group .table-editor-op svg { width: 14px; height: 14px; }
+tr:hover .table-editor-move-group .table-editor-op,
+tr:focus-within .table-editor-move-group .table-editor-op { opacity: 0.95; }
+.table-editor-move-group .table-editor-op:disabled,
+tr:hover .table-editor-move-group .table-editor-op:disabled,
+tr:focus-within .table-editor-move-group .table-editor-op:disabled {
+  opacity: 0.2;
+  background: transparent;
+}
+/* 删行：36×36 与加列、单元格同模；图标在格子正中。常显淡一档，悬停行才实。 */
+.table-editor-gutter .table-editor-del {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-btn);
+  opacity: 0.5;
+}
+tr:hover .table-editor-gutter .table-editor-del,
+tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
+/* 加列：和「添加行」同一套虚线语言，36×36 对齐表头格。 */
+.table-editor-add-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px dashed rgb(var(--border-strong) / 0.5);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.table-editor-add-col svg { display: block; flex: none; }
+.table-editor-add-col:hover {
+  border-color: rgb(var(--primary) / 0.6);
+  color: rgb(var(--foreground));
+  background: var(--primary-softer);
+}
+.table-editor-add-col:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.table-editor-add-row {
+  width: 100%;
+  padding: 9px 0;
+  border: 1px dashed rgb(var(--border-strong) / 0.5);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.table-editor-add-row:hover {
+  border-color: rgb(var(--primary) / 0.6);
+  color: rgb(var(--foreground));
+  background: var(--primary-softer);
+}
+
+/* showPrompt 的输入框：与表格单元格同一套字段语言 */
+.dialog-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--paper));
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.dialog-input:focus-visible {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+
+
+/* ───────────── 设置·关于 ───────────── */
+/* 一张居中的名片，不是一列设置行。
+ * 撑满整节高度再竖直居中——否则 logo 吊在左上角，下面一大片空。 */
+.settings-group[data-section='about'] {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.about-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  /* 视觉重心略高于几何中心：下方留多一点，眼睛才觉得"正"。 */
+  padding-bottom: 52px;
+}
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding: 0;
+  text-align: center;
+}
+.about-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  box-shadow: 0 6px 18px rgb(var(--foreground) / 0.14);
+}
+.about-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.about-title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: rgb(var(--foreground));
+}
+.about-tagline {
+  margin-top: 0;
+  font-size: var(--text-sm);
+  color: rgb(var(--subtle-foreground));
+}
+/* 版本行：靠在一起居中，去掉设置行那条通栏分隔线。 */
+.about-version {
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border-bottom: none;
+}
+.about-version .row-label { color: rgb(var(--subtle-foreground)); }
+/* 只读值：关于区/版本号这类「只看不改」的右槽内容 */
+.row-static {
+  font-size: var(--text-base);
+  color: rgb(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}

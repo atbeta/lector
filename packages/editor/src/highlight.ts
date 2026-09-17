@@ -5,7 +5,7 @@
 // 阅读器预览层确实不需要 Shiki 的 TextMate 级保真，但「常用语言 + 别名归一」
 // 这件事 Prism 用几十 KB 就做全了，自维护不划算。
 //
-// 颜色仍走我们自己的 --code-* 四个 token（映射见 app.css），**不套 Prism 主题**——
+// 颜色仍走我们自己的 --code-* 四个 token（映射见 reader.css），**不套 Prism 主题**——
 // 这样换阅读主题时代码配色跟着一起变。
 
 import './prism-setup.ts'

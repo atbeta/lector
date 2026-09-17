@@ -362,9 +362,9 @@ export async function renderMermaidSvg(
   // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
   // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
   const tmp = document.createElement('div')
-  // 这个类名是给 app.css 的 reduced-motion 守卫看的：那条守卫会把全局的
+  // 这个类名是给 base.css 的 reduced-motion 守卫看的：那条守卫会把全局的
   // transition-duration 压成 0.01ms，而 mermaid 正是在这里量尺寸的——
-  // 被压过的时长会让它的包围盒算飞（详见 app.css 里的注释）。
+  // 被压过的时长会让它的包围盒算飞（详见 base.css 里的注释）。
   tmp.className = 'mermaid-render-host'
   tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${canvasWidth}px`
   document.body.appendChild(tmp)

@@ -14,7 +14,7 @@
 import { t } from './i18n.ts'
 
 const LS_KEY = 'lector-sidebar'
-/** 侧栏宽度的默认值。必须与 app.css 的 `--sidebar-w` 初值一致。 */
+/** 侧栏宽度的默认值。必须与 base.css 的 `--sidebar-w` 初值一致。 */
 export const SIDEBAR_W = 288
 /** 宽度可调区间：窄到 200 还能读标题，宽到 420 之后再宽就只剩空白了。 */
 const W_MIN = 200

@@ -1,0 +1,1065 @@
+/* ───────────── 窗口外框（无标题栏） ─────────────
+ * Windows：decorations:false，整条顶栏可拖拽，右侧自绘 最小化 / 最大化 / 关闭。
+ * macOS：原生红绿灯浮在内容上（titleBarStyle: Overlay），只需给它们让位。
+ * 浏览器预览（data-shell="web"）不画窗口控件，只保留工具按钮。 */
+#titlebar {
+  grid-area: bar;
+  position: relative;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+  padding: 0 10px 0 14px;
+  background: rgb(var(--shell));
+  /* 拖动靠 -webkit-app-region: drag（整个元素），不用在按钮上挂 JS 拖拽 */
+  user-select: none;
+  -webkit-app-region: drag;
+  /* 分隔不常驻：滚动后由 JS 加 .scrolled，避免静止时的「线稿感」 */
+  box-shadow: none;
+  transition: box-shadow var(--motion-base) var(--ease-standard),
+    background var(--motion-base) var(--ease-standard);
+}
+/* 正文滚动后顶栏浮现分隔影 + 半透明毛玻璃，说明内容正从下面穿过。
+   注意：这条曾在我重写顶栏时被连带删掉，UI 上没有任何报错，只有断言能发现。 */
+#titlebar.scrolled {
+  box-shadow: var(--shadow-header);
+  background: color-mix(in srgb, rgb(var(--shell)) 82%, transparent);
+  backdrop-filter: blur(7px) saturate(1.15);
+}
+
+/* ───────────── 顶栏三段：导航 / 标题 / 操作 ─────────────
+ * 三条硬约束，写在前面，改的时候别再破坏：
+ *  1. 标题必须在「正文列」上居中，不是在整个窗口上居中。窗口有侧栏时两者差
+ *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
+ *  2. 右侧是固定的一排按钮，宽度��预测，所以用 absolute + margin:auto 夹在
+ *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
+ *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
+ *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
+.titlebar-lead {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—���������read in ����时 ui-verify
+   只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
+.titlebar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: rgb(var(--border-subtle));
+  flex: 0 0 auto;
+}
+
+/* ───────────── 视图模式分段控件 ─────────────
+ * 三档常驻 + 当前档常���。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
+ * 和旁边的图标按钮是同一类东西（控制），而左侧留给文件动作（打开 / 保存）。
+ *
+ * 为什么不是三个图标按钮：图标说不出「阅读 / 编辑 / 源码」这三件事的区别，
+ * 用户第一次用只能一个个点过去看。文字是这里唯一够用的信息密度。
+ * 窗口窄到装不下时，文字先让位（只留图标 + tooltip）——缩到无处可缩为止。 */
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 8px;
+  /* 凹槽要比壳稍沉一点才有「三挡开关」的样子；
+     --secondary 243 vs 壳 247 只差 1.03:1，肉眼看来三段是三个散按钮。
+     用前景色低透明度叠一层，sorted handling 与纸面都成立。 */
+  background: color-mix(in srgb, rgb(var(--foreground)) 8%, transparent);
+  -webkit-app-region: no-drag;
+}
+.mode-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.mode-opt:hover { color: rgb(var(--foreground)); }
+.mode-opt-icon { display: inline-flex; align-items: center; }
+.mode-opt-icon svg { display: block; }
+/* 选中档：抬成纸面（比容器亮一档）+ 发丝边。这是 iOS/Linear 那套分段控件的
+   语言：选中 = 从槽里「浮起来」，而不是「换一个底色」。 */
+.mode-opt.active {
+  color: rgb(var(--foreground));
+  background: rgb(var(--paper));
+  border-color: rgb(var(--border));
+  box-shadow: 0 1px 2px rgb(var(--foreground) / 0.07);
+}
+/* 编辑 / 源码档额外点一点主色：这三档不是平级的「三个视图」，
+   后两档会改文档，值得一眼看出「我现在在可写状态」。 */
+html[data-mode='edit'] .mode-opt[data-mode='edit'],
+html[data-mode='source'] .mode-opt[data-mode='source'] { color: rgb(var(--primary)); }
+html[data-mode='edit'] .mode-opt[data-mode='edit'] .mode-opt-icon,
+html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: rgb(var(--primary)); }
+/* 没打开文档时（空态 / 加载态）不出现视图档：没有可切换的内容，
+   摆一排禁用感的控件只是噪音。名字与 tip 在悬停层，空间全给图标。 */
+html.is-empty .mode-switch,
+html.is-loading .mode-switch { display: none; }
+
+html[data-shell='windows'] .mode-opt { height: 24px; }
+html[data-shell='windows'] .mode-switch { border-radius: 7px; }
+.titlebar-center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  height: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 区间已与正文列重合，不再限宽：限宽会让盒子的居中基准与区间不一致
+     （max-width 从左侧生效，而 auto 外边距的中心是区间中心），
+     反而把标题推偏。窄窗口的避让由 shell 隐藏标题处理。 */
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+/* 标题夹取区间：
+ *   左侧 = 侧栏宽度（停靠时），右侧 = 操作区宽度（实测 128px）+ 一点呼吸。
+ * 区间两端要落在「正文列」上，而不是窗口上——窗口居中在有侧栏时会偏左。
+ * 左侧的 240px 必须与 sidebar.ts 的 SIDEBAR_W 一致，右侧与那排按钮的实际宽度一致；
+ * ui-verify 会断言标题中心与正文列中心的偏差。 */
+.titlebar-center {
+  left: var(--titlebar-clamp-left, 88px);
+  right: var(--titlebar-clamp-right, 150px);
+  justify-content: center;
+}
+
+
+/* mac 让位原生红绿灯；Windows 顶栏右侧留给自绘控件（3 × 46px） */
+/* Windows 向系统看齐：32px 高、标题左对齐、控件 46x32。
+   居中式标题栏 + 右侧控件会读成「mac 窗口贴了 Windows 按钮」。 */
+html[data-shell='windows'] #titlebar {
+  height: 32px;
+  padding: 0 0 0 12px;
+  gap: 6px;
+}
+html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
+html[data-shell='windows'] .window-controls { height: 32px; }
+html[data-shell='windows'] .win-btn { width: 46px; }
+/* 标题在 Windows 上跟在导航之后左对齐（系统惯例），不参与居中夹取 */
+html[data-shell='windows'] .titlebar-center {
+  position: static;
+  margin: 0 0 0 10px;
+  max-width: none;
+  min-width: 0;
+  justify-content: flex-start;
+}
+/* 标题不套 --titlebar-title-max：那个夹取是给 macOS「标题居中于正文列」用的，
+   防标题压到右侧操作区。Windows 的标题左对齐、和操作区隔着一整条顶栏，
+   套上去反而会因"正文列中心"右移（分区制 + 侧栏打开）把宽度夹成 0、整个消失。
+   静态 flex 下标题本来就会自然 ellipsis，不会压到操作区。 */
+html[data-shell='windows'] .titlebar-title { max-width: none; }
+html[data-shell='windows'] .titlebar-actions { margin-left: auto; }
+
+.titlebar-lead,
+.titlebar-center,
+.titlebar-actions,
+.window-controls {
+  z-index: 1;
+}
+/* 壳的左右留白 = --band-inset（顶栏导航与状态行文字共用一条竖线，
+   与正文列对齐；见 chrome.ts 的 syncTitlebarInset）。
+   macOS 还要让开红绿灯：灯组占 20–72px，所以下限 80px。 */
+#titlebar { padding-left: var(--band-inset, 14px); }
+/* macOS 窄窗口下红绿灯要占 20–72px，正文左沿可能只有 32px：
+   这时壳退到 80px，顶栏与状态行一起退，保持两条壳线彼此一致
+   （与正文的偏差只在极窄窗口出现，那时正文本身也快贴边了）。 */
+html[data-shell='macos'] #titlebar,
+html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 14px)); }
+
+
+.titlebar-ext {
+  /* 扩展名弱化：它总是 .md，密度不该和主名一样 */
+  color: rgb(var(--subtle-foreground));
+  font-weight: 400;
+}
+.titlebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: rgb(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 父层（.titlebar-center）pointer-events:none 是为了让顶栏可拖拽；
+     标题本身要恢复可点：右键它给文件级菜单（打开方式/显示位置/复制路径）。 */
+  pointer-events: auto;
+  /* 标题仍相对正文列居中，但最宽不能压到右上角操作区（模式开关/图标）上。
+     长文件名在游戏里要省略不省略——真实屏幕就靠这条挡着。 */
+  max-width: var(--titlebar-title-max, 100%);
+}
+.titlebar-title #file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titlebar-title[data-untitled='true'] {
+  font-weight: 400;
+  color: rgb(var(--subtle-foreground));
+}
+
+/* 脏点：贴着文件名的小圆点，比星号安静 */
+.dirty-dot {
+  display: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--warning));
+  box-shadow: 0 0 0 3px rgb(var(--warning) / 0.14);
+  flex-shrink: 0;
+}
+html.dirty .dirty-dot { display: block; }
+
+
+
+/* ───────────── 自绘窗口控件（仅 Windows） ───────────── */
+.window-controls {
+  display: none;
+  align-items: stretch;
+  height: 46px;
+  margin-left: 6px;
+}
+html[data-shell='windows'] .window-controls { display: flex; }
+.win-btn {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: default;
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.win-btn:hover { background: rgb(var(--foreground) / 0.07); color: rgb(var(--foreground)); }
+/* 最大化键被 Snap 覆盖层接管鼠标，:hover 不会触发，靠原生事件补的 class（见 chrome.ts） */
+.win-btn.snap-hover { background: rgb(var(--foreground) / 0.07); color: rgb(var(--foreground)); }
+.win-btn:active { background: rgb(var(--foreground) / 0.11); }
+.win-btn svg { display: block; }
+/* 关闭键是唯一的危险操作：只有它用红（Windows 原生行为） */
+.win-btn.close:hover {
+  background: rgb(var(--destructive));
+  color: rgb(var(--destructive-foreground));
+}
+.win-btn.close:active { background: rgb(var(--destructive)); filter: brightness(0.9); }
+
+/* ───────────── 按钮 ───────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  cursor: pointer;
+  color: rgb(var(--muted-foreground));
+  background: transparent;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.btn:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+.btn:active { background: rgb(var(--secondary)); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-ghost {
+  color: rgb(var(--muted-foreground));
+  border-color: rgb(var(--border));
+  background: rgb(var(--paper));
+}
+.btn-ghost:hover:not(:disabled) {
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--border-strong) / 0.5);
+}
+.btn-icon-slot { display: inline-flex; align-items: center; }
+.btn-icon-slot svg { display: block; }
+/* 主操作按钮走**墨色身份**（--ink），不走 --primary：
+   --primary 会被阅读主题改写（如「手册」主题是蓝），那是给**正文**（链接/标记）用的强调色；
+   一旦主按钮也用它，chrome 就会跟着阅读主题变蓝，和应用的墨色身份打架。
+   空态的「打开文件」本来就用 --ink，这里统一过来。 */
+.btn-primary {
+  color: rgb(var(--ink-foreground));
+  background: rgb(var(--ink));
+  border-color: rgb(var(--ink));
+  box-shadow: var(--shadow-btn-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  color: rgb(var(--ink-foreground));
+  background: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+  border-color: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+}
+/* 危险动作：红字 + 淡红描边；悬停才实心。描边让它和次要按钮同属「有边的键」，
+   不再是三个里两个光秃秃、一个实心的拼凑感。 */
+.btn-danger {
+  color: rgb(var(--destructive));
+  border-color: rgb(var(--destructive) / 0.4);
+  background: transparent;
+}
+.btn-danger:hover:not(:disabled) {
+  color: rgb(var(--destructive-foreground));
+  background: rgb(var(--destructive));
+  border-color: rgb(var(--destructive));
+}
+.btn-danger:active:not(:disabled) { background: rgb(var(--destructive)); filter: brightness(0.94); }
+.btn-ghost-active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.btn-icon svg { display: block; }
+.btn-icon:hover:not(:disabled) { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+.btn-icon:active:not(:disabled) { background: rgb(var(--secondary)); }
+/* 禁用态：保存按钮在「没有未保存改动」时就是这个样子。
+   只降不透明度会让它看起来像加载中；再压掉 hover 与光标，才读得出「暂时没用」。 */
+.btn-icon:disabled {
+  color: rgb(var(--subtle-foreground) / 0.6);
+  cursor: default;
+}
+.btn-icon.active { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+/* 「编辑中」高亮：进入编辑模式后 mode-toggle 按钮跟随 primary 色，不误以为是普通按钮 */
+.btn-icon-toggle[aria-pressed='true'] {
+  color: rgb(var(--primary));
+  background: color-mix(in srgb, rgb(var(--primary)) 14%, transparent);
+}
+.btn-icon-toggle[aria-pressed='true']:hover {
+  color: rgb(var(--primary));
+  background: color-mix(in srgb, rgb(var(--primary)) 22%, transparent);
+}
+
+/* ───────────── 正文容器 ───────────── */
+/* 滚动发生在正文上（不是整页），顶栏与状态行才能常驻。
+   注意 #content 的直接子节点是「块」，不是整篇 prose——每块的预览各自带
+   .reading-prose 类，所以版心与内边距必须下在这里，不能下在 prose 上。 */
+#content {
+  grid-area: content;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 大纲跳转是顶部对齐（scrollIntoView block:'start'），
+     留 24px 呼吸，标题不贴容器顶边 */
+  scroll-padding-top: 24px;
+  min-width: 0;
+  /* 阅读区 = 侧栏右沿到窗口右沿的整块，滚动条因此落在窗口右沿（而不是
+     "阅读列"的右沿、悬在窗口中间）。正文仍居中到一个阅读宽度：用 padding 反推
+     两边的留白，不需要给块再加一层包裹元素。 */
+  max-width: none;
+  margin-inline: 0;
+  padding-block: 30px 18vh;
+  padding-inline: max(32px, calc((100% - var(--reading-max-w)) / 2));
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ───────────── 块 ───────────── */
+.block {
+  position: relative;
+  cursor: text;
+  border-radius: var(--radius);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+/* 只读模式下：光标不说「能点入」，说「这是一块文字」 */
+html[data-mode='read'] .block:not(.gap) { cursor: default; }
+/* 只读模式下悬停去掉背景：不像「可点的控件」 */
+html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
+/* 悬停提示「这块可点」；聚焦块给极淡靛蓝衬底，替代以前的重边框 */
+.block:not(.gap):hover { background: var(--block-hover-bg); }
+/* 聚焦块：衬底 + 一圈同样克制的描边。
+   衬底只有 3.5% 靛蓝，能说出「这块在编辑」，说不出边界在哪；描边补上那半句。
+   用 box-shadow 而不是 border：不参与布局，预览↔编辑切换（.cm-host 带负边距）时
+   框不会跳一下。1px 是刻意的——这里要的是「不显眼但看得出」，不是选中框。 */
+.block.focused {
+  background: var(--block-focus-bg);
+  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.18);
+}
+.block.gap {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折叠，
+     间距就变成「有空行缝时相加、没有时取最大」，同一份文档两种节奏。 */
+  pointer-events: none;
+  cursor: default;
+  background: none !important;
+}
+/* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
+   标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
+   「�����������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
+.block:not(.gap) { margin: 0; margin-top: var(--space-block); }
+
+/* ───────────── 块指示器（左缘轨道 + 把手） ─────────────
+   解决的问题：一个块的边界在哪。而**每个档只出一样东西**：
+     只读档  → 左缘轨道（下面是它的规则）
+     编辑档  → 三个点的把手（见下方 .block-handle）
+     源码档  → 同样是把手
+   为什么不是「都出」：编辑/源码档的边界早已被回答了两次——悬停时整块衬底
+   （.block-hover-bg 是满块宽的），源码档还有 .source-view 自己的 2px 左边线。
+   再叠一条轨道，就是三条线说同一件事；源码档尤其像 bug（两条同宽同色的竖线并排）。
+   只读档没有衬底、没有左边线、也没有把手，轨道在那里才是唯一答案。
+
+   指示器都长在块的**左外侧**留白里，不能画在块内左缘：引用块的 3px 竖线就贴着块左缘
+   （.reading-prose 没有横向内边距），画在块内会和它糊成一条。
+   #content 的 padding-inline 保证左侧至少 32px（见上方「正文容器」），那条带子就是
+   指示器的场地；下面的负 left 与那个 32px 是隐式耦合的，改 padding-inline 时要一起看。 */
+.block-rail {
+  position: absolute;
+  left: -14px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--block-rail);
+  /* display 门控而不是 opacity：切档时不该有一次淡入淡出，那是两个档在打架 */
+  display: none;
+  opacity: 0;
+  /* 它只是指示，不是靶子：不能挡住正文两侧留白上的点击与框选 */
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+html[data-mode='read'] .block:not(.gap) > .block-rail { display: block; }
+/* 轨道说的是边界，不是控件——它在只读档出现，不违反「只读面不放可点的东西」 */
+html[data-mode='read'] .block:not(.gap):hover > .block-rail { opacity: 1; }
+/* 引用块不出轨道：它自己那条 3px 竖线（.reading-prose blockquote）就压在块左缘，
+   而且同样贯穿整块高度——边界它已经说清楚了，再来一条只会读成重复的「两条线」 */
+html[data-mode='read'] .block[data-kind='blockquote'] > .block-rail { display: none; }
+
+.block-handle {
+  position: absolute;
+  /* 落在左留白带的中线上：32px 的带子，把手 18px 宽、中心在块左缘外 15px */
+  left: -24px;
+  top: 3px;
+  display: none;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+/* 把手只在编辑/源码档出现。只读档的阅读面上不放可点的控件——同上方
+   「只读悬停去掉背景」那条决定。这里用 data-mode 而不是渲染时判断：
+   切档只是换个属性，不必重渲染整篇块。 */
+html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
+.block:not(.gap):hover > .block-handle { opacity: 1; }
+.block-handle:hover {
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+}
+
+/* 标题留白：绝对值，按标题自己的字号��。
+   用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
+   标题的上方留白（松）与下方留������������）都写死，正文块的下方不写 margin-bottom，
+   所以「标题下面紧」这件事由标题自己负责。 */
+.block[data-kind='heading'] { margin-bottom: var(--space-tight); }
+.block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
+.block[data-kind='heading'][data-depth='2'] { margin-top: 2rem; margin-bottom: 0.6rem; }
+.block[data-kind='heading'][data-depth='3'] { margin-top: 1.6rem; margin-bottom: 0.5rem; }
+.block[data-kind='heading'][data-depth='4'] { margin-top: 1.3rem; margin-bottom: 0.45rem; }
+.block[data-kind='heading'][data-depth='5'],
+.block[data-kind='heading'][data-depth='6'] { margin-top: 1.15rem; margin-bottom: 0.4rem; }
+.block[data-kind='thematicBreak'] { margin-top: var(--space-section); }
+.block[data-kind='code'],
+.block[data-kind='blockquote'],
+.block[data-kind='table'] { margin-top: 1.35rem; }
+.block[data-kind='list'] { margin-top: 0.95rem; }
+#content > .block:not(.gap):first-child,
+#content > .block.gap:first-child + .block {
+  margin-top: 0;
+}
+
+/* ───────────── 聚焦块 = 裸 CM ─────────────
+ * 负边距让文本在「预览 ↔ 编辑」切换时不位移：编辑态多出的内边距正好被抵消。 */
+.cm-host {
+  min-height: 1.5em;
+  cursor: text;
+  margin: -3px -8px;
+  padding: 3px 8px;
+  font-family: var(--reading-font);
+  font-size: var(--reading-font-size);
+  line-height: var(--reading-line-height);
+  letter-spacing: 0.006em;
+  color: rgb(var(--foreground));
+}
+.cm-host .cm-editor,
+.cm-host .cm-editor.cm-focused { outline: none; background: transparent; }
+.cm-host .cm-scroller {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+.cm-host[data-kind='heading'] {
+  font-weight: 650;
+  letter-spacing: -0.021em;
+  line-height: 1.3;
+}
+.cm-host[data-kind='heading'][data-depth='1'] { font-size: var(--text-h1); font-weight: 700; }
+.cm-host[data-kind='heading'][data-depth='2'] { font-size: var(--text-h2); font-weight: 660; }
+.cm-host[data-kind='heading'][data-depth='3'] { font-size: var(--text-h3); font-weight: 640; }
+.cm-host[data-kind='heading'][data-depth='4'] { font-size: var(--text-h4); font-weight: 620; }
+.cm-host[data-kind='heading'][data-depth='5'] { font-size: var(--text-h5); font-weight: 600; }
+.cm-host[data-kind='heading'][data-depth='6'] { font-size: var(--text-h6); font-weight: 600; }
+.cm-host[data-kind='blockquote'] {
+  color: rgb(var(--muted-foreground));
+  padding-left: 1em;
+  border-left: 2px solid rgb(var(--border-strong));
+}
+.cm-host[data-kind='code'],
+.cm-host[data-kind='html'],
+.cm-host[data-kind='yaml'] {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.62;
+  letter-spacing: 0;
+}
+.cm-host[data-kind='code'] {
+  padding: 12px 16px;
+  margin-inline: -2px;
+  background: rgb(var(--muted) / 0.6);
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-card);
+}
+
+/* ───────────── 查找栏：浮层，不是工具条 ─────────────
+ * 三组：查询+开关、计数+翻页、替换。空计数必须不占位，
+ * 否则 Aa 和 ↑↓ 中间会空出一截（min-width:52px 的老毛病）。 */
+.find-bar {
+  position: fixed;
+  top: calc(48px + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in-centered var(--motion-slow) var(--ease-emphasized) both;
+}
+.find-bar .btn-icon { width: 28px; height: 28px; }
+.find-toggles,
+.find-nav {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.find-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 5px 4px;
+  background: rgb(var(--border));
+  flex: none;
+}
+/* 查找栏��� Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
+   这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
+.find-bar .find-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.find-bar .find-toggle:hover { color: rgb(var(--foreground)); background: rgb(var(--accent)); }
+.find-bar .find-toggle[aria-pressed='true'] {
+  color: rgb(var(--primary));
+  background: var(--primary-softer);
+  border-color: rgb(var(--ring) / 0.35);
+}
+.find-bar input {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-btn);
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+}
+.find-bar input::placeholder { color: rgb(var(--subtle-foreground)); }
+.find-bar input:focus-visible {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  background: rgb(var(--paper));
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.find-bar .find-input { width: 168px; }
+.find-bar .find-replace { width: 148px; }
+/* 「全部替换」跟输入框同高、有边，才读得出是按钮而不是一句旁注 */
+.find-bar .find-replaceall {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.find-count {
+  padding: 0 6px;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.find-count:empty { display: none; }
+.find-count[data-bad] { color: rgb(var(--destructive)); }
+
+/* ───────────── 侧栏：当前文档的目录 ─────────────
+ * 停靠而非浮层：大纲属于文档本身，不是临时工具。
+ * 停靠时正文所在的网格轨道变小并重新居中（grid-template-columns 带过渡）。
+ * 窄窗口放不下「正文列 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
+ * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
+.sidebar {
+  grid-area: side;
+  /* 三件套：定位锚点（宽度把手要绝对定位）、列向布局、不外溢。
+     滚动下放到 .sidebar-body——标题行要常驻，滚目录时不能让「大纲」两个字滚走。 */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* border-box：本仓库没有全局 reset，默认的 content-box 会让 1px 右边框
+     加在网格轨道之外——侧栏永远比 --sidebar-w 宽 1px，宽度的唯一真相就不唯一了，
+     顶栏与状态行按正文列对齐时也会跟着差这一像素。 */
+  box-sizing: border-box;
+  overflow: hidden;
+  background: rgb(var(--shell));
+  border-right: 1px solid rgb(var(--border-subtle));
+}
+.sidebar[hidden] { display: none; }
+/* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
+   保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。
+   只改轨道与可见性，不动 sidebar 自己的开合状态——那是用户的偏好。 */
+html.no-doc body.app { grid-template-columns: 0 1fr; }
+html.no-doc .sidebar { display: none; }
+/* 状态行写的是「这份文档现在什么状态」。没有文档时就无话可写，留一条空带
+   既没信息又打破空态「整窗一块画布」的扉页感——一起收掉。 */
+html.no-doc #statusbar { display: none; }
+/* 宽度把手：贴在右边缘的一条 7px 热区。
+   平时只是一条发丝线（侧栏悬停才显形），拖起来才点成主色——
+   它得能被发现，但不能在静态视觉里跟目录条目抢注意力。 */
+.sidebar-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  z-index: 2;
+  cursor: col-resize;
+  outline-offset: -2px;
+}
+.sidebar-grip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.sidebar:hover .sidebar-grip::after { background: rgb(var(--border)); }
+.sidebar-grip:hover::after,
+.sidebar-grip:focus-visible::after,
+html.sidebar-resizing .sidebar-grip::after { background: rgb(var(--primary)); }
+/* 拖拽中：光标与选区全局锁住，否则会选中侧栏文字 */
+html.sidebar-resizing { cursor: col-resize; user-select: none; }
+.sidebar-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px 16px;
+}
+/* 侧栏标题：一列目录需要一句话说明它是什么。初版没有任何标题，
+   288px 的白栏里直接开始列条目，看起来像加载了一半。 */
+.sidebar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 8px 8px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--subtle-foreground));
+}
+html[data-shell='macos'] .sidebar-body { padding-top: 12px; }
+
+/* 浮层模式：窄窗口下的退化形态 */
+html.sidebar-overlay .sidebar {
+  position: fixed;
+  top: 46px;
+  left: 0;
+  bottom: 34px;
+  width: var(--sidebar-w);
+  z-index: 40;
+  border-right: 1px solid rgb(var(--border));
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: sidebar-in var(--motion-slow) var(--ease-emphasized) both;
+}
+html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
+
+/* ── 树形大纲 ──
+ * 层级用**结构**表达（子节点容器缩进 12px），不再给每一级写一条 padding 规则。
+ * 这样层级再深也不用改 CSS，而扁平列表的做法（depth=1..6 各一条）在
+ * 「同一级要对齐」这件事上永远差一点点——因为行首还有三角占位。 */
+.outline-list { display: flex; flex-direction: column; gap: 1px; }
+.outline-node { display: block; }
+.outline-kids { margin-left: 12px; }
+.outline-node[data-collapsed='true'] > .outline-kids { display: none; }
+.outline-line { display: flex; align-items: stretch; }
+/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty���，
+   否则同一级的标题会因为「有没有子节」而左右错开。 */
+.outline-twisty {
+  flex: 0 0 auto;
+  width: 18px;
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.outline-twisty svg {
+  display: block;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+/* 收起时三角指右（展开时指下）：方向即状态，不用另加标记 */
+.outline-node[data-collapsed='true'] > .outline-line > .outline-twisty svg { transform: rotate(-90deg); }
+.outline-twisty:hover { color: rgb(var(--foreground)); background: var(--primary-softer); }
+.outline-twisty-empty { visibility: hidden; pointer-events: none; }
+.outline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.outline-row:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+/* 标题文字（flex 子项）：min-width:0 才能在窄侧栏里省略而不是把整行撑开 */
+.outline-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 当前小节：文字变实加粗，无指示条、无填色。
+   试过行首指示条（2px 色条）：侧栏多了一条与缩进无关的竖线，像排版瑕疵；
+   整行填色又会把侧栏压重、和 hover 打架。文字本身的重量变化已经足够。 */
+.outline-row { position: relative; }
+.outline-row.active { color: rgb(var(--foreground)); font-weight: 550; }
+/* 当前小节的上级：只把文字变深。
+   「你在这里」与「你在这条线上」用同一档文字变化表达，靠粗细区分主次。 */
+.outline-row.ancestor { color: rgb(var(--foreground)); }
+/* 大纲每一级**同字号**。曾经给 3 级及以下写过一条 --text-2xs（12px）的规则，
+   结果三级小节比一级还小——层级由缩进和字重表达就够了，字号一变小，
+   深处的标题反而更看不清，和「大纲是给人快速定位的」正好相反。 */
+.outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
+.outline-empty {
+  padding: 6px 8px;
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-sm);
+}
+
+/* ───────────── 状态行 ─────────────
+ * 窗口右下角的一行自述：字数 / 小节 / 阅读时长 / 保存状态，整组右对齐。
+ * 最弱一级文字 + 顶部分隔影，随时可见但不与正文抢注意力。 */
+#statusbar {
+  grid-area: status;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  /* 贴窗口右下角，不与正文列对齐。
+     状态行是**窗口**的元信息（字数、状态），不是文档排版的一部分；
+     跟着正文列走会让同一屏出现三条互相较劲的竖线，而正文列居中时左边那条
+     还给空着。整组右对齐到窗口边缘，视线扫右下角就能拿到全部信息。 */
+  justify-content: flex-end;
+  /* 两侧都用窗口边距（14px），不用 --band-inset-right：
+     那个值是「与正文列右沿对齐」用的，用它会让状态行又贴回正文列上去。 */
+  padding: 0 14px;
+  background: rgb(var(--shell));
+  box-shadow: 0 -1px 0 rgb(var(--border-subtle));
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.status-group { display: flex; align-items: center; gap: 8px; }
+.status-right { margin-left: auto; }
+/* 组内用间隔点分隔，比逐个加边框安静 */
+.status-item + .status-item::before {
+  content: '·';
+  margin-right: 8px;
+  color: rgb(var(--border-strong));
+}
+.status-item[data-strong='true'] { color: rgb(var(--muted-foreground)); }
+
+@keyframes sidebar-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ───────────── 首屏空态 ─────────────
+ * 扉页构图：品牌 logo + 衬线字标 + 定位语 + 墨色主按钮。
+ * 品牌色只出现在 logo 上（它是门面），按钮仍走墨色——阅读器的第一屏
+ * 应该像一本书的扉页：字是主角，色是配角。 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* margin:auto 在「空态把 #content 变成 flex 容器」之后才真正双轴居中
+     （见下方 html.is-empty #content）。flex 里 auto 边距还有一个好处：
+     内容高于视口时它不裁切、照常滚动，不会像 align-items:center 那样把顶切掉。 */
+  margin: auto;
+  padding: 20px 24px;
+  color: rgb(var(--muted-foreground));
+  text-align: center;
+  animation: fade-in var(--motion-slow) var(--ease-enter) both;
+}
+/* 子元素错峰入场：整屏同时淡入像一张贴图，错开 45ms 才有「长出来」的感觉 */
+.empty-state > * { animation: empty-in var(--motion-slow) var(--ease-enter) both; }
+.empty-state > *:nth-child(2) { animation-delay: 45ms; }
+.empty-state > *:nth-child(3) { animation-delay: 90ms; }
+.empty-state > *:nth-child(4) { animation-delay: 135ms; }
+.empty-state > *:nth-child(5) { animation-delay: 180ms; }
+/* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（最多 5 条）在极矮的
+   窗口里会把主按钮挤出视口���屏���上就���"��空却有滚动条"（用户反馈过）。
+   阈值是算出来的，不是拍的：hero ≈176 + 列表(5 条)≈290 + 间距 46 + 内边距 96 ≈ 608，
+   所以内容高 ≥640 就装得下——超过才需要藏。之前写 780 太保守，把大量正常窗口
+   （高 DPI 缩放后 CSS 高度会明显变小）的列表也误藏了。
+   另外只藏列表本身、保留空引导：那句只有一行，任何窗口都放得下。 */
+@media (max-height: 640px) {
+  .empty-state .recent-block:has(.recent-list) { display: none; }
+}
+@keyframes empty-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.empty-tagline {
+  margin: 0 0 26px;
+  font-size: var(--text-md);
+  color: rgb(var(--subtle-foreground));
+}
+.empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.empty-actions .empty-new { margin-left: 0; }
+.empty-open, .empty-new { min-width: 112px; justify-content: center; }
+.empty-open { min-height: 36px; padding-inline: 16px; }
+.empty-new { min-height: 36px; padding-inline: 14px; }
+@media (max-width: 560px) {
+  .empty-actions { flex-direction: column; width: min(100%, 220px); }
+  .empty-open, .empty-new { width: 100%; }
+}
+/* 墨色按钮：空态的主动作用「最强、不带品牌色」的墨色（tokens 里 --ink 的本义） */
+.empty-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-foreground));
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.18), 0 6px 16px rgb(var(--shadow-color) / 0.08);
+  transition: transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+/* 「新建」是次要动作：与主按钮同高、无底色、只留一道描边。
+   两个按钮并排时，主次不该靠颜色争抢——底色归主按钮，描边归次按钮。 */
+.empty-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 10px;
+  padding: 7px 13px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.empty-new:hover {
+  border-color: rgb(var(--border-strong));
+  background: rgb(var(--accent));
+}
+.empty-open:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgb(var(--shadow-color) / 0.16), 0 10px 24px rgb(var(--shadow-color) / 0.12);
+}
+.empty-open:active { transform: none; }
+.empty-open kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  background: rgb(var(--ink-foreground) / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-foreground) / 0.16);
+}
+
+/* ───────────── Tip 浮层 ─────────────
+ * 替代原生 title=，让悬浮提示与设计语言一致（不出现黄底黑字
+ * 系统色块）。全局单例（body 直接挂一个），位置由 tip.ts 计���。 */
+.tip {
+  position: fixed;
+  z-index: 100;
+  max-width: min(280px, 80vw);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgb(var(--foreground) / 0.92);
+  color: rgb(var(--background));
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: normal;
+  word-break: break-word;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: tip-in var(--motion-fast) var(--ease-enter) both;
+}
+.tip[data-side='top'] {
+  transform: translate(-50%, -100%);
+}
+.tip[data-side='bottom'] {
+  transform: translateX(-50%);
+}
+@keyframes tip-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip { animation: none; }
+}
+
+/* ───────────── 加载中间态 ─────────────
+ * 「点打开」/「冷启动带 argv」期间：不是空态（不该看见「打开文件」按钮），
+ * 也不是内容（还没读到）。就一个转圈 + 文字，告诉用户「还在走」就够了。 */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  animation: fade-in var(--motion-base) var(--ease-enter) both;
+}
+.loading-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--border) / 0.6);
+  border-top-color: rgb(var(--muted-foreground) / 0.7);
+  animation: loading-spin 0.8s linear infinite;
+}
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner { animation-duration: 2s; }
+}

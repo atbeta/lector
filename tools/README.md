@@ -4,7 +4,7 @@
 
 ## `node tools/design-audit.mjs`
 
-静态审计：只看 `tokens.css` / `app.css` / `reading-themes.css` 源码。
+静态审计：只看 `tokens.css` / `reading-themes.css` 与 app.css 拉进来的全部 partial。
 
 - 对比度（token 原始值，WCAG AA）
 - 字阶档位、相邻档差、有没有小于 12px 的字号（CJK 底线）

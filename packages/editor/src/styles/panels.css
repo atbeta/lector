@@ -1,0 +1,589 @@
+/* ───────────── 动效 ───────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* 查找栏是 fixed + translateX(-50%)，位移动画必须保留居中 */
+@keyframes pop-in-centered {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+/* 浮层从右上方落下并轻微放大：表达「临时层」，与常驻侧栏区分开 */
+@keyframes outline-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 减弱动态效果
+ * （唯一的全局守卫在文件末尾——那里也解释了为什么 mermaid 子树被排除在外。
+ *  这里曾经还有一份一模一样的拷贝，两份 !important 全局规则只在互相遮蔽。） */
+
+
+/* ───────────── 设置面板：两栏 ─────────────
+ * 左栏分区导航、右栏内容、顶部搜索。规则见 settingsModal.ts 的文件头注释。
+ * 面板高度锁在视口内（86vh）而不是"内容多高就多高"：设置项会一直增加，
+ * 让面板跟着长高，迟早会顶出屏幕。 */
+.modal-card.settings-card {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 94vw);
+  height: min(620px, 86vh);
+}
+.settings-search {
+  flex: 0 1 260px;
+  min-width: 120px;
+  margin-left: auto;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font: inherit;
+  font-size: var(--text-base);
+}
+.settings-search:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 1px; }
+.settings-header .btn-icon { margin-left: 0; }
+.settings-panes {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--shell));
+  overflow-y: auto;
+}
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.settings-nav-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
+.settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 550; }
+.settings-content { overflow-y: auto; min-height: 0; padding: 14px 18px 18px; }
+.settings-group-title {
+  margin: 0 0 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(var(--muted-foreground));
+}
+.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-hint { max-width: 46ch; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
+/* 提示位里的错误（如 mermaid 配置 JSON 不合法）：它不再是说明，是一句「你写错了」，
+   得和周围的灰字区分开。字形与位置不动，只换颜色——布局不跳。 */
+.row-hint[data-invalid='true'] { color: rgb(var(--destructive)); }
+.settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.settings-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+.settings-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-btn);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+.settings-input:focus {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
+}
+.settings-empty { padding: 24px 4px; font-size: var(--text-base); color: rgb(var(--muted-foreground)); }
+
+/* ───────────── 未保存草稿提示 ─────────────
+ * 固定在顶栏下方居中，而不是插进正文流里：
+ * 插进 #content 会被任何一次重渲染（切模式、改设置）冲掉，
+ * 而这条提示必须一直在，直到用户做出选择。 */
+.recover-bar {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: fade-in var(--motion-fast) var(--ease-enter) both;
+}
+/* ───────────── 键盘面板 ─────────────
+ * 悬浮卡（非模态）：贴按钮下沿，悬停即出、移走即收。
+ * 宽度跟内容走——键位行的内容天然短，定宽卡片会让右半边全空。
+ * 键帽列等宽字体、列宽按最长键自适应，眼睛顺着「键 → 功能」扫下去。 */
+.shortcuts-pop {
+  position: fixed;
+  z-index: 100;
+  /* 三组���排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  width: max-content;
+  max-width: min(92vw, 700px);
+  /* 只有极端小的窗口才需要滚动；上限留够，不常驻滚动条 */
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  padding: 12px 16px 14px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: var(--shadow-floating);
+  animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
+}
+.shortcut-col { display: flex; flex-direction: column; }
+.shortcut-group {
+  margin: 0 0 6px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(var(--muted-foreground));
+}
+.shortcut-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 3.5px 0;
+}
+.shortcut-keys {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 2px 7px;
+  border-radius: 5px;
+  text-align: center;
+  white-space: nowrap;
+  background: rgb(var(--muted) / 0.7);
+  border: 1px solid rgb(var(--border-subtle));
+  color: rgb(var(--foreground));
+}
+.shortcut-label { font-size: var(--text-base); color: rgb(var(--foreground)); white-space: nowrap; }
+
+.recover-text { font-size: var(--text-base); color: rgb(var(--foreground)); }
+
+
+/* ───────────── 空态的「最近打开」 ─────────────
+ * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
+ * 不做���片、不做图标徽章、不用主色描边——这份列表是「接着读」，
+ * 观感上���该接近目录页，而不是一排 App 图标。 */
+.recent-block {
+  margin-top: 46px;
+  width: 100%;
+  text-align: left;
+}
+/* 没有最近文件时的一句轻引导：把首屏那块空白变成"会长出东西"的留白，
+   而不是"没做完"。居中、弱色，重量不超过上面的定位语�� */
+.recent-empty {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-base);
+  color: rgb(var(--subtle-foreground));
+}
+.recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+.recent-label {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--subtle-foreground));
+}
+.recent-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+  font: inherit;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.recent-clear:hover {
+  background: var(--block-hover-bg);
+  color: rgb(var(--foreground));
+}
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--paper));
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1px rgb(var(--border));
+  overflow: hidden;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 9px 14px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+/* 发丝分隔线�� inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+.recent-item + .recent-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
+.recent-item:hover { background: var(--block-hover-bg); }
+.recent-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--foreground));
+}
+.recent-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+}
+
+/* ───────────── 视觉精修层 ─────────────
+ * 保持阅读器安静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
+ * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
+#content {
+  background: rgb(var(--paper));
+  /* 分区线只有侧栏那条右框：阅读区自己不再画左右两条竖线（那会和侧栏框
+     夹出一条底色沟，分区反而糊）。 */
+  border-inline: 0;
+  box-shadow: none;
+}
+#titlebar {
+  height: 48px;
+  border-bottom: 1px solid transparent;
+}
+#titlebar.scrolled { border-bottom-color: rgb(var(--border-subtle) / 0.56); }
+html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
+html[data-shell='windows'] .find-bar { top: 42px; }
+.titlebar-title { font-weight: 550; }
+.titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
+.sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
+html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
+.sidebar-head { padding-top: 16px; }
+#statusbar {
+  height: 32px;
+  border-top: 1px solid rgb(var(--border-subtle) / 0.56);
+  box-shadow: none;
+}
+.reading-prose p { text-wrap: pretty; }
+.reading-prose h1 { margin-bottom: 0.18em; }
+  .reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-media); box-shadow: var(--shadow-card); }
+.empty-tagline { max-width: 30ch; line-height: 1.7; }
+
+/* ───────────── 空态画布 ─────────────
+ * 空态不是「一���空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
+ * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
+html.is-empty #content {
+  max-width: none;
+  background: transparent;
+  border-inline-color: transparent;
+  box-shadow: none;
+  /* ��态是「一页��页」，��容整��居中于整窗。
+     #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
+     块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
+  display: flex;
+  /* 扉页不滚：内容始终放得下（矮窗由媒体查询收掉最近列表）。
+     顺便挡掉入场动画期间 transform 撑出的瞬时滚动条。 */
+  overflow: hidden;
+  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下��称 */
+  padding: 28px 24px;
+}
+/* 加载态与空态同一套居中：转圈落在整窗中心，而不是吊在上半屏 */
+html.is-loading #content {
+  display: flex;
+  overflow: hidden;
+  padding: 28px 24px;
+}
+/* 空态内容自己的版心：一个窄栏，logo / 定位语 / 按钮 / 最近打开共用同一条中轴 */
+.empty-state { width: min(500px, 100%); box-sizing: border-box; }
+.empty-logo {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 18px;
+  border-radius: 18px; /* svg 自带圆角；这里是兜���，防占位瞬间露出直角 */
+  box-shadow: 0 1px 2px rgb(var(--foreground) / 0.06), 0 10px 26px rgb(var(--foreground) / 0.1);
+}
+.empty-actions { gap: 10px; }
+.empty-new { margin-left: 0; }
+/* 最近打开��随空态版心，不再是窄栏里的一小条 */
+html.is-empty .recent-block { max-width: none; margin-inline: 0; }
+
+/* 拖放反馈：拖中时全窗一道浅框 + 中央文���，松手或离开就撤。
+   只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80; /* 在 #statusbar(默认) 之��、modal(90) 之��� */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--primary) / 0.07);
+  pointer-events: none; /* 不能挡 drop 事件本身 */
+  font-size: var(--text-h3);
+  font-weight: 600;
+  color: rgb(var(--primary));
+  border: 2px dashed rgb(var(--primary) / 0.6);
+  border-radius: 8px;
+}
+
+/* ───────────── 大文件：整篇裸 CM6 ─────────────
+ * 大文件不做块 IR（整篇 mdast 解析超线性，几十 MB 解析不完），正文区换成
+ * 一个自带视口虚拟化的 CM。滚动发生在 CM 的滚动层里，所以：撤掉 #content 的
+ * 内边距与滚动，由 CM 自己撑满。
+ * 档位锁在源码档——没有可渲染的块，切回阅读/编辑只会是空画面，索性把分段控件隐掉。 */
+html.large-file .mode-switch { display: none; }
+#content.large-doc {
+  overflow: hidden;
+  padding: 0;
+  /* 大文件是纯文本编辑，不套阅读栏宽，让 CM 用满窗口 */
+  max-width: none;
+}
+.large-doc-host {
+  height: 100%;
+  min-height: 0;
+}
+.large-doc-host .cm-editor {
+  height: 100%;
+}
+.large-doc-host .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  padding: 24px clamp(20px, 6vw, 64px) 18vh;
+}
+.large-doc-host .cm-content {
+  max-width: 88ch;
+  margin-inline: auto;
+}
+
+
+/* ───────────── 减少动态 ─────────────
+ * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
+ * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
+ * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
+/* ───────────── 导出遮罩 ─────────────
+ * 导出期间盖住整个窗口：布局摊平、壳隐藏的过程不该被看见——
+ * 看起来是「正在生成 PDF」而不是「应用坏了」。 */
+.pdf-exporting {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--paper) / 0.72);
+  backdrop-filter: blur(2px);
+}
+.pdf-exporting::after {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgb(var(--foreground) / 0.18);
+  border-top-color: rgb(var(--foreground) / 0.65);
+  animation: pdf-spin 0.8s linear infinite;
+}
+@keyframes pdf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 打印管线（WebView2 PrintToPdf 与 Chromium 同族）会应用 @media print——
+   沙箱探针实验验证过：隐藏规则生效时探针不进 PDF，摘掉规则就进。
+   遮罩因此在屏幕上盖满导出全程，在 PDF 输出里自动消失。 */
+@media print {
+  .pdf-exporting {
+    display: none !important;
+  }
+}
+/* 捕获期（PrintToPdf 运行中）的反馈：忙光标。光标不参与渲染捕获，
+   是「能被用户看见但不进 PDF」的仅有的页面级通道之一（另一个是窗口标题，
+   由 exportPdf 设 document.title）。 */
+html.pdf-busy,
+html.pdf-busy * {
+  cursor: progress !important;
+}
+
+/* ───────────── 打印 / 导出 PDF ───��─────────
+ * 样式挂在 html.printing 类上，不用 @media print——WebView2 的 PrintToPdf
+ * 按屏幕媒体渲染（实测：深色主题导出 = 浅字白纸、侧栏照印、滚动容器截成一页），
+ * 媒体查询根本不会生效。exportPdf（platform.ts）在调用打印前后挂/摘这个类，
+ * 两条路径（壳 PrintToPdf / 浏览器 window.print）都走它，行为确定。
+ * 原则：只印正文——壳（顶栏/状态栏/侧栏/查找条/toast）全部退场；
+ * 解除应用骨架的滚动截断（分页的前提是内容能自然流排）；
+ * 强制浅色（PDF 的归宿是分享与打印，深色没有意义）；
+ * 代码块、表格、图片不跨页断行，标题不孤行。 */
+html.printing,
+html.printing body {
+  height: auto !important;
+  overflow: visible !important;
+  background: #fff !important;
+}
+/* 应用骨架是「固定视口 + 内部滚动」的 grid：打印时摊平成文档流，
+   #content 不再自己滚——内容有多长 PDF 就有多少页。 */
+html.printing body.app {
+  display: block;
+}
+html.printing #titlebar,
+html.printing #statusbar,
+html.printing .sidebar,
+html.printing .find-bar,
+html.printing .lector-toast,
+html.printing .mode-switch,
+html.printing .window-controls,
+html.printing .dirty-dot {
+  display: none !important;
+}
+html.printing #content {
+  overflow: visible !important;
+  height: auto !important;
+}
+/* 强制浅色：覆写主题 token。必须 !important——深色主题的 token 挂在
+   html[data-theme='dark'][data-reading-theme='…']（特异度 0,2,1），
+   html.printing（0,1,1）普通声明打不赢，实测深底浅字原样进 PDF。
+   变量清单含阅读主题扩展（quote/muted-foreground/code 四色），
+   深色主题下导出也是白纸黑字。 */
+html.printing {
+  --background: 255 255 255 !important;
+  --paper: 255 255 255 !important;
+  --shell: 255 255 255 !important;
+  --card: 255 255 255 !important;
+  --popover: 255 255 255 !important;
+  --foreground: 26 25 22 !important;
+  --muted: 245 245 245 !important;
+  --muted-foreground: 110 113 118 !important;
+  --subtle-foreground: 110 110 110 !important;
+  --quote-foreground: 74 71 66 !important;
+  --border: 224 224 224 !important;
+  --border-subtle: 235 235 235 !important;
+  --code-comment: 106 115 125 !important;
+  --code-string: 21 110 81 !important;
+  --code-number: 165 90 20 !important;
+  --code-keyword: 122 34 119 !important;
+}
+html.printing .reading-prose {
+  color: rgb(var(--foreground));
+}
+html.printing .reading-prose pre,
+html.printing .reading-prose table,
+html.printing .reading-prose img,
+html.printing .reading-prose blockquote {
+  break-inside: avoid;
+}
+html.printing .reading-prose h1,
+html.printing .reading-prose h2,
+html.printing .reading-prose h3,
+html.printing .reading-prose h4,
+html.printing .reading-prose h5,
+html.printing .reading-prose h6 {
+  break-after: avoid;
+}
+/* 代码块在纸上没有横向滚动：换行铺开 */
+html.printing .reading-prose pre,
+html.printing .reading-prose pre.has-ln > code {
+  overflow: visible;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+html.printing .reading-prose img {
+  max-width: 100%;
+}
+/* 代码卡头部条（语言标 + 复制键）与行号是屏幕交互件，纸上无意义还占宽。 */
+html.printing .code-bar {
+  display: none !important;
+}
+html.printing .ln-gutter {
+  display: none !important;
+}
+html.printing .reading-prose pre.has-ln {
+  display: block;
+}
+/* 段间距收紧：屏幕阅读的松段距在纸上显得散。 */
+html.printing .reading-prose p {
+  margin: 0 0 0.55em;
+}
+html.printing a {
+  text-decoration: none;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 全局压掉动效，但**放过 mermaid 画出来的图**。
+   *
+   * 这不是审美问题，是正确性：mermaid 的布局测量依赖它自己那条 transition 的时长，
+   * 把 transition-duration 压成 0.01ms 会让它的 getBBox() 算出一个巨大的包围盒——
+   * 实测 viewBox 变成 4141×2103（正确的第一张图是 838×190），图缩成角落里的一小团。
+   * 系统里开了「减弱动态效果」的用户一进来就会看到这个（Edge/WebView2 上稳定复现；
+   * 逐条剥离验证过：只有 transition-duration 这一条会引发，删掉它立刻恢复正常）。
+   *
+   * 所以这里用 :not() 把 mermaid 的两处 DOM 整个排除掉：
+   *   - .mermaid-render-host —— 隐藏的临时容器，mermaid 在**这里**量尺寸（关键）；
+   *   - .mermaid-svg        —— 量完搬进来的成品，静态图。
+   * :not() 里放后代选择器是 Selectors 4 的写法（Chromium 支持，本项目只跑
+   * WebView2/WebKit）。少关一张静态图的动效，远好过把它画坏。 */
+  *:not(.mermaid-render-host *, .mermaid-svg *),
+  *:not(.mermaid-render-host *, .mermaid-svg *)::before,
+  *:not(.mermaid-render-host *, .mermaid-svg *)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 转圈是「还在走」的唯一信号，压掉它等于让人以为卡死了 */
+  .loading-spinner {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

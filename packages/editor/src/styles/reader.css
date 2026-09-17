@@ -1,0 +1,727 @@
+/* ───────────── 阅读排版 ───────────── */
+.reading-prose {
+  font-family: var(--reading-font);
+  color: rgb(var(--foreground));
+  line-height: var(--reading-line-height);
+  font-size: var(--reading-font-size);
+  letter-spacing: 0.006em;
+}
+/* 块级间距交给 .block；块内只保留多子节点之间的间隔 */
+.reading-prose > * { margin: 0; }
+.reading-prose > * + * { margin-top: 0.7em; }
+.reading-prose p { text-wrap: pretty; }
+
+/* 标题：字重分级 + 收紧字距。逐级放松，读起来才有层级，而不是「都加粗」。 */
+.reading-prose h1, .reading-prose h2, .reading-prose h3,
+.reading-prose h4, .reading-prose h5, .reading-prose h6 {
+  letter-spacing: -0.021em;
+  line-height: 1.3;
+  text-wrap: balance;
+  color: rgb(var(--foreground));
+}
+.reading-prose h1 { font-size: var(--text-h1); font-weight: 700; letter-spacing: -0.026em; }
+.reading-prose h2 { font-size: var(--text-h2); font-weight: 660; }
+.reading-prose h3 { font-size: var(--text-h3); font-weight: 640; }
+.reading-prose h4 { font-size: var(--text-h4); font-weight: 620; }
+.reading-prose h5 { font-size: var(--text-h5); font-weight: 600; letter-spacing: -0.01em; }
+.reading-prose h6 {
+  font-size: var(--text-h6);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgb(var(--muted-foreground));
+}
+
+.reading-prose blockquote {
+  padding: 0.05em 0 0.05em 1.05em;
+  border-left: 3px solid rgb(var(--border-strong));
+  /* 引用是正文的一种，不是「次要信息」：用它自己的灰，
+     别和图标/边框共用一个色值（那样整页只剩一种灰，没有焦点）。 */
+  color: rgb(var(--quote-foreground));
+}
+.reading-prose blockquote > * + * { margin-top: 0.6em; }
+
+/* 行内代码：去描边，只留浅底（暗色下 --muted 是悬停面，这里用纸面之上的浅层）。 */
+  .reading-prose code {
+  font-family: var(--font-mono);
+  /* 0.8em ≈ 13.6px：与编辑态聚焦 CM 的 13px 基本一致（聚焦不跳字号），
+  行内码与块代码仍保持同尺寸——同一段里两者不等大是会被一眼看出来的。 */
+  font-size: 0.8em;
+  font-weight: 480;
+  background: rgb(var(--muted));
+  color: rgb(var(--foreground));
+  padding: 0.14em 0.36em;
+  border-radius: 4px;
+}
+  .reading-prose pre {
+  font-family: var(--font-mono);
+  /* 与行内码同尺寸（见上）：两边都用 0.8em，随正文字号走。 */
+  font-size: 0.8em;
+  line-height: 1.62;
+  padding: 14px 16px;
+  background: rgb(var(--muted));
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-media);
+  overflow-x: auto;
+}
+/* 空段落块（空文档合成的那块、或被删空的段落）失焦后预览是空的，
+   会塌成零高——看起来「块没了」，也点不进去（空文档就此锁死）。
+   给它一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
+.block:not(.gap) .preform:empty {
+  min-height: 1.62em;
+}
+/* 代码行号 gutter：pre 转 flex 双列，gutter 固定、code 自己横向滚动——
+   行号不随内容滚走。行对齐靠两边同 font-size/line-height（都继承 pre）。 */
+.reading-prose pre.has-ln {
+  display: flex;
+  overflow: hidden;
+}
+.reading-prose pre.has-ln > code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.reading-prose .ln-gutter {
+  flex: none;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid rgb(var(--border-subtle));
+  text-align: right;
+  color: rgb(var(--subtle-foreground) / 0.55);
+  user-select: none;
+  pointer-events: none;
+}
+/* 设置面板实时开关：根类切换，无需重渲染 */
+.code-ln-off .ln-gutter { display: none; }
+/* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
+   只上四类：注释 / ���符串 / ���字 / 关键���——���分辨，不��。
+   不套 Prism 自带主题；运算符与标点不着色，留给正文色。
+
+   默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
+   否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
+   ���构词（keyword/tag/selector/���数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
+.reading-prose .token.comment,
+.reading-prose .token.prolog,
+.reading-prose .token.doctype,
+.reading-prose .token.cdata {
+  color: rgb(var(--code-comment));
+  font-style: italic;
+}
+.reading-prose .token.string,
+.reading-prose .token.char,
+.reading-prose .token.attr-value,
+.reading-prose .token.regex,
+.reading-prose .token.url,
+.reading-prose .token.inserted {
+  color: rgb(var(--code-string));
+}
+.reading-prose .token.number,
+.reading-prose .token.boolean,
+.reading-prose .token.constant,
+.reading-prose .token.symbol {
+  color: rgb(var(--code-number));
+}
+.reading-prose .token.keyword,
+.reading-prose .token.builtin,
+.reading-prose .token.important,
+.reading-prose .token.atrule {
+  color: rgb(var(--code-keyword));
+  font-weight: 600;
+}
+.reading-prose .token.tag,
+.reading-prose .token.selector,
+.reading-prose .token.class-name,
+.reading-prose .token.function {
+  color: rgb(var(--code-keyword));
+  font-weight: 500;
+}
+.reading-prose .token.property,
+.reading-prose .token.variable {
+  color: rgb(var(--code-keyword));
+}
+
+.reading-prose pre code {
+  display: block;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.reading-prose ul, .reading-prose ol { padding-left: 1.35em; }
+.reading-prose li { margin-top: 0.3em; margin-bottom: 0.3em; }
+/* 列表符号：小方块而不是圆点。方块更像「文档条目」，圆点更像「随手的列表」，
+   与阅读器的调性更合；颜色压到 border-strong，否则一列符号会把正文压过去。 */
+.reading-prose ul { list-style-type: square; }
+.reading-prose li::marker { color: rgb(var(--border-strong)); }
+.reading-prose li.task { list-style: none; margin-left: -1.35em; }
+.reading-prose li.task::marker { content: ''; }
+
+/* 链接：默认就看得见是链接（旧版把链接做成和正文一样，读者找不到） */
+.reading-prose a {
+  color: rgb(var(--primary));
+  text-decoration-line: underline;
+  text-decoration-color: rgb(var(--primary) / 0.62);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion-fast) var(--ease-standard);
+}
+.reading-prose a:hover { text-decoration-color: rgb(var(--primary)); }
+
+.reading-prose hr {
+  /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
+     约 24px 上下留白」。之前��条 6rem 居中短��是我们自己发明��花饰，��易读成
+     "掉了根线头"，改成标准的整幅发丝线。 */
+  border: 0;
+  height: 1px;
+  margin: 2em 0;
+  background: rgb(var(--border-strong) / 0.4);
+}
+
+.reading-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+  line-height: 1.6;
+}
+.reading-prose th, .reading-prose td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+  text-align: left;
+}
+/* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
+   灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
+   而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
+   层级交给底色与字��，线只负责分隔，统一用 border。 */
+/* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
+   两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
+.reading-prose td[data-align='right'] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.reading-prose th {
+  font-weight: 600;
+  font-size: var(--text-xs);
+  color: rgb(var(--foreground));
+  background: rgb(var(--muted) / 0.55);
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid rgb(var(--border));
+}
+.reading-prose tbody tr:last-child td { border-bottom: none; }
+.reading-prose tbody tr:hover { background: rgb(var(--muted) / 0.35); }
+/* 表格自带圆角容器：四角裁切靠 wrap，不靠给每个 th/td 算圆角 */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-media);
+}
+.table-wrap table { margin: 0; }
+.reading-prose img {
+  max-width: 100%;
+  border-radius: var(--radius-media);
+  border: 1px solid rgb(var(--border));
+  display: block;
+}
+
+/* 任务复选框 — 对齐 NoteFast 自绘 checkbox。
+   未勾选时也要看得见：边框走 border-strong 实色，���用 alpha 叠。 */
+.reading-prose input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.45em 0 0;
+  vertical-align: middle;
+  border: 1.5px solid rgb(var(--border-strong));
+  background: rgb(var(--paper));
+  border-radius: 4px;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+.reading-prose input[type='checkbox']:hover { border-color: rgb(var(--primary)); }
+.reading-prose input[type='checkbox']:checked {
+  background-color: rgb(var(--primary) / 0.9);
+  border-color: rgb(var(--primary) / 0.9);
+}
+.reading-prose input[type='checkbox']:checked::after {
+  content: '';
+  width: 0.28rem;
+  height: 0.5rem;
+  margin-bottom: 0.1rem;
+  border: solid rgb(var(--primary-foreground));
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.reading-prose input[type='checkbox']:disabled { cursor: default; }
+/* 任务项：勾选框与正文同一行，续行对齐到文字而不是勾选框。
+   用 flex 而不是把 .task-label 改成 inline——它的内容是 <p>（block），
+   行内元素里塞块级只能断行，这正是「勾选框一行、文字跑到下一行」的成因。 */
+.reading-prose li.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45em;
+}
+.reading-prose li.task .task-label { flex: 1 1 auto; min-width: 0; }
+.reading-prose li.task .task-label > :first-child { margin-top: 0; }
+.reading-prose li.task input[type='checkbox'] { flex: 0 0 auto; margin: 0.4em 0 0; cursor: pointer; }
+/* 已完成：用「勾选框 + 删除线」表达，不靠把字调暗。
+   整行压到 4:1 会读成「禁用」，而未完成反而最亮，层级正好反了。
+   删除线用墨色：用 border-strong 画出来比它划掉的字还淡，等于没划。 */
+.reading-prose li.task:has(input:checked) .task-label {
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--foreground) / 0.45);
+  text-decoration-thickness: 1px;
+}
+
+/* ───────────── Frontmatter 属性卡 ─────────────
+ * 阅读场景里 frontmatter 是元数据，读者要的是「有哪些字段」，
+ * 不是缩进与引号。源码仍完好在块里，点击即回到 YAML 编辑。 */
+.frontmatter {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) 1fr;
+  gap: 6px 14px;
+  padding: 12px 14px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-card);
+  background: rgb(var(--muted) / 0.4);
+  font-size: var(--text-base);
+}
+.frontmatter .fm-key {
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.frontmatter .fm-value {
+  color: rgb(var(--foreground));
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.frontmatter .fm-empty { color: rgb(var(--subtle-foreground)); }
+/* 标签渲染成 chips：一眼看出有几个标签 */
+.frontmatter .fm-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.frontmatter .fm-tag {
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--primary-soft);
+  color: rgb(var(--primary));
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+.frontmatter code {
+  font-size: 0.9em;
+  background: rgb(var(--muted));
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+/* ���知 / yaml / html 降级 — 等宽源�� */
+.preform {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(var(--muted-foreground));
+}
+
+/* ───────────── 代码卡（语言 + 复制 收进代码区域内部） ─────────────
+ * 卡 = 代码区域本体：头部条（语言在左、复制在右）与 pre 共用一张卡的
+ * 底色、描边与圆角，中间一道发丝线分开——工具属于这块内容，
+ * 而不是它头顶的另一行（结构仿 notefast 的 code fence）。 */
+.code-card {
+  border: 1px solid rgb(var(--border));
+  /* 卡 = 代码区域本体，圆角跟阅读态 pre 的媒体档走，两种模式一致 */
+  border-radius: var(--radius-media);
+  background: rgb(var(--muted));
+  overflow: hidden;
+}
+.code-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 5px 0 13px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--foreground) / 0.025);
+}
+.code-lang {
+  color: rgb(var(--subtle-foreground));
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+.code-copy {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.code-copy:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+/* 折行开关：与复制键同款 24px 方键。推到条右端的是它（带着复制键组成
+   右侧按钮组）——推力原来在复制键上，折行键插进去后会被留在语言标旁边。 */
+.code-wrap-toggle {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--muted-foreground));
+  cursor: pointer;
+}
+.code-wrap-toggle:hover {
+  color: rgb(var(--foreground));
+  background: rgb(var(--accent));
+}
+/* 激活态用内容强调色（--content-accent，与 mermaid 描边同一个 token）：
+   应用 primary 是暖黑，深浅变化区分度不够，用户要的是「有颜色」的状态表达。
+   这里曾经写死 #4f46e5 / #8b8bf0 并注释说「与 mermaid 同源」——同源靠注释是守不住的，
+   两处字面量迟早漂移；现在真的共用一个 token，于是也跟着阅读主题走。 */
+.code-wrap-toggle.is-active {
+  color: rgb(var(--content-accent));
+  background: rgb(var(--content-accent) / 0.12);
+}
+html[data-theme='dark'] .code-wrap-toggle.is-active {
+  background: rgb(var(--content-accent) / 0.16);
+}
+/* 折行态：长行折返，不再横向滚动 */
+.code-wrap .code-card pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* 卡的内部不再有自己的边界与底色 */
+.code-card .reading-prose pre,
+.block[data-kind='code'] .reading-prose pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* 专注主题连卡的描边也拿掉（零描边是这款的定义） */
+html[data-reading-theme='focus'] .code-card { border: 0; }
+html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
+
+/* ───────────── Mermaid 图表 ────────���─���─���������
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是����内的画��区域。
+ * 懒加载,渲染失败时给错误 + 源码回退。 */
+.mermaid-diagram {
+  padding: 12px;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius);
+  background: rgb(var(--muted) / 0.3);
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+  cursor: zoom-in;
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+/* 在代码卡里时，画布自己的边界全部让位给卡 */
+.code-card .mermaid-diagram {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.mermaid-diagram:hover {
+  border-color: rgb(var(--border-strong) / 0.6);
+}
+/* 外层 .mermaid-diagram 是 flex（居中 + 空态占位），所以这一层**必须显式撑满**：
+   flex 项的宽度默认是 max-content，而里面的 svg 写的是 width="100%"——
+   百分比遇到「宽度由内容决定」的父级会变成不确定，��览器只能退回 300×150 那档
+   默认尺寸（实测：838px 宽的流程���被渲染成 300px，两个节点的图反倒正常 168px）。
+   给它 flex: 1 1 auto + min-width: 0，宽度就变成确定的，svg 的百分比才有意义。 */
+.mermaid-diagram .mermaid-svg {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+/* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
+   svg 上是 width="100%" + inline `max-width: 自��宽度`，���者合起来就是
+   min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
+   不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
+.mermaid-diagram .mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+  /* 自然尺寸小于栏宽时居中，而不是贴左。display: block 是必须的——
+     svg 默认 inline，inline 元素的 auto margin 不生效（实测贴左）。 */
+  display: block;
+  margin: 0 auto;
+}
+/* 堵住���体特性���漏：阅���区���文���层������ Inter 的花式变体
+   （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
+   <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
+   font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
+   这里对整棵 SVG 子树把特性清零，让图表字形回归常规。 */
+.mermaid-diagram .mermaid-svg svg,
+.mermaid-diagram .mermaid-svg svg text,
+.mermaid-diagram .mermaid-svg svg foreignObject div,
+.mermaid-diagram .mermaid-svg svg foreignObject span {
+  font-feature-settings: normal;
+  font-variant: normal;
+  font-variant-numeric: normal;
+}
+
+/* 聚焦块的实时预览面板：源码在上、图在下，与代码卡同一张卡的语言。 */
+.mermaid-live {
+  margin-top: 10px;
+  border: 1px solid rgb(var(--border) / 0.8);
+  border-radius: var(--radius-card);
+  background: rgb(var(--card));
+  overflow: hidden;
+}
+.mermaid-live-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+  border-bottom: 1px solid rgb(var(--border) / 0.6);
+}
+.mermaid-live-body {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+/* 重渲进行中：旧图压暗而不是闪没 */
+.mermaid-live-body.rendering {
+  opacity: 0.55;
+}
+.mermaid-live-body .mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-live-error {
+  display: none;
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgb(var(--danger, var(--muted-foreground)));
+  border-top: 1px solid rgb(var(--border) / 0.6);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mermaid-live.has-error .mermaid-live-error {
+  display: block;
+}
+.mermaid-status {
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-sm);
+}
+.mermaid-error {
+  color: rgb(var(--danger, var(--muted-foreground)));
+  font-size: var(--text-sm);
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mermaid-source {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgb(var(--paper));
+  border-radius: var(--radius-btn);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgb(var(--foreground));
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 阅读里的图片：点击弹「针对这张图」的动作菜单（查看原图 / 编辑源码 / 路径…），
+   所以光标是「可点」而不是「可放大」——放大只是菜单里的一项 */
+.reading-prose img { cursor: pointer; }
+
+/* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
+ * 关键取舍：**不画卡片**。
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的����一篇文档的
+ * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
+ * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
+ * 发丝线表示「这段可以点进去改」。
+ *
+ * pre-wrap 保留块内换行；overflow-x:auto 兜住超长行。 */
+.source-view {
+  margin: 0;
+  padding: 3px 10px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  /* 字号与行��跟阅读/编辑态完���一致。
+     源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
+     读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
+  font-size: var(--reading-font-size);
+  line-height: var(--reading-line-height);
+  color: rgb(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  transition: background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+.source-view:hover {
+  background: var(--block-hover-bg);
+  border-left-color: rgb(var(--border-strong) / 0.5);
+}
+.source-view code {
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* ───────────── KaTeX 数学公式 ─────────────
+ * KaTeX 本身的样式从 katex/dist/katex.min.css 加载(进 :where(.katex) 作用域,
+ * 不会泄露到公式以外)。这里只调校讲/预览列里的布局与间距。
+ * 块级公式上下要喘气,行内公式以 baseline 衡接正文。 */
+.math-block {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.math-block .katex-display {
+  margin: 0;
+  padding: 0.25em 0;
+}
+.math-inline .katex {
+  /* KaTeX 默认 有 vertical-align,放进中文里会出色:换个 baseline 衡接 */
+  font-size: 1.05em;
+}
+/* 块级公式有错误时(解析失败)仍能走原文:用 pre 包一下 */
+.math-error {
+  display: block;
+  padding: 8px 12px;
+  background: rgb(var(--muted) / 0.3);
+  border-radius: var(--radius-btn);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: rgb(var(--foreground));
+  white-space: pre-wrap;
+}
+/* 行内公式出错：不能 display:block（会把整行打断），蹲在一行的等宽原文 */
+.math-error-inline {
+  display: inline;
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  background: rgb(var(--muted) / 0.25);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: rgb(var(--muted-foreground));
+  white-space: pre-wrap;
+}
+
+/* ───────────── 脚注 ─────────────
+ * 「阅读优先」要能读到注释本身：引用在上标可点，定义在文末可见。
+ * 都只改预览，不动源码，保存仍��� `[^1]` 原文。 */
+.reading-prose .footnote-ref {
+  font-size: 0.8em;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.5em;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+.reading-prose .footnote-ref a {
+  color: rgb(var(--primary));
+  text-decoration: none;
+  font-weight: 500;
+}
+.reading-prose .footnote-ref a:hover { text-decoration: underline; }
+.reading-prose .footnote-definition {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6em;
+  font-size: 0.92em;
+  line-height: var(--reading-line-height);
+  padding-top: 0.5em;
+  scroll-margin-top: 1em;
+}
+.reading-prose .footnote-definition-anchor {
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
+  text-align: right;
+  min-width: 1.6em;
+}
+/* 内容列：段落已平铺成行内内容，这里兜底压掉可能出现的块级 margin */
+.reading-prose .footnote-definition-body > p {
+  margin: 0;
+}
+/* 跳回：内容末尾的 12px 小箭头，默认几乎隐形（淡灰），hover 才亮 */
+.reading-prose .footnote-backref {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35em;
+  color: rgb(var(--muted-foreground));
+  opacity: 0.55;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: -2px;
+}
+.reading-prose .footnote-backref:hover {
+  color: rgb(var(--primary));
+  opacity: 1;
+  text-decoration: none;
+}
+.reading-prose .footnote-backref svg {
+  display: block;
+}
+
+/* ───────────── 扩展语法���染 ─────────────
+ * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
+.reading-prose mark,
+.reading-prose .html-mark {
+  background: rgb(var(--accent) / 0.22);
+  color: inherit;
+  padding: 0.05em 0.2em;
+  border-radius: 3px;
+}
+.reading-prose kbd,
+.reading-prose .html-inline {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  border: 1px solid rgb(var(--border));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.08em 0.4em;
+  background: rgb(var(--border-subtle) / 0.35);
+}
+.reading-prose .html-details {
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 8px;
+  padding: 0.4em 1em;
+  margin: 1em 0;
+}
+.reading-prose .html-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.3em 0;
+  user-select: none;
+}
+.reading-prose .html-details[open] summary {
+  margin-bottom: 0.4em;
+}
