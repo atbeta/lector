@@ -87,7 +87,7 @@ describe('套用阅读主题', () => {
     expect(after.readingTheme).toBe('manual')
     expect(after.fontSize).toBe(16)
     expect(after.lineHeight).toBe(1.68)
-    expect(after.readingWidth).toBe(920)
+    expect(after.readingWidth).toBe(1000)
     expect(after.fontFamily).toBe('system')
     expect(after.showWhitespace).toBe(true)
     expect(after.theme).toBe(before.theme)

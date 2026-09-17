@@ -109,7 +109,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
       getComputedStyle(document.documentElement).getPropertyValue('--reading-max-w'),
       10,
     )
-    return width + (Number.isFinite(reading) && reading > 0 ? reading : 760) + 150
+    return width + (Number.isFinite(reading) && reading > 0 ? reading : 800) + 150
   }
 
   function mode(): SidebarMode {

@@ -90,12 +90,12 @@ export interface EditorSettings {
 
 /**
  * 默认阅读排版。这三个值与 packages/editor 的 --reading-* 标定一致：
- * 760px / 17px / 1.75 ≈ 中文每行 45 字、Latin ~95 字符。
+ * 800px / 17px / 1.75 ≈ 中文每行 47 字、Latin ~95 字符。
  *
  * 宽度是这一版上调过的：原来的 640px 是按「一行 37 字」的保守栏宽定的，
  * 但今天的屏幕至少 1080p、常见 2K，640px 在 1600px 的正文区里只占 40%，
- * 读起来像一张贴在墙上的窄纸条。放宽到 45 字/行——仍在上限内（>48 字眼睛会丢行），
- * 但更贴合现在的屏幕。
+ * 读起来像一张贴在墙上的窄纸条。放宽到 47 字/行——仍在上限内（>48 字眼睛会丢行），
+ * 与 Typora 的 860px 同档，但更贴合现在的屏幕。
  * 改这里等于改默认阅读体验，必须同时跑 tools/ui-verify.mjs 复核版心。
  */
 export const DEFAULT_SETTINGS: EditorSettings = {
@@ -104,7 +104,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   fontFamily: 'system',
   fontSize: 17,
   lineHeight: 1.75,
-  readingWidth: 760,
+  readingWidth: 800,
   uiZoom: 100,
   recoverUnsaved: true,
   customCss: '',

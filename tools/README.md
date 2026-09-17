@@ -67,7 +67,7 @@ PLAYWRIGHT_BROWSERS_PATH=../../.tmp/pw-browsers \
 不在 token 取值。
 
 第二轮又暴露了同一类问题的另一面：**CSS 是对的、页面是错的**。
-默认设置里的 `fontSize: 16 / readingWidth: 736` 覆盖了 CSS 标定，
+默认设置曾用 `fontSize: 16 / readingWidth: 736` 覆盖 CSS 标定，
 任务项的包裹层结构让 `inline` 永远无法与 `<p>` 同行，
 零高的空行缝建立 BFC 让相邻外边距时而相加、时而取最大。
 这些都必须用渲染审计才看得见——所以新增的每一条断言，

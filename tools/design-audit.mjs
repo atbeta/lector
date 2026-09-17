@@ -204,7 +204,7 @@ const readingSize = parseFloat(tokens.light['--text-reading'])
 if (!Number.isNaN(measure) && !Number.isNaN(readingSize)) {
   const perLine = Math.round(measure / readingSize)
   const ok = perLine >= 28 && perLine <= 48
-  note(ok ? 'ok' : 'warn', `版心 ${measure}px / 正文 ${readingSize}px ≈ 每行 ${perLine} 个中文字（理想 30–45）`)
+  note(ok ? 'ok' : 'warn', `版心 ${measure}px / 正文 ${readingSize}px ≈ 每行 ${perLine} 个中文字（理想 30–48）`)
 }
 
 // ── 7. 组件层：检查关键结构是否存在（防重构漏改） ──

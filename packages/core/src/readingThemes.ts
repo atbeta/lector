@@ -36,16 +36,17 @@ export interface ReadingTheme {
  * 命名取自读者熟悉的东西，不取自参数（「窄栏」不是主题名，「纸」才是）。
  * 规格行的数字必须与实际 preset 一致——它们会被渲染在产品里给用户看。
  *
- * 栏宽是按 1080p / 2K 屏重新标定过的（原值在 560–760，现在是 680–920）：
- * 每款仍然守住「一行 38–58 字」这个可读区间，数字本身跟着字号走。
+ * 栏宽按 1080p / 2K 屏标定过（原值 560–760；正文现 680–800、手册 1000）：
+ * 正文每款守住「一行 38–48 字」这个可读区间，数字跟着字号走；
+ * 手册更宽是有意的——文档里的表格、代码、参数表要一行放得下。
  */
 export const READING_THEMES: readonly ReadingTheme[] = [
   {
     id: 'default',
     name: { zh: '默认', en: 'Default' },
     tagline: { zh: '无衬线，中性纸面', en: 'Sans, neutral paper' },
-    spec: { zh: '中性纸面 · 17px · 1.75 行距 · 760px 栏宽', en: 'Neutral · 17px · 1.75 leading · 760px' },
-    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.75, readingWidth: 760 },
+    spec: { zh: '中性纸面 · 17px · 1.75 行距 · 800px 栏宽', en: 'Neutral · 17px · 1.75 leading · 800px' },
+    preset: { fontFamily: 'system', fontSize: 17, lineHeight: 1.75, readingWidth: 800 },
   },
   {
     id: 'paper',
@@ -65,9 +66,9 @@ export const READING_THEMES: readonly ReadingTheme[] = [
     id: 'manual',
     name: { zh: '手册', en: 'Manual' },
     tagline: { zh: '像读官方文档', en: 'Like reading the docs' },
-    spec: { zh: '标题带下沿 · 16px · 1.68 行距 · 920px 栏宽', en: 'Ruled headings · 16px · 1.68 leading · 920px' },
+    spec: { zh: '标题带下沿 · 16px · 1.68 行距 · 1000px 栏宽', en: 'Ruled headings · 16px · 1.68 leading · 1000px' },
     // 文档场景本来就该更宽：表格、代码、参数表都要一行放得下
-    preset: { fontFamily: 'system', fontSize: 16, lineHeight: 1.68, readingWidth: 920 },
+    preset: { fontFamily: 'system', fontSize: 16, lineHeight: 1.68, readingWidth: 1000 },
   },
   {
     id: 'focus',

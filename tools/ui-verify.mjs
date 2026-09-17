@@ -611,7 +611,7 @@ const summary = {
   // 3.45) 侧栏宽度可调 + 树形大纲
   //
   // 顺序有讲究：先验树形大纲，再验拖宽度。
-  // 拖宽会把侧栏形态推到浮层（1200px 窗口 + 760px 栏宽本来就贴着停靠阈值），
+  // 拖宽会把侧栏形态推到浮层（1200px 窗口 + 800px 栏宽本来就贴着停靠阈值），
   // 浮层进出有过渡，后续断言点到「正在移动的侧栏」会假失败。
   // 所以把会改变形态的操作放最后。
   {
@@ -1295,7 +1295,7 @@ const summary = {
       if (manual.attr !== 'manual') note('error', `点了手册主题，html[data-reading-theme] 是 ${manual.attr}`)
       if (manual.selected !== 'manual') note('error', '点了手册主题，卡片没有变成选中态')
       if (manual.paper === before) note('error', `切换主题后纸面色没变（都是 ${before}）：主题只改了属性没改纸墨`)
-      if (manual.font !== '16px' || !manual.lh.startsWith('1.68') || manual.w !== '920px') {
+      if (manual.font !== '16px' || !manual.lh.startsWith('1.68') || manual.w !== '1000px') {
         note('error', `手册主题的标定排版没落上屏：字号 ${manual.font} / 行距 ${manual.lh} / 栏宽 ${manual.w}`)
       }
       note('info', `手册主题：纸面 ${manual.paper}，${manual.font} · ${manual.lh} · ${manual.w}`)
