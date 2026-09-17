@@ -16,7 +16,7 @@
       // 防闪烁：在样式与模块加载之前定好主题。
       //
       // 主题来源优先级：壳注入（Rust 建窗时同步读 lector-settings.json 塞进
-      // window.__lectorTheme，见 io.rs build_doc_window）→ localStorage（浏览器
+      // window.__lectorTheme，见 io/window.rs build_doc_window）→ localStorage（浏览器
       // 预览）→ 系统偏好。壳注入是唯一能拿到「设置=dark 而系统=light」的路径——
       // 此前缺它，深色用户每次启动都先闪一帧浅色再变深。
       ;(function () {

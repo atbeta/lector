@@ -41,7 +41,7 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 
 ### 窗口边框只有一个来源（踩过两次）
 
-`tauri.conf.json` 的 `app.windows` **是空的**，窗口一律由 `io::build_doc_window` 创建
+`tauri.conf.json` 的 `app.windows` **是空的**，窗口一律由 `io::window::build_doc_window` 创建
 （主窗口走 `io::ensure_main_window`）。原因：
 
 - config 里的 window 配置**会覆盖 builder**。曾经在 config 写 `"decorations": false`，
@@ -50,7 +50,7 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 - config 是**所有平台共用**的。只要有一个窗口来自 config，就会分出两条创建路径，
   迟早出现「主窗口有边框、双击打开的窗口没有」这种跑偏。
 
-所以：平台差异只写在 `io.rs` 的 `window_chrome()`（macOS 保留原生边框与红绿灯，
+所以：平台差异只写在 `io/window.rs` 的 `window_chrome()`（macOS 保留原生边框与红绿灯，
 Windows/Linux 无边框自绘），`cargo test` 里有一条断言盯着 config 不许再写 `decorations`。
 
 两个坑，都踩过了：

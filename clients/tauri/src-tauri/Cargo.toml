@@ -37,7 +37,7 @@ notify = "8.0.0"
 url = "2"
 
 # 仅 Windows 用：透明无边框窗口 + Mica/Acrylic 材质换系统圆角与原生投影
-# （io.rs::apply_platform_window_tweaks）。
+# （io/window.rs::apply_platform_window_tweaks）。
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8.0"
 # PDF 导出（pdf.rs）：WebView2 PrintToPdf 的 COM 互操作。
