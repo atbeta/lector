@@ -193,7 +193,7 @@ export function createDocumentEditor({
     if (large.isActive()) {
       contentEl.classList.add('large-doc')
       document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编��档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+      // 大文件只有纯文本可编���档位锁在源码档，避免"切回阅读能看见渲染"的误解。
       // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
       forceSourceMode()
       large.mountLargeDocument()
@@ -369,9 +369,11 @@ export function createDocumentEditor({
       el.appendChild(host)
       // mermaid 块：源码下方挂实时预览，语法高亮换专用分词器
       const mermaid = isMermaidBlock(block)
-      const config = {
-        autoCharacterPairs: getSettings().autoCharacterPairs,
-        showWhitespace: getSettings().showWhitespace,
+  const config = {
+    autoCharacterPairs: getSettings().autoCharacterPairs,
+    showWhitespace: getSettings().showWhitespace,
+    // 行号只给代码块：段落块挂 gutter 没有意义
+    lineNumbers: block.kind === 'code' && getSettings().codeLineNumbers,
         // 块内历史见底后，⌘Z 接着撤块级操作（见 cm.ts 的 Mod-z）
         onUndoFallback: () => operations.undoBlockOp(),
         // 代码块里不做 HTML→Markdown：那里要的是代码原文

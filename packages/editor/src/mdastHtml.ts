@@ -182,7 +182,7 @@ function listItems(list: Node): string {
     // listItem 的 children 通常是 paragraph 或嵌套 list
     const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')
     // 任务项正文包一层 .task-label：已完成态给它加删除线即可，不必把整行压暗
-    // （���暗会读成「禁用」，而未完成反而最亮，层级就反了）。
+    // （�����暗会读成「禁用」，而未完成反而最亮，层级就反了）。
     // 这里必须是 div 不能是 span：body 里是 <p>，把块级塞进行内元素属于非法嵌套，
     // 浏览器会把 span 就地闭合，删除线就落在空元素上。
     return task ? `<li class="task">${checkbox}<div class="task-label">${body}</div></li>` : `<li>${body}</li>`
@@ -309,9 +309,17 @@ function blockToHtml(n: Node): string {
       return `<blockquote>${body}</blockquote>`
     }
     case 'code': {
-      // 高亮只改显示，不改源码：token 由 highlightCode 转义后包 span
+      // 高亮只改显示，不改源码：token 由 highlightCode 转义后包 span。
+      // 行号 gutter：多行块才挂（单行标行号没有意义）；显隐由根类
+      // code-ln-off 控制（设置面板实时切换，无需重渲染）。
       const lang = n.lang ?? ''
-      return `<pre><code class="language-${esc(lang)}">${highlightCode(n.value ?? '', lang)}</code></pre>`
+      const value = n.value ?? ''
+      const lineCount = value.split('\n').length
+      const gutter =
+        lineCount > 1
+          ? `<span class="ln-gutter" aria-hidden="true">${Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}</span>`
+          : ''
+      return `<pre${gutter ? ' class="has-ln"' : ''}>${gutter}<code class="language-${esc(lang)}">${highlightCode(value, lang)}</code></pre>`
     }
     case 'thematicBreak':
       return '<hr />'

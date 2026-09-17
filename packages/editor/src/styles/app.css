@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「���方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「�����方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1274,16 +1274,37 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-media);
   overflow-x: auto;
-  color: rgb(var(--foreground));
-  tab-size: 2;
 }
+/* 代码行号 gutter：pre 转 flex 双列，gutter 固定、code 自己横向滚动——
+   行号不随内容滚走。行对齐靠两边同 font-size/line-height（都继承 pre）。 */
+.reading-prose pre.has-ln {
+  display: flex;
+  overflow: hidden;
+}
+.reading-prose pre.has-ln > code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.reading-prose .ln-gutter {
+  flex: none;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid rgb(var(--border-subtle));
+  text-align: right;
+  color: rgb(var(--subtle-foreground) / 0.55);
+  user-select: none;
+  pointer-events: none;
+}
+/* 设置面板实时开关：根类切换，无需重渲染 */
+.code-ln-off .ln-gutter { display: none; }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
    只上四类：注释 / ���符串 / ���字 / 关键���——���分辨，不��。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   ���构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
+   ���构词（keyword/tag/selector/���数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -3055,7 +3076,7 @@ html.is-loading #content {
   width: 72px;
   height: 72px;
   margin-bottom: 18px;
-  border-radius: 18px; /* svg 自带圆角；这里是兜底，防占位瞬间露出直角 */
+  border-radius: 18px; /* svg 自带圆角；这里是兜���，防占位瞬间露出直角 */
   box-shadow: 0 1px 2px rgb(var(--foreground) / 0.06), 0 10px 26px rgb(var(--foreground) / 0.1);
 }
 .empty-actions { gap: 10px; }
