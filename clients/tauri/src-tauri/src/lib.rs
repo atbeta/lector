@@ -213,6 +213,12 @@ pub fn run() {
       let (px, py) = (position.x, position.y);
       std::thread::spawn(move || {
         if let Some(win) = app.get_webview_window(&lbl) {
+          // 悬停提示先撤：Windows 上 Drop 之后不保证有 Leave 事件，不清会一直挂着。
+          let _ = win.emit_to(
+            EventTarget::webview_window(lbl.clone()),
+            "lector:drag-hover",
+            "none",
+          );
           if !imgs.is_empty() {
             let scale = win.scale_factor().unwrap_or(1.0);
             let _ = win.emit_to(
@@ -221,9 +227,16 @@ pub fn run() {
               serde_json::json!({ "paths": imgs, "x": px / scale, "y": py / scale }),
             );
           }
-        }
-        for path in docs {
-          open_if_markdown(&app, &path);
+          // 文档在拖入的这个窗口里就地打开：lector:open 链路自带「先读后确认脏
+          // 文档」。不走 open_if_markdown——那是新开/聚焦语义，拖放要的是替换
+          // 当前窗口内容；多个文档只开第一个，就地打开语义下逐个确认反而混乱。
+          if let Some(path) = docs.first() {
+            let _ = win.emit_to(
+              EventTarget::webview_window(lbl.clone()),
+              "lector:open",
+              serde_json::json!({ "path": path }),
+            );
+          }
         }
       });
     }

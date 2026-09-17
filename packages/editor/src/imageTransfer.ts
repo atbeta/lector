@@ -1,8 +1,11 @@
 import type { BlockView } from '@lector/core'
 import { isImageMime, pastedFileName, safeDropName } from './imageInsert.ts'
-import { t } from './i18n.ts'
 import { detectEnv, listenShell, readBytes } from '@lector/shell-web'
 import type { ImageInsertRef } from './imageController.ts'
+
+/** 拖放提示图标：落进托盘的箭头，通用「放到这里」隐喻。 */
+const DROP_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>'
 
 export function bindImageTransfer({
   getBlocks,
@@ -43,16 +46,13 @@ export function bindImageTransfer({
   )
 
   // 拖放反馈：没给一个「松手就落这」的提示，用户会以为没拖中。
-  // 全窗 overlay，按拖的东西给不同文案（图片=插入，文档=打开）。
+  // 全窗浅框 + 居中图标，不带文字——图标比文案安静，拖没拖中一眼可见。
   let dropOverlayEl: HTMLElement | null = null
-  function showDropOverlay(text: string): void {
-    if (dropOverlayEl) {
-      dropOverlayEl.textContent = text
-      return
-    }
+  function showDropOverlay(): void {
+    if (dropOverlayEl) return
     const el = document.createElement('div')
     el.className = 'drop-overlay'
-    el.textContent = text
+    el.innerHTML = DROP_ICON
     document.body.appendChild(el)
     dropOverlayEl = el
   }
@@ -87,8 +87,7 @@ export function bindImageTransfer({
     // 图片带逻辑坐标 emit 过来；悬停时按内容类型亮不同提示。
     void (async () => {
       await listenShell<'image' | 'doc' | 'other' | 'none'>('lector:drag-hover', (kind) => {
-        if (kind === 'image') showDropOverlay(t('dropImageHint'))
-        else if (kind === 'doc') showDropOverlay(t('dropDocHint'))
+        if (kind === 'image' || kind === 'doc') showDropOverlay()
         else hideDropOverlay()
       })
       await listenShell<{ paths: string[]; x: number; y: number }>('lector:drop-files', ({ paths, x, y }) => {
@@ -117,7 +116,7 @@ export function bindImageTransfer({
     const hasImage = imageFilesFromList(e.dataTransfer?.files).length > 0
     if (hasImage) {
       e.preventDefault()
-      showDropOverlay(t('dropImageHint'))
+      showDropOverlay()
     }
   })
 

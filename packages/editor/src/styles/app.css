@@ -577,7 +577,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   height: 0;
   margin: 0;
   padding: 0;
-  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折���，
+  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块��� margin 折���，
      间距就变成「有空行缝时相加、没有时取最大」，同一份文档两种节奏。 */
   pointer-events: none;
   cursor: default;
@@ -1860,7 +1860,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 脚注 ─────────────
  * 「阅读优先」要能读到注释本身：引用在上标可点，定义在文末可见。
- * 都只改预览，不动源码，保存仍��� `[^1]` 原文。 */
+ * 都只改预��，不动源码，保存仍��� `[^1]` 原文。 */
 .reading-prose .footnote-ref {
   font-size: 0.8em;
   vertical-align: baseline;
@@ -3126,7 +3126,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 }
 
 /* ───────────── 视觉精修层 ─────────────
- * 保持阅读器安静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
+ * 保持阅读器��静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
  * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
 #content {
   background: rgb(var(--paper));
@@ -3200,17 +3200,19 @@ html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 .drop-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80; /* 在 #statusbar(默认) 之��、modal(90) 之��� */
+  z-index: 80; /* 在 #statusbar(默认) 之上、modal(90) 之下 */
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgb(var(--primary) / 0.07);
   pointer-events: none; /* 不能挡 drop 事件本身 */
-  font-size: var(--text-h3);
-  font-weight: 600;
   color: rgb(var(--primary));
   border: 2px dashed rgb(var(--primary) / 0.6);
   border-radius: 8px;
+}
+.drop-overlay svg {
+  width: 48px;
+  height: 48px;
 }
 
 /* ───────────── 大文件：整篇裸 CM6 ─────────────
