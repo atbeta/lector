@@ -223,9 +223,9 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   function jumpToHeading(id: string): void {
     const el = getBlockElement(id)
     if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    // 立刻把高亮切过��：平滑滚动期间用户已经认为自己在那一节了，
-    // 等滚动结束再变会显得迟滞。
+    // 瞬时跳转：浏览器的 smooth 时长不受控，长距离能滑 1s+，导航要的是立刻到达
+    // （与 findHighlight 的跳转同一取舍）。
+    el.scrollIntoView({ behavior: 'auto', block: 'start' })
     setActiveHeading(id, { reveal: true })
   }
 

@@ -193,7 +193,7 @@ export function createDocumentEditor({
     if (large.isActive()) {
       contentEl.classList.add('large-doc')
       document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编：档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+      // 大文件只有纯文本可编��档位锁在源码档，避免"切回阅读能看见渲染"的误解。
       // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
       forceSourceMode()
       large.mountLargeDocument()
@@ -582,7 +582,9 @@ export function createDocumentEditor({
         }
         render()
       },
-      scrollTo: (id) => blocksEl.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      // 瞬时跳转：refresh() 会对多个命中块连续 scrollTo，smooth 动画互相
+      // 打断很乱；单次跳转长距离也要滑 1s+。与 findHighlight 同一取舍。
+      scrollTo: (id) => blocksEl.get(id)?.scrollIntoView({ behavior: 'auto', block: 'center' }),
     })
   }
 
