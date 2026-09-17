@@ -28,6 +28,10 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
   `block-indicator-verify`（轨道/把手/聚焦描边）。改动界面、层叠或交互后跑一次。
   **没浏览器时它会打印 SKIP 并以 0 退出**——服务器上没有浏览器是常态，不是失败；
   想让它变严格用 `bun run verify:ui -- --strict`，想指定浏览器用 `LECTOR_BROWSER=<exe>`。
+- 文本完整性：**新增的行里不许出现替换字符（U+FFFD）**。仓库里那 455 处注释腐化不是一次
+  事故，是历次编辑攒出来的（某些提交新增的行里就带着它），所以只清存量没用。
+  本机装一次：`git config core.hooksPath .githooks`；CI 挂着同一条（只查本次新增的行）。
+  绕过用 `git commit --no-verify`。整棵树的代码与字符串另有 `bun test` 的 text-integrity 守着。
 - 代码注释中文；**用户文案 i18n（zh-CN + en）从第一天就做**，不后补。
 - 最小变更。不提交密钥。`testdata/` 只放自造夹具，不提交别人的私密笔记。
 - Commit messages：Conventional Commits，`type(scope): subject`，简洁英文。

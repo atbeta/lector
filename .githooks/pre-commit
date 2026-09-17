@@ -1,0 +1,8 @@
+#!/bin/sh
+# 提交前挡住新引入的替换字符（U+FFFD）——仓库里那 455 处注释腐化就是这么攒出来的。
+#
+# 装一次即可（每台机器都要）：
+#   git config core.hooksPath .githooks
+#
+# 临时绕过（确实要提交带 U+FFFD 的文本时）：git commit --no-verify
+exec node tools/check-rot.mjs

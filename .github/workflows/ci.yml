@@ -69,6 +69,16 @@ jobs:
               print("\n".join(errs)); sys.exit(1)
           PY
 
+      # 新引入的替换字符（U+FFFD）不许进仓库。仓库里那 455 处注释腐化不是一次事故，
+      # 是一次次编辑攒出来的（某些提交新增的行里就带着它）——所以只清存量没用，
+      # 必须挡在门口。只查本次新增的行：存量注释是另一笔账，不该把它弄红。
+      # 本机同一套检查挂在 .githooks/pre-commit（git config core.hooksPath .githooks）。
+      - name: No new replacement characters
+        run: |
+          BASE="${{ github.event.before }}"
+          [ -n "$BASE" ] || BASE="${{ github.event.pull_request.base.sha }}"
+          node tools/check-rot.mjs --range "$BASE..${{ github.sha }}"
+
       # 设计 token 的静态体检(对比度、字阶、版心、悬空引用)。
       # 渲染层体检(tools/ui-verify.mjs)需要浏览器,留在本机跑;
       # 但它才是能发现「合成后看不见」的那一道,改动界面时必须跑。
