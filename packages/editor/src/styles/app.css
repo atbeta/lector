@@ -197,8 +197,8 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「��（模式开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in 复盘时 ui-verify
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����模式开关+图标）」切开。
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in 复��时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「上方留白」（松），两者折叠取较大值——因此标题下方总是更紧，
+   「上方留白」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1606,7 +1606,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   overflow-x: auto;
 }
 /* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
-   svg 上是 width="100%" + inline `max-width: 自然宽度`，两者合起来就是
+   svg 上是 width="100%" + inline `max-width: 自然宽度`，���者合起来就是
    min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
    不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
 .mermaid-diagram .mermaid-svg svg {
@@ -1877,7 +1877,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 滚动条：细、默认隐形、悬停才现身 ─────────────
  * 浏览器默认滚动条（十几 px、常驻、带轨道）在阅读器里是一道持续的竖线，
- * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出现。
+ * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出���。
  * 可见宽度 = 8px 轨道减掉两侧各 2px 透明边框 = 4px——像纸边的一根细线，但仍好抓。
  * Chromium 对滚动条伪元素的 transition 支持不稳，退化成「立即隐藏」也成立。 */
 * {
@@ -1932,7 +1932,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   z-index: 200;
   background: rgb(var(--overlay) / 0.72);
   backdrop-filter: blur(6px);
-  animation: fade-in var(--motion-fast) var(--ease-enter) both;
+  /* 同 .modal-backdrop：带 blur 的遮罩不渐入，否则虚化渐变像卡 */
 }
 .lightbox[hidden] { display: none; }
 .lb-canvas {
@@ -2107,7 +2107,8 @@ html.lightbox-open #content { overflow: hidden; }
   padding: 24px;
   background: rgb(var(--overlay) / var(--overlay-alpha));
   backdrop-filter: blur(var(--overlay-blur));
-  animation: fade-in var(--motion-fast) var(--ease-enter) both;
+  /* 遮罩不渐入：opacity 动画会把 backdrop-filter 的虚化也带着从无到有，
+     看起来像卡。压暗 + 虚化第一帧就位，入场感交给卡片自己的 pop-in。 */
 }
 .modal-card {
   width: min(600px, calc(100vw - 48px));
@@ -2117,7 +2118,8 @@ html.lightbox-open #content { overflow: hidden; }
   color: rgb(var(--foreground));
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-floating);
-  animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
+  /* 150ms：弹窗入场要干脆。210ms（--motion-slow）配着瞬时遮罩反而显得拖 */
+  animation: pop-in var(--motion-base) var(--ease-emphasized) both;
 }
 .modal-header {
   position: sticky;
@@ -2417,7 +2419,7 @@ html.lightbox-open #content { overflow: hidden; }
  * 网格管结构、源码管存储：单元格是自适应高度的 textarea，
  * Enter 跳下一行（末行自动补行），行列增删走两侧窄轨。
  *
- * 结构轨必须常显、对齐、不叠在格子上：
+ * 结���轨必须常显、对齐、不叠在格子上：
  *  1. 打开时首格自动聚焦——列删除绝不能跟 :focus-within，否则只有首列冒出 X。
  *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角标定位（会漂在 gutter 右上角）。
  *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled 残影。 */
@@ -2473,7 +2475,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-color: rgb(var(--ring) / 0.6);
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
-/* 表头格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截。 */
+/* 表��格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截。 */
 .table-editor-head { position: relative; }
 .table-editor-head:has(.table-editor-del) textarea { padding-right: 28px; }
 .table-editor-head .table-editor-del {
@@ -2898,7 +2900,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 
 /* ───────────── 空态的「最近打开」 ─────────────
  * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
- * 不做卡片、不做图标徽章、不用主色描边——这份列表是「接着读」，
+ * 不做���片、不做图标徽章、不用主色描边——这份列表是「接着读」，
  * 观感上���该接近目录页，而不是一排 App 图标。 */
 .recent-block {
   margin-top: 46px;
