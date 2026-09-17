@@ -137,6 +137,25 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       items.push({ label: t('imageEditAlt'), mutates: true, run: () => void editImageAlt(target.block, target.index) })
       items.push({ label: t('imageReplace'), mutates: true, run: () => replaceImageFile(target.block, target.index) })
       items.push({ label: t('imageEditSource'), mutates: true, run: () => focusImageSource(target.block, target.index) })
+      // 块级动作：图片块也是块，删除/插入段落与普通块共用同一套 operations
+      // （mutates：阅读档不出现，过滤在 documentMenus 的 forMode()，与块菜单同一规矩）
+      items.push({
+        separatorBefore: true,
+        label: t('imageDelete'),
+        danger: true,
+        mutates: true,
+        run: () => editor.operations.deleteBlock(target.block.id),
+      })
+      items.push({
+        label: t('menuInsertBefore'),
+        mutates: true,
+        run: () => editor.operations.insertParagraphBefore(target.block.id),
+      })
+      items.push({
+        label: t('menuInsertAfter'),
+        mutates: true,
+        run: () => editor.operations.insertParagraphAfter(target.block.id),
+      })
     }
     const local = assetLocalPath(img.src)
     if (local) {
