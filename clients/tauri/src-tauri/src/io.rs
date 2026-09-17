@@ -819,9 +819,11 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
     // 只设窗口标题不够——页面加载后会按自己的逻辑写标题（见 resetTitle），
     // 那一下就会把 "Lector" 闪出来。
     .initialization_script(&format!(
-      "window.__lectorTitle = \"{}\"; window.__lectorTheme = \"{}\";",
-      title.replace('\\\\', "\\\\\\\\").replace('"', "\\\\\\\""),
-      theme_mode.replace('\\\\', "\\\\\\\\").replace('"', "\\\\\\\"")
+      "window.__lectorTitle = {}; window.__lectorTheme = {};",
+      // serde_json 的字符串序列化就是合法的 JS 字面量（JSON ⊂ JS），
+      // 文档名里的引号、反斜杠天然安全——不要手写转义。
+      serde_json::to_string(&title).unwrap_or_else(|_| "\"\"".into()),
+      serde_json::to_string(&theme_mode).unwrap_or_else(|_| "\"\"".into())
     ))
     .min_inner_size(480.0, 360.0)
     // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，

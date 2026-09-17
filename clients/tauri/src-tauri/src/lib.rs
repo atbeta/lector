@@ -56,10 +56,16 @@ pub fn run() {
     // 窗口状态：退出时记住尺寸/位置/是否最大化，启动时恢复。
     // 必须在建窗口（setup 里的 ensure_main_window）**之前**注册——
     // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
-    // 自动恢复关掉：几何由 io.rs::build_doc_window 在建窗前预应用（窗口可见前），
-  // 插件的恢复发生在窗口就绪后——可见窗口被二次挪动就是「打开时位置变化」。
-  // 保存（退出时写 .window-state.json）不受影响，仍归插件。
-  .plugin(tauri_plugin_window_state::Builder::default().with_dont_restore(true).build())
+    // 主窗口跳过插件的自动恢复：几何由 io.rs::build_doc_window 在建窗前预应用
+  // （窗口可见前），插件的恢复发生在窗口就绪后——可见窗口被二次挪动就是
+  // 「打开时位置变化」。动态文档窗口（doc-N）的 label 无法提前注册跳过，
+  // 但其预应用与插件恢复读同一存档、同值幂等，且插件自带显示器存在性检查。
+  // 保存不受影响，仍归插件。
+  .plugin(
+    tauri_plugin_window_state::Builder::default()
+      .skip_initial_state("main")
+      .build(),
+  )
     .setup(|app| {
       // 日志三路：Stdout（开发）、Webview（控制台）、文件（Windows 双击启动时唯一能找回的）。
       // 之前整段包在 cfg!(debug_assertions) 里——用户装的 release 包一条日志都没有，
