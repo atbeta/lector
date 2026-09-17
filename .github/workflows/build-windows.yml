@@ -94,7 +94,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$portable/resources" | Out-Null
           Copy-Item "$dir/lector.exe" "$portable/lector.exe" -ErrorAction Stop
           Copy-Item "clients/tauri/src-tauri/icons/markdown.ico" "$portable/resources/markdown.ico" -ErrorAction Stop
-          Copy-Item "clients/tauri/portable/*.cmd" $portable -ErrorAction Stop
+          # .cmd 必须以 GBK(936) 进包：cmd 按系统码页（中文 Windows = CP936）解析，
+          # UTF-8 中文会被拆成碎片命令。仓库源文件保持 UTF-8（可 diff/grep），
+          # 这里转码。必须显式 GetEncoding(936)——runner 是 en-US，
+          # -Encoding Default 是 CP1252，中文会变 '?'。
+          foreach ($name in @("register-file-assoc.cmd", "unregister-file-assoc.cmd")) {
+            $text = [IO.File]::ReadAllText("clients/tauri/portable/$name", [Text.Encoding]::UTF8)
+            [IO.File]::WriteAllText("$portable/$name", $text, [Text.Encoding]::GetEncoding(936))
+          }
           Compress-Archive -Path "$portable/*" -DestinationPath "$stage/lector-portable.zip" -Force
           Remove-Item $portable -Recurse -Force
           Get-ChildItem $stage | Format-Table Name, Length
@@ -177,6 +184,19 @@ jobs:
                            "register-file-assoc.cmd", "unregister-file-assoc.cmd")) {
             if (-not (Test-Path "$app\$f")) {
               Write-Error "portable zip missing $f"
+              exit 1
+            }
+          }
+          # 编码断言：.cmd 必须是 GBK(936) 且无 BOM。转码漏了或被改回 UTF-8，
+          # 中文 Windows 上脚本会解析成碎片命令——这正是要在包里验的原因。
+          foreach ($name in @("register-file-assoc.cmd", "unregister-file-assoc.cmd")) {
+            $bytes = [IO.File]::ReadAllBytes("$app\$name")
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+              Write-Error "$name has UTF-8 BOM; cmd.exe would choke on it"
+              exit 1
+            }
+            if (-not ([Text.Encoding]::GetEncoding(936).GetString($bytes)).Contains('注册')) {
+              Write-Error "$name is not GBK-encoded (marker '注册' not found under CP936)"
               exit 1
             }
           }
