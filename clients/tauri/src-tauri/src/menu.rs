@@ -210,10 +210,14 @@ pub fn open_external(url: &str) -> std::io::Result<()> {
 
 #[cfg(target_os = "windows")]
 pub fn open_external(url: &str) -> std::io::Result<()> {
+  use std::os::windows::process::CommandExt;
   // 不能直接 spawn url：Windows 会把带 & 的 URL 解析成命令分隔符。
-  // 交给 cmd 的 start，空标题参数是 start 的固定语法。
+  // 交给 cmd 的 start，空标题参数是 start 的固定语法。cmd 是控制台程序，
+  // 从 GUI 进程 spawn 会闪黑窗——CREATE_NO_WINDOW 压掉。
+  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
   std::process::Command::new("cmd")
     .args(["/C", "start", "", url])
+    .creation_flags(CREATE_NO_WINDOW)
     .spawn()
     .map(|_| ())
 }
