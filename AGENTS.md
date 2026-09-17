@@ -32,6 +32,10 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
   事故，是历次编辑攒出来的（某些提交新增的行里就带着它），所以只清存量没用。
   本机装一次：`git config core.hooksPath .githooks`；CI 挂着同一条（只查本次新增的行）。
   绕过用 `git commit --no-verify`。整棵树的代码与字符串另有 `bun test` 的 text-integrity 守着。
+- **别用 PowerShell 的 `Get-Content` / `Set-Content` 往返编辑含中文的文件**：那会把中文写成替换字符，
+  仓库里那 455 处注释腐化就是这么来的（上一轮的临时脚本又踩了一次）。改文件走 `edit` / `write`
+  工具，或在 `bun -e` 里用 `fs.readFileSync(f, 'utf8')` / `writeFileSync`；临时脚本也一样，
+  别让它经过 PowerShell 的文本管道。
 - 代码注释中文；**用户文案 i18n（zh-CN + en）从第一天就做**，不后补。
 - 最小变更。不提交密钥。`testdata/` 只放自造夹具，不提交别人的私密笔记。
 - Commit messages：Conventional Commits，`type(scope): subject`，简洁英文。

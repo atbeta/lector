@@ -1,59 +1,20 @@
+import {
+  detectEnv,
+  tauriApi,
+  type Env,
+  type OpenPayload,
+  type ReadResult,
+  type SaveResult,
+  type TauriApi,
+} from './platform/core.ts'
+
 // 平台抽象：壳（Tauri）走自定义 IPC；浏览器（vite dev）退化为 input file / download。
 // 契约见 .ai/06-ipc-contract.md。命令名为 Tauri 函数名（无 lector: 前缀）；事件仍用 lector:。
+//
+// 分层：共享内核（类型 / detectEnv / tauriApi）在 ./platform/core.ts，这里 re-export，
+// 因此包的对外接口与拆分前完全一致。本文件按域继续往下拆，其余域逐个搬到 ./platform/<域>.ts。
 
-export type Env = 'shell' | 'browser'
-
-export interface OpenPayload {
-  path: string
-}
-
-export interface ReadResult {
-  path: string
-  content: string
-  mtime_ms: number
-  /** 磁盘字节数（浏览器预览里是 Blob 大小）。大文件判定用它，不用字符数。 */
-  byte_len: number
-}
-
-export interface SaveResult {
-  ok: boolean
-  conflict?: boolean
-  current_mtime_ms?: number
-}
-
-declare global {
-  interface Window {
-    __TAURI_INTERNALS__?: {
-      invoke: (cmd: string, args?: unknown) => Promise<unknown>
-      convertFileSrc?: (filePath: string, protocol: string) => string
-    }
-  }
-}
-
-export function detectEnv(): Env {
-  return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ ? 'shell' : 'browser'
-}
-
-export interface TauriApi {
-  invoke<T>(cmd: string, args?: unknown): Promise<T>
-  listen<T>(event: string, handler: (payload: T) => void): Promise<() => void>
-}
-
-let apiPromise: Promise<TauriApi> | null = null
-
-async function tauriApi(): Promise<TauriApi> {
-  if (!apiPromise) {
-    apiPromise = Promise.all([
-      import('@tauri-apps/api/core'),
-      import('@tauri-apps/api/event'),
-    ]).then(([core, event]) => ({
-      invoke: <T>(cmd: string, args?: unknown) => core.invoke<T>(cmd, args as Record<string, unknown>),
-      listen: <T>(name: string, handler: (payload: T) => void) =>
-        event.listen<T>(name, (e) => handler(e.payload)),
-    }))
-  }
-  return apiPromise
-}
+export * from './platform/core.ts'
 
 /** 从壳打开+读盘（dialog 插件选路径，内容经 Rust read_file）。 */
 export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> {
