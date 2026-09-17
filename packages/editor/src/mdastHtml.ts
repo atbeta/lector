@@ -5,6 +5,7 @@ import { resolveImageSrc } from './asset.ts'
 import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
 import { t } from './i18n.ts'
+import { iconSvg } from './icons.ts'
 import { parseBlockRoots } from '@lector/core'
 
 type Node =
@@ -451,7 +452,7 @@ function blockToHtml(n: Node): string {
       const body = (n.children ?? [])
         .map((c) => (c.type === 'paragraph' ? inline(c.children) : blockToHtml(c)))
         .join('')
-      return `<div class="footnote-definition" id="fn-${fid}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span><div class="footnote-definition-body">${body}<a class="footnote-backref" href="#fnref-${fid}" aria-label="${esc(t('footnoteBack'))}">↩&#xFE0E;</a></div></div>`
+      return `<div class="footnote-definition" id="fn-${fid}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span><div class="footnote-definition-body">${body}<a class="footnote-backref" href="#fnref-${fid}" aria-label="${esc(t('footnoteBack'))}">${iconSvg('backref', 12)}</a></div></div>`
     }
     case 'html': {
       // 块级 HTML：details 折叠块白名单放行，其余安全降级为等宽源码

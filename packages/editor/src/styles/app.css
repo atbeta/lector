@@ -198,7 +198,7 @@ button, a, input, [role='slider'], [role='switch'] {
   -webkit-app-region: no-drag;
 }
 /* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—�������read in ����时 ui-verify
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—���������read in ����时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -1882,16 +1882,24 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 .reading-prose .footnote-definition-body > p {
   margin: 0;
 }
-/* ↩ 跳回：内容末尾的低调文字链，不换行、不带下划线框 */
+/* 跳回：内容末尾的 12px 小箭头，默认几乎隐形（淡灰），hover 才亮 */
 .reading-prose .footnote-backref {
-  margin-left: 0.4em;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35em;
   color: rgb(var(--muted-foreground));
+  opacity: 0.55;
   text-decoration: none;
   white-space: nowrap;
+  vertical-align: -2px;
 }
 .reading-prose .footnote-backref:hover {
   color: rgb(var(--primary));
+  opacity: 1;
   text-decoration: none;
+}
+.reading-prose .footnote-backref svg {
+  display: block;
 }
 
 /* ───────────── 扩展语法���染 ─────────────
