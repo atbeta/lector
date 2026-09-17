@@ -88,9 +88,17 @@ jobs:
           $stage = "dist-win"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item "$dir/bundle/nsis/*.exe" $stage -ErrorAction Stop
-          Copy-Item "$dir/lector.exe" "$stage/lector-portable.exe" -ErrorAction Stop
+          # 便携包是目录 zip：exe + .md 图标 + 关联脚本。裸 exe 没地方放图标，
+          # 用户也拿不到文件关联；.cmd 用 %~dp0 自动探测解压目录，双击即生效。
+          $portable = "$stage/lector-portable"
+          New-Item -ItemType Directory -Force -Path "$portable/resources" | Out-Null
+          Copy-Item "$dir/lector.exe" "$portable/lector.exe" -ErrorAction Stop
+          Copy-Item "clients/tauri/src-tauri/icons/markdown.ico" "$portable/resources/markdown.ico" -ErrorAction Stop
+          Copy-Item "clients/tauri/portable/*.cmd" $portable -ErrorAction Stop
+          Compress-Archive -Path "$portable/*" -DestinationPath "$stage/lector-portable.zip" -Force
+          Remove-Item $portable -Recurse -Force
           Get-ChildItem $stage | Format-Table Name, Length
-          "LECTOR_EXE=$stage/lector-portable.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "LECTOR_PORTABLE=$stage/lector-portable.zip" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "SETUP_EXE=$(Get-ChildItem "$stage/*setup.exe" | Select-Object -First 1 -ExpandProperty FullName)" |
             Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
@@ -161,13 +169,23 @@ jobs:
         shell: pwsh
         run: |
           # 只能验「进程能起来且不退」，GUI 无法在 CI 里做真实交互。
-          New-Item -ItemType Directory -Force -Path "$env:TEMP\lector-smoke" | Out-Null
+          # 便携包是 zip：解到临时目录再跑，顺带断言图标与关联脚本真的在包里
+          # （漏拷是静默的，不在解包后验一眼就发不出去了）。
+          Expand-Archive $env:LECTOR_PORTABLE -DestinationPath "$env:TEMP\lector-smoke\app" -Force
+          $app = "$env:TEMP\lector-smoke\app"
+          foreach ($f in @("lector.exe", "resources\markdown.ico", `
+                           "register-file-assoc.cmd", "unregister-file-assoc.cmd")) {
+            if (-not (Test-Path "$app\$f")) {
+              Write-Error "portable zip missing $f"
+              exit 1
+            }
+          }
           Set-Content "$env:TEMP\lector-smoke\smoke.md" "# 中文标题`n`n正文段落。`n"
-          $p = Start-Process -FilePath $env:LECTOR_EXE `
+          $p = Start-Process -FilePath "$app\lector.exe" `
                 -ArgumentList "$env:TEMP\lector-smoke\smoke.md" -PassThru
           Start-Sleep -Seconds 12
           if ($p.HasExited) {
-            Write-Error "lector-portable.exe 启动后立即退出，exit code $($proc.ExitCode)"
+            Write-Error "lector.exe 启动后立即退出，exit code $($p.ExitCode)"
             exit 1
           }
           Write-Host "process alive after 12s (pid $($p.Id))"
@@ -201,7 +219,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist-win
-          sha256sum *.exe > SHA256SUMS.txt
+          sha256sum *.exe *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Publish
@@ -217,14 +235,14 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             # 同一个 tag 重跑（构建失败后重试很常见）不该报错，覆盖产物即可
             echo "release $TAG 已存在，改为覆盖上传"
-            gh release upload "$TAG" dist-win/*.exe dist-win/SHA256SUMS.txt --clobber
+            gh release upload "$TAG" dist-win/*.exe dist-win/*.zip dist-win/SHA256SUMS.txt --clobber
           else
             gh release create "$TAG" \
               --title "Lector $TAG" \
               --notes-file .github/release-notes.md \
               --generate-notes \
               $pre \
-              dist-win/*.exe dist-win/SHA256SUMS.txt
+              dist-win/*.exe dist-win/*.zip dist-win/SHA256SUMS.txt
           fi
           gh release view "$TAG" --json url,name,isPrerelease,assets \
             --jq '"\(.name) \(.url) prerelease=\(.isPrerelease)", (.assets[].name)'
