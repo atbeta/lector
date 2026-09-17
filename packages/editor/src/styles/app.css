@@ -197,8 +197,8 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����模式开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in 复��时 ui-verify
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「�������式开关+图标）」切开。
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in ����时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「上方留白」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「上方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -757,7 +757,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   background: rgb(var(--border));
   flex: none;
 }
-/* 查找栏的 Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
+/* 查找栏��� Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
   display: inline-flex;
@@ -1271,7 +1271,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   padding: 14px 16px;
   background: rgb(var(--muted));
   border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-media);
   overflow-x: auto;
   color: rgb(var(--foreground));
   tab-size: 2;
@@ -1397,12 +1397,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .table-wrap {
   overflow-x: auto;
   border: 1px solid rgb(var(--border-subtle));
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-media);
 }
 .table-wrap table { margin: 0; }
 .reading-prose img {
   max-width: 100%;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-media);
   border: 1px solid rgb(var(--border));
   display: block;
 }
@@ -1518,7 +1518,8 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
  * 而不是它头顶的另一行（结构仿 notefast 的 code fence）。 */
 .code-card {
   border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-card);
+  /* 卡 = 代码区域本体，圆角跟阅读态 pre 的媒体档走，两种模式一致 */
+  border-radius: var(--radius-media);
   background: rgb(var(--muted));
   overflow: hidden;
 }
@@ -1606,7 +1607,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   overflow-x: auto;
 }
 /* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
-   svg 上是 width="100%" + inline `max-width: 自然宽度`，���者合起来就是
+   svg 上是 width="100%" + inline `max-width: 自��宽度`，���者合起来就是
    min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
    不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
 .mermaid-diagram .mermaid-svg svg {
@@ -2074,7 +2075,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 /* 浮层打开时锁住正文滚动 */
 html.lightbox-open #content { overflow: hidden; }
 
-/* ───────────── Toast ───────────── */
+/* ───────────── Toast ────────���──── */
 .lector-toast {
   position: fixed;
   bottom: 22px;
@@ -2141,7 +2142,7 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-header .btn-icon { margin-left: auto; }
 .modal-body { padding: 0; }
 
-/* ───────────── 查找命中 ─────────────
+/* ───────────── 查找命中 ────────��────
  * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
  * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
 .find-hit {
@@ -3020,7 +3021,7 @@ html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 }
 .reading-prose p { text-wrap: pretty; }
 .reading-prose h1 { margin-bottom: 0.18em; }
-.reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+  .reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-media); box-shadow: var(--shadow-card); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
@@ -3058,7 +3059,7 @@ html.is-loading #content {
 }
 .empty-actions { gap: 10px; }
 .empty-new { margin-left: 0; }
-/* 最近打开跟随空态版心，不再是窄栏里的一小条 */
+/* 最近打开��随空态版心，不再是窄栏里的一小条 */
 html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 
 /* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
@@ -3112,7 +3113,7 @@ html.large-file .mode-switch { display: none; }
 
 /* ───────────── 减少动态 ─────────────
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
- * 界面，动效本就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
+ * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
  * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
 @media (prefers-reduced-motion: reduce) {
   *,

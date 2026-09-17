@@ -108,6 +108,9 @@
   /* ───────────── 半径 ───────────── */
   --radius: 6px;
   --radius-card: 10px;
+  /* 内容媒体（图片/表格/代码块）专用：全宽元素顶 10px 显得泡泡，
+     6px 保留一点柔度但更像「文档里的物」，UI 卡片仍走 --radius-card */
+  --radius-media: 6px;
   --radius-btn: 6px;
   --radius-xl: 14px;
 
