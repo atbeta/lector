@@ -335,6 +335,52 @@ for (const id of declaredIds) {
   }
 }
 
+// ── 5. 被烧过的三处（canary） ──
+// 每条对应一个真修过的 bug，且都**静态可判**：不需要浏览器。它们共同的特征是
+// 「坏掉的时候界面不会报错，只是少了一层效果或悄悄画错」，靠肉眼很容易漏。
+// 浏览器量不了层叠，但层叠写法的这几条硬规矩能量。
+
+// (a) 全局动效守卫只允许一条。
+// 两份 *-规则并存时只有一份生效，另一份静默失效——文件末尾那份"减弱动态效果"
+// 曾经就是重复的第二份，谁也不知道哪份在起作用。
+const rmBlocks = [...APP.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\}/g)]
+const globalGuards = rmBlocks.filter((m) => /^\s*\*(,|:not\(|\s|\{)/.test(m[1]))
+if (globalGuards.length > 1) {
+  note('error', `reduced-motion 的全局守卫有 ${globalGuards.length} 条：多条 *-规则只会互相遮蔽，先写的那条静默失效`)
+}
+// (b) 那条全局守卫必须放过 mermaid。
+// mermaid 的布局测量要经过它自己的一条 transition，把 transition-duration 压成
+// 0.01ms 会让 getBBox() 算出巨大的包围盒（实测 viewBox 4141×2103，正确 838×190），
+// 整张图缩进角落——而且只有开了「减弱动态效果」的用户才看得到。
+{
+  const guard = globalGuards.map((m) => m[0]).join('\n')
+  if (guard && (!guard.includes('.mermaid-render-host') || !guard.includes('.mermaid-svg'))) {
+    note('error', 'reduced-motion 的全局守卫没有排除 mermaid 的两个 host：会把图的布局量坏')
+  }
+}
+// (c) [hidden] 必须有全局守卫。
+// 作者样式的 display:flex/grid 会盖过 UA 的 [hidden] { display: none }，
+// 于是 el.hidden = true 对它们完全无效（设置面板的行/分区、关于面板都栽过）。
+// 没有这条 !important，任何人写一条 display 就能把它按回去。
+{
+  const hiddenRules = [...APP.matchAll(/([^{}]*\[hidden\][^{}]*)\{([^}]*)\}/g)]
+  const guarded = hiddenRules.some(([, , body]) => /display:\s*none\s*!important/.test(body))
+  if (!guarded) {
+    note('error', '缺少 [hidden] 的全局守卫（display:none !important）：作者样式的 display 会盖过它，el.hidden = true 静默失效')
+  }
+}
+// (d) 「滑块显出来」只允许一条规则决定。
+// 曾经两套滚动条系统并存（html 上 .is-scrolling 30% + 全局 :hover 12%），
+// 内层容器被后者接管且只有 12% —— 深色下等于没有，而浅色下看起来正常。
+{
+  const visible = [...APP.matchAll(/([^{}]+)\{([^}]*scrollbar-color:[^;]+;[^}]*)\}/g)]
+    .map(([, sel, body]) => [sel.trim().replace(/\s+/g, ' '), body.match(/scrollbar-color:\s*([^;]+)/)[1].trim()])
+    .filter(([, v]) => !v.startsWith('transparent'))
+  if (visible.length > 1) {
+    note('error', `滚动条有 ${visible.length} 条规则在决定「滑块显出来」（${visible.map(([s]) => s.slice(0, 28)).join(' | ')}）：靠后的会静默遮蔽靠前的`)
+  }
+}
+
 // ── 输出 ──
 const order = { error: 0, warn: 1, ok: 2, info: 3 }
 findings.sort((a, b) => order[a.level] - order[b.level])
