@@ -320,11 +320,17 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
         if (!target) return
         const mode = getSettings().theme
         const flip = document.documentElement.getAttribute('data-theme') === 'dark'
-        if (flip) setThemeMode('light')
         try {
-          // 等 mermaid 重画（250ms 去抖 + SVG 渲染）完成再摊平。
-          if (flip) await new Promise((r) => setTimeout(r, 900))
-          await exportPdfTo(target, t('pdfExporting'))
+          await exportPdfTo(target, t('pdfExporting'), async () => {
+            // 翻转在遮罩下进行（0.26.8 教训：翻转让界面「无故变浅」）。
+            // 必须走 setThemeMode 正规管道：mermaid 的重画挂在设置通知上，
+            // 直接改 data-theme 属性它不重画，SVG 里烘着的深色会原样进纸。
+            if (flip) {
+              setThemeMode('light')
+              // 等 mermaid 重画（250ms 去抖 + SVG 渲染）完成再摊平。
+              await new Promise((r) => setTimeout(r, 900))
+            }
+          })
           showToast(t('pdfSaved'))
         } finally {
           if (flip) setThemeMode(mode)

@@ -117,7 +117,11 @@ export async function savePdfDialog(defaultName: string): Promise<string | null>
  * 窗口标题（busyTitle），都不参与渲染捕获。主题翻转是调用方的职责
  * （editorChrome 走 setThemeMode 正规管道，mermaid 的重画挂在设置通知上）。
  */
-export async function exportPdfTo(path: string, busyTitle?: string): Promise<'saved'> {
+export async function exportPdfTo(
+  path: string,
+  busyTitle?: string,
+  prepare?: () => Promise<void>,
+): Promise<'saved'> {
   const root = document.documentElement
   const nextFrame = () =>
     new Promise<void>((resolve) => {
@@ -130,14 +134,24 @@ export async function exportPdfTo(path: string, busyTitle?: string): Promise<'sa
   const overlay = document.createElement('div')
   overlay.className = 'pdf-exporting'
   document.body.appendChild(overlay)
+  // 任务栏进度（Windows 图标脉冲 / macOS Dock）：不进 PDF 的反馈通道，
+  // 从准备阶段一直亮到捕获结束。
+  const { getCurrentWindow, ProgressBarStatus } = await import('@tauri-apps/api/window')
+  await getCurrentWindow()
+    .setProgressBar({ status: ProgressBarStatus.Indeterminate })
+    .catch(() => {})
 
   try {
+    // 准备阶段（翻主题、等 mermaid 重画）在遮罩下进行——用户看到的是
+    // 「正在生成」，而不是应用自己变了颜色（0.26.8 教训：翻转在遮罩前，
+    // 遮罩又只盖两帧，全程等于没有 loading）。
+    await prepare?.()
     root.classList.add('printing')
     await nextFrame()
     // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
     overlay.remove()
     await nextFrame()
-    // 捕获期的反馈走忙光标 + 窗口标题（不进 PDF，见函数头注释）。
+    // 捕获期的反馈走忙光标 + 窗口标题 + 任务栏进度（都不进 PDF）。
     const prevTitle = document.title
     if (busyTitle) document.title = busyTitle
     root.classList.add('pdf-busy')
@@ -152,6 +166,7 @@ export async function exportPdfTo(path: string, busyTitle?: string): Promise<'sa
   } finally {
     root.classList.remove('printing')
     overlay.remove()
+    await getCurrentWindow().setProgressBar({ status: ProgressBarStatus.None }).catch(() => {})
   }
 }
 
@@ -234,7 +249,7 @@ export async function save(
 
 /**
  * 用系统默认浏览器打开外链。
- * 壳里走 open_url 命令（壳侧再做一次协议白名单，文档内容不可信）；
+ * 壳里走 open_url 命令（壳侧再做一次协议白名单，文档内容不��信）；
  * 浏览器预览用 window.open。
  */
 export async function openExternal(url: string): Promise<void> {
