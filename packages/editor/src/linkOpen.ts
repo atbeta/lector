@@ -48,8 +48,56 @@ function reasonText(err: unknown): string {
   return t('linkOpenFailed')
 }
 
-/** 真正去打开。外链交给系统浏览器；本地文件走壳的 open_link（解析与校验都在壳侧）。 */
-export async function openHref(kind: HrefKind, href: string, docPath: string | null): Promise<void> {
+/**
+ * GitHub slug：标题文本 → 锚点 id。规则：拉丁转小写、删全部标点/符号
+ * （含 emoji 与中文标点，\p{P}\p{S}）、每个空白字符各换成一个 `-`。
+ * 与 GitHub/Typora/Obsidian 生成的锚点兼容——别人文档里的目录链接拿过来就能用。
+ * 例：`十二、折叠块 / 详情` → `十二折叠块--详情`（删「、」「/」，两个空格各变一个 -）。
+ */
+export function githubSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]/gu, '')
+    .replace(/\s/g, '-')
+}
+
+/**
+ * 滚动到锚点对应的标题。渲染期不给标题生成 id（省一次全文状态），点击时按
+ * DOM 顺序重算：第 n 个同名标题的 slug 追加 -n（GitHub 重复标题规则）。
+ * 找不到返回 false，调用方提示。scrollIntoView 滚最近可滚祖先，无需知道
+ * 滚动容器是谁；大纲侧栏监听滚动会自动跟上高亮。
+ */
+export function scrollToAnchor(target: string, root: HTMLElement): boolean {
+  const want = decodeURIComponent(target).trim().toLowerCase()
+  if (!want) return false
+  const seen = new Map<string, number>()
+  for (const h of root.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+    const base = githubSlug(h.textContent ?? '')
+    if (!base) continue
+    const n = seen.get(base) ?? 0
+    seen.set(base, n + 1)
+    const slug = n === 0 ? base : `${base}-${n}`
+    if (slug === want) {
+      h.scrollIntoView({ behavior: 'auto', block: 'start' })
+      return true
+    }
+  }
+  return false
+}
+
+/** 真正去打开。外链交给系统浏览器；本地文件走壳的 open_link（解析与校验都在壳侧）；
+ * 文内锚点滚动到对应标题（GitHub slug 规则，见 scrollToAnchor）。 */
+export async function openHref(
+  kind: HrefKind,
+  href: string,
+  docPath: string | null,
+  anchorRoot?: HTMLElement | null,
+): Promise<void> {
+  if (kind === 'anchor') {
+    const ok = scrollToAnchor(href.slice(1), anchorRoot ?? document.body)
+    if (!ok) showToast(t('anchorNotFound'))
+    return
+  }
   if (kind === 'external') {
     await openExternal(href).catch(() => showToast(t('menuOpenLinkFailed')))
     return

@@ -59,7 +59,13 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
       // 不加修饰键就**不 return**，落到下面的聚焦逻辑——在那一档里点链接的第一含义
       // 是「进这一块改」，跟点块里别的地方是同一件事。
       if (shouldOpenHref(kind, chrome.getViewMode(), e.metaKey || e.ctrlKey)) {
-        void openHref(kind, href, editor.getSession().source?.path ?? null)
+        // 锚点跳转的搜索范围限定在链接所在的预览根（编辑态块里也有标题预览）
+        void openHref(
+          kind,
+          href,
+          editor.getSession().source?.path ?? null,
+          link.closest<HTMLElement>('.preview'),
+        )
         return
       }
     }
@@ -128,7 +134,7 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault()
       // 直接走存盘，不通过按钮的 click：
-      // 按钮在「没有未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
+      // 按钮在「没���未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
       // 快捷键因此会被自己的禁用态吃掉。存盘是文档级动作，不该受控件状态影响。
       void files.persistToDisk()
     }
