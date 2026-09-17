@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「�����������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「�������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1382,7 +1382,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，��易读成
+     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明��花饰，��易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -1561,7 +1561,6 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   background: rgb(var(--foreground) / 0.025);
 }
 .code-lang {
-  margin-right: auto;
   color: rgb(var(--subtle-foreground));
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -1569,6 +1568,9 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   text-transform: lowercase;
 }
 .code-copy {
+  /* 推到条右端：放在复制键自己身上而不是语言标的 margin-right——
+     没指定语言的代码块不渲染语言标，推力跟着标走会让复制键贴左。 */
+  margin-left: auto;
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -1598,7 +1600,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ──────────���─���������
+/* ───────────── Mermaid 图表 ────────���─���─���������
  * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
@@ -1644,7 +1646,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性���漏：阅���区���文���层������ Inter 的花式变体
+/* 堵住���体特性���漏：阅���区���文���层������ Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -2396,7 +2398,7 @@ html.lightbox-open #content { overflow: hidden; }
   width: 17px;
   height: 17px;
   border-radius: 999px;
-  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失��「凸起」感 */
+  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
