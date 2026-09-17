@@ -62,4 +62,14 @@ describe('details 折叠块合并', () => {
     expect(blocks.length).toBe(1)
     expect(blocks[0]!.kind).toBe('html')
   })
+
+  test('删除线只认双波浪：单波浪范围写法不误伤', () => {
+    // 中文文档常见范围写法，两个单 ~ 不能配对成删除线（GitHub 的单波浪
+    // 删除线是它的怪癖，我们不跟——误伤远多于收益）
+    const blocks = parseBlocks('使用 1~6 个 `#` 对应 H1~H6。')
+    expect(JSON.stringify(blocks)).not.toContain('"delete"')
+    // 双波浪正常
+    const struck = parseBlocks('这是~~删除~~文本')
+    expect(JSON.stringify(struck)).toContain('"delete"')
+  })
 })

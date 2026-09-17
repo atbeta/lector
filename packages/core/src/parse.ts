@@ -1,7 +1,11 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfm } from 'micromark-extension-gfm'
-// gfm@3.0 还没把脚注并入包内（3.1.0 才加），显式补上 tokenizer；
-// mdast 侧处理器 mdast-util-gfm 已自带（footnoteDefinition 能解析就是证明）。
+// 不用 gfm() 捆绑包：它不透传 strikethrough 的 singleTilde 选项，而单波浪
+// 删除线在中文文档里是「1~6」「H1~H6」这类范围写法的误伤源——只认双波浪。
+// mdast 侧处理器 mdast-util-gfm 不受影响，保持不变。
+import { gfmAutolinkLiteral } from 'micromark-extension-gfm-autolink-literal'
+import { gfmStrikethrough } from 'micromark-extension-gfm-strikethrough'
+import { gfmTable } from 'micromark-extension-gfm-table'
+import { gfmTaskListItem } from 'micromark-extension-gfm-task-list-item'
 import { gfmFootnote } from 'micromark-extension-gfm-footnote'
 import { math } from 'micromark-extension-math'
 import { frontmatter } from 'micromark-extension-frontmatter'
@@ -52,7 +56,17 @@ const markMdastExtension = {
 }
 const extensions = (
   ENABLE_GFM
-    ? [gfm(), gfmFootnote(), math(), frontmatter(), markExtension]
+    ? [
+        gfmAutolinkLiteral(),
+        // 删除线只认双波浪（~~删除~~）：单波浪留给「1~6」这类范围写法。
+        gfmStrikethrough({ singleTilde: false }),
+        gfmTable(),
+        gfmTaskListItem(),
+        gfmFootnote(),
+        math(),
+        frontmatter(),
+        markExtension,
+      ]
     : [math(), frontmatter(), markExtension]
 ) as FromMarkdownOptions['extensions']
 const mdastExtensions = (
