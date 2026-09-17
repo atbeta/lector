@@ -225,7 +225,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交给系��������览器打开。
+/// 正文里的链接交���系��������览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -423,7 +423,7 @@ fn sanitize_image_name(name: &str) -> Option<String> {
   }
   let mut out = String::new();
   for c in stem.chars() {
-    // 用 Unicode 的 is_alphanumeric（而非 ascii）：要和��端 safeDropName 的
+    // 用 Unicode 的 is_alphanumeric（而非 ascii）：��和��端 safeDropName 的
     // `\p{L}\p{N}` 保持一致，否则「截图_2026.png」拖进来会被落成「--_2026.png」。
     if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
       out.push(c);
@@ -745,14 +745,31 @@ pub async fn export_pdf_background(
     .title("Lector Print")
     .visible(true)
     .skip_taskbar(true)
-    .position(-32000.0, -32000.0)
-    .inner_size(860.0, 1200.0)
+    .inner_size(760.0, 900.0)
     .initialization_script(&script)
     .build()
     .map_err(|e| {
       take_print_waiter(&label);
       e.to_string()
     })?;
+
+  // builder 的 position(-32000) 实测会被部分 Windows 环境忽略（0.26.3：窗口
+  // 出现在默认位置、1200 逻辑高≈满屏）。建好后运行时再摆一次：右下角只留
+  // 80px 边角在屏内——窗口保持「可见」（WebView2 对不可见/被完全遮挡的窗口
+  // 会节流渲染，PrintToPdf 依赖渲染管线），但几乎不被注意到。
+  {
+    let placed = app
+      .primary_monitor()
+      .ok()
+      .flatten()
+      .map(|m| {
+        let s = m.size();
+        let scale = m.scale_factor();
+        (s.width as f64 / scale, s.height as f64 / scale)
+      })
+      .unwrap_or((-32000.0, -32000.0));
+    let _ = win.set_position(tauri::LogicalPosition::new(placed.0 - 680.0, placed.1 - 820.0));
+  }
 
   // 看门狗：web 端 60 秒内没就绪（渲染卡死/脚本异常）就放行错误，窗口照常清理。
   {

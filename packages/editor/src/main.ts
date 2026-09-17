@@ -156,20 +156,35 @@ if (printJobPath) {
     const root = document.documentElement
     root.setAttribute('data-theme', 'light')
     root.classList.add('printing')
+    // 步骤写进窗口标题：导出再卡住，用户看标题就知道停在哪一步
+    // （loading → rendering → printing；error/js error = 见 toast 详情）。
+    document.title = 'Lector Print · loading'
+    // 任何脚本错误立刻放行为导出失败（toast 显示详情），不再静默挂到 60s 看门狗。
+    window.addEventListener(
+      'error',
+      (e) => {
+        document.title = 'Lector Print · js error'
+        void printJobDone(String(e.message || e))
+      },
+      { once: true },
+    )
     try {
       const res = await read(printJobPath)
       files.loadSession(res.path, res.content, res.mtime_ms)
+      document.title = 'Lector Print · rendering'
       // 等字体与异步渲染（KaTeX / mermaid 烘进 DOM）稳定后再放行打印。
       await document.fonts.ready
       await new Promise((r) => window.setTimeout(r, 900))
+      document.title = 'Lector Print · printing'
       void printJobDone(null)
     } catch (err) {
+      document.title = 'Lector Print · error'
       void printJobDone(String(err))
     }
   })()
 } else {
   void (async () => {
-  // 窗口外框（无标题栏）：平台判定 + Windows 自绘控件 + 顶栏滚动分隔。
+  // 窗口���框（无标题栏）：平台判定 + Windows 自绘控件 + 顶栏滚动分隔。
   // 放在最前、且不依赖设置：壳的这三个键是"应用还能用"的最低保证，
   // 排在 await initSettings()（一次 IPC）之后，一旦那次 IPC 不落地，控件就永远挂不上。
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
