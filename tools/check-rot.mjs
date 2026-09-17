@@ -25,26 +25,48 @@ const rangeIdx = argv.indexOf('--range')
 let range = rangeIdx >= 0 ? argv[rangeIdx + 1] : null
 
 function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28 })
+  // stderr 收进错误对象，不要漏到日志里：验证区间时会刻意试一个可能无效的 range，
+  // 让 git 的 "fatal: ambiguous argument" 出现在 CI 日志里会让人以为检查坏了。
+  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 }
 
-/** 区间为空/无效（例如首个提交、或 CI 上拿不到 before）时退化成「最后一个提交」。 */
+/** 区间为空/无效/在浅克隆里取不到时退化成「最后一个提交」。 */
 function normalizeRange(r) {
   if (!r) return null
   const [a, b] = r.split('..')
   if (!a || !b || /^0+$/.test(a) || /^0+$/.test(b)) return null
-  try {
-    git(['rev-parse', '--verify', '--quiet', a])
-    git(['rev-parse', '--verify', '--quiet', b])
-    return r
-  } catch {
-    return null
+  return r
+}
+
+/**
+ * 挑一个真能用的区间。
+ *
+ * 不能只 `rev-parse --verify` 两个端点：**浅克隆里端点可能根本不存在**
+ * （CI 第一次就是这么红的：`fatal: Invalid revision range`，把「无法判断」
+ * 变成了构建失败）。所以真的去跑一次 rev-list 验证，逐级退到能用的那个；
+ * 一个都用不了就明说并放行——守卫不该因为拿不到历史而把流水线弄红。
+ */
+function resolveRange() {
+  const candidates = [normalizeRange(range), 'HEAD~1..HEAD'].filter(Boolean)
+  for (const c of candidates) {
+    try {
+      git(['rev-list', '--count', c])
+      return c
+    } catch {
+      /* 试下一个 */
+    }
   }
+  return null
 }
 
 function diffArgs() {
   if (range === null) return ['diff', '--cached', '--unified=0', '--no-color']
-  const r = normalizeRange(range) ?? 'HEAD~1..HEAD'
+  const r = resolveRange()
+  if (r === null) {
+    console.warn('[check-rot] 拿不到可用的提交区间（浅克隆？），本次跳过。')
+    console.warn('[check-rot] CI 上请给 actions/checkout 设 fetch-depth: 0。')
+    process.exit(0)
+  }
   console.log(`[check-rot] 检查区间 ${r}`)
   return ['diff', '--unified=0', '--no-color', r]
 }
