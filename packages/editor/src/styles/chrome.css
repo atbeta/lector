@@ -733,7 +733,10 @@ html.no-doc #statusbar { display: none; }
   background: transparent;
   transition: background var(--motion-fast) var(--ease-standard);
 }
-.sidebar:hover .sidebar-grip::after { background: rgb(var(--border)); }
+/* 高亮只跟「握把本身 / 键盘聚焦 / 正在拖」走，**不跟 .sidebar:hover**：
+   握把线是 2px、正好压在 1px 的右边框上，鼠标只要落在侧栏里就亮的话，
+   看上去是在边框旁边凭空多了一条竖线（读目录时鼠标总在侧栏里）。
+   光标是 col-resize，本来就在提示可拖；真去拖时再亮，反馈才落在动作上。 */
 .sidebar-grip:hover::after,
 .sidebar-grip:focus-visible::after,
 html.sidebar-resizing .sidebar-grip::after { background: rgb(var(--primary)); }
