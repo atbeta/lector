@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「上方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「���方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1253,20 +1253,21 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .reading-prose blockquote > * + * { margin-top: 0.6em; }
 
 /* 行内代码：去描边，只留浅底（暗色下 --muted 是悬停面，这里用纸面之上的浅层）。 */
-.reading-prose code {
+  .reading-prose code {
   font-family: var(--font-mono);
-  font-size: 0.86em;
+  /* 0.8em ≈ 13.6px：与编辑态聚焦 CM 的 13px 基本一致（聚焦不跳字号），
+  行内码与块代码仍保持同尺寸——同一段里两者不等大是会被一眼看出来的。 */
+  font-size: 0.8em;
   font-weight: 480;
   background: rgb(var(--muted));
   color: rgb(var(--foreground));
   padding: 0.14em 0.36em;
   border-radius: 4px;
 }
-.reading-prose pre {
+  .reading-prose pre {
   font-family: var(--font-mono);
-  /* 与行内码同尺寸：同一段里「块内代码 13px、行内码 14.6px」是会被一眼看出来的
-     ——读者不会说为什么别扭，但会说「不精致」。两边都用 0.86em，随正文字号走。 */
-  font-size: 0.86em;
+  /* 与行内码同尺寸（见上）：两边都用 0.8em，随正文字号走。 */
+  font-size: 0.8em;
   line-height: 1.62;
   padding: 14px 16px;
   background: rgb(var(--muted));
@@ -1282,7 +1283,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   ���构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
+   ���构词（keyword/tag/selector/��数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -1598,7 +1599,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 /* 外层 .mermaid-diagram 是 flex（居中 + 空态占位），所以这一层**必须显式撑满**：
    flex 项的宽度默认是 max-content，而里面的 svg 写的是 width="100%"——
    百分比遇到「宽度由内容决定」的父级会变成不确定，浏览器只能退回 300×150 那档
-   默认尺寸（实测：838px 宽的流程图被渲染成 300px，两个节点的图反倒正常 168px）。
+   默认尺寸（实测：838px 宽的流程���被渲染成 300px，两个节点的图反倒正常 168px）。
    给它 flex: 1 1 auto + min-width: 0，宽度就变成确定的，svg 的百分比才有意义。 */
 .mermaid-diagram .mermaid-svg {
   flex: 1 1 auto;
@@ -1833,7 +1834,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 }
 /* 右键菜单不吃全局那圈焦点环（app.css 顶部的 :focus-visible 用 --ring 画蓝边）。
    菜单是靠右键唤出的瞬态浮层，环一道蓝边既难看也无信息量——
-   选中态已经由菜单项自己的底色表达；键盘用户看到的也是那个底色。 */
+   选中态已经由菜单项自己的底色表达；键��用户看到的也是那个底色。 */
 .context-menu:focus-visible,
 .context-item:focus-visible {
   outline: none;
@@ -3062,7 +3063,7 @@ html.is-loading #content {
 /* 最近打开��随空态版心，不再是窄栏里的一小条 */
 html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 
-/* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
+/* 拖放反馈：拖中时全窗一道浅框 + 中央文���，松手或离开就撤。
    只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
 .drop-overlay {
   position: fixed;

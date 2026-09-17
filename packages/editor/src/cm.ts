@@ -1,7 +1,7 @@
 import { defaultKeymap, history, historyKeymap, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
-import { keymap, EditorView, highlightWhitespace } from '@codemirror/view'
+import { keymap, lineNumbers, EditorView, highlightWhitespace } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -12,6 +12,8 @@ import { expandFence, toggleWrap } from './wrap.ts'
 export interface EditorialConfig {
   autoCharacterPairs: boolean
   showWhitespace: boolean
+  /** 代码块编辑态显示行号（阅读态的行号在 mdastHtml 里，同一设置控制两边）。 */
+  lineNumbers?: boolean
   /**
    * 选区变化回调：非空选区 → 给 {text, from, to, rect}；空选区/失焦 → null。
    * 给 rect 是因为只有 CM 自己知道选区的视口坐标（coordsAtPos），
@@ -151,6 +153,8 @@ export function mountEditor(
     // 只有真正聚焦到某语言的块才会载入那个解析器；token 色走下面的 syntaxHigh，
     // 与阅读态同一套 --code-* 变量。
     config.language ?? markdown({ codeLanguages: languages }),
+    // 代码块编辑态行号：与阅读态 gutter 同一设置开关（documentEditor 传入）
+    ...(config.lineNumbers ? [lineNumbers()] : []),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,

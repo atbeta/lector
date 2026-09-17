@@ -72,6 +72,8 @@ export interface EditorSettings {
   closeAlwaysConfirmsChanges: boolean
   /** 编辑态显示空白字符。 */
   showWhitespace: boolean
+  /** 代码块显示行号（阅读态 gutter + 编辑态 CodeMirror 同一开关）。 */
+  codeLineNumbers: boolean
   /** 贴图/拖图的写入策略（images | assets | command，见 ImageInsertMode）。 */
   imageMode: ImageInsertMode
   /** assets/command 模式下的目标目录模板，`{filename}` 会被替换成文档基名（去扩展名）。
@@ -110,6 +112,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   autoCharacterPairs: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
+  codeLineNumbers: true,
   imageMode: 'images',
   imageAssetsDir: '{filename}.assets',
   imageCommand: '',
@@ -178,6 +181,7 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
         ? src.closeAlwaysConfirmsChanges
         : base.closeAlwaysConfirmsChanges,
     showWhitespace: typeof src.showWhitespace === 'boolean' ? src.showWhitespace : base.showWhitespace,
+    codeLineNumbers: typeof src.codeLineNumbers === 'boolean' ? src.codeLineNumbers : base.codeLineNumbers,
     recoverUnsaved: typeof src.recoverUnsaved === 'boolean' ? src.recoverUnsaved : base.recoverUnsaved,
     // 限长：设置文件是被反复读写的小 JSON，不该成为存放整套主题的仓库
     customCss: String(src.customCss ?? base.customCss ?? '').slice(0, 20000),

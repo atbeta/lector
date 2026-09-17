@@ -222,10 +222,16 @@ export function openSettingsModal(onClose?: () => void) {
     ),
   )
   editing.appendChild(
-    row(
-      t('showWhitespace'),
-      Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v }))),
-    ),
+  row(
+  t('showWhitespace'),
+  Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v }))),
+  ),
+  )
+  editing.appendChild(
+  row(
+  t('codeLineNumbers'),
+  Switch(getSettings().codeLineNumbers, (v) => apply((s) => ({ ...s, codeLineNumbers: v }))),
+  ),
   )
   editing.appendChild(
     row(

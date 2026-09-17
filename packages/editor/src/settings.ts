@@ -50,6 +50,8 @@ function applyVars(s: EditorSettings) {
   // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
   // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。
   root.setAttribute('data-reading-theme', s.readingTheme)
+  // 代码行号：阅读态 gutter 的显隐走这个类（编辑态 CM 由 documentEditor 读设置）
+  root.classList.toggle('code-ln-off', !s.codeLineNumbers)
   applyCustomCss(s.customCss ?? '')
 }
 
