@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「�����方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「�������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1275,6 +1275,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: var(--radius-media);
   overflow-x: auto;
 }
+/* 空段落块（空文档合成的那块、或被删空的段落）失焦后预览是空的，
+   会塌成零高——看起来「块没了」，也点不进去（空文档就此锁死）。
+   给它一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
+.block:not(.gap) .preform:empty {
+  min-height: 1.62em;
+}
 /* 代码行号 gutter：pre 转 flex 双列，gutter 固定、code 自己横向滚动——
    行号不随内容滚走。行对齐靠两边同 font-size/line-height（都继承 pre）。 */
 .reading-prose pre.has-ln {
@@ -1838,7 +1844,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   min-width: 1.6em;
 }
 
-/* ───────────── 右键菜单 ─────────────
+/* ───────────── 右键菜单 ──────────��──
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
  * 视觉上按「浮���」处理：圆角、浮层投影、比正文更紧的行距。 */
 .context-menu {
@@ -2179,7 +2185,7 @@ html.lightbox-open #content { overflow: hidden; }
 }
 
 /* ───────────── 选区浮条（编辑态） ─────────────
- * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，
+ * 选中文字后浮在选区上方的一小条格式��钮。定位与关闭规则在 selectionBubble.ts，
  * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），
  * 但在暗色下也要看得清——它是浮在**正文**上的，不是浮在遮罩上。 */
 .selection-bubble {

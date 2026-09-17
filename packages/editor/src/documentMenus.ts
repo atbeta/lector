@@ -208,7 +208,7 @@ export function createDocumentMenus({
   }
 
   /**
-   * 表单输入框（设置里的图床命令、查找框…）上的菜单：标准编辑动作。
+   * 表单输入框（��置里的图床命令、查找框…）上的菜单：标准编辑动作。
    *
    * 不能放行 webview 默认菜单——它端出来的是浏览器的那份（刷新 / 打印 / 检查元素），
    * 而这里真正需要的是剪切 / 复制 / 粘贴 / 全选。
@@ -391,6 +391,18 @@ export function createDocumentMenus({
     const content = target.closest('#content')
     if (!content) return null
     let node: Element | null = target.closest('.block') ?? target
+    if (node === content) {
+      // 点在正文列自身的空白（最后一块之后的空片）：target 就是 #content，
+      // 下面的循环会直接跳过返回 null——「在文首插入段落」于是永远灰着。
+      node = content.lastElementChild
+      // 末尾那块本身就是内容块：它就是离点击最近的块（插入应落在它后面）
+      if (node) {
+        const pid = (node as HTMLElement).dataset?.blockId
+        const b = pid ? editor.getSession().blocks.find((x) => x.id === pid) : undefined
+        if (b && b.kind !== 'unknown') return b
+      }
+      // 末尾是空白缝：从缝往前找（下面的循环）
+    }
     while (node && node !== content) {
       let prev = node.previousElementSibling
       while (prev) {
