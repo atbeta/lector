@@ -95,10 +95,12 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 
 /**
  * 导出 PDF：主窗口挂 .printing（打印样式，app.css）后交给壳层 PrintToPdf。
- * 导出期间盖一层全屏遮罩（.pdf-exporting）——布局摊平、壳隐藏的过程被遮住，
- * 看起来是「正在生成」而不是「应用坏了」。深色主题下先翻到 light 再打印：
- * mermaid 的配色烘在 SVG 里（不跟 CSS 变量），只有主题翻转 + 现有的重画
- * 监听（250ms 去抖）能给它浅色配色；打印完翻回来。浏览器退化为系统打印。
+ * 遮罩（.pdf-exporting）只盖**准备阶段**（翻主题、摊平布局）——PrintToPdf
+ * 捕获的就是屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF
+ * 只有一张 spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感），
+ * 打印完恢复。深色主题下先翻到 light：mermaid 配色烘在 SVG 里（不跟 CSS
+ * 变量），只有主题翻转 + 现有的重画监听（250ms 去抖）能给它浅色配色。
+ * 浏览器退化为系统打印。
  */
 export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
   const root = document.documentElement
@@ -110,10 +112,27 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
         })
       })
     })
+  if (detectEnv() !== 'shell') {
+    root.classList.add('printing')
+    try {
+      await nextFrame()
+      window.print()
+    } finally {
+      root.classList.remove('printing')
+    }
+    return 'print'
+  }
+  // 存盘对话框先弹（原生窗口，不受页面样式影响），确认了才开始动界面。
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const target = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  })
+  if (!target) return 'cancelled'
+
   const overlay = document.createElement('div')
   overlay.className = 'pdf-exporting'
   document.body.appendChild(overlay)
-
   const prevTheme = root.getAttribute('data-theme')
   const flipToLight = prevTheme === 'dark'
   if (flipToLight) root.setAttribute('data-theme', 'light')
@@ -123,16 +142,9 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
     await new Promise((r) => setTimeout(r, flipToLight ? 900 : 0))
     root.classList.add('printing')
     await nextFrame()
-    if (detectEnv() !== 'shell') {
-      window.print()
-      return 'print'
-    }
-    const { save } = await import('@tauri-apps/plugin-dialog')
-    const target = await save({
-      defaultPath: defaultName,
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    })
-    if (!target) return 'cancelled'
+    // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
+    overlay.remove()
+    await nextFrame()
     const { invoke } = await tauriApi()
     await invoke('print_to_pdf', { path: target })
     return 'saved'

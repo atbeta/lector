@@ -4,6 +4,7 @@ import { baseName } from './paths.ts'
 import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
+import { showDialog } from './dialog.ts'
 import { showToast } from './feedback.ts'
 import type { DocumentSession } from './documentSession.ts'
 
@@ -287,11 +288,26 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     exportBtn.addEventListener('click', () => {
       defocus()
       const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
-      void exportPdf(`${name}.pdf`)
-        .then((r) => {
-          if (r === 'saved') showToast(t('pdfSaved'))
-        })
-        .catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
+      void (async () => {
+        // 大文档先打招呼：导出期间界面会变成打印版式（遮罩只盖准备阶段，
+        // 捕获时正文摊平可见），文档越长这状态越久——别让用户以为卡了。
+        const textLen = getSession().source?.text.length ?? 0
+        if (textLen > 200_000) {
+          const go = await showDialog({
+            title: t('pdfLargeTitle'),
+            body: t('pdfLargeBody', {
+              size: formatCount(textLen),
+            }),
+            actions: [
+              { id: 'cancel', label: t('cancelAction') },
+              { id: 'go', label: t('pdfLargeContinue') },
+            ],
+          })
+          if (go !== 'go') return
+        }
+        const r = await exportPdf(`${name}.pdf`)
+        if (r === 'saved') showToast(t('pdfSaved'))
+      })().catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
     })
     // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
     keyboardBtn.innerHTML = iconSvg('keyboard', 16)
