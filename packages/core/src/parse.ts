@@ -5,6 +5,7 @@ import { frontmatter } from 'micromark-extension-frontmatter'
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { mathFromMarkdown } from 'mdast-util-math'
+import { pandocMark } from 'micromark-extension-mark'
 import type { BlockKind, BlockView } from './types.ts'
 
 /** mdast node.type → BlockKind；未识别归 unknown（整段当一块 raw 预览降级）。 */
@@ -19,15 +20,41 @@ const KIND_MAP: Record<string, BlockKind> = {
   yaml: 'yaml',
   table: 'table',
   math: 'math',
+  // 脚注定义块：GFM 自带（gfm-footnote 已并入 micromark-extension-gfm），
+  // 渲染层有现成的 footnoteDefinition 处理，kind 按 paragraph 走正常聚焦
+  footnoteDefinition: 'paragraph',
 }
 
 /** 是否启用某扩展（v1.1 起可开表等，日程见 04-bootstrap）。 */
 const ENABLE_GFM = true
 
-const extensions = ENABLE_GFM ? [gfm(), math(), frontmatter()] : [math(), frontmatter()]
-const mdastExtensions = ENABLE_GFM
-  ? [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown()]
-  : [mathFromMarkdown(), frontmatterFromMarkdown()]
+// micromark-extension-mark 的类型声明见 vendor-mark.d.ts；pandocMark 运行时
+// 是工厂函数，这里按实际形态收窄。mdast 侧扩展不引 mdast-util-mark——它自带
+// 的 .ts 源码与当前依赖版本有类型出入（tsc 会连坐检查），而实现只有 8 行
+// （enter/exit 各一个 mark 处理器 + canContainEols），内联等价物更省心。
+type FromMarkdownOptions = NonNullable<Parameters<typeof fromMarkdown>[1]>
+const markExtension = (pandocMark as () => unknown)()
+const markMdastExtension = {
+  canContainEols: ['mark'],
+  enter: {
+    mark(this: { enter: (node: unknown, token: unknown) => void }, token: unknown) {
+      this.enter({ type: 'mark', children: [] }, token)
+    },
+  },
+  exit: {
+    mark(this: { exit: (token: unknown) => void }, token: unknown) {
+      this.exit(token)
+    },
+  },
+}
+const extensions = (
+  ENABLE_GFM ? [gfm(), math(), frontmatter(), markExtension] : [math(), frontmatter(), markExtension]
+) as FromMarkdownOptions['extensions']
+const mdastExtensions = (
+  ENABLE_GFM
+    ? [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
+    : [mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
+) as FromMarkdownOptions['mdastExtensions']
 
 function makeUnknownBlock(start: number, end: number, text: string): BlockView {
   return {
@@ -168,7 +195,55 @@ export function parseBlocks(text: string): BlockView[] {
     blocks.push(makeUnknownBlock(cursor, text.length, text))
   }
 
-  return blocks
+  return mergeDetailsBlocks(blocks, text)
+}
+
+/**
+ * details 折叠块合并：CommonMark 的 html 块在空行处截断，`<details>`、
+ * 中间的 markdown 内容、`</details>` 会被切成多个块——阅读时整段降级成
+ * 源码。这里把「开标签块 … 配对闭标签块」的连续跨度合并成一块（raw 仍
+ * 覆盖原文，拼接恒等不破），渲染层（mdastHtml 的 details 白名单）拿到完整
+ * 值后重解析内部 markdown。找不到配对闭标签就不合并，维持逐块降级。
+ */
+function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView[] {
+  const out: BlockView[] = []
+  let i = 0
+  while (i < blocks.length) {
+    const b = blocks[i]!
+    const opensDetails =
+      b.kind === 'html' && /^<details[\s>]/i.test(b.raw.trim()) && !/<\/details>/i.test(b.raw)
+    if (opensDetails) {
+      // 向前找配对闭标签（html 块内计数，容忍嵌套一层写法）
+      let depth = 1
+      let j = i + 1
+      while (j < blocks.length && depth > 0) {
+        const bj = blocks[j]!
+        if (bj.kind === 'html') {
+          depth += (bj.raw.match(/<details[\s>]/gi) || []).length
+          depth -= (bj.raw.match(/<\/details>/gi) || []).length
+          if (depth <= 0) break
+        }
+        j++
+      }
+      if (j < blocks.length && blocks[j]!.kind === 'html' && depth <= 0) {
+        const end = blocks[j]!.end
+        out.push({
+          id: `b${b.start}:${end}`,
+          kind: 'html',
+          start: b.start,
+          end,
+          raw: text.slice(b.start, end),
+          mdast: { type: 'html', value: text.slice(b.start, end) },
+          dirty: false,
+        })
+        i = j + 1
+        continue
+      }
+    }
+    out.push(b)
+    i++
+  }
+  return out
 }
 
 /** 块间空行缝：只用于拼接保真，不是可编辑内容。 */

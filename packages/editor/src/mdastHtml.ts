@@ -4,6 +4,7 @@
 import { resolveImageSrc } from './asset.ts'
 import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
+import { parseBlockRoots } from '@lector/core'
 
 type Node =
   | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; children?: Node[]; position?: unknown }
@@ -106,7 +107,45 @@ export function isNumericCell(text: string): boolean {
 
 function inline(children: Node[] | undefined): string {
   if (!children) return ''
-  return children.map((c) => inlineNode(c)).join('')
+  // 白名单行内标签（kbd/sub/sup/u）被 micromark 拆成「开标签/文本/闭标签」
+  // 三个节点——这里跨节点配对包裹；br 直接放行；其余 html 节点转义降级。
+  const out: string[] = []
+  const pending: { tag: string; outIndex: number; raw: string }[] = []
+  for (const c of children) {
+    if (c.type === 'html') {
+      const v = c.value ?? ''
+      const open = v.match(/^<(kbd|sub|sup|u)>$/i)
+      const close = v.match(/^<\/(kbd|sub|sup|u)>$/i)
+      if (open) {
+        pending.push({ tag: open[1]!.toLowerCase(), outIndex: out.length, raw: v })
+        out.push('')
+        continue
+      }
+      if (close) {
+        const tag = close[1]!.toLowerCase()
+        const top = pending[pending.length - 1]
+        if (top && top.tag === tag) {
+          pending.pop()
+          const inner = out.slice(top.outIndex + 1).join('')
+          out.length = top.outIndex
+          out.push(`<${tag} class="html-inline">${inner}</${tag}>`)
+          continue
+        }
+        out.push(`<code>${esc(v)}</code>`)
+        continue
+      }
+      if (/^<br\s*\/?>$/i.test(v)) {
+        out.push('<br />')
+        continue
+      }
+      out.push(`<code>${esc(v)}</code>`)
+      continue
+    }
+    out.push(inlineNode(c))
+  }
+  // 未配对的开标签：占位还原为转义源码
+  for (const p of pending) out[p.outIndex] = `<code>${esc(p.raw)}</code>`
+  return out.join('')
 }
 
 /** 预览链接只允许安全协议；危险协议降级为纯文本。 */
@@ -154,7 +193,7 @@ function inlineNode(n: Node): string {
     }
     case 'footnoteReference':
       // 脚注引用：渲染成上标序号并链接到文末定义。锚点统一用 identifier
-      // （mdast 保证它在同一篇内唯一；label 只是源码里的原样代号，可能重复）。
+      // （mdast 保证它在同一篇内唯一；label 只��源码里的原样代号，可能重复）。
       {
         const id = n.identifier ?? n.label ?? ''
         const shown = n.label ?? n.identifier ?? ''
@@ -162,12 +201,48 @@ function inlineNode(n: Node): string {
       }
     case 'break':
       return '<br />'
-    case 'html':
-      // 行内 HTML：转义降级为原文
-      return `<code>${esc(n.value ?? '')}</code>`
+    case 'mark':
+      // ==高亮==（pandoc mark 扩展）
+      return `<mark class="html-mark">${inline(n.children)}</mark>`
+    case 'html': {
+      // 行内 HTML：白名单内「无属性、无嵌套标签」的简单元素原样渲染，
+      // 其余转义降级为原文（红线：预览不执行任意 HTML）
+      const v = n.value ?? ''
+      const simple = v.match(/^<(kbd|sub|sup|u)>([^<]*)<\/\1>$/i)
+      if (simple) {
+        const tag = simple[1]!.toLowerCase()
+        return `<${tag} class="html-inline">${esc(simple[2]!)}</${tag}>`
+      }
+      if (/^<br\s*\/?>$/i.test(v)) return '<br />'
+      return `<code>${esc(v)}</code>`
+    }
     default:
       return esc(n.value ?? '')
   }
+}
+
+/**
+ * details 折叠块白名单：只认裸 `<details>`（可选 open 属性）包裹的内容，
+ * summary 与正文里的 markdown 重新走自家渲染器（mdast 的 html 块内不解析
+ * markdown，直接透出会是源码）。任何带其他标签/属性的 HTML 返回 null，
+ * 调用方降级为等宽源码——红线不动：预览不执行任意 HTML。
+ */
+function renderDetailsBlock(value: string): string | null {
+  const m = value.match(/^\s*<details(\s+open)?\s*>\n?([\s\S]*?)\n?<\/details>\s*$/i)
+  if (!m) return null
+  const sm = (m[2] ?? '').match(/^\s*<summary>([\s\S]*?)<\/summary>\s*\n?([\s\S]*)$/i)
+  const summaryHtml = sm ? renderInlineMarkdown(sm[1] ?? '') : ''
+  const body = sm ? (sm[2] ?? '') : (m[2] ?? '')
+  const bodyHtml = (parseBlockRoots(body) as Node[]).map((b) => blockToHtml(b)).join('')
+  return `<details class="html-details"${m[1] ? ' open' : ''}>${sm ? `<summary>${summaryHtml}</summary>` : ''}${bodyHtml}</details>`
+}
+
+/** summary 等短文本按行内 markdown 渲染（粗体/代码等），失败退回转义原文。 */
+function renderInlineMarkdown(text: string): string {
+  const roots = parseBlockRoots(text) as Node[]
+  const p = roots.find((r) => r.type === 'paragraph')
+  if (!p) return esc(text.trim())
+  return (p.children ?? []).map((c) => inlineNode(c)).join('')
 }
 
 function listItems(list: Node): string {
@@ -182,7 +257,7 @@ function listItems(list: Node): string {
     // listItem 的 children 通常是 paragraph 或嵌套 list
     const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')
     // 任务项正文包一层 .task-label：已完成态给它加删除线即可，不必把整行压暗
-    // （�����暗会读成「禁用」，而未完成反而最亮，层级就反了）。
+    // （�������暗会读成「禁用」，而未完成反而最亮，层级就反了）。
     // 这里必须是 div 不能是 span：body 里是 <p>，把块级塞进行内元素属于非法嵌套，
     // 浏览器会把 span 就地闭合，删除线就落在空元素上。
     return task ? `<li class="task">${checkbox}<div class="task-label">${body}</div></li>` : `<li>${body}</li>`
@@ -371,9 +446,11 @@ function blockToHtml(n: Node): string {
       return `<div class="footnote-definition" id="fn-${esc(n.identifier ?? n.label ?? '')}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span>${(n.children ?? [])
         .map((c) => blockToHtml(c))
         .join('')}</div>`
-    case 'html':
-      // 块级 HTML：安全降级为等宽源码
-      return `<pre class="preform">${esc(n.value ?? '')}</pre>`
+    case 'html': {
+      // 块级 HTML：details 折叠块白名单放行，其余安全降级为等宽源码
+      const details = renderDetailsBlock(n.value ?? '')
+      return details ?? `<pre class="preform">${esc(n.value ?? '')}</pre>`
+    }
     default:
       // 未知块：等宽源码
       return `<div class="preform">${esc(n.value ?? '')}</div>`

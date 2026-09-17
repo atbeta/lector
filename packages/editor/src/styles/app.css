@@ -197,7 +197,7 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「�������式开关+图标）」切开。
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
    HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in ����时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
@@ -650,7 +650,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   color: rgb(var(--foreground));
 }
 
-/* 标题留白：绝对值，按标题自己的字号给。
+/* 标题留白：绝对值，按标题自己的字号��。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
    标题的上方留白（松）与下方留������������）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
@@ -1382,7 +1382,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明��花饰，��易读成
+     约 24px 上下留白」。之前那条 6rem 居中短��是我们自己发明��花饰，��易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -1601,7 +1601,7 @@ html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── Mermaid 图表 ────────���─���─���������
- * 走 code-card 结构：头部条标语言/复制源码，diagram 是��内的画��区域。
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是����内的画��区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
   padding: 12px;
@@ -1846,6 +1846,41 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   font-weight: 500;
   text-align: right;
   min-width: 1.6em;
+}
+
+/* ───────────── 扩展语法渲染 ─────────────
+ * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
+.reading-prose mark,
+.reading-prose .html-mark {
+  background: rgb(var(--accent) / 0.22);
+  color: inherit;
+  padding: 0.05em 0.2em;
+  border-radius: 3px;
+}
+.reading-prose kbd,
+.reading-prose .html-inline {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  border: 1px solid rgb(var(--border));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.08em 0.4em;
+  background: rgb(var(--border-subtle) / 0.35);
+}
+.reading-prose .html-details {
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 8px;
+  padding: 0.4em 1em;
+  margin: 1em 0;
+}
+.reading-prose .html-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.3em 0;
+  user-select: none;
+}
+.reading-prose .html-details[open] summary {
+  margin-bottom: 0.4em;
 }
 
 /* ───────────── 右键菜单 ──────────��──
@@ -2454,7 +2489,7 @@ html.lightbox-open #content { overflow: hidden; }
  *
  * 结���轨必须常显、对齐、不叠在格子上：
  *  1. 打开时首格自动聚焦——列删除绝不能跟 :focus-within，否则只有首列冒出 X。
- *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角标定位（会漂在 gutter 右上角）。
+ *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角���定位（会漂在 gutter 右上角）。
  *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled ��影。 */
 .table-editor-card {
   display: flex;
