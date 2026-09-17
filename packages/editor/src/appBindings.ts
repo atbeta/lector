@@ -1,4 +1,4 @@
-import { detectEnv, onMenu } from '@lector/shell-web'
+import { detectEnv, onMenu, closeWindow } from '@lector/shell-web'
 import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
 import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom } from './settings.ts'
@@ -159,11 +159,14 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
       void files.reloadFromDisk()
       return
     }
-    // ⌘W 关闭文件（回首页；首页是「最近打开」的唯一入口）。没有文档时不拦，
-    // 让窗口关闭交给系统/窗口按钮。
-    if (!e.shiftKey && e.key.toLowerCase() === 'w' && editor.getSession().source) {
+    // ⌘W 有文档 = 关闭文件回首页（首页是「最近打开」的唯一入口）；
+    // 无文档 = 关窗。Windows 上最后一个窗口关闭即退出应用——这就是「退出快捷键」；
+    // macOS 上窗口关了应用留在 Dock，系统惯例如此。不拦的话 WebView2 对
+    // Ctrl+W 没有默认行为，按了等于没按。关窗走 onCloseRequested 的脏检查。
+    if (!e.shiftKey && e.key.toLowerCase() === 'w') {
       e.preventDefault()
-      void files.closeFile()
+      if (editor.getSession().source) void files.closeFile()
+      else void closeWindow()
       return
     }
     // ⌘⇧O 大纲

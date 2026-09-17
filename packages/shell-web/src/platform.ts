@@ -114,6 +114,17 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
   return 'saved'
 }
 
+/**
+ * 关闭当前窗口（Ctrl/⌘W 在无文档时的语义 = Windows 上退出应用）。
+ * 走 onCloseRequested 的脏检查路径——有未保存改动时 Web 层的确认弹窗仍然生效。
+ * 浏览器预览没有窗口可关，空实现。
+ */
+export async function closeWindow(): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  await getCurrentWindow().close().catch((err) => console.error('[lector] close', err))
+}
+
 export async function read(path: string): Promise<ReadResult> {
   if (detectEnv() !== 'shell') {
     throw new Error('read() 仅壳环境可用')
@@ -428,7 +439,7 @@ export function bindWindowControls(opts: {
  *
  * Windows 无边框窗口上，Snap Layouts 覆盖层（原生子窗口）接管了那颗按钮的鼠标，
  * webview 收不到 :hover，按钮会「悬停无反馈」。壳在原生侧把进入/离开转成这个事件，
- * 前端据此给按钮补样式。非壳环境是 no-op。
+ * ���端据此给按钮补样式。非壳环境是 no-op。
  */
 export async function onMaximizeHover(
   handler: (hovering: boolean) => void,

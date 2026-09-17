@@ -356,13 +356,29 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
   }
 
   async function reloadFromDisk() {
-    if (!editor.getSession().source) return
-    try {
-      const res = await io.read(editor.getSession().source!.path)
-      loadSession(res.path, res.content, res.mtime_ms)
-    } catch {
-      showToast(t('reloadFailed'))
-    }
+  const src = editor.getSession().source
+  if (!src) return
+  // 有未保存改动先确认：手动重载的语义是「以磁盘为准」，但静默丢改动
+  // 连外部变更监听都不如——那边脏了还会给选择。
+  if (editor.getSession().dirty) {
+  const choice = await showDialog({
+  title: t('reloadConfirmTitle'),
+  body: t('reloadConfirmBody'),
+  actions: [
+  { id: 'cancel', label: t('cancelAction') },
+  { id: 'reload', label: t('reloadAction'), danger: true },
+  ],
+  })
+  if (choice !== 'reload') return
+  }
+  try {
+  const res = await io.read(src.path)
+  loadSession(res.path, res.content, res.mtime_ms)
+  // 成功也要说一声：磁盘没变化时重载后内容一模一样，没有反馈就像没响应。
+  showToast(t('reloadedFromDisk'))
+  } catch {
+  showToast(t('reloadFailed'))
+  }
   }
 
   function bindShellEvents() {
@@ -388,7 +404,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     //      没有 mtime 判据的话每次 ⌘S 都会触发一次假的「外部修改」。
     //   2. 正文干净 —— 直接换成磁盘版本**并说明**。可丢的东西为零，
     //      静默重载唯一的毛病是用户看到内容自己变了却不知为何。
-    //   3. 正文有未保存改动 —— 绝不自动覆盖，给可操作的选择：
+    //   3. 正文有���保存改动 —— 绝不自动覆盖，给可操作的选择：
     //      这是唯一会丢东西的分支，一句 toast 既没说清丢了什么，
     //      也没给"我要哪个版本"的入口。
     void io.onFileChanged(async (e) => {
