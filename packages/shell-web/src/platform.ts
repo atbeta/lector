@@ -145,8 +145,17 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
     // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
     overlay.remove()
     await nextFrame()
-    const { invoke } = await tauriApi()
-    await invoke('print_to_pdf', { path: target })
+    // 捕获期的反馈走忙光标 + 窗口标题（不进 PDF，见函数头注释）。
+    const prevTitle = document.title
+    if (busyTitle) document.title = busyTitle
+    root.classList.add('pdf-busy')
+    try {
+      const { invoke } = await tauriApi()
+      await invoke('print_to_pdf', { path: target })
+    } finally {
+      root.classList.remove('pdf-busy')
+      document.title = prevTitle
+    }
     return 'saved'
   } finally {
     root.classList.remove('printing')
@@ -424,7 +433,7 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 }
 
 /**
- * 无标题栏：在 titlebar 空白处按下即拖动窗口。
+ * 无标题栏：在 titlebar 空白处按下即拖��窗口。
  *
  * 双击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
  * 两处都监听会让一次双击触发两次 toggle，窗口原地闪一下。

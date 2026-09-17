@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「���������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「�����������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1598,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────────���������
+/* ───────────── Mermaid 图表 ──────────���─���������
  * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
@@ -1644,7 +1644,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性泄漏：阅���区���文���层������ Inter 的花式变体
+/* 堵住字体特性���漏：阅���区���文���层������ Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -2172,7 +2172,7 @@ html.lightbox-open #content { overflow: hidden; }
 
 /* ───────────── 查找命中 ────────��────
  * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
- * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭�� */
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我��的纸墨不搭�� */
 .find-hit {
   border-radius: 2px;
   padding: 0 1px;
@@ -2396,7 +2396,7 @@ html.lightbox-open #content { overflow: hidden; }
   width: 17px;
   height: 17px;
   border-radius: 999px;
-  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失去「凸起」感 */
+  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失��「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
@@ -3169,6 +3169,13 @@ html.large-file .mode-switch { display: none; }
   to {
     transform: rotate(360deg);
   }
+}
+/* 捕获期（PrintToPdf 运行中）的反馈：忙光标。光标不参与渲染捕获，
+   是「能被用户看见但不进 PDF」的仅有的页面级通道之一（另一个是窗口标题，
+   由 exportPdf 设 document.title）。 */
+html.pdf-busy,
+html.pdf-busy * {
+  cursor: progress !important;
 }
 
 /* ───────────── 打印 / 导出 PDF ─────────────

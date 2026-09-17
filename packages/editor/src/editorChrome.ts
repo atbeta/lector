@@ -305,7 +305,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
           })
           if (go !== 'go') return
         }
-        const r = await exportPdf(`${name}.pdf`)
+        const r = await exportPdf(`${name}.pdf`, t('pdfExporting'))
         if (r === 'saved') showToast(t('pdfSaved'))
       })().catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
     })
