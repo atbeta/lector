@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "lector"
-version = "0.25.5"
+version = "0.25.6"
 dependencies = [
  "log",
  "notify",
