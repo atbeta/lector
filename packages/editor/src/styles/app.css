@@ -1127,7 +1127,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   font-size: var(--text-base);
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgb(24 24 27 / 0.18), 0 6px 16px rgb(24 24 27 / 0.08);
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.18), 0 6px 16px rgb(var(--shadow-color) / 0.08);
   transition: transform var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard);
 }
@@ -1155,7 +1155,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 .empty-open:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgb(24 24 27 / 0.16), 0 10px 24px rgb(24 24 27 / 0.12);
+  box-shadow: 0 2px 4px rgb(var(--shadow-color) / 0.16), 0 10px 24px rgb(var(--shadow-color) / 0.12);
 }
 .empty-open:active { transform: none; }
 .empty-open kbd {
@@ -1621,15 +1621,16 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   color: rgb(var(--foreground));
   background: rgb(var(--accent));
 }
-/* 激活态用图表专属靛蓝（mermaid.ts 的 diagramAccent 同源）：应用 primary 是
-   暖黑，深浅变化区分度不够，用户要的是「有颜色」的状态表达。 */
+/* 激活态用内容强调色（--content-accent，与 mermaid 描边同一个 token）：
+   应用 primary 是暖黑，深浅变化区分度不够，用户要的是「有颜色」的状态表达。
+   这里曾经写死 #4f46e5 / #8b8bf0 并注释说「与 mermaid 同源」——同源靠注释是守不住的，
+   两处字面量迟早漂移；现在真的共用一个 token，于是也跟着阅读主题走。 */
 .code-wrap-toggle.is-active {
-  color: #4f46e5;
-  background: rgb(79 70 229 / 0.12);
+  color: rgb(var(--content-accent));
+  background: rgb(var(--content-accent) / 0.12);
 }
 html[data-theme='dark'] .code-wrap-toggle.is-active {
-  color: #8b8bf0;
-  background: rgb(139 139 240 / 0.16);
+  background: rgb(var(--content-accent) / 0.16);
 }
 /* 折行态：长行折返，不再横向滚动 */
 .code-wrap .code-card pre code {
@@ -2390,7 +2391,7 @@ html.lightbox-open #content { overflow: hidden; }
   left: 0;
   border-radius: 4px;
   background: rgb(var(--paper));
-  box-shadow: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(24 24 27 / 0.06);
+  box-shadow: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(var(--shadow-color) / 0.06);
   transition: left var(--motion-base) var(--ease-emphasized),
     width var(--motion-base) var(--ease-emphasized);
 }
@@ -2438,7 +2439,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-radius: 50%;
   background: rgb(var(--paper));
   border: 1.5px solid rgb(var(--primary));
-  box-shadow: 0 1px 3px rgb(24 24 27 / 0.16);
+  box-shadow: 0 1px 3px rgb(var(--shadow-color) / 0.16);
   transform: translate(-50%, -50%);
   transition: box-shadow var(--motion-fast) var(--ease-standard);
 }
@@ -2478,7 +2479,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-radius: 999px;
   /* 开关滑块固定纯白：它坐��彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
   background: #fff;
-  box-shadow: 0 1px 2px rgb(24 24 27 / 0.2);
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
 }
 .switch-track.on { background: rgb(var(--primary)); }

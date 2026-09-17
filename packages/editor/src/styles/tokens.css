@@ -74,7 +74,7 @@
      石墨，拿它画图会得到一张没有色相的灰图。自带强调色的阅读主题
      （纸/书/手册/米黄）在 reading-themes.css 里各自覆盖这一条，让图跟着纸色走。
      必须与 --primary 分开：primary 在无品牌色的主题里本来就是墨色。 */
-  --diagram-accent: 79 70 229;   /* #4F46E5 */
+  --content-accent: 79 70 229;   /* #4F46E5 */
 
   /* ───────────── 墨色按钮（最强行动色） ───────────── */
   /* 墨色：toast、跳转高亮这类「最强、不带品牌色」的动作 */
@@ -150,6 +150,9 @@
 
   /* ───────────── 阴影：顶光定向（发丝边 + 下偏近影 + 远雾） ───────────── */
   /* 光从 12 点来。浅色纸面已是纯白，高光 inset 看不见，靠影子下偏表达体积。 */
+  /* 投影用的墨色。--shadow-* 里已经烘进了它，但零散的自定义投影（开关滑块、
+     按钮、轻浮层）需要单独引用，否则每处各写一个字面量、深浅还不一致。 */
+  --shadow-color: 26 25 22;
   --shadow-card: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(26 25 22 / 0.04),
     0 6px 16px rgb(26 25 22 / 0.05);
   --shadow-floating: 0 0 0 1px rgb(var(--border)), 0 8px 28px rgb(26 25 22 / 0.12),
@@ -220,7 +223,7 @@ html[data-theme='dark'] {
   --selection: rgb(var(--primary) / 0.34);
 
   /* 深底上的图表强调色：同一支靛蓝提亮一档（见浅色处说明）。 */
-  --diagram-accent: 139 139 240;  /* #8B8BF0 */
+  --content-accent: 139 139 240;  /* #8B8BF0 */
 
   --ink: 240 238 235;
   --ink-foreground: 26 25 22;
@@ -246,6 +249,7 @@ html[data-theme='dark'] {
   --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4),
     0 8px 20px rgb(0 0 0 / 0.32);
   --shadow-floating: 0 0 0 1px rgb(255 255 255 / 0.12), 0 16px 40px rgb(0 0 0 / 0.55);
+  --shadow-color: 0 0 0;
   --shadow-btn-primary: inset 0 1px 0 rgb(255 255 255 / 0.20), 0 4px 14px rgb(var(--primary) / 0.26);
   --shadow-header: 0 1px 0 rgb(255 255 255 / 0.06);
 

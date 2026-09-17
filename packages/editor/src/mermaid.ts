@@ -112,12 +112,12 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
   const ink = t('--foreground', dark ? '#f4f4f6' : '#101014')
   const line = t('--muted-foreground', dark ? '#9e9ea8' : '#5c5c66')
   const border = t('--border', dark ? '#38383f' : '#e0e0e4')
-  // 图表强调色：读 --diagram-accent。
+  // 图表强调色：读 --content-accent。
   // 以前这里写死靛蓝，理由是「--primary 在默认主题里是暖黑，绑它图就永远是灰的」。
   // 那个理由只对默认/focus 成立，代价却是所有主题共用一支靛蓝——米黄纸面上的一张
   // 靛蓝图就是用户说的「不匹配」。现在由主题自己表态：tokens.css 给靛蓝兜底，
   // 纸/书/手册/米黄在 reading-themes.css 里各自覆盖成自己的强调色。
-  const diagramAccent = t('--diagram-accent', dark ? '#8b8bf0' : '#4f46e5')
+  const diagramAccent = t('--content-accent', dark ? '#8b8bf0' : '#4f46e5')
   // 节点底：纸色往靛蓝混 12%（暗色 16%——暗底上浅调要更浓才可感知）。
   // 注意方向：card 是基底、accent 是掺入色，掺多了会变回饱和主色。
   const nodeTint = mixColor(card, diagramAccent, dark ? 0.16 : 0.12)
@@ -319,7 +319,7 @@ export function mermaidRenderSignature(): string {
       ? 'dark'
       : 'light'
   // 纸面 + 图表强调色都要进签名：两者都烘进 SVG，换主题时必须重画。
-  return `${theme}::${cssRgbToken('--card', '')}::${cssRgbToken('--diagram-accent', '')}::${effectiveUserConfig().signature}`
+  return `${theme}::${cssRgbToken('--card', '')}::${cssRgbToken('--content-accent', '')}::${effectiveUserConfig().signature}`
 }
 
 /** 生成全局唯一的 mermaid render id（库要求 id 不重复）。 */
@@ -350,7 +350,7 @@ export async function renderMermaidSvg(
   // 看着像「条前面的纯文字」）。保底宽度 + min-width 锁 + 容器横向滚动，
   // 窄栏也能完整读图——其他甘特渲染器都是这个策略。
   const canvasWidth = isGanttSource(code) ? Math.max(measured, 1000) : measured
-  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${cssRgbToken('--diagram-accent', '')}::${effectiveUserConfig().signature}::${code}`
+  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${cssRgbToken('--content-accent', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 

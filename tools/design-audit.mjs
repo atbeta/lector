@@ -21,8 +21,14 @@ import { fileURLToPath } from 'node:url'
 // `/D:/Code/lector/`，再 join 下去会得到 `D:\D:\Code\lector\...`。
 // CI 跑在 Linux 上（没有盘符），这条路只在开发机上是坏的。
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const TOKENS = readFileSync(join(ROOT, 'packages/editor/src/styles/tokens.css'), 'utf8')
-const APP = readFileSync(join(ROOT, 'packages/editor/src/styles/app.css'), 'utf8')
+
+/** 去掉 CSS 注释：静态体检只看声明，注释里的 hex / 数值 / 伪选择器都是噪音。 */
+function stripCssComments(css) {
+  return css.replace(/\/\*[\s\S]*?\*\//g, ' ')
+}
+
+const TOKENS = stripCssComments(readFileSync(join(ROOT, 'packages/editor/src/styles/tokens.css'), 'utf8'))
+const APP = stripCssComments(readFileSync(join(ROOT, 'packages/editor/src/styles/app.css'), 'utf8'))
 
 /** 取某个主题块里的 token 定义（light = :root，dark = html[data-theme='dark']）。 */
 function parseTokens(css) {
@@ -132,9 +138,17 @@ const primaryUses = [...APP.matchAll(/rgb\(var\(--primary[^)]*\)\)/g)].length
 note(primaryUses > 40 ? 'warn' : 'ok', `app.css 里 primary 出现 ${primaryUses} 次（选择器层面；过多说明强调失效）`)
 
 // ── 3. token 绕过：硬编码颜色 / 时长 / 缓动 ──
-const hardColors = [...APP.matchAll(/#[0-9a-f]{3,8}\b/gi)].map((m) => m[0])
-const hardDurations = [...APP.matchAll(/(?:transition|animation)[^;]*?\b(\d{2,4})ms/g)].map((m) => m[0])
-const rgbLiterals = [...APP.matchAll(/rgba?\(\s*\d/g)].map((m) => m[0])
+// 一定要在**去掉注释之后**扫：注释里提到某个 hex（「这里曾经写死 #4f46e5」）
+// 会被当成真的绕过 token，报出来的是一条自己写的说明文案。
+const APP_CODE = stripCssComments(APP)
+// 有意写死的两处：开关滑块必须纯白（它坐在彩色/灰轨道上，跟主题走会失去「凸起」感），
+// 打印强制白底（PDF 的归宿是分享与打印，深色没有意义）。其余硬编码颜色都算绕过 token。
+const ALLOWED_HARD_COLORS = ['#fff']
+const hardColors = [...APP_CODE.matchAll(/#[0-9a-f]{3,8}\b/gi)]
+  .map((m) => m[0])
+  .filter((c) => !ALLOWED_HARD_COLORS.includes(c.toLowerCase()))
+const hardDurations = [...APP_CODE.matchAll(/(?:transition|animation)[^;]*?\b(\d{2,4})ms/g)].map((m) => m[0])
+const rgbLiterals = [...APP_CODE.matchAll(/rgba?\(\s*\d/g)].map((m) => m[0])
 if (hardColors.length) note('warn', `app.css 硬编码颜色 ${hardColors.length} 处：${hardColors.slice(0, 6).join(' ')}`)
 if (rgbLiterals.length) note('warn', `app.css 裸 rgb() 数值 ${rgbLiterals.length} 处（应走 token）`)
 if (hardDurations.length) note('info', `app.css 直接写时长 ${hardDurations.length} 处（应走 --motion-*）`)
