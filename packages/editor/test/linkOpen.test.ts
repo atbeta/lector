@@ -38,8 +38,8 @@ describe('classifyHref', () => {
 })
 
 describe('shouldOpenHref', () => {
-  test('可打开的只有外部链接与本地文件', () => {
-    expect(shouldOpenHref('anchor', 'read', false)).toBe(false)
+  test('可打开的：外部链接、本地文件、文内锚点', () => {
+    expect(shouldOpenHref('anchor', 'read', false)).toBe(true)
     expect(shouldOpenHref('other', 'read', true)).toBe(false)
   })
 
@@ -53,6 +53,7 @@ describe('shouldOpenHref', () => {
     for (const mode of ['edit', 'source'] as const) {
       expect(shouldOpenHref('local', mode, false)).toBe(false)
       expect(shouldOpenHref('external', mode, false)).toBe(false)
+      expect(shouldOpenHref('anchor', mode, false)).toBe(false)
       expect(shouldOpenHref('local', mode, true)).toBe(true)
       expect(shouldOpenHref('external', mode, true)).toBe(true)
     }

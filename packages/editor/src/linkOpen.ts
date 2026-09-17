@@ -34,9 +34,10 @@ export function classifyHref(href: string | null | undefined): HrefKind {
   return 'local'
 }
 
-/** 这次点击要不要打开链接。见文件头：阅读档直接开，编辑/源码档要修饰键。 */
+/** 这次点击要不要打开链接。见文件头：阅读档直接开，编辑/源码档要修饰键。
+ * anchor（文内锚点）与外链同权：阅读档直接跳，编辑档要修饰键。 */
 export function shouldOpenHref(kind: HrefKind, mode: ViewMode, withModifier: boolean): boolean {
-  if (kind !== 'external' && kind !== 'local') return false
+  if (kind !== 'external' && kind !== 'local' && kind !== 'anchor') return false
   return mode === 'read' || withModifier
 }
 
