@@ -26,7 +26,15 @@ function textNodes(root: HTMLElement): Text[] {
     acceptNode(node) {
       const parent = node.parentElement
       if (!parent) return NodeFilter.FILTER_REJECT
-      if (parent.closest('.cm-editor, script, style, mark.find-hit, .mermaid-svg')) {
+      // 跳过的都是「不是文档正文」的文本：
+      //   .cm-editor  块内源码（另有自己的高亮）
+      //   script/style 不是内容
+      //   mark.find-hit 已标过的，再包一层会越包越深
+      //   .mermaid-svg 图里的文字是 SVG 生成的，不是正文
+      //   .ln-gutter   代码块的行号列——**装饰**，文本内容是 "1\n2\n3..."。
+      //                漏掉它的后果很具体：搜 "1" 会把行号也点亮，于是
+      //                「计数 6 处 / 高亮 10 个」对不上，而计数才是对的。
+      if (parent.closest('.cm-editor, script, style, mark.find-hit, .mermaid-svg, .ln-gutter')) {
         return NodeFilter.FILTER_REJECT
       }
       return node.nodeValue && node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT

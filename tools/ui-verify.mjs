@@ -1551,7 +1551,7 @@ const summary = {
     const checkedBefore = await checkbox().isChecked()
     await menuItem(
       page.locator('#content li.task').first(),
-      /mark as (not )?done|标记为(未)?完成/i,
+      /mark as (not )?done|标记为(已|未)完成/i,
       '标记任务完成',
     )
     const checkedAfter = await checkbox().isChecked()
@@ -1936,8 +1936,11 @@ const summary = {
       }
     })
     if (rx.total <= 0) note('error', `正则 \\d+ 没有报出命中：${JSON.stringify(rx.label)}`)
-    else if (rx.marks < rx.total) {
-      note('error', `查找高亮少了：计数 ${rx.total} 处，只高亮 ${rx.marks} 个`)
+    else if (rx.total !== rx.marks) {
+      // 相等是这条不变量本身的要求（见 findHighlight.ts 的文件头：高亮的命中集合
+      // 必须和计数、替换完全一致）。踩过的坑：代码块的行号列（.ln-n）是装饰文本，
+      // 一度被一并点亮——搜 "1" 于是「计数 6 处、高亮 10 个」。
+      note('error', `查找的计数与高亮不一致：报 ${rx.total} 处，高亮 ${rx.marks} 个`)
     }
     if (rx.current !== 1) note('error', `当前命中标记 ${rx.current} 个（期望 1 个）`)
 
