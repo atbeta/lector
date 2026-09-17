@@ -70,7 +70,6 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
     const twisty = nodeEl.querySelector<HTMLButtonElement>(':scope > .outline-line > .outline-twisty')
     if (!twisty) return
     twisty.setAttribute('aria-expanded', String(!collapsed))
-    twisty.dataset.tip = collapsed ? t('outlineExpand') : t('outlineCollapse')
     twisty.setAttribute('aria-label', collapsed ? t('outlineExpand') : t('outlineCollapse'))
   }
 
@@ -175,8 +174,6 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
         rowText.className = 'outline-text'
         rowText.textContent = n.text
         row.appendChild(rowText)
-        // 长标题在窄侧栏里会被截断，tips 让悬停能看全
-        row.dataset.tip = n.text
         row.addEventListener('click', () => {
           // 定位到页面最上，不是居中。
           // 「跳到某一节」在阅读器里的含义是「从这一节开始读」，居中会把上一节
