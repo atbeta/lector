@@ -75,20 +75,57 @@ function cssRawToken(name: string, fallback: string): string {
  * （mermaid 自带 mediumpurple 描边 #9370DB、#333 文字），和界面的靛蓝中性墨完全不搭。
  * 背景跟了不等于整套配色跟了。
  *
- * 映射规则刻意克制：节点底用中性 --muted、描边用 --primary（靛蓝）、文字用 --foreground、
- * 连线用 --muted-foreground。这样图的语言和界面一致（中性面 + 靛蓝强调），
- * 而且对比度由我们自己的调色板保证（design-audit 已经守过这几个组合）。
+ * 映射规则：节点底是纸色往靛蓝混 12% 的浅调（轻上色，图不再纯线框灰），
+ * 描边用图表专属靛蓝、文字用 --foreground、连线用 --muted-foreground（暖灰墨）。
+ * note 用琥珀浅底（注释的惯例语义色），cluster 带微弱靛调，secondary/tertiary
+ * 给状态图等补绿/琥珀变体。强调色不绑 --primary——应用的 primary 是暖黑，
+ * 绑它图就永远是灰的；靛蓝与暖纸底对比和谐，且图表观感跨主题稳定。
  */
+
+/** 解析 cssRgbToken 产出的颜色（rgb(79 70 229) / rgb(79,70,229) / #4f46e5 均可）。 */
+function parseRgb(color: string): [number, number, number] {
+  if (color.startsWith('#')) {
+    const h = color.slice(1)
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+    return [
+      parseInt(full.slice(0, 2), 16),
+      parseInt(full.slice(2, 4), 16),
+      parseInt(full.slice(4, 6), 16),
+    ]
+  }
+  const n = color.match(/[\d.]+/g) ?? ['0', '0', '0']
+  return [Number(n[0]), Number(n[1]), Number(n[2])]
+}
+
+/** 把 a 往 b 混 ratio（0=a 原样，1=全 b），返回 rgb() 串。 */
+function mixColor(a: string, b: string, ratio: number): string {
+  const ca = parseRgb(a)
+  const cb = parseRgb(b)
+  const ch = (i: number): number => Math.round(ca[i]! + (cb[i]! - ca[i]!) * ratio)
+  return `rgb(${ch(0)}, ${ch(1)}, ${ch(2)})`
+}
+
 function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
   const dark = theme === 'dark'
   const t = (name: string, fb: string): string => cssRgbToken(name, fb)
   const card = t('--card', dark ? '#202020' : '#ffffff')
-  const muted = t('--muted', dark ? '#2a2a30' : '#f4f4f6')
-  const accent = t('--accent', dark ? '#26262c' : '#f0f0f4')
-  const primary = t('--primary', dark ? '#8b8bf0' : '#4f46e5')
   const ink = t('--foreground', dark ? '#f4f4f6' : '#101014')
   const line = t('--muted-foreground', dark ? '#9e9ea8' : '#5c5c66')
   const border = t('--border', dark ? '#38383f' : '#e0e0e4')
+  // 图表专属强调色：靛蓝。应用的 --primary 是暖黑（纸墨设计），往它混色只会
+  // 得到灰调——图的「活」感需要真实色相。靛蓝与暖纸底对比和谐（原回退值即
+  // 靛蓝，本就是设计意图），且不随 --primary 变化，保证图表观感稳定。
+  const diagramAccent = dark ? '#8b8bf0' : '#4f46e5'
+  // 节点底：纸色往靛蓝混 12%（暗色 16%——暗底上浅调要更浓才可感知）。
+  // 注意方向：card 是基底、accent 是掺入色，掺多了会变回饱和主色。
+  const nodeTint = mixColor(card, diagramAccent, dark ? 0.16 : 0.12)
+  const clusterTint = mixColor(card, diagramAccent, dark ? 0.08 : 0.06)
+  // note 的琥珀调：注释的惯例语义色，与主色区分开。
+  const noteBkg = dark ? '#2c2921' : '#fffbeb'
+  const noteBorder = dark ? '#4d4636' : '#ecd9a0'
+  // 状态图等用到的变体底色：绿（完成/正常）与琥珀（注意）。
+  const secondary = dark ? '#1c2a24' : '#ecfdf5'
+  const tertiary = noteBkg
   // 字体绑到应用 UI 字体（Inter / --font-sans）。不设的话 mermaid 用自带默认
   // "trebuchet ms"（Windows 系统字体，其他平台各自回退），导致图表字体和界面
   // 完全脱节、且各编辑器观感不一。显式绑定后写进 SVG 内部 <style>，全平台一致。
@@ -100,20 +137,22 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
     background: card,
     fontFamily,
     // 流程图 / 状态图 / 大部分图
-    primaryColor: muted,
-    primaryBorderColor: primary,
+    primaryColor: nodeTint,
+    primaryBorderColor: diagramAccent,
     primaryTextColor: ink,
     lineColor: line,
     textColor: ink,
-    nodeBorder: primary,
-    mainBkg: muted,
-    clusterBkg: accent,
+    nodeBorder: diagramAccent,
+    mainBkg: nodeTint,
+    secondaryColor: secondary,
+    tertiaryColor: tertiary,
+    clusterBkg: clusterTint,
     clusterBorder: border,
     edgeLabelBackground: card,
     titleColor: ink,
     // 时序图
-    actorBkg: muted,
-    actorBorder: primary,
+    actorBkg: nodeTint,
+    actorBorder: diagramAccent,
     actorTextColor: ink,
     signalColor: line,
     signalTextColor: ink,
@@ -121,11 +160,11 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
     labelBoxBorderColor: border,
     labelTextColor: ink,
     loopTextColor: ink,
-    noteBkgColor: accent,
-    noteBorderColor: border,
+    noteBkgColor: noteBkg,
+    noteBorderColor: noteBorder,
     noteTextColor: ink,
-    activationBkgColor: accent,
-    activationBorderColor: primary,
+    activationBkgColor: clusterTint,
+    activationBorderColor: diagramAccent,
     // 类图
     classText: ink,
   }
@@ -172,7 +211,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
  * （实测过：指令里写 `securityLevel: "loose"` 加 `click ... call fn()`，点击不会执行）。
  *
  * 我们**再手动剥一层**，不把安全属性寄托在库的内部实现上：将来 mermaid 调整那张表，
- * 这一层还在。这几个���决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
+ * 这一层还在。这几个�����决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
  */
 const MERMAID_SECURE_KEYS = [
   'securityLevel',
