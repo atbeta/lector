@@ -95,8 +95,13 @@
 .settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .settings-textarea {
   width: 100%;
+  /* 全局没有 box-sizing: border-box；不补这行，width:100% 再加 padding/border
+     会比容器宽约 22px，把右侧留白吃掉、边框顶到卡片边。 */
+  box-sizing: border-box;
   min-height: 120px;
-  resize: vertical;
+  /* 固定高度：内容超出就在框内滚动（用户改不了尺寸，也就不会把右缘顶出边距）。 */
+  resize: none;
+  overflow: auto;
   padding: 9px 10px;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-btn);
@@ -108,6 +113,7 @@
 }
 .settings-input {
   width: 100%;
+  box-sizing: border-box;
   height: 30px;
   padding: 0 10px;
   border: 1px solid rgb(var(--border));

@@ -1907,6 +1907,55 @@ const summary = {
     )
   }
 
+  // 3.10b) 设置里的两段高级 textarea：不可缩放、不横向溢出（右侧留白必须在）
+  //
+  // 踩过的坑：全局没有 box-sizing: border-box，width:100% 再加 padding/border 会比
+  // 容器宽约 22px，把右侧留白吃掉、边框顶到卡片边；再叠上 resize: vertical 的右下角
+  // 把手，看起来就像「贴边 + 能拉大小」。这一条把它钉住。
+  {
+    await page.click('#settings-btn')
+    await page.waitForTimeout(400)
+    const hasAdvanced = await page.evaluate(() => {
+      const navBtn = [...document.querySelectorAll('.settings-nav-item')].find((b) =>
+        /高级|Advanced/i.test(b.textContent ?? ''),
+      )
+      if (navBtn) navBtn.click()
+      return !!navBtn
+    })
+    if (!hasAdvanced) note('error', '设置里找不到「高级」分区')
+    else {
+      await page.waitForTimeout(250)
+      const box = await page.evaluate(() => {
+        const content = document.querySelector('.settings-content')
+        const boxes = [...document.querySelectorAll('.settings-textarea')]
+        const cs = content ? getComputedStyle(content) : null
+        const padRight = cs ? parseFloat(cs.paddingRight) || 0 : 0
+        return {
+          count: boxes.length,
+          resize: boxes.map((b) => getComputedStyle(b).resize),
+          // 最右一块的右缘相对「内容区右内边」越出了多少（取整余量 1px）
+          maxOverflow: boxes.reduce(
+            (m, b) => Math.max(m, b.getBoundingClientRect().right - (content.getBoundingClientRect().right - padRight)),
+            -Infinity,
+          ),
+          hScroll: content ? content.scrollWidth - content.clientWidth : 0,
+        }
+      })
+      const noResize = box.resize.length > 0 && box.resize.every((v) => v === 'none')
+      if (box.count < 2) note('error', `高级分区里的 textarea 少于 2 个（自定义样式 / Mermaid 配置），实为 ${box.count}`)
+      if (!noResize) note('error', `高级 textarea 仍可缩放：resize=${box.resize.join(',')}`)
+      if (box.maxOverflow > 1) {
+        note('error', `高级 textarea 越过右侧留白 ${Math.round(box.maxOverflow)}px（漏了 box-sizing: border-box？）`)
+      }
+      if (box.hScroll > 0) note('error', `设置内容区被顶出横向滚动 ${box.hScroll}px`)
+      if (box.count >= 2 && noResize && box.maxOverflow <= 1 && box.hScroll <= 0) {
+        note('info', `高级 textarea：${box.count} 个，resize=none，右侧留白完好`)
+      }
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+  }
+
   // 3.11) 查找选项与正则：三个开关、危险正则被拒、**计数与高亮必须一致**
   //
   // 这一组守的是「三处匹配实现不许走偏」。计数说 6 处、只标出 4 个，
