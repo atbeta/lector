@@ -112,7 +112,7 @@ html.is-scrolling {
   border-radius: 99px;
   background-clip: content-box;
   border: 2px solid transparent;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--motion-fast) var(--ease-standard);
 }
 html.is-scrolling ::-webkit-scrollbar-thumb {
   background: rgb(var(--foreground) / 0.3);
@@ -757,7 +757,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   background: rgb(var(--border));
   flex: none;
 }
-/* 查找栏的 Aa/\b/.* 开关：created 时没 CSS 规则 → 原生按钮外观混在自绘浮层里。
+/* 查找栏的 Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
   display: inline-flex;
@@ -1900,7 +1900,8 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   border-radius: 99px;
   background-clip: content-box;
   border: 2px solid transparent;
-  transition: background-color 0.2s ease 0.5s;
+  /* 0.5s 延迟是刻意的：滚动停止后拇指停留一会儿再淡出 */
+  transition: background-color var(--motion-base) var(--ease-standard) 0.5s;
 }
 *:hover::-webkit-scrollbar-thumb {
   background: rgb(var(--foreground) / 0.12);
