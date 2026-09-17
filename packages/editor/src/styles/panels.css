@@ -330,7 +330,7 @@ html.is-empty #content {
   background: transparent;
   border-inline-color: transparent;
   box-shadow: none;
-  /* ��态是「一页��页」，��容整��居中于整窗。
+  /* 空态是「一页纸」，内容整体居中于整窗。
      #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
      块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
   display: flex;

@@ -210,7 +210,7 @@ export function createBlockOperations({
   /**
    * 删除块。
    *
-   * 连同其后紧邻的空白缝一起���——只删内容会留下孤立的空行，
+   * 连同其后紧邻的空白缝一起删掉——只删内容会留下孤立的空行，
    * 用户看到的是「删了但版面又多空了一截」。
    * 首块删掉时把「前置」缝也带走（缝在它前面）。
    */
@@ -325,7 +325,7 @@ export function createBlockOperations({
     if (pos !== doc.length) return false // 只在块末分裂，规避光标映射复杂度
     const i = session.blocks.findIndex((b) => b.id === block.id)
     if (i < 0) return false
-    // 其后应是空白��（段落间必有）
+    // 其后应是空白缝（段落间必有）
     const gap = session.blocks[i + 1]
     if (!gap || gap.kind !== 'unknown' || gap.raw.trim() !== '') return false
     const gapRaw = gap.raw || '\n\n'
@@ -355,7 +355,7 @@ export function createBlockOperations({
     return true
   }
 
-  /** 空段块首 Backspace → 删除该空段并上移，与上���内容块合并。 */
+  /** 空段块首 Backspace → 删除该空段并上移，与上方内容块合并。 */
   function mergeBlock(block: BlockView, view: EditorView): boolean {
     const doc = view.state.doc.toString()
     if (doc.trim() !== '') return false

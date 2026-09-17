@@ -147,8 +147,8 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
   // 第一行的 defaultPrevented 守卫是 Windows 上必须有的：聚焦块里的裸 CM
   // 会接管自己认识的那些键并 preventDefault（Ctrl+E 行内代码、Ctrl+B 粗体…），
   // 而本监听挂在 window 的冒泡阶段——不守卫的话，Windows 用户按 Ctrl+E 会
-  // **同时**给选中文字加行内代码并把视图切到���码档。CM 不负责 stopPropagation，
-  // 这层守卫是我们���己的责任。
+  // **同时**给选中文字加行内代码并把视图切到源码档。CM 不负责 stopPropagation，
+  // 这层守卫是我们自己的责任。
   window.addEventListener('keydown', (e) => {
     if (e.defaultPrevented) return
     const mod = e.metaKey || e.ctrlKey

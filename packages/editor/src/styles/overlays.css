@@ -130,7 +130,7 @@
   max-height: 100%;
 }
 
-/* 左���角：缩放读数 + ���势提示 */
+/* 左下角：缩放读数 + 手势提示 */
 .lb-hud {
   position: absolute;
   top: 16px;
@@ -628,7 +628,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-color: rgb(var(--ring) / 0.6);
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
-/* 表��格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截�� */
+/* 表格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截。 */
 .table-editor-head { position: relative; }
 .table-editor-head:has(.table-editor-del) textarea { padding-right: 28px; }
 .table-editor-head .table-editor-del {

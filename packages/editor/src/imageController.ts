@@ -23,7 +23,7 @@ export type ImageInsertRef = { type: 'caret' } | { type: 'afterBlock'; blockId: 
 
 export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret'> }) {
   /** 图片上的菜单。 */
-  /** 图片在正文里的归属：哪个块、块内第几张（按��染 DOM 顺序，与 listImages 对齐）。 */
+  /** 图片在正文里的归属：哪个块、块内第几张（按渲染 DOM 顺序，与 listImages 对齐）。 */
   function imageTarget(img: HTMLImageElement): { block: BlockView; index: number } | null {
     const blockEl = img.closest<HTMLElement>('.block')
     const id = blockEl?.dataset.blockId

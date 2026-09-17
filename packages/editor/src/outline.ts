@@ -113,7 +113,7 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   function renderOutline() {
     if (isLargeDocument()) {
       // 大文件不建块，也就没有现成的标题列表。这里明确说明「不可用」，
-      // 而不是留一片空白让人以为文档��有标题。
+      // 而不是留一片空白让人以为文档没有标题。
       sidebar.body.innerHTML = ''
       const p = document.createElement('p')
       p.className = 'outline-empty'
@@ -275,7 +275,7 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   /**
    * 滚动反查当前小节：取「已经越过阅读线」的最后一个标题。
    *
-   * 阅读线定在容器顶部���方 72px：标题刚进视口时就切过去太早
+   * 阅读线定在容器顶部下方 72px：标题刚进视口时就切过去太早
    * （读者还在看上一节的最后一段），太晚则高亮总是慢半拍。
    */
   function updateActiveHeading(): void {

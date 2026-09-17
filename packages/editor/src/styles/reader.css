@@ -98,7 +98,7 @@
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   ���构词（keyword/tag/selector/���数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
+   结构词（keyword/tag/selector/函数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -318,7 +318,7 @@
   border-radius: 4px;
 }
 
-/* ���知 / yaml / html 降级 — 等宽源�� */
+/* 未知 / yaml / html 降级 — 等宽源码 */
 .preform {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -572,7 +572,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   border-radius: 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  /* 字号与行��跟阅读/编辑态完���一致。
+  /* 字号与行高跟阅读/编辑态完全一致。
      源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
      读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
   font-size: var(--reading-font-size);
