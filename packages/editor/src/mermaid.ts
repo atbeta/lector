@@ -180,7 +180,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   //
   // 两处不让位：
   //   - 用户自己写了 themeVariables：那是明确要细调，在我们的基础上覆盖（逐层合并）；
-  //   - 字体：图里的字要和界面一致，那是全局观感，不属于「主题」这一层。
+  //   - 字体：图里的字要和界面��致，那是全局观感，不属于「主题」这一层。
   const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
   const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
   const baseVars: Record<string, string> =
@@ -354,6 +354,17 @@ export async function renderMermaidSvg(
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)
+    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装不下任务名，
+    // 标签居中溢出到条外，看着像「条前面的纯文字」。锁最小宽度 = 不缩于自然宽，
+    // 窄栏走容器横向滚动（.mermaid-diagram 已有 overflow-x: auto）。
+    if (isGanttSource(code)) {
+      const patched = svg.replace(
+        /max-width:\s*([\d.]+px)/,
+        'max-width: $1; min-width: $1',
+      )
+      cachePut(key, patched)
+      return patched
+    }
     cachePut(key, svg)
     return svg
   } finally {
@@ -361,7 +372,7 @@ export async function renderMermaidSvg(
   }
 }
 
-/** 测试钩子：清空缓存。生产代码不要调。 */
+/** 测试��子：清空缓存。生产代码不要调。 */
 export function _resetCacheForTests(): void {
   svgCache.clear()
 }
