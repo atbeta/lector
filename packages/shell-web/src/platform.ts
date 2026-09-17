@@ -110,12 +110,12 @@ export async function savePdfDialog(defaultName: string): Promise<string | null>
 
 /**
  * 对已选定的路径执行导出：主窗口挂 .printing（打印样式，app.css）后交给壳层
- * PrintToPdf。遮罩（.pdf-exporting）只盖准备阶段（摊平布局）——PrintToPdf
- * 捕获的就是屏幕上渲染的 DOM，遮罩不摘会原样进纸（0.26.5 教训：整本 PDF
- * 只有一张 spinner）。捕获前摘遮罩，窗口显示摊平的正文（打印预览观感）。
- * 捕获可能很慢（大文档），页面内任何指示器都会进纸——这段的反馈走忙光标 +
- * 窗口标题（busyTitle），都不参与渲染捕获。主题翻转是调用方的职责
- * （editorChrome 走 setThemeMode 正规管道，mermaid 的重画挂在设置通知上）。
+ * PrintToPdf。遮罩（.pdf-exporting）盖满**导出全程**（翻主题、等 mermaid、
+ * 摊平、捕获）——打印管线会应用 @media print（沙箱探针实验验证：隐藏规则
+ * 生效时探针不进 PDF，摘掉规则就进），.pdf-exporting 在 PDF 输出里被
+ * display:none，不会进纸。0.26.5 的「整本 spinner」是因为当时没有这条隐藏
+ * 规则，不是「捕获=屏幕截图」。主题翻转是调用方的职责（editorChrome 走
+ * setThemeMode 正规管道，mermaid 的重画挂在设置通知上）。
  */
 export async function exportPdfTo(
   path: string,
@@ -148,10 +148,8 @@ export async function exportPdfTo(
     await prepare?.()
     root.classList.add('printing')
     await nextFrame()
-    // 捕获前摘遮罩（见函数头注释），再等一帧让正文版式画出来。
-    overlay.remove()
-    await nextFrame()
-    // 捕获期的反馈走忙光标 + 窗口标题 + 任务栏进度（都不进 PDF）。
+    // 遮罩不摘，盖满捕获全程（见函数头注释：@media print 让它不进 PDF）。
+    // 捕获期反馈：遮罩 spinner + 忙光标 + 窗口标题 + 任务栏进度。
     const prevTitle = document.title
     if (busyTitle) document.title = busyTitle
     root.classList.add('pdf-busy')
@@ -207,7 +205,7 @@ export async function closeWindow(): Promise<void> {
 
 /**
  * 通知壳：本窗口的 WebView 已就绪。壳借此把 snap 覆盖层重新提到 WebView2 之上
- * （WebView2 首帧/可见性切换时会再置顶一次，晚于建窗时的 install——竞态导致
+ * （WebView2 首帧/可见性切换时会再置顶一���，晚于建窗时的 install——竞态导致
  * 只有部分窗口悬停最大化能弹 Snap 浮窗）。浏览器预览无壳，空操作。
  */
 export async function notifyWebviewReady(): Promise<void> {
