@@ -193,7 +193,7 @@ export function createDocumentEditor({
     if (large.isActive()) {
       contentEl.classList.add('large-doc')
       document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编���档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+      // 大文件只有纯文本可编����档位锁在源码档，避免"切回阅读能看见渲染"的误解。
       // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
       forceSourceMode()
       large.mountLargeDocument()
@@ -230,6 +230,11 @@ export function createDocumentEditor({
     // 大文件没有块：正文区由 mountLargeDocument 挂的整篇 CM 占据，
     // 任何走块渲染的路径（切档、markDirty 之后等）都必须绕开，否则会把 CM 清掉。
     if (large.isActive()) return
+    // 没打开文档时 contentEl 归空态/加载态管（loadState.ts），这里没有块可渲染。
+    // 不设防的话 applyKeyedChildren(contentEl, []) 会把空态 UI 整个抹掉——
+    // 实际发生过：启动时主题从系统预判切到设置值触发 mermaid 重画（main.ts 的
+    // notify → 250ms 后 render），空态闪一下就变白屏。
+    if (!session.source) return
     // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
     // 文档无 math 节点时,这步 0 开销。
     await preRenderMath(session.blocks)
