@@ -3,6 +3,14 @@ dist/
 *.log
 .DS_Store
 
+# 本仓库只用 Bun 工作区：bun.lock 是唯一 lockfile。
+# 别的包管理器的 lockfile 一个都不留——它们不认 packages/* 工作区，
+# 照它装出来的 node_modules 缺 workspace 依赖（2026-09 踩过：
+# 一个被误提交的 pnpm-lock.yaml 让 vite 报 "Failed to resolve import"）。
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
 # Tauri
 clients/tauri/target/
 clients/tauri/gen/
