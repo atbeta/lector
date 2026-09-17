@@ -415,8 +415,14 @@ html.lightbox-open #content { overflow: hidden; }
   border-bottom: 1px solid rgb(var(--border-subtle));
 }
 .settings-row:last-child { border-bottom: none; }
-.row-label { font-size: var(--text-base); }
+.row-label { font-size: var(--text-base); white-space: nowrap; }
 .settings-row.cell { padding-right: 2px; }
+/* 带说明的行：把右侧控件对齐到**标签那一行**的顶，而不是整行垂直居中。
+   说明文字一行/两行会变（如图片插入方式三档），居中时控件会随行高上下跳；
+   顶对齐后无论说明几行，控件都钉在标签那一行。（stack 行是列布局，不适用。） */
+.settings-row.has-hint:not(.settings-row-stack) > :not(.row-text) {
+  align-self: flex-start;
+}
 
 /* 分段选择器（滑块指示器） */
 .segmented {

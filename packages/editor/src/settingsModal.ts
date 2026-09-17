@@ -51,6 +51,9 @@ function row(label: string, control: HTMLElement, hint?: string): HTMLElement {
     const hintEl = h('span', 'row-hint')
     hintEl.textContent = hint
     lab.appendChild(hintEl)
+    // 有说明的行：右侧控件对齐到标签那一行，而不是整行垂直居中——
+    // 说明文字会一行/两行地变（如图片插入方式），居中会让控件随行高上下跳。
+    r.classList.add('has-hint')
   }
   r.append(lab, control)
   return r
@@ -312,11 +315,12 @@ export function openSettingsModal(onClose?: () => void) {
   )
   images.appendChild(markRowForModes(cellRow(t('imageCommandTimeoutSec'), timeoutSlider), 'command'))
 
-  // 测试命令按钮：用未保存草稿跑一次上传，看 stdout 是否有 URL。
-  const testBtn = h('button', 'btn') as HTMLButtonElement
+  // 测试命令：用未保存草稿跑一次上传，看 stdout 是否有 URL。
+  // 次级按钮（有边框、按内容宽）+ 结果提示行；结果失败时用危险色。
+  const testBtn = h('button', 'btn btn-ghost') as HTMLButtonElement
   testBtn.type = 'button'
   testBtn.textContent = t('imageTestCommand')
-  const testResult = h('div', 'settings-row-hint') as HTMLDivElement
+  const testResult = h('div', 'row-hint') as HTMLDivElement
   testResult.textContent = ''
   testBtn.addEventListener('click', () => {
     void (async () => {
@@ -325,14 +329,19 @@ export function openSettingsModal(onClose?: () => void) {
         const draft = getSettings()
         const { command, preArgs } = splitUploadCommand(draft.imageCommand)
         const res = await testImageCommand(command, [...preArgs, ...draft.imageCommandArgs], draft.imageCommandTimeoutMs)
-        if (res.ok && res.url) testResult.textContent = t('imageTestOk').replace('{url}', res.url)
-        else testResult.textContent = t('imageTestFailed') + (res.error ?? '')
+        if (res.ok && res.url) {
+          testResult.textContent = t('imageTestOk').replace('{url}', res.url)
+          testResult.dataset.invalid = 'false'
+        } else {
+          testResult.textContent = t('imageTestFailed') + (res.error ?? '')
+          testResult.dataset.invalid = 'true'
+        }
       } finally {
         testBtn.disabled = false
       }
     })()
   })
-  const testHost = markRowForModes(h('div', 'settings-row settings-row-stack'), 'command')
+  const testHost = markRowForModes(h('div', 'settings-row settings-row-stack settings-test-row'), 'command')
   testHost.appendChild(testBtn)
   testHost.appendChild(testResult)
   images.appendChild(testHost)

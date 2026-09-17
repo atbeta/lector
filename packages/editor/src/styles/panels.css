@@ -87,12 +87,19 @@
   letter-spacing: 0.04em;
   color: rgb(var(--muted-foreground));
 }
-.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.row-hint { max-width: 46ch; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
+/* 标签列：底宽按内容（min-content），且标签单行——CJK 能在任意字之间断行，列一旦
+   被右侧控件挤到比标签还窄，「参数」就会被折成两行。说明文字可长可短，用
+   overflow-wrap 兜住长 token，不让它把这一列撑宽。 */
+.row-text { display: flex; flex-direction: column; gap: 2px; min-width: min-content; }
+.row-hint { max-width: 46ch; overflow-wrap: anywhere; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
 /* 提示位里的错误（如 mermaid 配置 JSON 不合法）：它不再是说明，是一句「你写错了」，
    得和周围的灰字区分开。字形与位置不动，只换颜色——布局不跳。 */
 .row-hint[data-invalid='true'] { color: rgb(var(--destructive)); }
 .settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
+/* 「测试命令」：stack 行默认把子项拉伸满宽，次级按钮会被拉成一条通栏灰字（很难看）。
+   按钮按内容宽左对齐；结果提示另起一行，没结果时不占位。 */
+.settings-test-row > .btn { align-self: flex-start; }
+.settings-test-row > .row-hint:empty { display: none; }
 .settings-textarea {
   width: 100%;
   /* 全局没有 box-sizing: border-box；不补这行，width:100% 再加 padding/border
