@@ -581,7 +581,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「���������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「�����������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -1601,7 +1601,7 @@ html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── Mermaid 图表 ────────���─���─���������
- * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画��区域。
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是��内的画��区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
   padding: 12px;
@@ -1643,7 +1643,9 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 .mermaid-diagram .mermaid-svg svg {
   max-width: 100%;
   height: auto;
-  /* 自然尺寸小于栏宽时居中，而不是贴左 */
+  /* 自然尺寸小于栏宽时居中，而不是贴左。display: block 是必须的——
+     svg 默认 inline，inline 元素的 auto margin 不生效（实测贴左）。 */
+  display: block;
   margin: 0 auto;
 }
 /* 堵住���体特性���漏：阅���区���文���层������ Inter 的花式变体
@@ -2998,7 +3000,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-standard);
 }
-/* 发丝分隔线用 inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+/* 发丝分隔线�� inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
 .recent-item + .recent-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
 .recent-item:hover { background: var(--block-hover-bg); }
 .recent-text {
@@ -3055,7 +3057,7 @@ html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
- * 空态不是「一篇空文档」，是扉页：撤掉纸页表面（底色/两侧描边/最大栏宽），
+ * 空态不是「一篇空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
  * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
 html.is-empty #content {
   max-width: none;
@@ -3097,7 +3099,7 @@ html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 .drop-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80; /* 在 #statusbar(默认) 之上、modal(90) 之��� */
+  z-index: 80; /* 在 #statusbar(默认) 之��、modal(90) 之��� */
   display: flex;
   align-items: center;
   justify-content: center;

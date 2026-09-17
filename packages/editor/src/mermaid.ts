@@ -172,7 +172,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
  * （实测过：指令里写 `securityLevel: "loose"` 加 `click ... call fn()`，点击不会执行）。
  *
  * 我们**再手动剥一层**，不把安全属性寄托在库的内部实现上：将来 mermaid 调整那张表，
- * 这一层还在。这几个键决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
+ * 这一层还在。这几个���决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
  */
 const MERMAID_SECURE_KEYS = [
   'securityLevel',
@@ -183,7 +183,7 @@ const MERMAID_SECURE_KEYS = [
 ]
 
 /**
- * 深合并：用户配置盖在我们的默认之上。用户配置里的 secure keys 一律忽略。
+ * 深合并：用户配置盖在我们的默认之上。用户配置里的 secure keys 一��忽略。
  *
  * 逐层合并（而不是整份替换）是必须的：用户只写 `{"themeVariables": {"lineColor": "red"}}`
  * 时，其余几十个色仍要保留我们按主题算出来的值——整份替换会让图瞬间变回 mermaid 自带的
@@ -304,9 +304,22 @@ export async function renderMermaidSvg(
 
   const mermaid = await getMermaid()
   applyTheme(mermaid, theme)
-  const { svg } = await mermaid.render(id, code.trim())
-  cachePut(key, svg)
-  return svg
+  // 甘特图等「按容器宽度定画」的图：mermaid 渲染时读临时容器父级的宽度当画布宽
+  // （ganttDiagram 源码：st = N.parentElement.offsetWidth）。不传容器时挂在 body
+  // 下，量到的宽度不可控（实测 288px，整张甘特缩在左边）。传入宽度等于阅读栏宽
+  // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
+  // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
+  const columnWidth = document.querySelector('.reading-prose')?.clientWidth || 800
+  const tmp = document.createElement('div')
+  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${columnWidth}px`
+  document.body.appendChild(tmp)
+  try {
+    const { svg } = await mermaid.render(id, code.trim(), tmp)
+    cachePut(key, svg)
+    return svg
+  } finally {
+    tmp.remove()
+  }
 }
 
 /** 测试钩子：清空缓存。生产代码不要调。 */
