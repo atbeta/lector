@@ -1,11 +1,13 @@
 @echo off
-chcp 65001 >nul
 setlocal
 rem ============================================================
 rem  Lector 便携版 —— 注册 .md 文件关联
 rem  双击运行即可：自动探测本目录，无需改任何路径。
 rem  只写当前用户注册表（HKCU），不需要管理员权限。
 rem  卸载关联请运行 unregister-file-assoc.cmd。
+rem  编码注意：仓库里本文件是 UTF-8，但打包时 CI 会转成 GBK(936)——
+rem  cmd 按系统码页（中文 Windows = CP936）解析脚本，UTF-8 中文会被
+rem  拆断成碎片命令；不要在仓库里直接存 GBK，也不要加 chcp 65001。
 rem ============================================================
 
 set "EXE=%~dp0lector.exe"

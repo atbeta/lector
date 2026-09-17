@@ -30,6 +30,10 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 
 - `.reg` 静态文件写不了相对路径（`DefaultIcon` 和 `shell\open\command` 都要绝对路径，
   而解压到哪只有用户机器知道），所以用 `%~dp0` 自动探测目录的 `.cmd`，双击即生效。
+- 编码：仓库里 `.cmd` 是 UTF-8，**打包时 CI 转成 GBK(936) 进包**——cmd 按系统码页
+  （中文 Windows = CP936）解析脚本，UTF-8 中文会被拆成碎片命令；GBK 字节对在 CP936
+  下严丝合缝。不要在仓库里直接存 GBK（diff/grep 全废），也不要加 `chcp 65001`
+  （中途切码页救不了已缓冲的行）。冒烟测试会断言包内脚本无 BOM 且 CP936 可解。
 - 只写 `HKCU`，不需要管理员权限；ProgID 用独立的 `Lector.Portable.Markdown`，
   与 NSIS 安装器的 `Markdown` 类键互不覆盖，谁后注册谁生效。
 - 卸载脚本只在 `.md` 仍指向便携版 ProgID 时才摘除，不误伤用户后来设置的其它程序。

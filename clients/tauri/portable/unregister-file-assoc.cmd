@@ -1,5 +1,5 @@
 @echo off
-chcp 65001 >nul
+rem 仓库里是 UTF-8，打包时 CI 转成 GBK(936)——见 register-file-assoc.cmd 的说明。
 setlocal
 rem ============================================================
 rem  Lector 便携版 —— 移除 .md 文件关联
