@@ -102,7 +102,14 @@ export async function openHref(
   anchorRoot?: HTMLElement | null,
 ): Promise<void> {
   if (kind === 'anchor') {
-    const ok = scrollToAnchor(href.slice(1), anchorRoot ?? document.body)
+    const target = href.slice(1)
+    const root = anchorRoot ?? document.body
+    // 先在就近范围找（编辑态块预览里点锚点，目标多半在同块）；找不到再全文档找。
+    // read 模式每个块各有一个 .preview 容器，脚注定义、目标标题通常在别的块里——
+    // 只搜就近范围永远找不到（0.27.2 的回归就是只搜了块）。
+    const ok =
+      scrollToAnchor(target, root) ||
+      (root !== document.body && scrollToAnchor(target, document.body))
     if (!ok) showToast(t('anchorNotFound'))
     return
   }

@@ -198,7 +198,7 @@ button, a, input, [role='slider'], [role='switch'] {
   -webkit-app-region: no-drag;
 }
 /* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—�����read in ����时 ui-verify
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—�������read in ����时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -1382,7 +1382,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前那条 6rem 居中短��是我们自己发明��花饰，��易读成
+     约 24px 上下留白」。之前��条 6rem 居中短��是我们自己发明��花饰，��易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -1878,8 +1878,23 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   text-align: right;
   min-width: 1.6em;
 }
+/* 内容列：段落已平铺成行内内容，这里兜底压掉可能出现的块级 margin */
+.reading-prose .footnote-definition-body > p {
+  margin: 0;
+}
+/* ↩ 跳回：内容末尾的低调文字链，不换行、不带下划线框 */
+.reading-prose .footnote-backref {
+  margin-left: 0.4em;
+  color: rgb(var(--muted-foreground));
+  text-decoration: none;
+  white-space: nowrap;
+}
+.reading-prose .footnote-backref:hover {
+  color: rgb(var(--primary));
+  text-decoration: none;
+}
 
-/* ───────────── 扩展语法渲染 ─────────────
+/* ───────────── 扩展语法���染 ─────────────
  * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
 .reading-prose mark,
 .reading-prose .html-mark {
@@ -2466,7 +2481,7 @@ html.lightbox-open #content { overflow: hidden; }
   width: 17px;
   height: 17px;
   border-radius: 999px;
-  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
+  /* 开关滑块固定纯白：它坐��彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
@@ -3123,7 +3138,7 @@ html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
- * 空态不是「一篇空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
+ * 空态不是「一���空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
  * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
 html.is-empty #content {
   max-width: none;

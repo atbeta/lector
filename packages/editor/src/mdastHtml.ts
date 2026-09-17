@@ -195,11 +195,12 @@ function inlineNode(n: Node): string {
     case 'footnoteReference':
       // 脚注引用：渲染成上标序号并链接到文末定义。锚点统一用 identifier
       // （mdast 保证它在同一篇内唯一；label 只是源码里的原样代号，可能重复）。
-      // id="fnref-…" 供定义侧的跳回链接定位。
+      // id="fnref-…" 供定义侧的跳回链接定位。不带方括号（GitHub 同款），
+      // 上标本身已足够与正文区分。
       {
         const id = n.identifier ?? n.label ?? ''
         const shown = n.label ?? n.identifier ?? ''
-        return `<sup class="footnote-ref" id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">[${esc(shown)}]</a></sup>`
+        return `<sup class="footnote-ref" id="fnref-${esc(id)}"><a href="#fn-${esc(id)}">${esc(shown)}</a></sup>`
       }
     case 'break':
       return '<br />'
@@ -442,13 +443,16 @@ function blockToHtml(n: Node): string {
     }
     case 'yaml':
       return renderFrontmatter(n.value ?? '')
-    case 'footnoteDefinition':
-      // 脚注定义：渲染成带锚点的一段脚注，内容来自 children（paragraph/list 等）。
-      // id 用 identifier，与行内出处链接的 #fn-<id> 对上；label 无则退回 identifier。
-      // 末尾的 ↩ 跳回链接指向引用处的 id="fnref-<id>"（GitHub 同款闭环）。
-      return `<div class="footnote-definition" id="fn-${esc(n.identifier ?? n.label ?? '')}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span>${(n.children ?? [])
-        .map((c) => blockToHtml(c))
-        .join('')}<a class="footnote-backref" href="#fnref-${esc(n.identifier ?? n.label ?? '')}" aria-label="${esc(t('footnoteBack'))}">↩</a></div>`
+    case 'footnoteDefinition': {
+      // 脚注定义：标号 + 内容 + ↩ 跳回，一行流（GitHub 同款）。内容里的段落
+      // 直接渲染行内内容不包 <p>——否则块级 <p> 会把 ↩ 挤到下一行，grid
+      // 自动布局还会把它排到第二行第一列（0.27.2 截图里的丑态）。
+      const fid = esc(n.identifier ?? n.label ?? '')
+      const body = (n.children ?? [])
+        .map((c) => (c.type === 'paragraph' ? inline(c.children) : blockToHtml(c)))
+        .join('')
+      return `<div class="footnote-definition" id="fn-${fid}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span><div class="footnote-definition-body">${body}<a class="footnote-backref" href="#fnref-${fid}" aria-label="${esc(t('footnoteBack'))}">↩&#xFE0E;</a></div></div>`
+    }
     case 'html': {
       // 块级 HTML：details 折叠块白名单放行，其余安全降级为等宽源码
       const details = renderDetailsBlock(n.value ?? '')
