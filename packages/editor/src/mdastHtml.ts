@@ -261,7 +261,7 @@ function listItems(list: Node): string {
     // listItem 的 children 通常是 paragraph 或嵌套 list
     const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')
     // 任务项正文包一层 .task-label：已完成态给它加删除线即可，不必把整行压暗
-    // （�������暗会读成「禁用」，而未完成反而最亮，层级就反了）。
+    // （压暗会读成「禁用」，而未完成反而最亮，层级就反了）。
     // 这里必须是 div 不能是 span：body 里是 <p>，把块级塞进行内元素属于非法嵌套，
     // 浏览器会把 span 就地闭合，删除线就落在空元素上。
     return task ? `<li class="task">${checkbox}<div class="task-label">${body}</div></li>` : `<li>${body}</li>`

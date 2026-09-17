@@ -199,7 +199,7 @@ export function mountEditor(
   // 行内格式快捷键：⌘B 粗体 / ⌘I 斜体 / ⌘E 行内代码 / ⌘K 链接。
   //
   // 这是「顺手能改」的核心：没有它，读者想加粗一个词就得手打四个星号、
-  // 想加链接就得记住 `[]()` 的顺序。参考 notefast 的 keymap��但只取纯格式部分
+  // 想加链接就得记住 `[]()` 的顺序。参考 notefast 的 keymap，但只取纯格式部分
   // （它的 ⌘Enter 续写、选区气泡问 AI 属于 AI 能力，本项目不做）。
   //
   // 用 Prec.high：lang-markdown 自带的 keymap 里有同键位（如 ⌘E 在某些编辑器里

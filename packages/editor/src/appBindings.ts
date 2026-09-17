@@ -134,7 +134,7 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault()
       // 直接走存盘，不通过按钮的 click：
-      // 按钮在「没���未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
+      // 按钮在「没有未保存改动」时是禁用的，而禁用的按钮 click() 不会触发任何东西——
       // 快捷键因此会被自己的禁用态吃掉。存盘是文档级动作，不该受控件状态影响。
       void files.persistToDisk()
     }

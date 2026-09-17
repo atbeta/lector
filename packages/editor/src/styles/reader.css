@@ -93,7 +93,7 @@
 /* 设置面板实时开关：根类切换，无需重渲染 */
 .code-ln-off .ln-gutter { display: none; }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
-   只上四类：注释 / ���符串 / ���字 / 关键���——���分辨，不��。
+   只上四类：注释 / 字符串 / 数字 / 关键词——够分辨，不花。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
@@ -170,7 +170,7 @@
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前��条 6rem 居中短��是我们自己发明��花饰，��易读成
+     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，容易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -192,7 +192,7 @@
 /* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
    灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
    而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
-   层级交给底色与字��，线只负责分隔，统一用 border。 */
+   层级交给底色与字重，线只负责分隔，统一用 border。 */
 /* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
    两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
 .reading-prose td[data-align='right'] {
@@ -224,7 +224,7 @@
 }
 
 /* 任务复选框 — 对齐 NoteFast 自绘 checkbox。
-   未勾选时也要看得见：边框走 border-strong 实色，���用 alpha 叠。 */
+   未勾选时也要看得见：边框走 border-strong 实色，不用 alpha 叠。 */
 .reading-prose input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
@@ -420,8 +420,8 @@ html[data-theme='dark'] .code-wrap-toggle.is-active {
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────���─���─���������
- * 走 code-card 结构：头部条标语言/复制源码，diagram 是����内的画��区域。
+/* ───────────── Mermaid 图表 ─────────────
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
   padding: 12px;
@@ -447,8 +447,8 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 }
 /* 外层 .mermaid-diagram 是 flex（居中 + 空态占位），所以这一层**必须显式撑满**：
    flex 项的宽度默认是 max-content，而里面的 svg 写的是 width="100%"——
-   百分比遇到「宽度由内容决定」的父级会变成不确定，��览器只能退回 300×150 那档
-   默认尺寸（实测：838px 宽的流程���被渲染成 300px，两个节点的图反倒正常 168px）。
+   百分比遇到「宽度由内容决定」的父级会变成不确定，浏览器只能退回 300×150 那档
+   默认尺寸（实测：838px 宽的流程图被渲染成 300px，两个节点的图反倒正常 168px）。
    给它 flex: 1 1 auto + min-width: 0，宽度就变成确定的，svg 的百分比才有意义。 */
 .mermaid-diagram .mermaid-svg {
   flex: 1 1 auto;
@@ -457,7 +457,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   overflow-x: auto;
 }
 /* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
-   svg 上是 width="100%" + inline `max-width: 自��宽度`，���者合起来就是
+   svg 上是 width="100%" + inline `max-width: 自然宽度`，两者合起来就是
    min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
    不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
 .mermaid-diagram .mermaid-svg svg {
@@ -468,7 +468,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
   margin: 0 auto;
 }
-/* 堵住���体特性���漏：阅���区���文���层������ Inter 的花式变体
+/* 堵住字体特性泄漏：阅读区在文档层开了 Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -557,7 +557,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
  * 关键取舍：**不画卡片**。
- * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的����一篇文档的
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的是一篇文档的
  * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
  * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
  * 发丝线表示「这段可以点进去改」。
@@ -637,7 +637,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 脚注 ─────────────
  * 「阅读优先」要能读到注释本身：引用在上标可点，定义在文末可见。
- * 都只改预览，不动源码，保存仍��� `[^1]` 原文。 */
+ * 都只改预览，不动源码，保存仍是 `[^1]` 原文。 */
 .reading-prose .footnote-ref {
   font-size: 0.8em;
   vertical-align: baseline;
@@ -691,7 +691,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
 }
 
-/* ───────────── 扩展语法���染 ─────────────
+/* ───────────── 扩展语法渲染 ─────────────
  * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
 .reading-prose mark,
 .reading-prose .html-mark {

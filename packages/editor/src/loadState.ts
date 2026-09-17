@@ -154,7 +154,7 @@ export function renderEmptyState(deps: LoadStateDeps): void {
 /**
  * 加载中间态:中央 22px 转圈 + 「加载中…」。点「打开」/ 冷启动带 argv 时显示
  * ——这时不该有「打开文件」按钮等空态 UI(会让人误以为可以重复点)。
- * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退�� renderEmptyState。
+ * loadSession 成功 -> 走内容渲染;出错 / 取消 -> 退回 renderEmptyState。
  */
 export function renderLoadingState(deps: LoadStateDeps): void {
   deps.contentEl.innerHTML = ''

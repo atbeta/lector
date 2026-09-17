@@ -1,6 +1,6 @@
-/* ──────────���── 右键菜单 ──────────��──
+/* ───────────── 滚动条 ─────────────
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
- * 视觉上按「浮���」处理：圆角、浮层投影、比正文更紧的行距。 */
+ * 视觉上按「浮层」处理：圆角、浮层投影、比正文更紧的行距。 */
 .context-menu {
   position: fixed;
   z-index: 210;
@@ -15,7 +15,7 @@
 }
 /* 右键菜单不吃全局那圈焦点环（app.css 顶部的 :focus-visible 用 --ring 画蓝边）。
    菜单是靠右键唤出的瞬态浮层，环一道蓝边既难看也无信息量——
-   选中态已经由菜单项自己的底色表达；键��用户看到的也是那个底色。 */
+   选中态已经由菜单项自己的底色表达；键盘用户看到的也是那个底色。 */
 .context-menu:focus-visible,
 .context-item:focus-visible {
   outline: none;
@@ -26,7 +26,7 @@
   gap: 12px;
   width: 100%;
   padding: 6px 10px;
-  /* 鼠标右键是"指��操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
+  /* 鼠标右键是"指针操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
      键盘用户仍有可见焦点，由下面 :focus-visible 那条负责。 */
   outline: none;
   border: 0;
@@ -60,11 +60,11 @@
 
 /* ───────────── 图片 / 图表放大（lightbox） ─────────────
  * 两层职责：
- *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
+ *   遮罩（.lightbox）= 暗掉页面 + 承载 HUD 与工具条；
  *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
  * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
  * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
- * 于是「小图居中、大图可拖」是���一段 CSS 的结果。详见 zoomView.ts。 */
+ * 于是「小图居中、大图可拖」是同一段 CSS 的结果。详见 zoomView.ts。 */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -117,7 +117,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  /* 外框尺寸已由 zoomView 精确��好，图片层不能再自我限制，
+  /* 外框尺寸已由 zoomView 精确算好，图片层不能再自我限制，
      否则 mermaid 写在 svg 上的 max-width 会把图形钉死在左上角 */
   max-width: none;
   max-height: none;
@@ -213,7 +213,7 @@
 /* 浮层打开时锁住正文滚动 */
 html.lightbox-open #content { overflow: hidden; }
 
-/* ───────────── Toast ────────���──── */
+/* ───────────── Toast ───────────── */
 .lector-toast {
   position: fixed;
   bottom: 22px;
@@ -280,9 +280,9 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-header .btn-icon { margin-left: auto; }
 .modal-body { padding: 0; }
 
-/* ───────────── 查找命中 ────────��────
+/* ───────────── 查找命中 ─────────────
  * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
- * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我��的纸墨不搭�� */
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
 .find-hit {
   border-radius: 2px;
   padding: 0 1px;
@@ -295,7 +295,7 @@ html.lightbox-open #content { overflow: hidden; }
 }
 
 /* ───────────── 选区浮条（编辑态） ─────────────
- * 选中文字后浮在选区上方的一小条格式��钮。定位与关闭规则在 selectionBubble.ts，
+ * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，
  * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），
  * 但在暗色下也要看得清——它是浮在**正文**上的，不是浮在遮罩上。 */
 .selection-bubble {
@@ -520,7 +520,7 @@ html.lightbox-open #content { overflow: hidden; }
   width: 17px;
   height: 17px;
   border-radius: 999px;
-  /* 开关滑块固定纯白：它坐��彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
+  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失去「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
@@ -572,10 +572,10 @@ html.lightbox-open #content { overflow: hidden; }
  * 网格管结构、源码管存储：单元格是自适应高度的 textarea，
  * Enter 跳下一行（末行自动补行），行列增删走两侧窄轨。
  *
- * 结���轨必须常显、对齐、不叠在格子上：
+ * 结构轨必须常显、对齐、不叠在格子上：
  *  1. 打开时首格自动聚焦——列删除绝不能跟 :focus-within，否则只有首列冒出 X。
- *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角���定位（会漂在 gutter 右上角）。
- *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled ��影。 */
+ *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角标定位（会漂在 gutter 右上角）。
+ *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled 残影。 */
 .table-editor-card {
   display: flex;
   flex-direction: column;

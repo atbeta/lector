@@ -404,7 +404,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     //      没有 mtime 判据的话每次 ⌘S 都会触发一次假的「外部修改」。
     //   2. 正文干净 —— 直接换成磁盘版本**并说明**。可丢的东西为零，
     //      静默重载唯一的毛病是用户看到内容自己变了却不知为何。
-    //   3. 正文有���保存改动 —— 绝不自动覆盖，给可操作的选择：
+    //   3. 正文有未保存改动 —— 绝不自动覆盖，给可操作的选择：
     //      这是唯一会丢东西的分支，一句 toast 既没说清丢了什么，
     //      也没给"我要哪个版本"的入口。
     void io.onFileChanged(async (e) => {

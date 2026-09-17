@@ -182,7 +182,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   //
   // 两处不让位：
   //   - 用户自己写了 themeVariables：那是明确要细调，在我们的基础上覆盖（逐层合并）；
-  //   - 字体：图里的字要和界面����致，那是全局观感，不属于「主题」这一层。
+  //   - 字体：图里的字要和界面一致，那是全局观感，不属于「主题」这一层。
   const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
   const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
   const baseVars: Record<string, string> =
@@ -213,7 +213,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
  * （实测过：指令里写 `securityLevel: "loose"` 加 `click ... call fn()`，点击不会执行）。
  *
  * 我们**再手动剥一层**，不把安全属性寄托在库的内部实现上：将来 mermaid 调整那张表，
- * 这一层还在。这几个�����决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
+ * 这一层还在。这几个键决定的是「图里能不能跑脚本/能塞多大」，不属于主题自定义的范围。
  */
 const MERMAID_SECURE_KEYS = [
   'securityLevel',
@@ -224,7 +224,7 @@ const MERMAID_SECURE_KEYS = [
 ]
 
 /**
- * 深合并：用户配置盖在我们的默认之上。用户配置里的 secure keys 一��忽略。
+ * 深合并：用户配置盖在我们的默认之上。用户配置里的 secure keys 一律忽略。
  *
  * 逐层合并（而不是整份替换）是必须的：用户只写 `{"themeVariables": {"lineColor": "red"}}`
  * 时，其余几十个色仍要保留我们按主题算出来的值——整份替换会让图瞬间变回 mermaid 自带的
@@ -370,7 +370,7 @@ export async function renderMermaidSvg(
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)
-    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装���下任务名，
+    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装不下任务名，
     // 标签居中溢出到条外，看着像「条前面的纯文字」。锁最小宽度 = 不缩于自然宽，
     // 窄栏走容器横向滚动（.mermaid-diagram 已有 overflow-x: auto）。
     if (isGanttSource(code)) {

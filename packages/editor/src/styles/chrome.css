@@ -32,7 +32,7 @@
  * 三条硬约束，写在前面，改的时候别再破坏：
  *  1. 标题必须在「正文列」上居中，不是在整个窗口上居中。窗口有侧栏时两者差
  *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
- *  2. 右侧是固定的一排按钮，宽度��预测，所以用 absolute + margin:auto 夹在
+ *  2. 右侧是固定的一排按钮，宽度可预测，所以用 absolute + margin:auto 夹在
  *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
  *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
  *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
@@ -51,8 +51,8 @@
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—���������read in ����时 ui-verify
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「右（模式开关+图标）」切开。
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——read in 复盘时 ui-verify
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -63,7 +63,7 @@
 }
 
 /* ───────────── 视图模式分段控件 ─────────────
- * 三档常驻 + 当前档常���。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
+ * 三档常驻 + 当前档常亮。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
  * 和旁边的图标按钮是同一类东西（控制），而左侧留给文件动作（打开 / 保存）。
  *
  * 为什么不是三个图标按钮：图标说不出「阅读 / 编辑 / 源码」这三件事的区别，
@@ -435,7 +435,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「�����������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「上方留白」（松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -504,9 +504,9 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   color: rgb(var(--foreground));
 }
 
-/* 标题留白：绝对值，按标题自己的字号��。
+/* 标题留白：绝对值，按标题自己的字号给。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
-   标题的上方留白（松）与下方留������������）都写死，正文块的下方不写 margin-bottom，
+   标题的上方留白（松）与下方留白（紧）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
 .block[data-kind='heading'] { margin-bottom: var(--space-tight); }
 .block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
@@ -611,7 +611,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   background: rgb(var(--border));
   flex: none;
 }
-/* 查找栏��� Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
+/* 查找栏的 Aa/\b/.* 开关：created 时没 CSS 规则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
   display: inline-flex;
@@ -781,7 +781,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .outline-kids { margin-left: 12px; }
 .outline-node[data-collapsed='true'] > .outline-kids { display: none; }
 .outline-line { display: flex; align-items: stretch; }
-/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty���，
+/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty），
    否则同一级的标题会因为「有没有子节」而左右错开。 */
 .outline-twisty {
   flex: 0 0 auto;
@@ -919,7 +919,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
 .empty-state > *:nth-child(5) { animation-delay: 180ms; }
 /* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（最多 5 条）在极矮的
-   窗口里会把主按钮挤出视口���屏���上就���"��空却有滚动条"（用户反馈过）。
+   窗口里会把主按钮挤出视口，屏幕上就是"很空却有滚动条"（用户反馈过）。
    阈值是算出来的，不是拍的：hero ≈176 + 列表(5 条)≈290 + 间距 46 + 内边距 96 ≈ 608，
    所以内容高 ≥640 就装得下——超过才需要藏。之前写 780 太保守，把大量正常窗口
    （高 DPI 缩放后 CSS 高度会明显变小）的列表也误藏了。
@@ -1007,7 +1007,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── Tip 浮层 ─────────────
  * 替代原生 title=，让悬浮提示与设计语言一致（不出现黄底黑字
- * 系统色块）。全局单例（body 直接挂一个），位置由 tip.ts 计���。 */
+ * 系统色块）。全局单例（body 直接挂一个），位置由 tip.ts 计算。 */
 .tip {
   position: fixed;
   z-index: 100;

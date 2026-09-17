@@ -193,7 +193,7 @@ export function createDocumentEditor({
     if (large.isActive()) {
       contentEl.classList.add('large-doc')
       document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编����档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+      // 大文件只有纯文本可编：档位锁在源码档，避免"切回阅读能看见渲染"的误解。
       // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
       forceSourceMode()
       large.mountLargeDocument()

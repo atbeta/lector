@@ -151,7 +151,7 @@
 .shortcuts-pop {
   position: fixed;
   z-index: 100;
-  /* 三组���排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
+  /* 三组并排（每组一列）：面板又短又宽，常态下根本够不到滚动条 */
   display: flex;
   flex-wrap: wrap;
   gap: 10px 26px;
@@ -199,15 +199,15 @@
 
 /* ───────────── 空态的「最近打开」 ─────────────
  * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
- * 不做���片、不做图标徽章、不用主色描边——这份列表是「接着读」，
- * 观感上���该接近目录页，而不是一排 App 图标。 */
+ * 不做卡片、不做图标徽章、不用主色描边——这份列表是「接着读」，
+ * 观感上应该接近目录页，而不是一排 App 图标。 */
 .recent-block {
   margin-top: 46px;
   width: 100%;
   text-align: left;
 }
 /* 没有最近文件时的一句轻引导：把首屏那块空白变成"会长出东西"的留白，
-   而不是"没做完"。居中、弱色，重量不超过上面的定位语�� */
+   而不是"没做完"。居中、弱色，重量不超过上面的定位语。 */
 .recent-empty {
   margin: 0;
   text-align: center;
@@ -266,7 +266,7 @@
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-standard);
 }
-/* 发丝分隔线�� inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+/* 发丝分隔线用 inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
 .recent-item + .recent-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
 .recent-item:hover { background: var(--block-hover-bg); }
 .recent-text {
@@ -323,7 +323,7 @@ html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
- * 空态不是「一���空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
+ * 空态不是「一篇空文档」，是扉页：撤掉纸页表面（底色/两侧描边/最大栏宽），
  * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
 html.is-empty #content {
   max-width: none;
@@ -337,7 +337,7 @@ html.is-empty #content {
   /* 扉页不滚：内容始终放得下（矮窗由媒体查询收掉最近列表）。
      顺便挡掉入场动画期间 transform 撑出的瞬时滚动条。 */
   overflow: hidden;
-  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下��称 */
+  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下对称 */
   padding: 28px 24px;
 }
 /* 加载态与空态同一套居中：转圈落在整窗中心，而不是吊在上半屏 */
@@ -352,20 +352,20 @@ html.is-loading #content {
   width: 72px;
   height: 72px;
   margin-bottom: 18px;
-  border-radius: 18px; /* svg 自带圆角；这里是兜���，防占位瞬间露出直角 */
+  border-radius: 18px; /* svg 自带圆角；这里是兜底，防占位瞬间露出直角 */
   box-shadow: 0 1px 2px rgb(var(--foreground) / 0.06), 0 10px 26px rgb(var(--foreground) / 0.1);
 }
 .empty-actions { gap: 10px; }
 .empty-new { margin-left: 0; }
-/* 最近打开��随空态版心，不再是窄栏里的一小条 */
+/* 最近打开跟随空态版心，不再是窄栏里的一小条 */
 html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 
-/* 拖放反馈：拖中时全窗一道浅框 + 中央文���，松手或离开就撤。
+/* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
    只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
 .drop-overlay {
   position: fixed;
   inset: 0;
-  z-index: 80; /* 在 #statusbar(默认) 之��、modal(90) 之��� */
+  z-index: 80; /* 在 #statusbar(默认) 之上、modal(90) 之下 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -411,7 +411,7 @@ html.large-file .mode-switch { display: none; }
 
 /* ───────────── 减少动态 ─────────────
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
- * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
+ * 界面，动效本就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
  * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
 /* ───────────── 导出遮罩 ─────────────
  * 导出期间盖住整个窗口：布局摊平、壳隐藏的过程不该被看见——
@@ -456,7 +456,7 @@ html.pdf-busy * {
   cursor: progress !important;
 }
 
-/* ───────────── 打印 / 导出 PDF ───��─────────
+/* ───────────── 打印 / 导出 PDF ─────────────
  * 样式挂在 html.printing 类上，不用 @media print——WebView2 的 PrintToPdf
  * 按屏幕媒体渲染（实测：深色主题导出 = 浅字白纸、侧栏照印、滚动容器截成一页），
  * 媒体查询根本不会生效。exportPdf（platform.ts）在调用打印前后挂/摘这个类，
