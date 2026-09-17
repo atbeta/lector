@@ -6,7 +6,7 @@ mod protocol;
 mod snap;
 
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager, RunEvent};
+use tauri::{AppHandle, Emitter, EventTarget, Manager, RunEvent};
 
 use io::{open_path, PendingOpens, WatcherStore, WindowRegistry};
 use protocol::AllowedDirs;
@@ -26,6 +26,17 @@ fn paths_from_argv(argv: &[String]) -> Vec<String> {
     .skip(1)
     .cloned()
     .collect()
+}
+
+/// 拖放悬停提示的分类：图片优先（可插入正文），其次文档（可打开）。
+fn drag_hover_kind(paths: &[PathBuf]) -> &'static str {
+  if paths.iter().any(|p| io::is_image_ext(p)) {
+    "image"
+  } else if paths.iter().any(|p| io::is_text_doc(p)) {
+    "doc"
+  } else {
+    "other"
+  }
 }
 
 pub fn run() {
@@ -108,6 +119,7 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       io::read_file,
+      io::read_file_bytes,
       io::write_file,
       io::open_url,
       io::open_with_default,
@@ -148,6 +160,72 @@ pub fn run() {
       ..
     } => {
       io::forget_window(app, &label);
+    }
+    // 拖放分发（原生通道，见 io.rs build_doc_window 里的注释）：
+    // 悬停 → 转告 web 层亮提示；落下 → md/txt 开窗、图片带逻辑坐标给 web 层。
+    // Windows 上这些回调跑在 OLE 拖放循环里——和 single-instance 回调同类坑，
+    // 一律先 thread::spawn 跳出去再碰 Tauri API（emit / 建窗都一样）。
+    RunEvent::WindowEvent {
+      label,
+      event: tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Enter { paths, .. }),
+      ..
+    } => {
+      let kind = drag_hover_kind(&paths);
+      let app = app.clone();
+      let lbl = label.clone();
+      std::thread::spawn(move || {
+        if let Some(win) = app.get_webview_window(&lbl) {
+          let _ = win.emit_to(EventTarget::webview_window(lbl), "lector:drag-hover", kind);
+        }
+      });
+    }
+    RunEvent::WindowEvent {
+      label,
+      event: tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Leave),
+      ..
+    } => {
+      let app = app.clone();
+      let lbl = label.clone();
+      std::thread::spawn(move || {
+        if let Some(win) = app.get_webview_window(&lbl) {
+          let _ = win.emit_to(EventTarget::webview_window(lbl), "lector:drag-hover", "none");
+        }
+      });
+    }
+    RunEvent::WindowEvent {
+      label,
+      event: tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, position, .. }),
+      ..
+    } => {
+      let app = app.clone();
+      let lbl = label.clone();
+      let imgs: Vec<String> = paths
+        .iter()
+        .filter(|p| io::is_image_ext(p))
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+      let docs: Vec<String> = paths
+        .iter()
+        .filter(|p| io::is_text_doc(p))
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+      // position 是物理像素；web 层 elementFromPoint 要逻辑像素，按窗口缩放折算。
+      let (px, py) = (position.x, position.y);
+      std::thread::spawn(move || {
+        if let Some(win) = app.get_webview_window(&lbl) {
+          if !imgs.is_empty() {
+            let scale = win.scale_factor().unwrap_or(1.0);
+            let _ = win.emit_to(
+              EventTarget::webview_window(lbl.clone()),
+              "lector:drop-files",
+              serde_json::json!({ "paths": imgs, "x": px / scale, "y": py / scale }),
+            );
+          }
+        }
+        for path in docs {
+          open_if_markdown(&app, &path);
+        }
+      });
     }
     RunEvent::MenuEvent(id) => menu::route(app, id.id().0.as_str()),
     RunEvent::ExitRequested { .. } => {}

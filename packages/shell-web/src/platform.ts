@@ -222,6 +222,30 @@ export async function read(path: string): Promise<ReadResult> {
   return invoke<ReadResult>('read_file', { path })
 }
 
+/** 拖入图片的字节读取（read_file 是文本读，图片要原始字节）。 */
+export async function readBytes(path: string): Promise<Uint8Array<ArrayBuffer>> {
+  if (detectEnv() !== 'shell') {
+    throw new Error('readBytes() 仅壳环境可用')
+  }
+  const { invoke } = await tauriApi()
+  const bytes = await invoke<number[]>('read_file_bytes', { path })
+  // 拷进定长缓冲：new Uint8Array(n) 的类型是 Uint8Array<ArrayBuffer>，
+  // 才能直接当 BlobPart 传给 File 构造器（invoke 返回的泛型视图不行）。
+  const out = new Uint8Array(bytes.length)
+  out.set(bytes)
+  return out
+}
+
+/** 壳事件订阅（lector:*）。浏览器 dev 无壳可听，返回空取消函数。 */
+export async function listenShell<T>(
+  event: string,
+  handler: (payload: T) => void,
+): Promise<() => void> {
+  if (detectEnv() !== 'shell') return () => {}
+  const { listen } = await tauriApi()
+  return listen<T>(event, handler)
+}
+
 export async function save(
   path: string,
   content: string,

@@ -69,6 +69,17 @@ pub fn is_text_doc(path: &std::path::Path) -> bool {
   )
 }
 
+/// 拖放分发用：是否图片扩展名。与编辑器 imageInsert.ts 的 IMAGE_EXT 保持一致。
+pub fn is_image_ext(path: &std::path::Path) -> bool {
+  matches!(
+    path.extension()
+      .and_then(|e| e.to_str())
+      .map(str::to_lowercase)
+      .as_deref(),
+    Some("png") | Some("jpg") | Some("jpeg") | Some("gif") | Some("webp") | Some("avif")
+  )
+}
+
 /// 把文档里的链接解析成一个待打开的本地路径。只解析，不碰文件系统。
 ///
 /// **尺度比相对图片宽，这是有意的**：相对图片必须锁在文档目录树内（防路径穿越），
@@ -177,7 +188,7 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
-  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进����议白名单。
+  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进������议白名单。
   // 不能等 bind_document：前端拿到内容就渲染，图片请求可能早于 bind_document 到达，
   // 那时白名单还没有这个目录 → 403 → 图片塌成 0 高（切一次档才恢复）。
   protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
@@ -196,6 +207,14 @@ pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
     mtime_ms,
     byte_len,
   })
+}
+
+/// 拖入图片的字节读取：web 层拿到后包成 File 走既有插入管线（落点定位、
+/// 复制进 assets、插相对路径都不变）。与 read_file 同权限模型——用户显式
+/// 拖入的文件，读它的字节就是「插入」动作的一部分。
+#[tauri::command]
+pub fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+  fs::read(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -839,10 +858,13 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
       serde_json::to_string(&theme_mode).unwrap_or_else(|_| "\"\"".into())
     ))
     .min_inner_size(480.0, 360.0)
-    // Tauri 默认的原生拖放处理器会把文件拖放截胡成 tauri://drag-drop 事件，
-    // WebView 里的 HTML5 drop 永远不会触发——表现为「拖入图片没有任何行为」。
-    // 我们的拖放逻辑（落���定位、复制进 assets）全在 Web 层，用不到原生通道。
-    .disable_drag_drop_handler()
+    // 拖放通道归壳（原生 DragDropEvent）：md/txt 直接走 open_path（同文件聚焦
+    // 已有窗口），图片带逻辑坐标 emit 给 web 层插入。分发逻辑在 lib.rs 的
+    // RunEvent::WindowEvent。此前关掉原生处理器走 HTML5 通道，但 WebView 的
+    // File 对象拿不到磁盘路径——md 拖入打开必须要路径，只能用原生通道；
+    // HTML5 拖放仅浏览器 dev（无壳）还在用，见 imageTransfer.ts 的分支。
+    // 壳内聚焦块拖选文本不受影响：wry 的原生 drop 处理只截文件拖放，
+    // 非文件（文本）拖放仍转发给 WebView2 默认处理。
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
     .decorations(chrome.decorations);
@@ -1192,7 +1214,7 @@ mod tests {
     assert_eq!(sanitize_image_name("photo.png").as_deref(), Some("photo.png"));
     assert_eq!(sanitize_image_name("a/../x.PNG").as_deref(), Some("x.png"));
     assert_eq!(sanitize_image_name("weird name.webp").as_deref(), Some("weird-name.webp"));
-    // 中文名要留住（与前端 safeDropName 的 \p{L} 对���），不能被整段换成 '-'
+    // 中文名要留住（与前�� safeDropName 的 \p{L} 对���），不能被整段换成 '-'
     assert_eq!(sanitize_image_name("截图_2026.png").as_deref(), Some("截图_2026.png"));
     assert!(sanitize_image_name("../x.png").is_none() || sanitize_image_name("../x.png").as_deref() == Some("x.png"));
     assert!(sanitize_image_name("x.txt").is_none());
