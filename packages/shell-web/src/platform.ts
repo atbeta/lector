@@ -103,8 +103,15 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
  */
 export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
   const root = document.documentElement
+  // 等两帧：第一帧让 .printing 的样式参与布局，第二帧确保重排完成再打印。
   const nextFrame = () =>
-    new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      })
+    })
   if (detectEnv() !== 'shell') {
     root.classList.add('printing')
     try {
@@ -214,7 +221,7 @@ export async function revealInFolder(path: string): Promise<void> {
 }
 
 /**
- * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个新窗口。
+ * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个���窗口。
  *
  * Web 层只传「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
  * **全在壳侧**（paths.ts 顶上那句「真正的路径权威在壳侧」就是这条）。
@@ -423,7 +430,7 @@ export function bindTitlebar(dragEl: HTMLElement): void {
  *
  * Windows / Linux 走 decorations:false，最小化、最大化、关闭必须是真窗口操作，
  * 不能只改 DOM。浏览器预览下拿不到壳，回调保持空实现，调用方据此渲染
- * 「在位但不可用」的假控件，保证没有壳的环境也能调版式。
+ * 「在���但不可用」的假控件，保证没有壳的环境也能调版式。
  *
  * 返回清理函数（移除监听的 Promise 落地前调用也安全）。
  */

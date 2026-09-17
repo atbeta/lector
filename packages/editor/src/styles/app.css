@@ -1598,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────────���
+/* ───────────── Mermaid 图表 ────────────�����
  * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
@@ -1644,7 +1644,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   /* 自然尺寸小于栏宽时居中，而不是贴左 */
   margin: 0 auto;
 }
-/* 堵住字体特性泄漏：阅读区在文档层������ Inter 的花式变体
+/* 堵住字体特性泄漏：阅读区在文���层������ Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -2881,7 +2881,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 .shortcuts-pop {
   position: fixed;
   z-index: 100;
-  /* 三组并排（每组一列）：面板又短又宽，常态下根本够不到滚动条 */
+  /* 三组并排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
   display: flex;
   flex-wrap: wrap;
   gap: 10px 26px;
@@ -3060,7 +3060,7 @@ html.is-empty #content {
   background: transparent;
   border-inline-color: transparent;
   box-shadow: none;
-  /* 空态是「一页扉页」，��容整��居中于整窗。
+  /* 空态是「一页��页」，��容整��居中于整窗。
      #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
      块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
   display: flex;
@@ -3177,23 +3177,31 @@ html.printing #content {
   overflow: visible !important;
   height: auto !important;
 }
-/* 强制浅色：覆写主题 token（含代码高亮四色——深色主题下它们是浅色调，
-   白纸上不可读），深色主题下导出也是白纸黑字。 */
+/* 强制浅色：覆写主题 token。必须 !important——深色主题的 token 挂在
+   html[data-theme='dark'][data-reading-theme='…']（特异度 0,2,1），
+   html.printing（0,1,1）普通声明打不赢，实测深底浅字原样进 PDF。
+   变量清单含阅读主题扩展（quote/muted-foreground/code 四色），
+   深色主题下导出也是白纸黑字。 */
 html.printing {
-  --paper: 255 255 255;
-  --shell: 255 255 255;
-  --foreground: 26 25 22;
-  --muted: 245 245 245;
-  --border: 224 224 224;
-  --border-subtle: 235 235 235;
-  --subtle-foreground: 110 110 110;
-  --code-comment: 106 115 125;
-  --code-string: 21 110 81;
-  --code-number: 165 90 20;
-  --code-keyword: 122 34 119;
+  --background: 255 255 255 !important;
+  --paper: 255 255 255 !important;
+  --shell: 255 255 255 !important;
+  --card: 255 255 255 !important;
+  --popover: 255 255 255 !important;
+  --foreground: 26 25 22 !important;
+  --muted: 245 245 245 !important;
+  --muted-foreground: 110 113 118 !important;
+  --subtle-foreground: 110 110 110 !important;
+  --quote-foreground: 74 71 66 !important;
+  --border: 224 224 224 !important;
+  --border-subtle: 235 235 235 !important;
+  --code-comment: 106 115 125 !important;
+  --code-string: 21 110 81 !important;
+  --code-number: 165 90 20 !important;
+  --code-keyword: 122 34 119 !important;
 }
 html.printing .reading-prose {
-  color: #1a1916;
+  color: rgb(var(--foreground));
 }
 html.printing .reading-prose pre,
 html.printing .reading-prose table,
