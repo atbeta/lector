@@ -1211,49 +1211,91 @@ mod tests {
   //
   // 这一段是**不可信内容**进来的地方，规则要么对要么全错，所以逐条钉住。
 
+  /// 平台无关的测试用绝对路径。
+  ///
+  /// **不能写死 `/docs/book/ch1.md`**：Windows 上 `/…` 不是绝对路径（缺盘符前缀），
+  /// `Path::is_absolute()` 为 false，于是会被 resolve_link_target 里那条
+  /// 「文档路径必须是绝对路径」的守卫拒掉——上一版就是这么在 Windows runner 上
+  /// 挂了三条（本机 macOS 全绿，只有 CI 的 Windows 作业才看得见）。
+  fn abs_path(rel: &str) -> PathBuf {
+    let base = if cfg!(windows) { "C:\\docs" } else { "/docs" };
+    let sep = if cfg!(windows) { "\\" } else { "/" };
+    PathBuf::from(format!("{base}{sep}{}", rel.replace('/', sep)))
+  }
+
+  /// 按**路径段**比较，不按字符串比。
+  ///
+  /// `Path::join` 会把链接原文里的分隔符原样留着（Windows 上 `./sub/ch2.md` 拼出来是
+  /// `…\book\./sub/ch2.md`），所以逐字节比较会在 Windows 上假红。段比较既是平台无关的，
+  /// 也更接近这几条断言真正说的意思——「这段相对路径解析到了哪儿」。
+  /// （`Components` 会吃掉中间的 `.`，`..` 保留。）
+  fn segs(p: &std::path::Path) -> Vec<String> {
+    p.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect()
+  }
+
+  #[test]
+  fn link_test_fixtures_are_absolute_on_this_platform() {
+    // 给下一个人留的路标：fixture 不是绝对路径时，上面那些用例会以 panic 的形式挂掉，
+    // 而不是以「断言失败」的形式说清原因。这条先把话说在前面。
+    assert!(abs_path("a.md").is_absolute());
+  }
+
   #[test]
   fn link_relative_resolves_against_document_dir() {
-    let got = resolve_link_target("/docs/book/ch1.md", "ch2.md").unwrap();
-    assert_eq!(got, PathBuf::from("/docs/book/ch2.md"));
+    let doc = abs_path("book/ch1.md");
+    let doc = doc.to_str().unwrap();
 
-    let got = resolve_link_target("/docs/book/ch1.md", "./sub/ch2.md").unwrap();
-    assert_eq!(got, PathBuf::from("/docs/book/./sub/ch2.md"));
+    // 链接原文一律写成带 `/` 的样子：那是作者在 md 里实际会写的形态
+    assert_eq!(segs(&resolve_link_target(doc, "ch2.md").unwrap()), segs(&abs_path("book/ch2.md")));
+    assert_eq!(
+      segs(&resolve_link_target(doc, "./sub/ch2.md").unwrap()),
+      segs(&abs_path("book/sub/ch2.md"))
+    );
 
     // 允许 ../ 出去：尺度对齐 Typora（手势门控，见函数上的说明）
-    let got = resolve_link_target("/docs/book/ch1.md", "../other/ch2.md").unwrap();
-    assert_eq!(got, PathBuf::from("/docs/book/../other/ch2.md"));
+    assert_eq!(
+      segs(&resolve_link_target(doc, "../other/ch2.md").unwrap()),
+      segs(&abs_path("book/../other/ch2.md"))
+    );
   }
 
   #[test]
   fn link_strips_fragment_and_query() {
-    assert_eq!(
-      resolve_link_target("/docs/a.md", "ch2.md#小节").unwrap(),
-      PathBuf::from("/docs/ch2.md")
-    );
-    assert_eq!(
-      resolve_link_target("/docs/a.md", "ch2.md?x=1#y").unwrap(),
-      PathBuf::from("/docs/ch2.md")
-    );
+    let doc = abs_path("a.md");
+    let doc = doc.to_str().unwrap();
+    assert_eq!(segs(&resolve_link_target(doc, "ch2.md#小节").unwrap()), segs(&abs_path("ch2.md")));
+    assert_eq!(segs(&resolve_link_target(doc, "ch2.md?x=1#y").unwrap()), segs(&abs_path("ch2.md")));
     // 纯锚点没有路径可开
-    assert_eq!(resolve_link_target("/docs/a.md", "#小节"), Err("bad_href".into()));
+    assert_eq!(resolve_link_target(doc, "#小节"), Err("bad_href".into()));
   }
 
   #[test]
   fn link_absolute_and_file_url() {
+    let doc = abs_path("a.md");
+    let doc = doc.to_str().unwrap();
+
+    // 绝对路径的**形状按平台来**：Windows 上得带盘符才算绝对
+    let abs_href = abs_path("elsewhere/b.md");
     assert_eq!(
-      resolve_link_target("/docs/a.md", "/tmp/b.md").unwrap(),
-      PathBuf::from("/tmp/b.md")
+      resolve_link_target(doc, abs_href.to_str().unwrap()).unwrap(),
+      abs_href
     );
-    assert_eq!(
-      resolve_link_target("/docs/a.md", "file:///tmp/it%20has%20spaces.md").unwrap(),
-      PathBuf::from("/tmp/it has spaces.md")
-    );
+
+    // file:// 同样按平台取形状，解析交给 url
+    let (url, expect) = if cfg!(windows) {
+      ("file:///C:/tmp/it%20has%20spaces.md", "C:\\tmp\\it has spaces.md")
+    } else {
+      ("file:///tmp/it%20has%20spaces.md", "/tmp/it has spaces.md")
+    };
+    assert_eq!(resolve_link_target(doc, url).unwrap(), PathBuf::from(expect));
   }
 
   #[test]
   fn link_rejects_other_schemes_but_not_windows_drive() {
-    assert_eq!(resolve_link_target("/docs/a.md", "http://x/y.md"), Err("scheme".into()));
-    assert_eq!(resolve_link_target("/docs/a.md", "obsidian://open?vault=x"), Err("scheme".into()));
+    let doc = abs_path("a.md");
+    let doc = doc.to_str().unwrap();
+    assert_eq!(resolve_link_target(doc, "http://x/y.md"), Err("scheme".into()));
+    assert_eq!(resolve_link_target(doc, "obsidian://open?vault=x"), Err("scheme".into()));
     // 盘符不是 scheme：C:/ 开头的绝对路径要认（Windows 上全靠这条）
     #[cfg(windows)]
     assert_eq!(
@@ -1262,7 +1304,7 @@ mod tests {
     );
     // 非 Windows 上盘符路径当普通绝对路径处理即可，至少不能被当成 scheme 拒掉
     #[cfg(not(windows))]
-    assert!(resolve_link_target("/docs/a.md", "D:/other/b.md").is_ok());
+    assert!(resolve_link_target(doc, "D:/other/b.md").is_ok());
   }
 
   #[test]
@@ -1270,7 +1312,9 @@ mod tests {
     // 文档路径不是绝对路径 → 拒。否则会按进程 CWD 拼出一个"碰巧存在"的路径
     assert_eq!(resolve_link_target("a.md", "b.md"), Err("bad_href".into()));
     assert_eq!(resolve_link_target("", "b.md"), Err("bad_href".into()));
-    assert_eq!(resolve_link_target("/docs/a.md", "   "), Err("bad_href".into()));
+    // 空链接先于文档路径被拒，所以这里的文档路径用哪种形状都行——但仍然按平台给
+    let doc = abs_path("a.md");
+    assert_eq!(resolve_link_target(doc.to_str().unwrap(), "   "), Err("bad_href".into()));
   }
 
   #[test]
