@@ -95,12 +95,24 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 
 /**
  * 导出 PDF：壳里先选路径，再交给壳层 WebView2 PrintToPdf（渲染引擎与应用相同，
- * 中文 / mermaid / KaTeX 原样进 PDF）。浏览器（vite 预览）退化为系统打印——
- * 打印 CSS（app.css 的 @media print）两边共用。
+ * 中文 / mermaid / KaTeX 原样进 PDF）。浏览器（vite 预览）退化为系统打印。
+ *
+ * 打印样式挂在 html.printing 类上（app.css），不用 @media print——WebView2 的
+ * PrintToPdf 按屏幕媒体渲染，媒体查询不生效。这里负责类的生命周期：
+ * 挂上 → 等两帧（样式生效 + 布局完成）→ 打印 → 摘掉（finally 保证恢复）。
  */
 export async function exportPdf(defaultName: string): Promise<'saved' | 'cancelled' | 'print'> {
+  const root = document.documentElement
+  const nextFrame = () =>
+    new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
   if (detectEnv() !== 'shell') {
-    window.print()
+    root.classList.add('printing')
+    try {
+      await nextFrame()
+      window.print()
+    } finally {
+      root.classList.remove('printing')
+    }
     return 'print'
   }
   const { save } = await import('@tauri-apps/plugin-dialog')
@@ -109,8 +121,14 @@ export async function exportPdf(defaultName: string): Promise<'saved' | 'cancell
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   })
   if (!target) return 'cancelled'
-  const { invoke } = await tauriApi()
-  await invoke('print_to_pdf', { path: target })
+  root.classList.add('printing')
+  try {
+    await nextFrame()
+    const { invoke } = await tauriApi()
+    await invoke('print_to_pdf', { path: target })
+  } finally {
+    root.classList.remove('printing')
+  }
   return 'saved'
 }
 
@@ -201,7 +219,7 @@ export async function revealInFolder(path: string): Promise<void> {
  * Web 层只传「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
  * **全在壳侧**（paths.ts 顶上那句「真正的路径权威在壳侧」就是这条）。
  * 链接是文档内容，属不可信输入，所以判定必须待在能看清真实文件系统的那一层。
- * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方翻成人话。
+ * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方��成人话。
  */
 export async function openLink(docPath: string, href: string): Promise<void> {
   if (detectEnv() !== 'shell') throw new Error('openLink() 仅壳环境可用')
