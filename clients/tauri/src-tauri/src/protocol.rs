@@ -13,7 +13,7 @@ pub struct AllowedDirs(pub Mutex<HashSet<PathBuf>>);
 
 /// 关窗后按仍打开的文档重建白名单。
 pub fn reset_dirs(allowed: &AllowedDirs) {
-  allowed.0.lock().unwrap().clear();
+  crate::lock(&allowed.0).clear();
 }
 
 /// 幂等放行一个 baseDir（打开文档时调用）。
@@ -22,7 +22,7 @@ pub fn allow_dir(allowed: &AllowedDirs, file_path: &str) {
     .parent()
     .map(|p| p.canonicalize().unwrap_or_else(|_| p.to_path_buf()));
   if let Some(dir) = parent {
-    allowed.0.lock().unwrap().insert(dir);
+    crate::lock(&allowed.0).insert(dir);
   }
 }
 
@@ -43,7 +43,7 @@ pub fn handle(allowed: &AllowedDirs, request: Request<Vec<u8>>) -> Response<Cow<
   }
   let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
   let ok = {
-    let set = allowed.0.lock().unwrap();
+    let set = crate::lock(&allowed.0);
     set.iter().any(|dir| canon.starts_with(dir))
   };
   if !ok {

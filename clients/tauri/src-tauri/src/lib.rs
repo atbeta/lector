@@ -39,6 +39,16 @@ fn drag_hover_kind(paths: &[PathBuf]) -> &'static str {
   }
 }
 
+/// 取锁时容忍中毒。
+///
+/// 这些锁保护的只是哈希表/集合，临界区里没有「写了一半」的中间态：中毒（某线程
+/// panic 时正持锁）之后，数据本身仍然一致。而 `lock().unwrap()` 会把一次局部
+/// panic 放大成**之后每一次取锁都 panic**——路径表、watcher、协议白名单接连失效，
+/// 整个壳不可用。恢复出内部数据继续用，让故障停在它该停的那一层。
+pub(crate) fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+  m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub fn run() {
   let app = tauri::Builder::default()
     .manage(WindowRegistry::default())

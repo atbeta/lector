@@ -331,7 +331,7 @@ pub async fn read_clipboard(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub fn take_pending_open(window: tauri::Window, app: AppHandle) -> Option<String> {
   let pending = app.state::<PendingOpens>();
-  let path = pending.0.lock().unwrap().remove(window.label());
+  let path = crate::lock(&pending.0).remove(window.label());
   path
 }
 
@@ -510,7 +510,7 @@ pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Res
   let label = window.label().to_string();
   {
     let registry = app.state::<WindowRegistry>();
-    let mut map = registry.0.lock().unwrap();
+    let mut map = crate::lock(&registry.0);
     map.retain(|_, l| l != &label);
     map.insert(canon, label);
   }
@@ -554,7 +554,7 @@ pub fn save_image(
 ) -> Result<SaveImageResult, String> {
   let canon = canonical(&doc_path).ok_or_else(|| "document path not found".to_string())?;
   let registry = app.state::<WindowRegistry>();
-  let bound = registry.0.lock().unwrap().contains_key(&canon);
+  let bound = crate::lock(&registry.0).contains_key(&canon);
   if !bound {
     return Err("document is not bound to this app".into());
   }
@@ -589,7 +589,7 @@ pub fn save_image(
 fn rebuild_allowed_dirs(app: &AppHandle) {
   let registry = app.state::<WindowRegistry>();
   let allowed = app.state::<protocol::AllowedDirs>();
-  let paths: Vec<PathBuf> = registry.0.lock().unwrap().keys().cloned().collect();
+  let paths: Vec<PathBuf> = crate::lock(&registry.0).keys().cloned().collect();
   protocol::reset_dirs(&allowed);
   for p in paths {
     protocol::allow_dir(&allowed, &p.to_string_lossy());
@@ -600,7 +600,7 @@ fn rebuild_allowed_dirs(app: &AppHandle) {
 pub fn forget_window(app: &AppHandle, label: &str) {
   let registry = app.state::<WindowRegistry>();
   let dropped = {
-    let mut map = registry.0.lock().unwrap();
+    let mut map = crate::lock(&registry.0);
     let hit = map.iter().find(|(_, l)| l.as_str() == label).map(|(p, _)| p.clone());
     if let Some(ref p) = hit {
       map.remove(p);
@@ -611,13 +611,13 @@ pub fn forget_window(app: &AppHandle, label: &str) {
     unwatch(app, &p);
   }
   let pending = app.state::<PendingOpens>();
-  pending.0.lock().unwrap().remove(label);
+  crate::lock(&pending.0).remove(label);
   rebuild_allowed_dirs(app);
 }
 
 fn unwatch(app: &AppHandle, path: &std::path::Path) {
   let store = app.state::<WatcherStore>();
-  store.0.lock().unwrap().remove(path);
+  crate::lock(&store.0).remove(path);
 }
 
 /// 打开一篇文档：去重（已开则聚焦），否则新建窗口并记下 pending path。
@@ -628,7 +628,7 @@ pub fn open_path(app: &AppHandle, path: &str) {
   let key = canon.clone();
 
   let existing = {
-    let map = registry.0.lock().unwrap();
+    let map = crate::lock(&registry.0);
     map.get(&key).cloned()
   };
 
@@ -639,14 +639,14 @@ pub fn open_path(app: &AppHandle, path: &str) {
       return;
     }
     // 登记还在、窗口已关：清掉再新建
-    registry.0.lock().unwrap().remove(&key);
+    crate::lock(&registry.0).remove(&key);
     unwatch(app, &key);
   }
 
   let seq = WINDOW_SEQ.fetch_add(1, Ordering::Relaxed);
   let label = format!("doc-{seq}");
   let pending = app.state::<PendingOpens>();
-  pending.0.lock().unwrap().insert(label.clone(), path.to_string());
+  crate::lock(&pending.0).insert(label.clone(), path.to_string());
 
   // 标题在**建窗时**就设成目标文档的名字，而不是先写 "Lector" 等 Web 层来纠正：
   // 首帧必然先出现那个占位标题，随后才切成文档名——用户看到的是"标题栏先闪一下
@@ -658,10 +658,10 @@ pub fn open_path(app: &AppHandle, path: &str) {
   match build_doc_window(app, &label, title) {
     Ok(_w) => {
       log::info!("[win] 文档窗口已就绪 {label}");
-      let _ = registry.0.lock().unwrap().insert(key, label);
+      let _ = crate::lock(&registry.0).insert(key, label);
     }
     Err(e) => {
-      pending.0.lock().unwrap().remove(&label);
+      crate::lock(&pending.0).remove(&label);
       log::error!("failed to open window {label}: {e}");
     }
   }
@@ -1010,7 +1010,7 @@ pub fn watch_file(app: &AppHandle, path: &str) {
     return;
   }
   let store = app.state::<WatcherStore>();
-  store.0.lock().unwrap().insert(target, w);
+  crate::lock(&store.0).insert(target, w);
 }
 
 // ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
