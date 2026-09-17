@@ -193,7 +193,7 @@ export function createDocumentEditor({
     if (large.isActive()) {
       contentEl.classList.add('large-doc')
       document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编����档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+      // 大文件只有纯文本可编辑，档位锁在源码档，避免"切回阅读能看见渲染"的误解。
       // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
       forceSourceMode()
       large.mountLargeDocument()
@@ -604,7 +604,7 @@ export function createDocumentEditor({
   function getNormalizedText(): string {
     const src = session.source
     if (!src) return ''
-    // 大文件：未编辑���直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
+    // 大文件：未编辑时直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
     // 会在"打开后原样保存"这一路径上改写换行字节（撞产品红线）。编辑过才用 CM 的文本。
     if (large.isActive()) return large.isDirty() ? large.largeText() : src.text
     finalizeFocused()

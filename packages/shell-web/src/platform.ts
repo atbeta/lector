@@ -205,7 +205,7 @@ export async function closeWindow(): Promise<void> {
 
 /**
  * 通知壳：本窗口的 WebView 已就绪。壳借此把 snap 覆盖层重新提到 WebView2 之上
- * （WebView2 首帧/可见性切换时会再置顶一���，晚于建窗时的 install——竞态导致
+ * （WebView2 首帧/可见性切换时会再置顶一次，晚于建窗时的 install——竞态导致
  * 只有部分窗口悬停最大化能弹 Snap 浮窗）。浏览器预览无壳，空操作。
  */
 export async function notifyWebviewReady(): Promise<void> {
@@ -254,7 +254,7 @@ export async function save(
 ): Promise<SaveResult> {
   if (detectEnv() === 'shell') {
     const { invoke } = await tauriApi()
-    // 参数名必须 camelCase：Tauri v2 的命令参数默��按 camelCase 反序列化，
+    // 参数名必须 camelCase：Tauri v2 的命令参数默认按 camelCase 反序列化，
     // 传 mtime_ms 会得到「invalid args `mtimeMs` for command `write_file`」——
     // 报错里说的是 Rust 期望的名字（camelCase），所以看到 mtime_ms 反而以为是对的。
     return invoke<SaveResult>('write_file', { path, content, mtimeMs: mtime_ms, force })
@@ -271,7 +271,7 @@ export async function save(
 
 /**
  * 用系统默认浏览器打开外链。
- * 壳里走 open_url 命令（壳侧再做一次协议白名单，文档内容不��信）；
+ * 壳里走 open_url 命令（壳侧再做一次协议白名单，文档内容不可信）；
  * 浏览器预览用 window.open。
  */
 export async function openExternal(url: string): Promise<void> {
@@ -298,12 +298,12 @@ export async function revealInFolder(path: string): Promise<void> {
 }
 
 /**
- * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个���窗口。
+ * 打开文档里的本地链接：同一文件已打开就聚焦那个窗口，否则开一个新窗口。
  *
- * Web 层只���「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
+ * Web 层只传「当前文档路径 + 链接原文」——相对路径怎么解析、允不允许，
  * **全在壳侧**（paths.ts 顶上那句「真正的路径权威在壳侧」就是这条）。
  * 链接是文档内容，属不可信输入，所以判定必须待在能看清真实文件系统的那一层。
- * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方��成人话。
+ * 失败原因是壳给的短码（missing / not_text / scheme / bad_href），由调用方翻成人话。
  */
 export async function openLink(docPath: string, href: string): Promise<void> {
   if (detectEnv() !== 'shell') throw new Error('openLink() 仅壳环境可用')
@@ -321,7 +321,7 @@ export async function openLink(docPath: string, href: string): Promise<void> {
  * 浏览器预览（vite dev）里没有壳，退回 navigator.clipboard，那条路本来就是通的。
  *
  * 注意它**只读**：复制/剪切仍走 navigator.clipboard.writeText / execCommand，
- * 那两条路在 webview 里��直好用，不需要多开一条能力。
+ * 那两条路在 webview 里一直好用，不需要多开一条能力。
  */
 export async function readClipboard(): Promise<string> {
   if (detectEnv() !== 'shell') return navigator.clipboard.readText()
@@ -485,9 +485,9 @@ export async function onMenu(handler: (action: string) => void): Promise<() => v
 }
 
 /**
- * 无标题栏：在 titlebar 空白处按下即拖��窗口。
+ * 无标题栏：在 titlebar 空白处按下即拖动窗口。
  *
- * ��击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
+ * 双击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，
  * 两处都监听会让一次双击触发两次 toggle，窗口原地闪一下。
  */
 export function bindTitlebar(dragEl: HTMLElement): void {
@@ -507,9 +507,9 @@ export function bindTitlebar(dragEl: HTMLElement): void {
  *
  * Windows / Linux 走 decorations:false，最小化、最大化、关闭必须是真窗口操作，
  * 不能只改 DOM。浏览器预览下拿不到壳，回调保持空实现，调用方据此渲染
- * 「在���但不可用」的假控件，保证没有壳的环境也能调版式。
+ * 「存在但不可用」的假控件，保证没有壳的环境也能调版式。
  *
- * 返回清理函数（移除监听的 Promise 落地前调用也安全）���
+ * 返回清理函数（移除监听的 Promise 落地前调用也安全）。
  */
 export function bindWindowControls(opts: {
   onMinimize: () => void
@@ -550,9 +550,9 @@ export function bindWindowControls(opts: {
 /**
  * 最大化按钮的悬停进出。
  *
- * Windows 无边框窗口上，Snap Layouts 覆盖层（原��子窗口）接管了那颗按钮的鼠标，
+ * Windows 无边框窗口上，Snap Layouts 覆盖层（原生子窗口）接管了那颗按钮的鼠标，
  * webview 收不到 :hover，按钮会「悬停无反馈」。壳在原生侧把进入/离开转成这个事件，
- * ���端据此给按钮补样式。非壳环境是 no-op。
+ * 前端据此给按钮补样式。非壳环境是 no-op。
  */
 export async function onMaximizeHover(
   handler: (hovering: boolean) => void,

@@ -197,7 +197,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   grip.addEventListener('dblclick', onGripReset)
   grip.setAttribute('aria-valuenow', String(width))
 
-  // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态��（见 index.html 注释）
+  // 插在正文之前：骨架顺序 = 顶栏 / 侧栏 / 正文 / 状态栏（见 index.html 注释）
   const content = document.getElementById('content')
   content?.parentElement?.insertBefore(el, content)
 

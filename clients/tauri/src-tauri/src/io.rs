@@ -188,7 +188,7 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> io::Result<()> {
 pub fn read_file(path: String, app: AppHandle) -> Result<ReadResult, String> {
   let p = std::path::Path::new(&path);
   let content = fs::read_to_string(p).map_err(|e| e.to_string())?;
-  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进������议白名单。
+  // 读到文件就意味着"这份文档已经打开了"，顺手把它的目录放进协议白名单。
   // 不能等 bind_document：前端拿到内容就渲染，图片请求可能早于 bind_document 到达，
   // 那时白名单还没有这个目录 → 403 → 图片塌成 0 高（切一次档才恢复）。
   protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), &path);
@@ -244,7 +244,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交�����系��������览器打开。
+/// 正文里的链接交给系统浏览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -442,7 +442,7 @@ fn sanitize_image_name(name: &str) -> Option<String> {
   }
   let mut out = String::new();
   for c in stem.chars() {
-    // 用 Unicode 的 is_alphanumeric（而非 ascii��：��和��端 safeDropName 的
+    // 用 Unicode 的 is_alphanumeric（而非 ascii 版：rust 和 web 端 safeDropName 的
     // `\p{L}\p{N}` 保持一致，否则「截图_2026.png」拖进来会被落成「--_2026.png」。
     if c.is_alphanumeric() || c == '.' || c == '_' || c == '-' {
       out.push(c);
@@ -526,7 +526,7 @@ pub struct SaveImageResult {
   abs_path: Option<String>,
 }
 
-/// 图片子目录只允许单段（无 `/` `\`）、非空��非 `..`、非绝对路径。
+/// 图片子目录只允许单段（无 `/` `\`）、非空、非 `..`、非绝对路径。
 /// 与 editor 的 expandImageDir 是同一判据；壳侧再验一次，双保险。
 fn sanitize_image_subdir(s: &str) -> Option<String> {
   let t = s.trim();
@@ -669,7 +669,7 @@ pub fn open_path(app: &AppHandle, path: &str) {
 ///
 /// 教训写在这里，别再踩：**tauri.conf.json 里的 window 配置会覆盖 builder**。
 /// 曾经在 config 里写了 `"decorations": false`，又在 macOS 分支里调
-/// `.decorations(true)` 想改��来——不起作用，macOS 的红绿灯连同原生边框一起消失，
+/// `.decorations(true)` 想改回来——不起作用，macOS 的红绿灯连同原生边框一起消失，
 /// 用户只能从系统菜单关窗口。所以 config 只放不变量，平台差异一律在 builder 里做。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowChrome {
@@ -836,7 +836,7 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   let saved = saved_window_geometry(app, label).filter(|(x, y, _, _, _)| position_on_screen(app, *x, *y));
   // 主题早应用：把设置里的明暗模式在首帧前交给页面（index.html 的内联脚本消费）。
   // 前端 load_settings 要等模块加载完才到——深色用户会先看到一帧浅色再变深，
-  // 系统��色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
+  // 系统配色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
   let theme_mode = app
     .path()
     .app_config_dir()
@@ -977,7 +977,7 @@ pub fn watch_file(app: &AppHandle, path: &str) {
   store.0.lock().unwrap().insert(target, w);
 }
 
-// ───────────────────── 图片上��命令（用户配置，命令模式专用） ─────────────────────
+// ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
 // 契约：`executable [args…] <图片绝对路径>` → stdout 每行一个 http(s) URL。
 // 注意：这是「用户显式配置要执行什么」的退路，不是 Web 层可随手调用的任意 shell。
 // 所以故意不用 shell（Command 直接 spawn，不解析 `;` `&&` `$(...)`），
@@ -1214,7 +1214,7 @@ mod tests {
     assert_eq!(sanitize_image_name("photo.png").as_deref(), Some("photo.png"));
     assert_eq!(sanitize_image_name("a/../x.PNG").as_deref(), Some("x.png"));
     assert_eq!(sanitize_image_name("weird name.webp").as_deref(), Some("weird-name.webp"));
-    // 中文名要留住（与前�� safeDropName 的 \p{L} 对���），不能被整段换成 '-'
+    // 中文名要留住（与前面 safeDropName 的 \p{L} 对齐），不能被整段换成 '-'
     assert_eq!(sanitize_image_name("截图_2026.png").as_deref(), Some("截图_2026.png"));
     assert!(sanitize_image_name("../x.png").is_none() || sanitize_image_name("../x.png").as_deref() == Some("x.png"));
     assert!(sanitize_image_name("x.txt").is_none());
@@ -1275,7 +1275,7 @@ mod tests {
 
   /// 平台无关的测试用绝对路径。
   ///
-  /// **不能写死 `/docs/book/ch1.md`**：Windows 上 `/…` 不是绝对路径（缺盘��前缀），
+  /// **不能写死 `/docs/book/ch1.md`**：Windows 上 `/…` 不是绝对路径（缺盘符前缀），
   /// `Path::is_absolute()` 为 false，于是会被 resolve_link_target 里那条
   /// 「文档路径必须是绝对路径」的守卫拒掉——上一版就是这么在 Windows runner 上
   /// 挂了三条（本机 macOS 全绿，只有 CI 的 Windows 作业才看得见）。
@@ -1307,7 +1307,7 @@ mod tests {
     let doc = abs_path("book/ch1.md");
     let doc = doc.to_str().unwrap();
 
-    // 链接原文一律写成带 `/` 的样子：那是作者在 md 里实际��写的形态
+    // 链接原文一律写成带 `/` 的样子：那是作者在 md 里实际书写的形态
     assert_eq!(segs(&resolve_link_target(doc, "ch2.md").unwrap()), segs(&abs_path("book/ch2.md")));
     assert_eq!(
       segs(&resolve_link_target(doc, "./sub/ch2.md").unwrap()),

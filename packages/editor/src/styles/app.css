@@ -182,9 +182,9 @@ button, a, input, [role='slider'], [role='switch'] {
  * 三条硬约束，写在前面，改的时候别再破坏：
  *  1. 标题必须在「正文列」上居中，不是在整个窗口上居中。窗口有侧栏时两者差
  *     侧栏宽的一半，标题会看着偏左（实测差 120px）。
- *  2. 右侧是固定的一排按钮，宽度��预测，所以用 absolute + margin:auto 夹在
+ *  2. 右侧是固定的一排按钮，宽度可预测，所以用 absolute + margin:auto 夹在
  *     导航与操作之间居中：按钮数量变化时标题不会跟着漂。
- *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上���孤零零飘着，
+ *  3. 左侧按钮组与正文列左沿对齐：否则在窗口左上角孤零零飘着，
  *     与下面的正文没有任何视觉关系（这是「左边为什么那么空」的根因）。 */
 .titlebar-lead {
   display: flex;
@@ -201,8 +201,8 @@ button, a, input, [role='slider'], [role='switch'] {
   flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
-/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「����������开关+图标）」切开。
-   HTML 里有 .titlebar-divider 但没有规则就一直是零宽—���������read in ����时 ui-verify
+/* 组间分隔发丝：把「左（打开/保存）」/「中（标题）」/「右（开关+图标）」切开。
+   HTML 里有 .titlebar-divider 但没有规则就一直是零宽——所以这里补上宽度。
    只断言 DOM 存在而没断言可见，导致「六个图标读成一排散兵」却测不出来。 */
 .titlebar-divider {
   width: 1px;
@@ -213,7 +213,7 @@ button, a, input, [role='slider'], [role='switch'] {
 }
 
 /* ───────────── 视图模式分段控件 ─────────────
- * 三档常驻 + 当前档常���。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
+ * 三档常驻 + 当前档常亮。放在右侧操作区里，因为它是「这块屏幕现在是什么」，
  * 和旁边的图标按钮是同一类东西（控制），而左侧留给文件动作（打开 / 保存）。
  *
  * 为什么不是三个图标按钮：图标说不出「阅读 / 编辑 / 源码」这三件事的区别，
@@ -577,7 +577,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   height: 0;
   margin: 0;
   padding: 0;
-  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块��� margin 折���，
+  /* 不要在这里写 overflow:hidden：那会建立 BFC，阻止相邻块的 margin 折叠，
      间距就变成「有空行缝时相加、没有时取最大」，同一份文档两种节奏。 */
   pointer-events: none;
   cursor: default;
@@ -585,7 +585,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 }
 /* 垂直节奏：只写单边，靠 margin 折叠决定最终间距。
    标题用 margin-bottom 控制「下方留白」（紧），其余块用 margin-top 控制
-   「�����������������方留���」���松），两者折叠取较大值——因此标题下方总是更紧，
+   「标题的下方留白」与「正文的上方留白」（一松一紧），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
 
@@ -614,7 +614,7 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
   /* display 门控而不是 opacity：切档时不该有一次淡入淡出，那是两个档在打架 */
   display: none;
   opacity: 0;
-  /* 它只是指示���不是靶子：不能挡住正文两侧留白上的点击与框选 */
+  /* 它只是指示器不是靶子：不能挡住正文两侧留白上的点击与框选 */
   pointer-events: none;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
@@ -654,9 +654,9 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   color: rgb(var(--foreground));
 }
 
-/* 标题留白：绝对值，按标题自己的字号��。
+/* 标题留白：绝对值，按标题自己的字号算。
    用 em 是错的——em 相对块的 14px 字号算，30px 的 H1 反而拿到最小的间距。
-   标题的上方留白（松）与下方留������������）都写死，正文块的下方不写 margin-bottom，
+   标题的上方留白（松）与下方留白（紧）都写死，正文块的下方不写 margin-bottom，
    所以「标题下面紧」这件事由标题自己负责。 */
 .block[data-kind='heading'] { margin-bottom: var(--space-tight); }
 .block[data-kind='heading'][data-depth='1'] { margin-top: 0.4rem; margin-bottom: 0.85rem; }
@@ -761,7 +761,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   background: rgb(var(--border));
   flex: none;
 }
-/* 查找栏��� Aa/\b/.* 开关：created 时没 CSS ���则 → 原生按钮外观混在自绘浮层里。
+/* 查找栏的 Aa/\b/.* 开关：created 时没 CSS 规则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
   display: inline-flex;
@@ -939,7 +939,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .outline-kids { margin-left: 12px; }
 .outline-node[data-collapsed='true'] > .outline-kids { display: none; }
 .outline-line { display: flex; align-items: stretch; }
-/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty���，
+/* 展开/收起三角。没有子节的标题占同样的宽度（.outline-twisty-empty 占位），
    否则同一级的标题会因为「有没有子节」而左右错开。 */
 .outline-twisty {
   flex: 0 0 auto;
@@ -1077,7 +1077,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 .empty-state > *:nth-child(4) { animation-delay: 135ms; }
 .empty-state > *:nth-child(5) { animation-delay: 180ms; }
 /* 矮窗口里优先保住"打开 / 新建"两个主动作：最近的**列表**（最多 5 条）在极矮的
-   窗口里会把主按钮挤出视口���屏���上就���"��空却有滚动条"（用户反馈过）。
+   窗口里会把主按钮挤出视口，窄屏上就是"内容空却有滚动条"（用户反馈过）。
    阈值是算出来的，不是拍的：hero ≈176 + 列表(5 条)≈290 + 间距 46 + 内边距 96 ≈ 608，
    所以内容高 ≥640 就装得下——超过才需要藏。之前写 780 太保守，把大量正常窗口
    （高 DPI 缩放后 CSS 高度会明显变小）的列表也误藏了。
@@ -1165,7 +1165,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 /* ───────────── Tip 浮层 ─────────────
  * 替代原生 title=，让悬浮提示与设计语言一致（不出现黄底黑字
- * 系统色块）。全局单例（body 直���挂一个），位置由 tip.ts 计���。 */
+ * 系统色块）。全局单例（body 直接挂一个），位置由 tip.ts 计算。 */
 .tip {
   position: fixed;
   z-index: 100;
@@ -1289,7 +1289,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 /* 空段落块（空文档合成的那块、或被删空的段落）失焦后预览是空的，
    会塌成零高——看起来「块没了」，也点不进去（空文档就此锁死）。
-   给��一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
+   给每一行的最小高度当可点表面：点它进编辑，右键它出块菜单。 */
 .block:not(.gap) .preform:empty {
   min-height: 1.62em;
 }
@@ -1317,12 +1317,12 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 设置面板实时开关：根类切换，无需重渲染 */
 .code-ln-off .ln-gutter { display: none; }
 /* 代码高亮：Prism 产出的 .token.* 映射到我们的四色（tokens 变量，换主题自动跟随）。
-   只上四类：注释 / ���符串 / ���字 / 关键���——���分辨，不��。
+   只上四类：注释 / 字符串 / 数字 / 关键字——好分辨，不抢。
    不套 Prism 自带主题；运算符与标点不着色，留给正文色。
 
    默认（墨色）主题下 --code-keyword 几乎等于正文色，所以关键词**必须靠字重**也立住，
    否则 `export / function / const / return` 和普通文本一模一样，高亮等于白做。
-   ���构词（keyword/tag/selector/���数名…）给 600/500，标识符性质的（property/variable��只给颜色。 */
+   结构词（keyword/tag/selector/函数名…）给 600/500，标识符性质的（property/variable）只给颜色。 */
 .reading-prose .token.comment,
 .reading-prose .token.prolog,
 .reading-prose .token.doctype,
@@ -1394,7 +1394,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
-     约 24px 上下留白」。之前��条 6rem 居中短��是我们自己发明��花饰，��易读成
+     约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，容易读成
      "掉了根线头"，改成标准的整幅发丝线。 */
   border: 0;
   height: 1px;
@@ -1416,7 +1416,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 /* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
    灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
    而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
-   层级交给底色与字��，线只负责分隔，统一用 border。 */
+   层级交给底色与字重，线只负责分隔，统一用 border。 */
 /* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
    两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
 .reading-prose td[data-align='right'] {
@@ -1448,7 +1448,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
 }
 
 /* 任务复选框 — 对齐 NoteFast 自绘 checkbox。
-   未勾选时也要看得见：边框走 border-strong 实色，���用 alpha 叠。 */
+   未勾选时也要看得见：边框走 border-strong 实色，不用 alpha 叠。 */
 .reading-prose input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
@@ -1542,7 +1542,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   border-radius: 4px;
 }
 
-/* ���知 / yaml / html 降级 — 等宽源�� */
+/* 未知 / yaml / html 降级 — 等宽源码 */
 .preform {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -1598,7 +1598,7 @@ html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
   background: rgb(var(--accent));
 }
 /* 折行开关：与复制键同款 24px 方键。推到条右端的是它（带着复制键组成
-   右侧按钮组）——推力���来在复制键上，折行键插进去后会被留在语言标旁边。 */
+   右侧按钮组）——推力本来在复制键上，折行键插进去后会被留在语言标旁边。 */
 .code-wrap-toggle {
   margin-left: auto;
   display: inline-grid;
@@ -1643,8 +1643,8 @@ html[data-theme='dark'] .code-wrap-toggle.is-active {
 html[data-reading-theme='focus'] .code-card { border: 0; }
 html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
-/* ───────────── Mermaid 图表 ────────���─���─���������
- * 走 code-card 结构：头部条标语言/复制源码，diagram 是����内的画��区域。
+/* ───────────── Mermaid 图表 ─────────────
+ * 走 code-card 结构：头部条标语言/复制源码，diagram 是卡片内的画布区域。
  * 懒加载,渲染失败时给错误 + 源码回退。 */
 .mermaid-diagram {
   padding: 12px;
@@ -1670,8 +1670,8 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 }
 /* 外层 .mermaid-diagram 是 flex（居中 + 空态占位），所以这一层**必须显式撑满**：
    flex 项的宽度默认是 max-content，而里面的 svg 写的是 width="100%"——
-   百分比遇到「宽度由内容决定」的父级会变成不确定，��览器只能退回 300×150 那档
-   默认尺寸（实测：838px 宽的流程���被渲染成 300px，两个节点的图反倒正常 168px）。
+   百分比遇到「宽度由内容决定」的父级会变成不确定，浏览器只能退回 300×150 那档
+   默认尺寸（实测：838px 宽的流程图被渲染成 300px，两个节点的图反倒正常 168px）。
    给它 flex: 1 1 auto + min-width: 0，宽度就变成确定的，svg 的百分比才有意义。 */
 .mermaid-diagram .mermaid-svg {
   flex: 1 1 auto;
@@ -1680,7 +1680,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   overflow-x: auto;
 }
 /* 与 notefast 一致：按 mermaid 自己的尺寸渲染（自然尺寸），只加一条「不超过栏宽」的上限。
-   svg 上是 width="100%" + inline `max-width: 自��宽度`，���者合起来就是
+   svg 上是 width="100%" + inline `max-width: 自适应宽度`，两者合起来就是
    min(栏宽, 自然宽度)——正好是 notefast 的 [&_svg]:max-w-full + h-auto。
    不要写 width:100% !important 去覆盖它：那会把两个节点的图拉成一整屏。 */
 .mermaid-diagram .mermaid-svg svg {
@@ -1691,7 +1691,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
   margin: 0 auto;
 }
-/* 堵住���体特性���漏：阅���区���文���层������ Inter 的花式变体
+/* 堵住字体特性泄漏：阅读区正文层关掉 Inter 的花式变体
    （font-feature-settings: "cv02","cv11","ss01","ss03"），它会级联进 mermaid 的
    <text> 和 foreignObject 里的 HTML 标签。mermaid 的 SVG 内部 <style> 只锁了
    font-family，没锁这些 OpenType 特性——落到回退字体上就渲染出错乱的小型大写字形。
@@ -1780,7 +1780,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
  * 关键取舍：**不画卡片**。
- * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的����一篇文档的
+ * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的是一篇文档的
  * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
  * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
  * 发丝线表示「这段可以点进去改」。
@@ -1795,7 +1795,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   border-radius: 0;
   overflow-x: auto;
   font-family: var(--font-mono);
-  /* 字号与行��跟阅读/编辑态完���一致。
+  /* 字号与行高跟阅读/编辑态完全一致。
      源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
      读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
   font-size: var(--reading-font-size);
@@ -1860,7 +1860,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 脚注 ─────────────
  * 「阅读优先」要能读到注释本身：引用在上标可点，定义在文末可见。
- * 都只改预��，不动源码，保存仍��� `[^1]` 原文。 */
+ * 都只改预览，不动源码，保存仍是 `[^1]` 原文。 */
 .reading-prose .footnote-ref {
   font-size: 0.8em;
   vertical-align: baseline;
@@ -1914,7 +1914,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
 }
 
-/* ───────────── 扩展语法���染 ─────────────
+/* ───────────── 扩展语法渲染 ─────────────
  * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
 .reading-prose mark,
 .reading-prose .html-mark {
@@ -1949,9 +1949,9 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   margin-bottom: 0.4em;
 }
 
-/* ──────────���── 右键菜单 ──────────��──
+/* ───────────── 右键菜单 ─────────────
  * 无标题栏、无工具栏的界面里，右键菜单是功能的第二入口。
- * 视觉上按「浮���」处理：圆角、浮层投影、比正文更紧的行距。 */
+ * 视觉上按「浮层」处理：圆角、浮层投影、比正文更紧的行距。 */
 .context-menu {
   position: fixed;
   z-index: 210;
@@ -1966,7 +1966,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 }
 /* 右键菜单不吃全局那圈焦点环（app.css 顶部的 :focus-visible 用 --ring 画蓝边）。
    菜单是靠右键唤出的瞬态浮层，环一道蓝边既难看也无信息量——
-   选中态已经由菜单项自己的底色表达；键��用户看到的也是那个底色。 */
+   选中态已经由菜单项自己的底色表达；键盘用户看到的也是那个底色。 */
 .context-menu:focus-visible,
 .context-item:focus-visible {
   outline: none;
@@ -1977,7 +1977,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   gap: 12px;
   width: 100%;
   padding: 6px 10px;
-  /* 鼠标右键是"指��操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
+  /* 鼠标右键是"指示操作"，不该出现焦点圈——之前那圈蓝边就是 UA 默认的焦点环。
      键盘用户仍有可见焦点，由下面 :focus-visible 那条负责。 */
   outline: none;
   border: 0;
@@ -2011,7 +2011,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 滚动条：细、默认隐形、悬停才现身 ─────────────
  * 浏览器默认滚动条（十几 px、常驻、带轨道）在阅读器里是一道持续的竖线，
- * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出���。
+ * 视觉重量比正文里任何一个元素都重。改成 8px、轨道全透明、滑块只在悬停时出现。
  * 可见宽度 = 8px 轨道减掉两侧各 2px 透明边框 = 4px——像纸边的一根细线，但仍好抓。
  * Chromium 对滚动条伪元素的 transition 支持不稳，退化成「立即隐藏」也成立。 */
 * {
@@ -2053,13 +2053,13 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   background: transparent;
 }
 
-/* ───────────── 图片 / ��表放大（lightbox） ─────────────
+/* ───────────── 图片 / 图表放大（lightbox） ─────────────
  * 两层职责：
- *   遮罩（.lightbox）= 暗���页面 + ���载 HUD 与工具条；
+ *   遮罩（.lightbox）= 暗化页面 + 承载 HUD 与工具条；
  *   画布（.lb-canvas）= 滚动容器，缩放与平移都靠它。
  * 画布用「滚动 + 显式尺寸外框」而不是 transform 矩阵：平移 = scrollLeft/scrollTop，
  * 缩放时不用自己维护偏移量；内容没超出时 flex 自动居中，
- * 于是「小图居中、大图可拖」是���一段 CSS 的结果。详见 zoomView.ts。 */
+ * 于是「小图居中、大图可拖」是同一段 CSS 的结果。详见 zoomView.ts。 */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -2112,7 +2112,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   display: block;
   width: 100%;
   height: 100%;
-  /* 外框尺寸已由 zoomView 精确��好，图片层不能再自我限制，
+  /* 外框尺寸已由 zoomView 精确算好，图片层不能再自我限制，
      否则 mermaid 写在 svg 上的 max-width 会把图形钉死在左上角 */
   max-width: none;
   max-height: none;
@@ -2125,7 +2125,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   max-height: 100%;
 }
 
-/* 左���角：缩放读数 + ���势提示 */
+/* 左下角：缩放读数 + 手势提示 */
 .lb-hud {
   position: absolute;
   top: 16px;
@@ -2208,7 +2208,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 /* 浮层打开时锁住正文滚动 */
 html.lightbox-open #content { overflow: hidden; }
 
-/* ───────────── Toast ────────���──── */
+/* ───────────── Toast ───────────── */
 .lector-toast {
   position: fixed;
   bottom: 22px;
@@ -2275,9 +2275,9 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-header .btn-icon { margin-left: auto; }
 .modal-body { padding: 0; }
 
-/* ───────────── 查找命中 ────────��────
+/* ───────────── 查找命中 ─────────────
  * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
- * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我��的纸墨不搭�� */
+ * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
 .find-hit {
   border-radius: 2px;
   padding: 0 1px;
@@ -2290,7 +2290,7 @@ html.lightbox-open #content { overflow: hidden; }
 }
 
 /* ───────────── 选区浮条（编辑态） ─────────────
- * 选中文字后浮在选区上方的一小条格式��钮。定位与关闭规则在 selectionBubble.ts，
+ * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，
  * 这里只管长相：和右键菜单同一族（popover 底 + 浮阴影 + 发丝边），
  * 但在暗色下也要看得清——它是浮在**正文**上的，不是浮在遮罩上。 */
 .selection-bubble {
@@ -2373,7 +2373,7 @@ html.lightbox-open #content { overflow: hidden; }
   line-height: 1.55;
   color: rgb(var(--subtle-foreground));
 }
-/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高��不一，
+/* 设置弹窗里的画廊：两列。三列会让规格行折成三行，卡片高低不一，
    反而比多滚动一屏更难看。 */
 .settings-gallery { padding: 4px 0 6px; }
 
@@ -2501,7 +2501,7 @@ html.lightbox-open #content { overflow: hidden; }
   width: 17px;
   height: 17px;
   border-radius: 999px;
-  /* 开关滑块固定纯白：它坐��彩色/灰轨道上，跟随主题���而会失��「凸起」感 */
+  /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题切换而会失去「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.2);
   transition: transform var(--motion-base) var(--ease-emphasized);
@@ -2553,10 +2553,10 @@ html.lightbox-open #content { overflow: hidden; }
  * 网格管结构、源码管存储：单元格是自适应高度的 textarea，
  * Enter 跳下一行（末行自动补行），行列增删走两侧窄轨。
  *
- * 结���轨必须常显、对齐、不叠在格子上：
+ * 结构轨必须常显、对齐、不叠在格子上：
  *  1. 打开时首格自动聚焦——列删除绝不能跟 :focus-within，否则只有首列冒出 X。
- *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角���定位（会漂在 gutter 右上角）。
- *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled ��影。 */
+ *  2. 加列是一枚和表头同高的虚线格，不要复用 th 角标定位（会漂在 gutter 右上角）。
+ *  3. 上移/下移竖叠在 28px 左轨里常显；子按钮不能再写 opacity:0，否则悬停也只剩 disabled 残影。 */
 .table-editor-card {
   display: flex;
   flex-direction: column;
@@ -2609,7 +2609,7 @@ html.lightbox-open #content { overflow: hidden; }
   border-color: rgb(var(--ring) / 0.6);
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
-/* 表��格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截�� */
+/* 表格编辑格：删除键藏在格子内侧，占位但不抢焦点态。:has 避免单列时右侧空一截。 */
 .table-editor-head { position: relative; }
 .table-editor-head:has(.table-editor-del) textarea { padding-right: 28px; }
 .table-editor-head .table-editor-del {
@@ -2986,7 +2986,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 .shortcuts-pop {
   position: fixed;
   z-index: 100;
-  /* 三组���排（每���一列）：面板又短又宽，常态下根本够不到滚动条 */
+  /* 三组竖排（每组一列）：面板又短又宽，常态下根本够不到滚动条 */
   display: flex;
   flex-wrap: wrap;
   gap: 10px 26px;
@@ -3034,15 +3034,15 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 
 /* ───────────── 空态的「最近打开」 ─────────────
  * 书目式清单：一张纸 + 发丝分隔线，悬停只给中性灰底。
- * 不做���片、不做图标徽章、不用主色描边——这份列表是「接着读」，
- * 观感上���该接近目录页，而不是一排 App 图标。 */
+ * 不做照片、不做图标徽章、不用主色描边——这份列表是「接着读」，
+ * 观感上不应该接近目录页，而不是一排 App 图标。 */
 .recent-block {
   margin-top: 46px;
   width: 100%;
   text-align: left;
 }
 /* 没有最近文件时的一句轻引导：把首屏那块空白变成"会长出东西"的留白，
-   而不是"没做完"。居中、弱色，重量不超过上面的定位语�� */
+   而不是"没做完"。居中、弱色，重量不超过上面的定位语。 */
 .recent-empty {
   margin: 0;
   text-align: center;
@@ -3101,7 +3101,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-standard);
 }
-/* 发丝分隔线�� inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+/* 发丝分隔线用 inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
 .recent-item + .recent-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
 .recent-item:hover { background: var(--block-hover-bg); }
 .recent-text {
@@ -3126,7 +3126,7 @@ tr:focus-within .table-editor-gutter .table-editor-del { opacity: 1; }
 }
 
 /* ───────────── 视觉精修层 ─────────────
- * 保持阅读器��静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
+ * 保持阅读器安静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
  * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
 #content {
   background: rgb(var(--paper));
@@ -3158,21 +3158,21 @@ html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
- * 空态不是「一���空文档」，是扉页：撤掉纸页表面（底��/两侧描边/最大栏宽），
+ * 空态不是「一个空文档」，是扉页：撤掉纸页表面（底色/两侧描边/最大栏宽），
  * 整窗是一块完整画布。两侧不再是两条死灰带，内容居中于整窗而不是居中于窄栏。 */
 html.is-empty #content {
   max-width: none;
   background: transparent;
   border-inline-color: transparent;
   box-shadow: none;
-  /* ��态是「一页��页」，��容整��居中于整窗。
+  /* 空态是「一页扉页」，内容整体居中于整窗。
      #content 必须是 flex，.empty-state 的 margin:auto 才会双轴居中——
      块布局下 margin:auto 只居中水平，画面就变成「上半屏堆着、下半屏空着」。 */
   display: flex;
   /* 扉页不滚：内容始终放得下（矮窗由媒体查询收掉最近列表）。
      顺便挡掉入场动画期间 transform 撑出的瞬时滚动条。 */
   overflow: hidden;
-  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下��称 */
+  /* 正文那套 30px/32px/18vh 的阅读呼吸在空态里只会把内容顶偏，换成上下对称 */
   padding: 28px 24px;
 }
 /* 加载态与空态同一套居中：转圈落在整窗中心，而不是吊在上半屏 */
@@ -3187,15 +3187,15 @@ html.is-loading #content {
   width: 72px;
   height: 72px;
   margin-bottom: 18px;
-  border-radius: 18px; /* svg 自带圆角；这里是兜���，防占位瞬间露出直角 */
+  border-radius: 18px; /* svg 自带圆角；这里是兜底，防占位瞬间露出直角 */
   box-shadow: 0 1px 2px rgb(var(--foreground) / 0.06), 0 10px 26px rgb(var(--foreground) / 0.1);
 }
 .empty-actions { gap: 10px; }
 .empty-new { margin-left: 0; }
-/* 最近打开��随空态版心，不再是窄栏里的一小条 */
+/* 最近打开跟随空态版心，不再是窄栏里的一小条 */
 html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 
-/* 拖放反馈：拖中时全窗一道浅框 + 中央文���，松手或离开就撤。
+/* 拖放反馈：拖中时全窗一道浅框 + 中央图标，松手或离开就撤。
    只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
 .drop-overlay {
   position: fixed;
@@ -3248,7 +3248,7 @@ html.large-file .mode-switch { display: none; }
 
 /* ───────────── 减少动态 ─────────────
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的
- * 界面，动效��就不该抢戏；用户明确要求减少时更不该还硬播。唯一的���外是加载转圈：
+ * 界面，动效就不该抢戏；用户明确要求减少时更不该还硬播。唯一的例外是加载转圈：
  * 它转的是"还在忙"的信号，停掉就没反馈了，只放慢。 */
 /* ───────────── 导出遮罩 ─────────────
  * 导出期间盖住整个窗口：布局摊平、壳隐藏的过程不该被看见——
@@ -3293,7 +3293,7 @@ html.pdf-busy * {
   cursor: progress !important;
 }
 
-/* ───────────── 打印 / 导出 PDF ───��─────────
+/* ───────────── 打印 / 导出 PDF ─────────────
  * 样式挂在 html.printing 类上，不用 @media print——WebView2 的 PrintToPdf
  * 按屏幕媒体渲染（实测：深色主题导出 = 浅字白纸、侧栏照印、滚动容器截成一页），
  * 媒体查询根本不会生效。exportPdf（platform.ts）在调用打印前后挂/摘这个类，

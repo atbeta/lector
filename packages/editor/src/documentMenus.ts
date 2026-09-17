@@ -208,7 +208,7 @@ export function createDocumentMenus({
   }
 
   /**
-   * 表单输入框（��置里的图床命令、查找框…）上的菜单：标准编辑动作。
+   * 表单输入框（设置里的图床命令、查找框…）上的菜单：标准编辑动作。
    *
    * 不能放行 webview 默认菜单——它端出来的是浏览器的那份（刷新 / 打印 / 检查元素），
    * 而这里真正需要的是剪切 / 复制 / 粘贴 / 全选。
@@ -270,7 +270,7 @@ export function createDocumentMenus({
     })
   }
 
-  /** ��键入口：按目标决定给哪套菜单。 */
+  /** 右键入口：按目标决定给哪套菜单。 */
   function onContextMenu(e: MouseEvent): void {
     const target = e.target as HTMLElement | null
     if (!target) return
