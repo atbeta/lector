@@ -37,11 +37,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-  CreateWindowExW, DefWindowProcW, GetClientRect, GetWindowLongPtrW, RegisterClassExW,
-  SetWindowLongPtrW, SetWindowPos, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HTMAXBUTTON, HWND_TOP,
-  SWP_ASYNCWINDOWPOS, SWP_SHOWWINDOW, WM_DPICHANGED, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN,
-  WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE, WNDCLASSEXW, WS_CHILD, WS_CLIPSIBLINGS,
-  WS_VISIBLE,
+  CreateWindowExW, DefWindowProcW, FindWindowExW, GetClientRect, GetWindowLongPtrW,
+  RegisterClassExW, SetWindowLongPtrW, SetWindowPos, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA,
+  HTMAXBUTTON, HWND_TOP, SWP_ASYNCWINDOWPOS, SWP_SHOWWINDOW, WM_DPICHANGED, WM_NCDESTROY,
+  WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
+  WNDCLASSEXW, WS_CHILD, WS_CLIPSIBLINGS, WS_VISIBLE,
 };
 
 /// 与 .win-btn / .window-controls 的 CSS 像素尺寸一致（DPI 缩放在 position_overlay 里做）
@@ -175,6 +175,25 @@ fn register_overlay_class() {
     wc.lpszClassName = OVERLAY_CLASS.as_ptr();
     RegisterClassExW(&wc);
   });
+}
+
+/// WebView2 就绪后把覆盖层重新提到兄弟 z 序顶。
+///
+/// install 时 WebView2 的 HWND 虽已存在（wry 同步等 controller 创建完才返回），
+/// 但 WebView2 在首帧渲染 / 可见性切换时还会**再把自己置顶**——晚于 install 的
+/// 那次置顶会把覆盖层压回去，症状是「有的窗口悬停最大化有 Snap 浮窗，有的没有」
+/// （取决于两个置顶动作谁先谁后，纯竞态）。web 层脚本跑起来必然意味着 WebView2
+/// 已可见且置顶完毕，此时 raise 一次就稳稳在它之上；WM_SIZE / WM_DPICHANGED
+/// 的 position_overlay 也带 HWND_TOP，持续兜底。
+pub fn raise(parent_isize: isize) {
+  let parent: HWND = unsafe { std::mem::transmute_copy(&parent_isize) };
+  let child = unsafe {
+    FindWindowExW(parent, std::ptr::null_mut(), OVERLAY_CLASS.as_ptr(), std::ptr::null())
+  };
+  if child.is_null() {
+    return;
+  }
+  unsafe { position_overlay(parent, child) };
 }
 
 /// 在窗口的最大化按钮上盖一个不绘制、但可被命中的子窗口。

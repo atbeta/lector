@@ -1,4 +1,4 @@
-import { detectEnv, shellAssetResolver } from '@lector/shell-web'
+import { detectEnv, shellAssetResolver, notifyWebviewReady } from '@lector/shell-web'
 import { setAssetResolver } from './asset.ts'
 import { initSettings, notify as notifySettings } from './settings.ts'
 import { mermaidRenderSignature } from './mermaid.ts'
@@ -23,6 +23,10 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
 import './styles/app.css'
+
+// 模块加载即通知壳：此刻 WebView2 必然已可见且完成置顶，壳的 snap 覆盖层
+// 借此重新提顶（建窗时 install 的那次会被 WebView2 的置顶竞态压回去）。
+void notifyWebviewReady()
 
 // ── 装配顺序约束（不要改） ──────────────────────────────────────────────
 // 下面这些控制器是互相引用的：chrome 的 getSession 指向 editor，outline 指向 editor，

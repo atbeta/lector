@@ -225,7 +225,7 @@ pub fn write_file(
   })
 }
 
-/// 正文里的链接交给系������览器打开。
+/// 正文里的链接交给系��������览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，
 /// 而文档内容不可信——若不做白名单，一篇 md 里的 `file:///etc/passwd` 或
@@ -507,7 +507,7 @@ pub struct SaveImageResult {
   abs_path: Option<String>,
 }
 
-/// 图片子目录只允许单段（无 `/` `\`）、非空、非 `..`、非绝对路径。
+/// 图片子目录只允许单段（无 `/` `\`）、非空��非 `..`、非绝对路径。
 /// 与 editor 的 expandImageDir 是同一判据；壳侧再验一次，双保险。
 fn sanitize_image_subdir(s: &str) -> Option<String> {
   let t = s.trim();
@@ -684,6 +684,19 @@ pub const fn window_chrome() -> WindowChrome {
 /// 之前试过 DWMWA_WINDOW_CORNER_PREFERENCE：对无边框窗口（popup 样式）不生效，
 /// 别再走回头路。材质色调按创建时的系统主题选一次，之后切主题不重刷
 /// （影响只有边缘几像素的材质色调，可接受）。
+/// web 层就绪信号：此刻 WebView2 必然可见且完成置顶，snap 覆盖层此时 raise
+/// 才能稳稳压在它上面（竞态细节见 snap.rs::raise 的注释）。每个窗口的页面
+/// 各调一次，命令按调用方窗口各自处理，天然多窗口安全。
+#[tauri::command]
+pub fn webview_ready(window: tauri::WebviewWindow) {
+  #[cfg(target_os = "windows")]
+  if let Ok(hwnd) = window.hwnd() {
+    crate::snap::raise(hwnd.0 as isize);
+  }
+  #[cfg(not(target_os = "windows"))]
+  let _ = window;
+}
+
 #[cfg(target_os = "windows")]
 fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
   use window_vibrancy::{apply_acrylic, apply_mica};
@@ -942,7 +955,7 @@ pub fn watch_file(app: &AppHandle, path: &str) {
   store.0.lock().unwrap().insert(target, w);
 }
 
-// ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
+// ───────────────────── 图片上��命令（用户配置，命令模式专用） ─────────────────────
 // 契约：`executable [args…] <图片绝对路径>` → stdout 每行一个 http(s) URL。
 // 注意：这是「用户显式配置要执行什么」的退路，不是 Web 层可随手调用的任意 shell。
 // 所以故意不用 shell（Command 直接 spawn，不解析 `;` `&&` `$(...)`），

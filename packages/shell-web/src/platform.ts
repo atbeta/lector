@@ -125,6 +125,17 @@ export async function closeWindow(): Promise<void> {
   await getCurrentWindow().close().catch((err) => console.error('[lector] close', err))
 }
 
+/**
+ * 通知壳：本窗口的 WebView 已就绪。壳借此把 snap 覆盖层重新提到 WebView2 之上
+ * （WebView2 首帧/可见性切换时会再置顶一次，晚于建窗时的 install——竞态导致
+ * 只有部分窗口悬停最大化能弹 Snap 浮窗）。浏览器预览无壳，空操作。
+ */
+export async function notifyWebviewReady(): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('webview_ready').catch((err) => console.error('[lector] webview_ready', err))
+}
+
 export async function read(path: string): Promise<ReadResult> {
   if (detectEnv() !== 'shell') {
     throw new Error('read() 仅壳环境可用')
@@ -208,7 +219,7 @@ export async function openLink(docPath: string, href: string): Promise<void> {
  * 浏览器预览（vite dev）里没有壳，退回 navigator.clipboard，那条路本来就是通的。
  *
  * 注意它**只读**：复制/剪切仍走 navigator.clipboard.writeText / execCommand，
- * 那两条路在 webview 里一直好用，不需要多开一条能力。
+ * 那两条路在 webview 里��直好用，不需要多开一条能力。
  */
 export async function readClipboard(): Promise<string> {
   if (detectEnv() !== 'shell') return navigator.clipboard.readText()
@@ -437,7 +448,7 @@ export function bindWindowControls(opts: {
 /**
  * 最大化按钮的悬停进出。
  *
- * Windows 无边框窗口上，Snap Layouts 覆盖层（原生子窗口）接管了那颗按钮的鼠标，
+ * Windows 无边框窗口上，Snap Layouts 覆盖层（原��子窗口）接管了那颗按钮的鼠标，
  * webview 收不到 :hover，按钮会「悬停无反馈」。壳在原生侧把进入/离开转成这个事件，
  * ���端据此给按钮补样式。非壳环境是 no-op。
  */
