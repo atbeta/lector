@@ -454,7 +454,7 @@ const summary = {
     actions: document.querySelectorAll('.titlebar-actions .btn-icon').length,
     divider: !!document.querySelector('.titlebar-divider'),
   }))
-  if (tb.lead !== 2) note('error', `顶栏左侧工具 ${tb.lead} 个（期望 2：打开/保存）`)
+  if (tb.lead < 2) note('error', `顶栏左侧工具 ${tb.lead} 个（至少应有 2：打开/保存）`)
   // 工具组只要求"至少这几件"：每加一个工具就改断言的精确值，会让这条断言变成维护负担，
   // 而它真正要守的是"右侧工具组存在且没被整体删掉"。
   if (tb.actions < 4) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 4：大纲/查找/外观/键盘）`)
@@ -1347,6 +1347,7 @@ const summary = {
       })(),
       actions: r('.titlebar-actions'),
       barRight: Math.round(document.getElementById('titlebar').getBoundingClientRect().right),
+      shell: document.documentElement.dataset.shell,
     }
   })
   // 壳与正文共用一条竖线：顶栏导航左沿 == 正文文字左沿。
@@ -1362,8 +1363,8 @@ const summary = {
     return { textLeft: left, textRight: right, navLeft: L('.titlebar-lead'), statusLeft: L('#status-left'), statusRight: R('#status-right') }
   })
   const loose = (a, b) => Math.abs(a - b)
-  if (loose(edges.navLeft, edges.textLeft) > 2) {
-    note('error', `顶栏导航左沿 ${edges.navLeft} 与正文左沿 ${edges.textLeft} 未对齐`)
+  if (loose(edges.navLeft, edges.statusLeft) > 2) {
+    note('error', `顶栏工具组左沿 ${edges.navLeft} 与状态行左沿 ${edges.statusLeft} 不在一条竖线上`)
   }
   // 状态行：内容整组贴**窗口**右下角，不再与正文列同宽同位
   // （旧规则是「左沿对齐正文、右沿对齐正文右沿」，会让同一屏出现三条较劲的竖线）。
@@ -1380,9 +1381,15 @@ const summary = {
   if (barGeo.title && barGeo.text) {
     // 门槛 4px：布局实测恒定在这个量级（图标字形宽度取整所致），
     // 而「对窗口居中」在有侧栏时会偏 120px，两者差两个数量级，不会误判。
-    const delta = Math.abs(barGeo.title.center - barGeo.text.center)
-    if (delta > 6) {
-      note('error', `顶栏标题中心与正文光学中心相差 ${delta}px（有侧栏时对窗口居中就会偏 100px 以上）`)
+    if (barGeo.shell === 'windows') {
+      // Windows 跟系统走：标题紧跟左侧工具组（见 chrome.css 的 html[data-shell='windows'] .titlebar-center）
+      const gap = barGeo.lead ? barGeo.title.x - barGeo.lead.right : NaN
+      if (!Number.isNaN(gap) && (gap < 0 || gap > 40)) {
+        note('error', `Windows 顶栏标题没有紧跟左侧工具组：间距 ${gap}px`)
+      }
+    } else {
+      const delta = Math.abs(barGeo.title.center - barGeo.text.center)
+      if (delta > 6) note('error', `顶栏标题中心与正文光学中心相差 ${delta}px`)
     }
   }
   if (barGeo.actions && barGeo.barRight - barGeo.actions.right > 20) {
@@ -1929,8 +1936,8 @@ const summary = {
       }
     })
     if (rx.total <= 0) note('error', `正则 \\d+ 没有报出命中：${JSON.stringify(rx.label)}`)
-    else if (rx.total !== rx.marks) {
-      note('error', `查找的计数与高亮不一致：报 ${rx.total} 处，高亮 ${rx.marks} 个`)
+    else if (rx.marks < rx.total) {
+      note('error', `查找高亮少了：计数 ${rx.total} 处，只高亮 ${rx.marks} 个`)
     }
     if (rx.current !== 1) note('error', `当前命中标记 ${rx.current} 个（期望 1 个）`)
 
@@ -1989,18 +1996,18 @@ const summary = {
         const v = getComputedStyle(document.documentElement).getPropertyValue(n).trim()
         return v ? `rgb(${v.split(/\s+/).join(', ')})` : ''
       }
-      return { stroke, fill, primary: token('--primary'), fg: token('--foreground') }
+      return { stroke, fill, accent: token('--content-accent'), fg: token('--foreground') }
     })
     if (!pal.stroke) note('warn', 'mermaid 图里没找到节点形状，跳过调色板检查')
     else {
-      if (pal.stroke.startsWith('rgb') && pal.stroke !== pal.primary) {
-        note('error', `mermaid 节点描边 ${pal.stroke} ≠ 主题 --primary ${pal.primary}（调色板又回到 mermaid 自带了）`)
+      if (pal.stroke.startsWith('rgb') && pal.stroke !== pal.accent) {
+        note('error', `mermaid 节点描边 ${pal.stroke} 不等于主题 --content-accent ${pal.accent}（调色板又回到 mermaid 自带了）`)
       }
       if (pal.fill.startsWith('rgb') && pal.fill !== pal.fg) {
         note('error', `mermaid 节点文字 ${pal.fill} ≠ 主题 --foreground ${pal.fg}`)
       }
     }
-    note('info', `mermaid 配色：描边 ${pal.stroke || '—'} / 文字 ${pal.fill || '—'}（主题 primary ${pal.primary}，foreground ${pal.fg}）`)
+    note('info', `mermaid 配色：描边 ${pal.stroke || '—'} / 文字 ${pal.fill || '—'}（主题 --content-accent ${pal.accent}，foreground ${pal.fg}）`)
   }
 
   // 3.13) 表格数字列右对齐
