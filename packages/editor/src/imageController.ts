@@ -194,6 +194,16 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       (e) => {
         const target = e.target as HTMLElement | null
         if (!target || target.tagName !== 'IMG' || !target.closest('.reading-prose')) return
+        // 阅读档：左键直接全屏看原图，和 mermaid 一致——阅读时点图的意思就是"我要看大图"，
+        // 不该先弹一个以编辑动作为主的菜单。
+        // 编辑档：左键给动作菜单（"编辑源码 / 替换图片"都在那里）。
+        // 右键在任何档位都还是完整菜单（另有 contextmenu 绑定）。
+        if (document.documentElement.dataset.mode === 'read') {
+          e.preventDefault()
+          e.stopPropagation()
+          showInLightbox((target as HTMLImageElement).src, (target as HTMLImageElement).alt)
+          return
+        }
         e.preventDefault()
         e.stopPropagation()
         const r = (target as HTMLImageElement).getBoundingClientRect()

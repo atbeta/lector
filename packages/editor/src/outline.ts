@@ -298,7 +298,11 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
         else break
       }
     }
-    setActiveHeading(active)
+    // reveal: 阅读位置变了，也要把大纲里对应那一项滚进可视区。
+    // 不传的话高亮会跟着走、但侧栏不跟滚——大纲比侧栏高时，用户看到的高亮
+    // 会"跑出屏幕外"，等于没在指示位置。只滚侧栏（block:'nearest' 顺带保证
+    // 已经在视野里时不乱动），正文不受影响。
+    setActiveHeading(active, { reveal: true })
   }
 
   function toggleOutline() {

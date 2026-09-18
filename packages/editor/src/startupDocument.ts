@@ -31,6 +31,17 @@ export async function openStartupDocument(files: Pick<FileController, 'loadSessi
     // 空文档样例：`?doc=blank`。用来验证"空的 .md 仍是一份可编辑文档"
     // （空文件必须能直接打字，不能表现成"没打开文件"）。
     else if (which === 'blank') files.loadSession('blank.md', '')
+    // 长文样例：`?doc=long`。专门用来验"大纲跟随阅读位置"——
+    // 大纲必须比侧栏高，否则当前项永远在视野里，那条断言就白写了。
+    else if (which === 'long') {
+      // 全部用 `##`（**不套 H1**）：扁平大纲不会被折叠分支吃掉高度，
+      // 40 条一定超过侧栏高度，"跟随滚动"才真的可验。
+      const parts: string[] = []
+      for (let i = 1; i <= 60; i++) {
+        parts.push(`## 第 ${i} 节\n\n本节用于压测大纲跟随：往下滚，侧栏里当前那一项必须跟着进视野。\n\n`)
+      }
+      files.loadSession('long.md', parts.join(''))
+    }
     // 大文件样例：`?doc=huge`。现场生成 5 万行（约 2MB）——不往仓库里塞大文件，
     // 同时正好压到"大文件模式"的阈值上（行数阈 4 万）。
     else if (which === 'huge') {

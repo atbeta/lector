@@ -25,6 +25,7 @@ const TARGET = urlArg ?? `http://localhost:${PORT}/`
 /** 顺序有意义：ui-verify 最全，挂在最前面，挂了也好先看见。 */
 const SCRIPTS = [
   ['ui-verify', 'tools/ui-verify.mjs'],
+  ['outline-image-verify', 'tools/outline-image-verify.mjs'],
   ['refactor-verify', 'tools/refactor-verify.mjs'],
   ['block-indicator-verify', 'tools/block-indicator-verify.mjs'],
 ]
