@@ -1,0 +1,27 @@
+#!/bin/sh
+# 挡掉非英文 commit subject——AGENTS.md 明确写了 commit message 一律英文。
+# 老 commit(d55c7b2 之前)的破坏就是 hook 缺失时我自己破的。加 hook 防止再犯。
+#
+# ASCII 字符范围 0x00-0x7F。中文都是 U+4E00+。允许 Conventional Commits 前缀里的 v<num>。
+# body(commit message 第二段起)允许任何字符——只卡 subject(去掉 type(scope): 前缀)。
+#
+# 装: git config core.hooksPath .githooks
+# 绕过(不推荐): git commit --no-verify
+
+msg=$(cat "$1")
+subject=$(printf '%s' "$msg" | head -n1)
+
+# 抓出 subject 里的 Conventional Commits 前缀,只检查去掉前缀后的部分
+core=$(printf '%s' "$subject" | sed -E 's/^(feat|fix|refactor|perf|style|ci|docs|chore|test|build)(\([^)]+\))?!?:[[:space:]]*//')
+
+# 非 ASCII 检测:任何字节 ≥ 0x80 都是非英文
+if printf '%s' "$core" | tr -d '\n' | od -An -tx1 | grep -qE '[89abcdef][0-9a-f]'; then
+  echo "❌ commit subject 含非 ASCII 字符(违反 AGENTS.md commit message 一律英文):" >&2
+  echo "  subject: $subject" >&2
+  echo "" >&2
+  echo "AGENTS.md 的规则:commit message 一律英文。" >&2
+  echo "代码注释可继续中文,用户文案必须中英双语——这两处另说。" >&2
+  echo "" >&2
+  echo "绕开(不推荐):git commit --no-verify" >&2
+  exit 1
+fi
