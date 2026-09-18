@@ -1,38 +1,43 @@
-# Lector 更新日志
+# Lector Changelog
 
-本文件记录面向用户的改动,按版本倒序排列。每版按 Conventional Commits
-前缀分类,归入三栏:
+Per-version user-facing changes, newest first. Each release is grouped by
+Conventional Commits prefix into four buckets:
 
-- **新增** — 新功能
-- **修复** — Bug 修复
-- **改进** — 重构、性能、样式、CI 等不引入新功能的改动
-- **内部** — 文档/注释/对用户不可见的杂项
+- **Added** — new features
+- **Fixed** — bug fixes
+- **Improved** — refactors, performance, styling, CI, and other non-feature changes
+- **Internal** — docs, comments, and other non-user-visible cleanup
 
-不计入日志的提交类型:`chore:`(仓库维护)、`test:`(测试代码)、release 自身。
-[全部 compare](https://github.com/atbeta/lector/commits/main)
+Skipped from the changelog: `chore:` (repo maintenance), `test:` (test code),
+and the `chore(release):` commits themselves.
+[compare all](https://github.com/atbeta/lector/commits/main)
+
+> Note: bullets are taken verbatim from commit messages, so a single version
+> may mix Chinese and English depending on who wrote each commit. Translation
+> would break `git blame` traceability, so it is intentionally not done.
 
 ## v0.29.0 (2026-09-18)
 
-### 新增
+### Added
 
 - scale the UI with native webview zoom
 - widen the default column to 800px and the manual theme to 1000px
 
-### 修复
+### Fixed
 
 - keep row labels on one line and tidy the test-command row
 - keep the outline sidebar from scrolling away its left padding
 - stop advanced settings textareas from overflowing and resizing
 - keep a poisoned lock from taking the whole shell down
 
-### 改进
+### Improved
 
 - make global shortcut dispatch a pure decision table
 - split io.rs into domain modules
 - finish splitting platform.ts into domain modules
 - start splitting platform.ts - extract the shared core
 
-### 内部
+### Internal
 
 - add v1 acceptance record for perf and IME
 - align the project package with what shipped
@@ -43,7 +48,7 @@
 
 ## v0.28.1 (2026-09-18)
 
-### 修复
+### Fixed
 
 - stop the resize grip from drawing a second line on hover
 - make the rot check survive a shallow clone
@@ -52,18 +57,18 @@
 
 ## v0.28.0 (2026-09-18)
 
-### 新增
+### Added
 
 - re-implement the reading-polish line on our branch
 - show the window only after the page has painted
 
-### 修复
+### Fixed
 
 - restore two user-visible strings damaged by encoding rot
 - five visual problems from the polish pass
 - drop the stray pnpm lockfile, keep bun as the only package manager
 
-### 改进
+### Improved
 
 - make the right-click decision table pure and tested
 - split app.css into five ordered partials
@@ -72,7 +77,7 @@
 
 ## v0.27.5 (2026-09-17)
 
-### 新增
+### Added
 
 - open dropped md/txt via native drag-drop channel;
 
@@ -80,7 +85,7 @@
 
 ## v0.27.4 (2026-09-17)
 
-### 修复
+### Fixed
 
 - drop stale micromark-extension-gfm imports;
 
@@ -88,7 +93,7 @@
 
 ## v0.27.3 (2026-09-17)
 
-### 新增
+### Added
 
 - refactor codePreview.ts for mermaid rendering & resize observer
 - enhance Gantt chart task bar width handling in mermaid rendering
@@ -96,7 +101,7 @@
 - enhance footnote rendering and scrolling logic
 - update micromark extensions to latest versions
 
-### 修复
+### Fixed
 
 - gantt canvas floor 1000px with min-width lock;
 
@@ -104,7 +109,7 @@
 
 ## v0.27.2 (2026-09-17)
 
-### 修复
+### Fixed
 
 - add missing gfm-footnote tokenizer;
 
@@ -112,7 +117,7 @@
 
 ## v0.27.1 (2026-09-17)
 
-### 修复
+### Fixed
 
 - allow anchor clicks in shouldOpenHref;
 
@@ -120,14 +125,14 @@
 
 ## v0.27.0 (2026-09-17)
 
-### 新增
+### Added
 
 - tint diagrams with dedicated indigo accent;
 - in-document anchor links jump to headings (GitHub slug compat)
 - per-codeblock wrap toggle button next to copy (pref persists)
 - footnote rendering, ==mark== highlight, details/kbd HTML whitelist
 
-### 修复
+### Fixed
 
 - suppress console flash when opening external links on Windows
 - center diagrams;
@@ -136,7 +141,7 @@
 
 ## v0.26.10 (2026-09-17)
 
-### 修复
+### Fixed
 
 - drop redundant tooltip on recent-file list items
 - overlay covers entire export;
@@ -145,7 +150,7 @@
 
 ## v0.26.9 (2026-09-17)
 
-### 修复
+### Fixed
 
 - spinner covers theme flip and mermaid wait;
 - keep copy button right-aligned on code blocks without a language label
@@ -154,7 +159,7 @@
 
 ## v0.26.8 (2026-09-17)
 
-### 修复
+### Fixed
 
 - all visual changes after save dialog;
 
@@ -162,11 +167,11 @@
 
 ## v0.26.7 (2026-09-17)
 
-### 新增
+### Added
 
 - add exporting PDF feedback and update exportPdf function
 
-### 修复
+### Fixed
 
 - theme flip via setThemeMode so mermaid re-renders light;
 
@@ -174,7 +179,7 @@
 
 ## v0.26.6 (2026-09-17)
 
-### 修复
+### Fixed
 
 - overlay must not be captured;
 
@@ -182,7 +187,7 @@
 
 ## v0.26.5 (2026-09-17)
 
-### 修复
+### Fixed
 
 - drop offscreen print window;
 
@@ -190,7 +195,7 @@
 
 ## v0.26.4 (2026-09-17)
 
-### 修复
+### Fixed
 
 - runtime window placement, step-title diagnostics, error bridge, print-* capabil…
 
@@ -198,7 +203,7 @@
 
 ## v0.26.3 (2026-09-17)
 
-### 新增
+### Added
 
 - export via offscreen print window;
 
@@ -206,11 +211,11 @@
 
 ## v0.26.2 (2026-09-17)
 
-### 新增
+### Added
 
 - enhance print and PDF export styles for better rendering
 
-### 修复
+### Fixed
 
 - print styles as .printing class with !
 
@@ -218,7 +223,7 @@
 
 ## v0.26.1 (2026-09-17)
 
-### 修复
+### Fixed
 
 - re-raise snap overlay after WebView2 settles its z-order
 
@@ -226,7 +231,7 @@
 
 ## v0.26.0 (2026-09-17)
 
-### 新增
+### Added
 
 - enhance file handling with closeWindow and reload confirmations
 - enhance window scaling and update export button icon
@@ -235,7 +240,7 @@
 
 ## v0.25.7 (2026-09-17)
 
-### 修复
+### Fixed
 
 - render() must not wipe empty state when no document is open
 - compile pdf export against real webview2-com API;
@@ -245,11 +250,11 @@
 
 ## v0.25.6 (2026-09-17)
 
-### 新增
+### Added
 
 - PDF export via WebView2 PrintToPdf with shared print CSS
 
-### 修复
+### Fixed
 
 - single-path window restore, shell-injected early theme, palette appearance icon
 
@@ -257,7 +262,7 @@
 
 ## v0.25.5 (2026-09-17)
 
-### 修复
+### Fixed
 
 - empty paragraph keeps a clickable surface;
 
@@ -265,17 +270,17 @@
 
 ## v0.25.4 (2026-09-17)
 
-### 新增
+### Added
 
 - code line numbers with settings toggle;
 - add code line numbers setting and display in editor
 
-### 修复
+### Fixed
 
 - drop chcp 65001 from assoc cmds;
 - image context menu gains delete and insert-paragraph actions
 
-### 改进
+### Improved
 
 - encode portable cmds as GBK and assert it in smoke test
 
@@ -283,7 +288,7 @@
 
 ## v0.25.3 (2026-09-17)
 
-### 改进
+### Improved
 
 - dedicated 6px media radius for images, tables, code blocks
 - instant modal backdrop, snappier card entrance
@@ -292,15 +297,15 @@
 
 ## v0.25.2 (2026-09-17)
 
-### 新增
+### Added
 
 - portable zip ships md icon and file-assoc cmd scripts
 
-### 修复
+### Fixed
 
 - carve GFM-absorbed paragraph lines out of table blocks
 
-### 改进
+### Improved
 
 - assemble portable zip with icon and assoc scripts
 - instant nav/find jumps;
@@ -309,7 +314,7 @@
 
 ## v0.25.1 (2026-09-17)
 
-### 修复
+### Fixed
 
 - make the link path tests platform-neutral
 
@@ -317,13 +322,13 @@
 
 ## v0.25.0 (2026-09-17)
 
-### 新增
+### Added
 
 - let users configure mermaid themselves
 - follow local links from a document
 - show block boundaries and put the block menu on a handle
 
-### 修复
+### Fixed
 
 - keep the context menu from stealing focus from a selection
 - stop "insert below" gluing the new block to the line above
@@ -336,7 +341,7 @@
 - make table grid chrome symmetric and aligned
 - repair truncated head script that swallowed favicon and title setup
 
-### 改进
+### Improved
 
 - split main.ts into focused controller modules
 
@@ -344,11 +349,11 @@
 
 ## v0.24.10 (2026-09-16)
 
-### 新增
+### Added
 
 - syntax highlighting for fenced code in focused blocks
 
-### 修复
+### Fixed
 
 - table op icons shrunk by global button padding;
 
@@ -356,7 +361,7 @@
 
 ## v0.24.9 (2026-09-16)
 
-### 新增
+### Added
 
 - table row reorder, unified icon ops, image alt edit and replace
 
@@ -364,7 +369,7 @@
 
 ## v0.24.8 (2026-09-16)
 
-### 新增
+### Added
 
 - mermaid live preview panel, syntax highlighting, insert template
 
@@ -372,7 +377,7 @@
 
 ## v0.24.7 (2026-09-16)
 
-### 修复
+### Fixed
 
 - bind mermaid font to UI sans and stop OpenType feature leak
 
@@ -380,7 +385,7 @@
 
 ## v0.24.6 (2026-09-16)
 
-### 改进
+### Improved
 
 - polish reading surface details
 
@@ -388,7 +393,7 @@
 
 ## v0.24.5 (2026-09-16)
 
-### 修复
+### Fixed
 
 - document icon never shows
 
@@ -396,7 +401,7 @@
 
 ## v0.24.4 (2026-09-16)
 
-### 修复
+### Fixed
 
 - defer window creation out of the single-instance wndproc
 
@@ -404,7 +409,7 @@
 
 ## v0.24.3 (2026-09-16)
 
-### 修复
+### Fixed
 
 - kill the Lector title flash;
 
@@ -412,7 +417,7 @@
 
 ## v0.24.2 (2026-09-16)
 
-### 修复
+### Fixed
 
 - never call Tauri from the window procedure (second-window hang)
 
@@ -420,7 +425,7 @@
 
 ## v0.24.1 (2026-09-16)
 
-### 修复
+### Fixed
 
 - set the window title from the document at creation
 - links opened with window.open are swallowed in the shell
@@ -429,7 +434,7 @@
 
 ## v0.24.0 (2026-09-16)
 
-### 新增
+### Added
 
 - give .md its own document icon instead of the app icon
 - redesign the About pane as a centered card
@@ -440,7 +445,7 @@
 - refine the entry page and titlebar chrome
 - editable plain-text fallback for large files
 
-### 修复
+### Fixed
 
 - stop design-audit failing on Windows paths
 - suppress the webview context menu on every surface
@@ -456,7 +461,7 @@
 - images and saves on Windows
 - make Windows 11 Snap Layouts actually fire
 
-### 改进
+### Improved
 
 - make the image settings follow the selected mode
 - put settings before the shortcuts button in the titlebar
@@ -473,7 +478,7 @@
 
 ## v0.23.1 (2026-09-15)
 
-### 修复
+### Fixed
 
 - tauri has no toggle_maximize — dispatch via is_maximized
 
@@ -481,12 +486,12 @@
 
 ## v0.23.0 (2026-09-15)
 
-### 新增
+### Added
 
 - Windows 11 Snap Layouts on the custom maximize button
 - quick task toggles, code card header, shortcut popover, file linkage, large-fil…
 
-### 修复
+### Fixed
 
 - second document window froze the app on macOS
 - dropping an image onto the window did nothing
@@ -495,7 +500,7 @@
 
 ## v0.22.0 (2026-09-15)
 
-### 改进
+### Improved
 
 - drop the brand blue — ink accent by default, theme accents stay
 
@@ -503,7 +508,7 @@
 
 ## v0.21.0 (2026-09-15)
 
-### 新增
+### Added
 
 - real app icon, flicker-free window restore, polished empty state, about section
 
@@ -511,7 +516,7 @@
 
 ## v0.20.0 (2026-09-15)
 
-### 改进
+### Improved
 
 - adopt Lector monogram logo
 - refine client window and empty state
@@ -521,7 +526,7 @@
 
 ## v0.19.1 (2026-09-15)
 
-### 修复
+### Fixed
 
 - empty state fits short windows
 
@@ -529,13 +534,13 @@
 
 ## v0.19.0 (2026-09-15)
 
-### 新增
+### Added
 
 - keyboard shortcuts panel
 - large-file mode, copy rules, shortcuts out of tips
 - new document from the empty state
 
-### 修复
+### Fixed
 
 - an empty document is a writable document
 - empty file stays an editable document
@@ -545,7 +550,7 @@
 
 ## v0.18.1 (2026-09-15)
 
-### 新增
+### Added
 
 - shift palette to warm-neutral slate (NoteFast direction);
 
@@ -553,7 +558,7 @@
 
 ## v0.18.0 (2026-09-15)
 
-### 新增
+### Added
 
 - typography-led empty state;
 
@@ -561,7 +566,7 @@
 
 ## v0.17.0 (2026-09-15)
 
-### 新增
+### Added
 
 - polish empty state, add recent-list clear, round window corners on Windows
 
@@ -569,19 +574,19 @@
 
 ## v0.16.0 (2026-09-15)
 
-### 新增
+### Added
 
 - three-mode image insert pipeline (images / assets / command)
 - dir template + command split helpers;
 - image insert working schema (images/assets/command + command args)
 - tidy titlebar and find-bar;
 
-### 修复
+### Fixed
 
 - sidebar aria-label i18n;
 - currency-as-math, invisible footnotes, and per-formula render isolation
 
-### 内部
+### Internal
 
 - record the new image-command shell role and updated IPC contract
 
@@ -589,7 +594,7 @@
 
 ## v0.15.0 (2026-09-14)
 
-### 新增
+### Added
 
 - recent files list in the empty state
 
@@ -597,7 +602,7 @@
 
 ## v0.14.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 查找选项与正则、表格数字列右对齐、mermaid 调色板绑 token
 
@@ -605,7 +610,7 @@
 
 ## v0.13.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 外部变更提示改成可操作（补强 #1）
 
@@ -613,7 +618,7 @@
 
 ## v0.12.1 (2026-09-14)
 
-### 修复
+### Fixed
 
 - 大纲三级及以下不再用小字号（各级统一 14px）
 
@@ -621,7 +626,7 @@
 
 ## v0.12.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 设置改两栏 + 搜索、未保存草稿恢复、自定义样式
 
@@ -629,7 +634,7 @@
 
 ## v0.11.2 (2026-09-14)
 
-### 新增
+### Added
 
 - 代码块与表格改版、大纲字号、动效收敛；壳不再恢复最大化
 
@@ -637,7 +642,7 @@
 
 ## v0.11.1 (2026-09-14)
 
-### 修复
+### Fixed
 
 - 补 window-state 的 trait 引入（v0.11.0 构建失败的真因）
 
@@ -645,7 +650,7 @@
 
 ## v0.11.0 (2026-09-14)
 
-### 修复
+### Fixed
 
 - 存不了盘 / 查找不显示第几处且不高亮 / 全屏恢复闪烁 / 缩放没读数
 
@@ -653,7 +658,7 @@
 
 ## v0.10.1 (2026-09-14)
 
-### 修复
+### Fixed
 
 - 补上 window-state 插件的 Cargo.lock（v0.10.0 的 CI 就是栽在这里）
 
@@ -661,7 +666,7 @@
 
 ## v0.10.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 界面缩放、编辑态选区浮条、窗口状态记忆
 
@@ -669,7 +674,7 @@
 
 ## v0.9.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 状态行贴窗口右下角、侧栏不再浮层、顶栏文件名与间距打磨
 
@@ -677,7 +682,7 @@
 
 ## v0.8.1 (2026-09-14)
 
-### 修复
+### Fixed
 
 - mermaid 渲染与 notefast 对齐（正文自然尺寸 + 灯箱内联 SVG）
 
@@ -685,7 +690,7 @@
 
 ## v0.8.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 灯箱缩放平移、细滚动条、去掉大纲节数
 
@@ -693,7 +698,7 @@
 
 ## v0.7.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 侧栏可调宽、树形大纲、图表与右键修复
 
@@ -701,11 +706,11 @@
 
 ## v0.6.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 阅读主题 6 款 + 三档视图模式改名与打磨
 
-### 改进
+### Improved
 
 - Python heredoc open() 显式 encoding='utf-8'
 - Tag 版本号检查显式走 Git Bash
@@ -714,17 +719,17 @@
 
 ## v0.5.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 三视图模式 read / write / split
 - KaTeX 数学公式渲染
 - 图片粘贴去重,同会话内同图只占一份磁盘
 
-### 修复
+### Fixed
 
 - 保存错误不再静默吞掉,toast 带 Rust 错误字符串
 
-### 改进
+### Improved
 
 - 抽 loadState.ts,空/加载态从 main.ts 拆出
 - 缓存 theme+code → SVG,LRU 上限 200
@@ -734,17 +739,17 @@
 
 ## v0.4.0 (2026-09-14)
 
-### 新增
+### Added
 
 - 只读模式默认 + 编辑模式切换 + mermaid 放大
 - 自绘 Tip 组件,全量替换 11 处 title=
 
-### 修复
+### Fixed
 
 - 打开文件时进入加载态,不再闪「打开文件」按钮
 - 滚动条仅在滚动时短暂出现
 
-### 改进
+### Improved
 
 - 删除右侧阅读导航轨
 
@@ -752,18 +757,18 @@
 
 ## v0.3.0 (2026-09-14)
 
-### 新增
+### Added
 
 - Mermaid 图表渲染
 
-### 修复
+### Fixed
 
 - 非 macOS 隐藏菜单栏 + Web 端补快捷键
 - 表格打开再关上不应让文件变脏
 - 拖选区不会被随后的 click 事件清掉
 - notefast 风格滚动条（默认隐形，悬停渐显）
 
-### 改进
+### Improved
 
 - LibreChat 风格阅读导航轨
 
@@ -771,7 +776,7 @@
 
 ## v0.2.0 (2026-09-14)
 
-### 新增
+### Added
 
 - reading rail, table grid editor, wider sidebar, custom scrollbars
 - undoable block ops, and pasted HTML becomes Markdown
@@ -799,7 +804,7 @@
 - block preview with focused-block CodeMirror
 - slice markdown into source-position blocks
 
-### 修复
+### Fixed
 
 - one vertical line for the whole shell
 - restore the macOS window frame and unify window creation
@@ -818,7 +823,7 @@
 - use official dialog plugin and surface open errors
 - correct frontendDist depth and build script order
 
-### 改进
+### Improved
 
 - make the publish step end in a published release, not a draft
 - assert the published release is actually attached to the tag
@@ -829,7 +834,7 @@
 - sharpen focused-block and image affordance
 - route open/save/watch through platform IO
 
-### 内部
+### Internal
 
 - document what each audit measures and why both exist
 - record the verified Windows packaging path and pitfalls
