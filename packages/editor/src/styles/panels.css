@@ -135,6 +135,82 @@
   border-color: rgb(var(--ring) / 0.6);
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
+/* 输入框 + 按钮横排（外部应用的「添加应用」行）：输入框吃满剩余宽度，按钮按内容宽。 */
+.settings-inline { display: flex; align-items: center; gap: 8px; }
+.settings-inline > .settings-input { flex: 1 1 auto; min-width: 0; }
+.settings-inline > .btn { flex: 0 0 auto; }
+
+/* ── 外部应用列表 ──
+ * 书目式清单（与空态「最近打开」同一语言）：发丝级分区、悬停中性灰底，
+ * 选中态用主色浅底 + 对勾，不用单选圈——列表本身就是"选一个"。 */
+.app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.app-item:hover { background: var(--block-hover-bg); }
+.app-item[data-active='true'] { background: var(--primary-softer); }
+.app-item:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 1px; }
+.app-item-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--muted-foreground));
+}
+.app-item-icon img { width: 24px; height: 24px; }
+.app-item-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.app-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base);
+  color: rgb(var(--foreground));
+}
+.app-item-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: rgb(var(--subtle-foreground));
+}
+.app-item-check { flex: 0 0 auto; display: none; color: rgb(var(--primary)); }
+.app-item[data-active='true'] .app-item-check { display: inline-flex; }
+/* 移除按钮只在悬停/聚焦行时浮现：常驻一排 × 是纯视觉噪音 */
+.app-item-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: rgb(var(--subtle-foreground));
+  cursor: pointer;
+  opacity: 0;
+}
+.app-item:hover .app-item-remove,
+.app-item:focus-within .app-item-remove { opacity: 1; }
+.app-item-remove:hover { background: rgb(var(--muted) / 0.7); color: rgb(var(--foreground)); }
 .settings-empty { padding: 24px 4px; font-size: var(--text-base); color: rgb(var(--muted-foreground)); }
 
 /* ───────────── 未保存草稿提示 ─────────────

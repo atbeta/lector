@@ -1,4 +1,4 @@
-import { applyEncoding } from '@lector/core'
+import { applyEncoding, appDisplayName } from '@lector/core'
 import {
   detectEnv,
   pickAndRead,
@@ -330,10 +330,10 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     return isAbsolutePath(p) ? p : null
   }
 
-  /** 菜单标签：配了外部应用就写明是哪个，没配才说"默认应用"（标签不能撒谎）。 */
+  /** 菜单标签：配了外部应用就写明是哪个（剥掉 .exe 等扩展名），没配才说"默认应用"（标签不能撒谎）。 */
   function openWithLabel(): string {
     const app = getSettings().externalApp.trim()
-    return app ? t('menuOpenWith', { app: baseName(app) }) : t('menuOpenDefault')
+    return app ? t('menuOpenWith', { app: appDisplayName(app) }) : t('menuOpenDefault')
   }
 
   /**

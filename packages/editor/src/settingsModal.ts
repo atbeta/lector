@@ -20,7 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
-import { isPlausibleAppPath, pushRecentApp } from '@lector/core'
+import { appDisplayName, isPlausibleAppPath, pushRecentApp } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -28,9 +28,37 @@ import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
 import { parseMermaidConfig } from './mermaid.ts'
-import { testImageCommand, runImageCommand, appVersion, pickAppPath } from '@lector/shell-web'
+import {
+  testImageCommand,
+  runImageCommand,
+  appVersion,
+  pickAppPath,
+  appInfo,
+  type ExternalAppInfo,
+} from '@lector/shell-web'
 
 let root: HTMLElement | null = null
+
+// 应用图标/显示名查询走壳 IPC，按路径缓存到模块级：面板每次打开都重建 DOM，
+// 不缓存的话列表每次都要从占位图标闪一次。
+const appInfoCache = new Map<string, Promise<ExternalAppInfo | null>>()
+function appInfoFor(path: string): Promise<ExternalAppInfo | null> {
+  let p = appInfoCache.get(path)
+  if (!p) {
+    p = appInfo(path)
+    appInfoCache.set(path, p)
+  }
+  return p
+}
+
+/** number[]（IPC 序列化的 PNG 字节）→ data URL，直接喂 <img>。 */
+function pngDataUrl(bytes: number[]): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode(...bytes.slice(i, i + 0x8000))
+  }
+  return `data:image/png;base64,${btoa(bin)}`
+}
 
 /** 打开时定位到哪一节（面板是每次重建的，用模块变量记住用户上次看的那节）。 */
 let lastSection = 'appearance'
@@ -306,77 +334,6 @@ export function openSettingsModal(onClose?: () => void) {
   )
   images.appendChild(markRowForModes(row(t('imageCommandArgs'), argsInput), 'command'))
 
-  // 「用其他应用打开」：与图片命令同一约定（可执行文件 + 参数数组，文件路径追加在最后）。
-  // 放在图片命令旁边——它们是一类东西：把文件交给外部程序。
-  const appInput = h('input', 'settings-input') as HTMLInputElement
-  appInput.type = 'text'
-  appInput.spellcheck = false
-  appInput.value = getSettings().externalApp
-  appInput.placeholder = 'C:\\Program Files\\Typora\\Typora.exe'
-  appInput.addEventListener('input', () => apply((s) => ({ ...s, externalApp: appInput.value })))
-  // 这一行在下面和「浏览…」按钮一起组装（见 appRow），这里不再单独 append。
-
-  const appArgsInput = h('input', 'settings-input') as HTMLInputElement
-  appArgsInput.type = 'text'
-  appArgsInput.spellcheck = false
-  appArgsInput.value = getSettings().externalAppArgs.join(' ')
-  appArgsInput.addEventListener('input', () =>
-    apply((s) => ({ ...s, externalAppArgs: appArgsInput.value.split(/\s+/).filter(Boolean) })),
-  )
-  images.appendChild(markRowForModes(row(t('externalAppArgs'), appArgsInput), 'command'))
-
-  // 「浏览…」+「最近用过」：
-  // - 手打可执行文件路径在 Windows 上太难（长、带空格、per-user / per-machine 两套位置）；
-  // - 常用应用列表由**用户自己的选择**长出来，而不是硬编码一份猜的路径表——
-  //   那些路径随安装方式变化，猜错一次就是"点了打不开"，比没有更糟。
-  const browseBtn = h('button', 'settings-btn') as HTMLButtonElement
-  browseBtn.type = 'button'
-  browseBtn.textContent = t('externalAppBrowse')
-  const recentSelect = h('select', 'settings-input') as HTMLSelectElement
-  const recentRow = markRowForModes(row(t('externalAppRecent'), recentSelect), 'command')
-
-  const renderRecent = (): void => {
-    const list = getSettings().externalAppRecent
-    recentRow.hidden = list.length === 0
-    recentSelect.replaceChildren()
-    for (const app of list) {
-      const opt = document.createElement('option')
-      opt.value = app
-      opt.textContent = app.split(/[\\/]/).pop() || app
-      recentSelect.append(opt)
-    }
-    recentSelect.value = getSettings().externalApp
-  }
-
-  browseBtn.addEventListener('click', () => {
-    void pickAppPath().then((picked) => {
-      if (!picked) return
-      appInput.value = picked
-      apply((s) => ({ ...s, externalApp: picked, externalAppRecent: pushRecentApp(s.externalAppRecent, picked) }))
-      renderRecent()
-    })
-  })
-  recentSelect.addEventListener('change', () => {
-    const picked = recentSelect.value
-    appInput.value = picked
-    apply((s) => ({ ...s, externalApp: picked }))
-  })
-
-  const appRow = h('div', 'settings-inline')
-  appRow.append(appInput, browseBtn)
-  images.appendChild(markRowForModes(row(t('externalApp'), appRow, t('externalAppHint')), 'command'))
-  images.appendChild(recentRow)
-  renderRecent()
-
-  // 手打路径也要进"最近用过"，但只在**失焦**时收，且看起来像路径才收：
-  // 输入过程中收会把 "C:\Pro"、"C:\Program" 这些半截值全塞进列表。
-  // （注册放在 renderRecent 之后：它要用这个名字，块作用域里先引用会报错。）
-  appInput.addEventListener('blur', () => {
-    if (!isPlausibleAppPath(appInput.value)) return
-    apply((s) => ({ ...s, externalAppRecent: pushRecentApp(s.externalAppRecent, appInput.value) }))
-    renderRecent()
-  })
-
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),
     1,
@@ -433,6 +390,159 @@ export function openSettingsModal(onClose?: () => void) {
     dirHintEl.textContent = mode === 'command' ? t('imageAssetsDirHintCommand') : t('imageAssetsDirHint')
     applyFilter()
   }
+
+  // ── 外部应用 ──
+  // 「用其他应用打开」的配置。曾经放在「图片」区跟着上传命令——那只是实现上的邻居
+  // （都是"把文件交给外部程序"），对用户来说是另一件事：它属于打开方式，不属于图片。
+  //
+  // 形态是**可点选的应用列表**（图标 + 显示名 + 路径），而不是裸路径输入框：
+  // 路径是给人认的，应用是给人点的。列表 = 最近用过 ∪ 当前选中；
+  // 首项永远是「系统默认」（externalApp 为空）。
+  const externalApps = makeSection('externalApps', t('externalApps'))
+  const appListEl = h('div', 'app-list')
+
+  const selectApp = (path: string | null): void => {
+    apply((s) => ({ ...s, externalApp: path ?? '' }))
+    renderApps()
+  }
+
+  const removeApp = (path: string): void => {
+    apply((s) => ({
+      ...s,
+      externalAppRecent: s.externalAppRecent.filter((a) => a !== path),
+      // 移除的正是当前选中项时回退到系统默认，不留一个打不开的选中态
+      externalApp: s.externalApp.trim() === path ? '' : s.externalApp,
+    }))
+    renderApps()
+  }
+
+  function appItem(path: string | null): HTMLElement {
+    const current = getSettings().externalApp.trim()
+    const item = h('div', 'app-item')
+    item.tabIndex = 0
+    item.setAttribute('role', 'button')
+    item.dataset.active = String((path ?? '') === current)
+
+    const iconBox = h('span', 'app-item-icon')
+    iconBox.innerHTML = iconSvg(path ? 'appWindow' : 'fileOutput')
+    const text = h('span', 'app-item-text')
+    const name = h('span', 'app-item-name')
+    name.textContent = path ? appDisplayName(path) : t('externalAppSystemDefault')
+    text.appendChild(name)
+    if (path) {
+      const pathEl = h('span', 'app-item-path')
+      pathEl.textContent = path
+      text.appendChild(pathEl)
+    }
+    const check = h('span', 'app-item-check')
+    check.innerHTML = iconSvg('check', 14)
+    item.append(iconBox, text, check)
+
+    if (path) {
+      const remove = h('button', 'app-item-remove') as HTMLButtonElement
+      remove.type = 'button'
+      remove.innerHTML = iconSvg('close', 13)
+      remove.setAttribute('aria-label', t('externalAppRemove'))
+      remove.title = t('externalAppRemove')
+      remove.addEventListener('click', (e) => {
+        e.stopPropagation()
+        removeApp(path)
+      })
+      item.appendChild(remove)
+
+      // 图标与真名是装饰性的，异步到了再换上；节点可能已被重渲染丢弃，无所谓。
+      void appInfoFor(path).then((info) => {
+        if (!info) return
+        if (info.name) name.textContent = info.name
+        if (info.icon_png && info.icon_png.length > 0) {
+          const img = document.createElement('img')
+          img.src = pngDataUrl(info.icon_png)
+          img.alt = ''
+          iconBox.replaceChildren(img)
+        }
+      })
+    }
+
+    const onPick = () => selectApp(path)
+    item.addEventListener('click', onPick)
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onPick()
+      }
+    })
+    return item
+  }
+
+  function renderApps(): void {
+    const s = getSettings()
+    const current = s.externalApp.trim()
+    const paths = [...s.externalAppRecent]
+    // 当前选中项可能不在最近列表里（比如手输了光秃秃的命令名）——也得显示出来，
+    // 否则界面上看不到"现在到底选中的是谁"。
+    if (current && !paths.includes(current)) paths.unshift(current)
+    appListEl.replaceChildren()
+    appListEl.appendChild(appItem(null))
+    for (const p of paths) appListEl.appendChild(appItem(p))
+  }
+
+  const listRow = row(t('externalAppList'), appListEl, t('externalAppListHint'))
+  listRow.classList.add('settings-row-stack')
+  externalApps.appendChild(listRow)
+
+  // 添加：「浏览…」是主路径（手打可执行文件路径在 Windows 上太难：长、带空格、
+  // per-user / per-machine 两套位置）；输入框留给粘贴与 PATH 上的命令名。
+  // 常用应用列表由**用户自己的选择**长出来，而不是硬编码一份猜的路径表。
+  const addInput = h('input', 'settings-input') as HTMLInputElement
+  addInput.type = 'text'
+  addInput.spellcheck = false
+  addInput.placeholder = 'C:\\Program Files\\Typora\\Typora.exe'
+  const addBrowseBtn = h('button', 'btn btn-ghost') as HTMLButtonElement
+  addBrowseBtn.type = 'button'
+  addBrowseBtn.textContent = t('externalAppBrowse')
+  const addRow = h('div', 'settings-inline')
+  addRow.append(addInput, addBrowseBtn)
+
+  const commitAdd = (): void => {
+    const v = addInput.value.trim()
+    if (!v) return
+    // 半截路径（"C:\Pro"）不收进列表——isPlausibleAppPath 的判据挡住它们；
+    // 但允许直接选中，光秃秃的命令名（code）走 PATH 也能打开。
+    apply((s) => ({
+      ...s,
+      externalApp: v,
+      externalAppRecent: isPlausibleAppPath(v) ? pushRecentApp(s.externalAppRecent, v) : s.externalAppRecent,
+    }))
+    addInput.value = ''
+    renderApps()
+  }
+  addInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitAdd()
+    }
+  })
+  addInput.addEventListener('blur', commitAdd)
+  addBrowseBtn.addEventListener('click', () => {
+    void pickAppPath().then((picked) => {
+      if (!picked) return
+      apply((s) => ({ ...s, externalApp: picked, externalAppRecent: pushRecentApp(s.externalAppRecent, picked) }))
+      renderApps()
+    })
+  })
+  externalApps.appendChild(row(t('externalAppAdd'), addRow, t('externalAppAddHint')))
+
+  // 附加参数：与图片命令同一约定（参数数组，文件路径由壳追加在最后）。
+  const appArgsInput = h('input', 'settings-input') as HTMLInputElement
+  appArgsInput.type = 'text'
+  appArgsInput.spellcheck = false
+  appArgsInput.value = getSettings().externalAppArgs.join(' ')
+  appArgsInput.addEventListener('input', () =>
+    apply((s) => ({ ...s, externalAppArgs: appArgsInput.value.split(/\s+/).filter(Boolean) })),
+  )
+  externalApps.appendChild(row(t('externalAppArgs'), appArgsInput))
+
+  renderApps()
 
   // ── 高级 ──
   const advanced = makeSection('advanced', t('advanced'))

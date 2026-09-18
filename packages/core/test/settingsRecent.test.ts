@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isPlausibleAppPath, pushRecentApp } from '../src/settings.ts'
+import { appDisplayName, isPlausibleAppPath, pushRecentApp } from '../src/settings.ts'
 
 describe('最近用过的应用', () => {
   test('重复使用提到最前，而不是新增一条', () => {
@@ -10,6 +10,19 @@ describe('最近用过的应用', () => {
   })
   test('空白不占位', () => {
     expect(pushRecentApp(['a'], '   ')).toEqual(['a'])
+  })
+})
+
+describe('外部应用展示名', () => {
+  test('剥掉可执行扩展名', () => {
+    expect(appDisplayName('C:\\Program Files\\Typora\\Typora.exe')).toBe('Typora')
+    expect(appDisplayName('/Applications/Visual Studio Code.app')).toBe('Visual Studio Code')
+  })
+  test('无扩展名时原样返回基名', () => {
+    expect(appDisplayName('/usr/bin/code')).toBe('code')
+  })
+  test('光秃秃的名字不炸', () => {
+    expect(appDisplayName('typora')).toBe('typora')
   })
 })
 

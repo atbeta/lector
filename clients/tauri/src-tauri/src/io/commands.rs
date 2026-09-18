@@ -178,6 +178,13 @@ pub fn open_with_app(path: String, app: String, args: Vec<String>) -> Result<(),
   cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// 「用其他应用打开」的展示信息：显示名 + 图标 PNG（设置面板应用列表用）。
+/// 纯装饰性查询，拿不到就退回基名/无图标，不为装饰报错——细节见 io/appinfo.rs。
+#[tauri::command]
+pub fn app_info(path: String) -> super::appinfo::AppInfo {
+  super::appinfo::app_info(&path)
+}
+
 /// 在系统文件管理器中显示当前文件（Finder 显示 / 资源管理器选中）。
 #[tauri::command]
 pub fn reveal_in_folder(path: String) -> Result<(), String> {

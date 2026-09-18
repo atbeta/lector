@@ -261,6 +261,17 @@ export function isPlausibleAppPath(value: string): boolean {
 }
 
 /**
+ * 外部应用的兜底展示名：取路径基名、剥掉可执行扩展名
+ * （`C:\Apps\Typora\Typora.exe` → `Typora`，`/Applications/Typora.app` → `Typora`）。
+ * 壳侧能拿到更准的名字（exe 的版本资源 / .app 的 bundle 名），这个是拿不到时的下限，
+ * 也是菜单标签这种同步上下文里的唯一选择。
+ */
+export function appDisplayName(path: string): string {
+  const base = path.split(/[\\/]/).filter(Boolean).pop() ?? path
+  return base.replace(/\.(exe|app|cmd|bat|com|sh|AppImage)$/i, '') || base
+}
+
+/**
  * 套用某款阅读主题的标定排版：返回一份新设置。
  *
  * 只覆盖主题标定的四项（字体 / 字号 / 行距 / 栏宽），其余设置不动。

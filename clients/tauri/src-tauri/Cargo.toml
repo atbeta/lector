@@ -45,6 +45,8 @@ window-vibrancy = "0.8.0"
 # 出现两个版本时 ICoreWebView2Controller 类型对不上，编译直接失败。
 webview2-com = "0.38"
 windows-core = "0.61"
+# 应用图标提取（io/appinfo.rs）：HICON 像素编码成 PNG 给 webview 显示。
+png = "0.17"
 # Snap Layouts 覆盖层（snap.rs）：不绘制的子窗口对 WM_NCHITTEST 回答 HTMAXBUTTON
 windows-sys = { version = "0.60", features = [
   "Win32_Foundation",
@@ -53,5 +55,6 @@ windows-sys = { version = "0.60", features = [
   "Win32_UI_HiDpi",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_Graphics_Gdi",
+  "Win32_Storage_FileSystem",
   "Win32_System_LibraryLoader",
 ] }

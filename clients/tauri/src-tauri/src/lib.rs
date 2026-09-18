@@ -134,6 +134,7 @@ pub fn run() {
       io::commands::open_url,
       io::commands::open_with_default,
       io::commands::open_with_app,
+      io::commands::app_info,
       io::commands::reveal_in_folder,
       io::commands::watch,
       io::commands::take_pending_open,

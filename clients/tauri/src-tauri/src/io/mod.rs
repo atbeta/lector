@@ -4,6 +4,7 @@
 //! 可达，所以 `lib.rs` 的 `generate_handler!` 必须写 `io::commands::<name>`，
 //! 不能走下面的重导出。
 
+pub(crate) mod appinfo;
 pub(crate) mod commands;
 mod fs;
 mod watch;

@@ -41,6 +41,27 @@ export async function openWithApp(path: string, app: string, args: string[]): Pr
 }
 
 
+/** 外部应用的展示信息（壳侧 app_info：exe 版本资源名 / .app bundle 名 + 图标 PNG 字节）。 */
+export interface ExternalAppInfo {
+  name: string
+  icon_png: number[] | null
+}
+
+/**
+ * 查询外部应用的显示名与图标。纯装饰性查询，失败（或浏览器预览没有壳）返回 null——
+ * 调用方用路径基名兜底，不为装饰打断界面。
+ */
+export async function appInfo(path: string): Promise<ExternalAppInfo | null> {
+  if (detectEnv() !== 'shell') return null
+  const { invoke } = await tauriApi()
+  try {
+    return await invoke<ExternalAppInfo>('app_info', { path })
+  } catch {
+    return null
+  }
+}
+
+
 /** 在系统文件管理器中显示文件。 */
 export async function revealInFolder(path: string): Promise<void> {
   if (detectEnv() !== 'shell') return

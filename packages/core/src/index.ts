@@ -23,6 +23,7 @@ export {
   normalizeSettings,
   pushRecentApp,
   isPlausibleAppPath,
+  appDisplayName,
   withReadingTheme,
   type EditorSettings,
   type FontFamily,
