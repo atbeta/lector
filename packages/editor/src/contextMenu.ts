@@ -29,6 +29,7 @@ export interface ContextMenuItem {
 
 let panel: HTMLElement | null = null
 let detach: (() => void) | null = null
+let anchorEl: HTMLElement | null = null
 
 export function hideContextMenu(): void {
   if (!panel) return
@@ -36,15 +37,31 @@ export function hideContextMenu(): void {
   panel.replaceChildren()
   detach?.()
   detach = null
+  anchorEl = null
+}
+
+/** 菜单是否正由这个按钮开着：给「点同一个按钮 = 收起」的 toggle 用。 */
+export function isContextMenuOpenFor(anchor: HTMLElement): boolean {
+  return panel !== null && anchorEl === anchor
 }
 
 /**
  * 在 (x, y) 弹出菜单。
  * items 里 `run` 缺省或 disabled 的项显示为不可点。
+ *
+ * `anchor` 是可选的「触发按钮」：点它会先被关闭监听看到。若不排除，
+ * 再点一次按钮会变成「先关、click 里又开」，看起来永远收不起来（toggle 失效）。
+ * 传入 anchor 后，落在它上面的 mousedown 不关菜单，由调用方在 click 里做 toggle。
  */
-export function showContextMenu(items: ContextMenuItem[], x: number, y: number): void {
+export function showContextMenu(
+  items: ContextMenuItem[],
+  x: number,
+  y: number,
+  anchor?: HTMLElement,
+): void {
   hideContextMenu()
   if (items.length === 0) return
+  anchorEl = anchor ?? null
 
   const el = document.createElement('div')
   el.className = 'context-menu'
@@ -115,7 +132,10 @@ export function showContextMenu(items: ContextMenuItem[], x: number, y: number):
     // e.target 不一定是 Element（偶尔是 Document / 文本节点），没有 closest——
     // 直接调会抛错，菜单反而关不掉。这里只对 Element 判断是否点在菜单里。
     const el = e.target as Element | null
-    if (!el || typeof el.closest !== 'function' || !el.closest('.context-menu')) hideContextMenu()
+    const inMenu = !!el && typeof el.closest === 'function' && el.closest('.context-menu')
+    // 点在触发按钮上不关：由按钮自己的 click 做 toggle（见 showContextMenu 的 anchor）
+    const inAnchor = !!el && typeof el.closest === 'function' && !!anchorEl?.contains(el)
+    if (!inMenu && !inAnchor) hideContextMenu()
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {

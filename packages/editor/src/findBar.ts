@@ -16,6 +16,15 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// 当前打开着的查找栏的「关闭器」。换文档 / 关文档时要能主动拆掉它，
+// 而不是靠查 DOM 手动清理——那样会漏掉实例自己的 keydown 监听，留下幽灵。
+let activeClose: (() => void) | null = null
+
+/** 主动关闭当前查找栏：换文档 / 关文档时调用（与 X、Esc 走同一条清理路径）。 */
+export function closeFindBar(): void {
+  activeClose?.()
+}
+
 export function findBar(host: FindHost) {
   const bar = document.createElement('div')
   bar.className = 'find-bar'
@@ -23,27 +32,33 @@ export function findBar(host: FindHost) {
   // 它们是查找界面里跨语言通用的写法（VS Code、浏览器都是这套），
   // 翻译成「区分大小写」反而占宽且不一眼可辨。含义交给 tooltip。
   bar.innerHTML = `
-    <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
-    <div class="find-toggles">
-      <button class="find-toggle find-case" data-tip="${t('findCase')}" aria-label="${t('findCase')}" aria-pressed="false">Aa</button>
-      <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
-      <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
+    <div class="find-row">
+      <button class="find-expand btn-icon" aria-expanded="false" aria-label="${t('findToggleReplace')}">${iconSvg('chevronDown', 16)}</button>
+      <input class="find-input" type="text" placeholder="${t('findPlaceholder')}" aria-label="${t('findPlaceholder')}" />
+      <div class="find-toggles">
+        <button class="find-toggle find-case" data-tip="${t('findCase')}" aria-label="${t('findCase')}" aria-pressed="false">Aa</button>
+        <button class="find-toggle find-word" data-tip="${t('findWhole')}" aria-label="${t('findWhole')}" aria-pressed="false">\\b</button>
+        <button class="find-toggle find-regex" data-tip="${t('findRegex')}" aria-label="${t('findRegex')}" aria-pressed="false">.*</button>
+      </div>
+      <div class="find-nav">
+        <span class="find-count" aria-live="polite"></span>
+        <button class="btn-icon find-prev" aria-label="${t('findPrev')}">${iconSvg('chevronUp', 16)}</button>
+        <button class="btn-icon find-next" aria-label="${t('findNext')}">${iconSvg('chevronDown', 16)}</button>
+      </div>
+      <button class="find-close btn-icon" aria-label="${t('close')}">${iconSvg('close', 16)}</button>
     </div>
-    <div class="find-nav">
-      <span class="find-count" aria-live="polite"></span>
-      <button class="btn-icon find-prev" aria-label="${t('findPrev')}">${iconSvg('chevronUp', 16)}</button>
-      <button class="btn-icon find-next" aria-label="${t('findNext')}">${iconSvg('chevronDown', 16)}</button>
+    <div class="find-replace-row" hidden>
+      <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
+      <button class="btn btn-ghost find-replaceall">${t('replaceAll')}</button>
     </div>
-    <span class="find-sep" aria-hidden="true"></span>
-    <input class="find-replace" type="text" placeholder="${t('replacePlaceholder')}" aria-label="${t('replacePlaceholder')}" />
-    <button class="btn btn-ghost find-replaceall">${t('replaceAll')}</button>
-    <button class="find-close btn-icon" aria-label="${t('close')}">${iconSvg('close', 16)}</button>
   `
   const q = bar.querySelector<HTMLInputElement>('.find-input')!
   const count = bar.querySelector<HTMLElement>('.find-count')!
   const rep = bar.querySelector<HTMLInputElement>('.find-replace')!
   const repAll = bar.querySelector<HTMLButtonElement>('.find-replaceall')!
   const close = bar.querySelector<HTMLButtonElement>('.find-close')!
+  const expand = bar.querySelector<HTMLButtonElement>('.find-expand')!
+  const replaceRow = bar.querySelector<HTMLElement>('.find-replace-row')!
   const prev = bar.querySelector<HTMLButtonElement>('.find-prev')!
   const next = bar.querySelector<HTMLButtonElement>('.find-next')!
   const caseBtn = bar.querySelector<HTMLButtonElement>('.find-case')!
@@ -160,6 +175,13 @@ export function findBar(host: FindHost) {
   regexBtn.addEventListener('click', () => toggle(regexBtn, 'regex'))
   next.addEventListener('click', () => goto(1))
   prev.addEventListener('click', () => goto(-1))
+  // 替换默认收起：多数时候只是找，不替换。展开后把焦点给替换框。
+  expand.addEventListener('click', () => {
+    const open = replaceRow.hidden
+    replaceRow.hidden = !open
+    expand.setAttribute('aria-expanded', String(open))
+    if (open) rep.focus()
+  })
   repAll.addEventListener('click', () => {
     const from = q.value
     const to = rep.value
@@ -167,12 +189,16 @@ export function findBar(host: FindHost) {
     for (const m of matches()) host.replaceInBlock(m.id, from, to, true, { ...opts })
     refresh()
   })
-  close.addEventListener('click', () => {
+  close.addEventListener('click', closeBar)
+  activeClose = closeBar
+
+  function closeBar(): void {
     // 关掉查找就把标记拆干净：留在正文里的黄色块会让人以为文档里真有高亮
     clearFindHighlight(contentRoot())
     bar.remove()
     document.removeEventListener('keydown', onKey)
-  })
+    if (activeClose === closeBar) activeClose = null
+  }
 
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {

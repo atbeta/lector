@@ -50,29 +50,40 @@
          不靠常驻边框（初版顶栏那条 1px 线在静止时像线稿）。 -->
     <header id="titlebar" data-tauri-drag-region>
       <div class="titlebar-lead">
+        <!-- 大纲：它开关的是**左栏**（侧栏停靠在左），所以开关跟着面板放在左边。
+             开关和文件动作之间加发丝线——它是视图控制，不是文件动作。 -->
+        <button type="button" class="btn-icon" id="outline-btn" data-tip="大纲" aria-label="大纲" aria-pressed="false"></button>
+        <span class="titlebar-divider" aria-hidden="true"></span>
         <button type="button" class="btn-icon" id="open-btn" data-tip="打开 (⌘O)" aria-label="打开"></button>
         <button type="button" class="btn-icon" id="save-btn" data-tip="保存 (⌘S)" aria-label="保存"></button>
-        <!-- 用其他应用打开：文件动作的逃生口，tip 跟随设置里的应用名（appBindings 同步） -->
-        <button type="button" class="btn-icon" id="open-with-btn" aria-label="用其他应用打开"></button>
-<button type="button" class="btn-icon" id="export-btn" data-tip="导出 PDF" aria-label="导出 PDF"></button>
       </div>
       <div class="titlebar-center">
-        <span class="titlebar-title">
-          <span id="file-name">Lector</span>
-          <span class="dirty-dot" id="dirty-dot" data-tip="有未保存修改"></span>
+        <!-- 标题 + 文件级「更多」：低频文件动作（用其他应用打开 / 导出 PDF / 显示位置 /
+             复制路径 / 关闭文件）都收在这一个可见入口里——右键菜单藏着它们，
+             用户不会知道；一个贴着文件名的 ⋯ 才有发现性。 -->
+        <span class="titlebar-title-wrap">
+          <span class="titlebar-title">
+            <span id="file-name">Lector</span>
+            <span class="dirty-dot" id="dirty-dot" data-tip="有未保存修改"></span>
+          </span>
+          <button
+            type="button"
+            class="btn-icon titlebar-more"
+            id="file-more-btn"
+            aria-haspopup="menu"
+            aria-label="更多文件操作"
+          ></button>
         </span>
       </div>
       <div class="titlebar-actions">
-        <!-- 视图模式：三档常驻的分段控件。放在右侧操作区而不是左上角——
-             它决定「这块屏幕现在是什么」，属于控制，和图标按钮们是一类；
-             左侧留给文件动作（打开/保存）。 -->
+        <!-- 视图模式：三档常驻的分段控件。放在右侧操作区——
+             它决定「这块屏幕现在是什么」，和旁边的应用图标是一类；
+             左栏的大纲开关归左边（见 .titlebar-lead）。 -->
         <div class="mode-switch" id="mode-switch"></div>
         <span class="titlebar-divider" aria-hidden="true"></span>
-        <!-- 文档内导航（大纲/查找）与应用层（外观/设置/键盘）之间再隔一道发丝线：
-             五个图标连排读成「一排便士」，按作用域分组后一眼能数出是两家。 -->
-        <button type="button" class="btn-icon" id="outline-btn" data-tip="大纲" aria-label="大纲" aria-pressed="false"></button>
-        <button type="button" class="btn-icon" id="find-btn" data-tip="查找" aria-label="查找"></button>
-        <span class="titlebar-divider" aria-hidden="true"></span>
+        <!-- 查找不设常驻按钮：⌘F 是所有编辑器/阅读器的通用呼出方式，
+             常驻放大镜反而读作「跨文件全局搜索」——那超出本应用的范围。
+             入口另有快捷键面板与正文右键菜单。 -->
         <button type="button" class="btn-icon" id="appearance-btn" data-tip="外观" aria-label="外观" aria-haspopup="dialog"></button>
         <button type="button" class="btn-icon" id="settings-btn" data-tip="设置" aria-label="设置"></button>
         <button type="button" class="btn-icon" id="keyboard-btn"></button>

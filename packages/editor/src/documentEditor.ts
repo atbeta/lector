@@ -18,7 +18,7 @@ import { mermaidLanguage } from './mermaidLanguage.ts'
 import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
 import { setCurrentMdPath } from './asset.ts'
 import { getSettings } from './settings.ts'
-import { findBar } from './findBar.ts'
+import { findBar, closeFindBar } from './findBar.ts'
 import { replaceFind } from './findMatch.ts'
 import { showToast } from './feedback.ts'
 import { decorateCodeBlock } from './codePreview.ts'
@@ -140,6 +140,9 @@ export function createDocumentEditor({
   }
 
   function loadSession(path: string, raw: string, mtimeMs = Date.now(), byteLen?: number) {
+    // 换文档先关掉查找栏：它属于上一篇——留着会拿旧查询去搜新文档，
+    // 高亮还要等下一次 refresh 才重画，中间那一眼是自相矛盾的。
+    closeFindBar()
     if (cm) {
       cm.destroy()
       cm = null
@@ -643,6 +646,8 @@ export function createDocumentEditor({
   }
 
   function resetDocument(): void {
+    // 关文档也关查找栏：否则它会浮在空态上，还留着上一篇的查询与命中标记。
+    closeFindBar()
     if (cm) {
       cm.destroy()
       cm = null

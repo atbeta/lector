@@ -63,6 +63,9 @@ palette: `<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.
   // 打开文件：闭合文件夹（feather folder）。试过 lucide folder-open——开盖的
   // 那道折线在 16px 下糊成噪点，闭合形态才干净。
   folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
+  // 更多（横向三点）：文件级低频动作的可见入口。点用 fill 实心而不是描边——
+  // stroke-width 2 的小圆描出来是一圈糊边，实心才是干净的「⋯」。
+  moreHorizontal: `<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>`,
 }
 
 // 窗口控件用 1px 细线（Windows 原生观感），与上面 2px 的工具图标区分开：

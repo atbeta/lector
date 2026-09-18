@@ -155,11 +155,17 @@ export function syncTitlebarInset(): void {
   // 额头标题最多能延伸多宽而不压到右上角操作区：仍居中于正文列，但把宽度钳到
   // 「正文中心 → 操作区左沿」的两倍，超了就省略号。这是唯一既保住「居中」、
   // 又避免超长文件名落到模式开关上的办法（实测 1138px + 76 字符名会叠 225px）。
+  //
+  // 文件名右侧还坐着 ⋯（文件级动作入口）：它是绝对定位、不占标题宽度，所以必须
+  // 手动从可用宽度里扣掉它的足迹——否则长名到极限时标题右沿正好顶到 actionsL-14，
+  // ⋯ 会被挤出 .titlebar-center 的 overflow:hidden 而消失。
   const actionsG = bar.querySelector<HTMLElement>('.titlebar-actions')
+  const moreBtn = bar.querySelector<HTMLElement>('.titlebar-more')
+  const moreFootprint = moreBtn ? moreBtn.getBoundingClientRect().width + 6 : 0
   const contentCenter = (textLeft + textRight) / 2
   if (actionsG) {
     const actionsL = Math.round(actionsG.getBoundingClientRect().x)
-    const maxW = Math.max(0, 2 * (actionsL - 14 - contentCenter))
+    const maxW = Math.max(0, 2 * (actionsL - 14 - contentCenter - moreFootprint))
     bar.style.setProperty('--titlebar-title-max', `${Math.round(maxW)}px`)
   }
 

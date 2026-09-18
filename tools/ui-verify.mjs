@@ -448,17 +448,42 @@ const summary = {
       }
     })
 
-  // 顶栏分组：文件操作 2 个 + 视图 4 个，中间一条分隔
+  // 顶栏分组：左侧 = 大纲 + 文件动作（打开/保存）；右侧 = 查找 + 应用层（外观/设置/键盘）
   const tb = await page.evaluate(() => ({
     lead: document.querySelectorAll('.titlebar-lead .btn-icon').length,
     actions: document.querySelectorAll('.titlebar-actions .btn-icon').length,
     divider: !!document.querySelector('.titlebar-divider'),
+    // 大纲开关的是左栏（侧栏停靠在左），开关要跟着面板放左边
+    outlineInLead: !!document.querySelector('.titlebar-lead #outline-btn'),
   }))
   if (tb.lead < 2) note('error', `顶栏左侧工具 ${tb.lead} 个（至少应有 2：打开/保存）`)
   // 工具组只要求"至少这几件"：每加一个工具就改断言的精确值，会让这条断言变成维护负担，
   // 而它真正要守的是"右侧工具组存在且没被整体删掉"。
-  if (tb.actions < 4) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 4：大纲/查找/外观/键盘）`)
+  if (tb.actions < 3) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 3：外观/设置/键盘）`)
   if (!tb.divider) note('error', '顶栏缺少组间分隔，六个图标会读成一排散兵')
+  if (!tb.outlineInLead) note('error', '大纲开关不在左侧 lead 组（它开关的是左栏，应跟着面板走）')
+
+  // 文件名旁的 ⋯：低频文件动作（用其他应用打开 / 导出 PDF / …）的唯一可见入口。
+  // 它们总不能只藏在右键菜单里——右键没有任何视觉线索，用户不会知道。
+  // 菜单内容需要「绝对路径」才非空（currentDiskPath 会拒掉未命名占位路径），
+  // 而预览样例是相对路径 sample.md，所以这里只断言入口形态；菜单交互另起一段验。
+  {
+    const more = await page.evaluate(() => {
+      const btn = document.getElementById('file-more-btn')
+      if (!btn) return null
+      const r = btn.getBoundingClientRect()
+      return {
+        visible: r.width > 0,
+        hasMenuRole: btn.getAttribute('aria-haspopup') === 'menu',
+        insideTitle: !!btn.closest('.titlebar-title-wrap'),
+      }
+    })
+    if (!more) note('error', '顶栏缺少文件名旁的 ⋯（更多文件操作入口）')
+    else if (!more.insideTitle) note('error', '⋯ 不在文件名旁（应在 .titlebar-title-wrap 内）')
+    else if (!more.visible) note('error', '有文档时 ⋯ 入口不可见（应常驻）')
+    else if (!more.hasMenuRole) note('error', '⋯ 入口缺少 aria-haspopup="menu"')
+    else note('info', '⋯ 文件菜单入口：可见、带 aria-haspopup、贴在文件名旁')
+  }
 
   // 1) 宽窗口：停靠、默认展开、不压正文
   const docked = await shell()
@@ -1770,8 +1795,35 @@ const summary = {
   // 只报总数不报当前是第几处，用户不知道自己走到哪；不高亮等于让人肉眼去找；
   // 关掉后不拆标记，正文里就留下假的「高亮」。
   {
-    await page.click('#find-btn')
+    // 查找没有常驻按钮：⌘F 是通用呼出方式（也顺带守这个入口没被改坏）
+    await page.keyboard.press(`${MOD}+f`)
     await page.waitForSelector('.find-bar input', { timeout: 3000 })
+    // 形态：停靠右上角（不盖正文列），替换默认收起、点三角才展开。
+    // 关闭仍是 Esc/X——查找栏要能边看边选，点正文不能把它收掉。
+    const shape = await page.evaluate(() => {
+      const bar = document.querySelector('.find-bar')
+      const r = bar.getBoundingClientRect()
+      return {
+        rightGap: Math.round(window.innerWidth - r.right),
+        // 用 offsetWidth 而不是 rect.width：入场动画的 scale(0.985) 会污染 rect
+        width: bar.offsetWidth,
+        centered: Math.abs((r.left + r.right) / 2 - window.innerWidth / 2) < 8,
+        replaceHidden: !!document.querySelector('.find-replace-row')?.hidden,
+      }
+    })
+    if (shape.centered) note('error', '查找栏还是居中的浮层（应停靠右上角，不压正文列）')
+    if (shape.rightGap > 40) note('error', `查找栏没贴右上角：距右边缘 ${shape.rightGap}px`)
+    if (!shape.replaceHidden) note('error', '替换行默认没收起（多数时候只是找，不该常驻）')
+    await page.click('.find-expand')
+    await page.waitForTimeout(150)
+    const expanded = await page.evaluate(() => ({
+      shown: !document.querySelector('.find-replace-row')?.hidden,
+      // 展开替换不该改栏宽：shrink-to-fit 下用百分比 basis 会把栏撑满
+      width: document.querySelector('.find-bar').offsetWidth,
+    }))
+    if (!expanded.shown) note('error', '点展开三角后替换行没有出现')
+    else if (Math.abs(expanded.width - shape.width) > 2)
+      note('error', `展开替换后查找栏变宽了：${shape.width} → ${expanded.width}px（右边留一大片空白）`)
     // 查询词从当前文档里取（这段跑在哪个文档上不该是断言的隐含前提），
     // 取一个字保证至少有一处命中，多数字在正文里都会出现多于一处的。
     const query = await page.evaluate(() => {
@@ -1995,7 +2047,7 @@ const summary = {
   {
     await page.goto(URL_ARG, { waitUntil: 'networkidle' })
     await page.waitForTimeout(600)
-    await page.click('#find-btn')
+    await page.keyboard.press(`${MOD}+f`)
     await page.waitForSelector('.find-bar input', { timeout: 3000 })
     const toggles = await page.evaluate(() => document.querySelectorAll('.find-toggle').length)
     if (toggles !== 3) note('error', `查找选项开关 ${toggles} 个（期望 3：区分大小写 / 全词 / 正则）`)
@@ -2256,6 +2308,60 @@ const summary = {
     else note('info', `键盘面板：${panel.rows} 条，首列 ${panel.keys.join(' / ')}`)
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)
+  }
+
+  // 3.18b) 文件名旁的 ⋯：点开的是「文件菜单」，右键文件名是同一个入口的加速器。
+  //
+  // 菜单内容依赖绝对路径（currentDiskPath 拒未命名占位路径），预览样例是相对路径，
+  // 所以这里显式载入一个绝对路径的样例，才能验到菜单项本身。
+  {
+    await page.goto(`${URL_ARG}?doc=${encodeURIComponent('/samples/sample.md')}`, { waitUntil: 'load' })
+    await page.waitForSelector('#content .block', { timeout: 10000 })
+    await page.click('#file-more-btn')
+    await page.waitForTimeout(200)
+    const menu = await page.evaluate(() => ({
+      open: !!document.querySelector('.context-menu'),
+      items: [...document.querySelectorAll('.context-menu .context-item')].map((b) => b.textContent ?? ''),
+    }))
+    if (!menu.open) note('error', '点 ⋯ 没有弹出文件菜单')
+    else if (!menu.items.some((s) => /PDF/.test(s)))
+      note('error', `文件菜单里没有「导出 PDF」：${menu.items.join(' / ')}`)
+    else note('info', `⋯ 文件菜单：${menu.items.join(' / ')}`)
+
+    // 再点一次应收起——锚点在关闭监听里被排除，toggle 才不会「先关后开」
+    await page.click('#file-more-btn')
+    await page.waitForTimeout(200)
+    const stillOpen = await page.evaluate(() => !!document.querySelector('.context-menu'))
+    if (stillOpen) note('error', '再点 ⋯ 菜单没有收起（toggle 失效）')
+
+    // 右键文件名 = 同一份菜单（加速器）
+    await page.click('.titlebar-title', { button: 'right' })
+    await page.waitForTimeout(200)
+    const rc = await page.evaluate(() => ({
+      open: !!document.querySelector('.context-menu'),
+      items: [...document.querySelectorAll('.context-menu .context-item')].map((b) => b.textContent ?? ''),
+    }))
+    if (!rc.open) note('error', '右键文件名没有弹出文件菜单')
+    else if (!rc.items.some((s) => /PDF/.test(s)))
+      note('error', `右键文件名菜单与 ⋯ 不一致（缺导出 PDF）：${rc.items.join(' / ')}`)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+  }
+
+  // 3.18c) 关文档要顺手关掉查找栏：否则它会浮在空态上，还留着上一篇的查询。
+  {
+    await page.goto(`${URL_ARG}?doc=${encodeURIComponent('/samples/sample.md')}`, { waitUntil: 'load' })
+    await page.waitForSelector('#content .block', { timeout: 10000 })
+    await page.keyboard.press(`${MOD}+f`)
+    await page.waitForSelector('.find-bar', { timeout: 3000 })
+    await page.keyboard.press(`${MOD}+w`)
+    await page.waitForTimeout(400)
+    const afterClose = await page.evaluate(() => ({
+      bar: !!document.querySelector('.find-bar'),
+      empty: document.documentElement.classList.contains('is-empty'),
+    }))
+    if (!afterClose.empty) note('error', '⌘W 没有回到空态（没法验证查找栏随文档关闭）')
+    else if (afterClose.bar) note('error', '关文档后查找栏还浮在空态上（应随文档一起关掉）')
   }
 
   // 3.19) 空态不该有"凭空"的滚动条

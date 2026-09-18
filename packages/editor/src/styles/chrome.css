@@ -122,9 +122,10 @@ html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: r
    摆一排禁用感的控件只是噪音。名字与 tip 在悬停层，空间全给图标。 */
 html.is-empty .mode-switch,
 html.is-loading .mode-switch { display: none; }
-/* 「用其他应用打开」同理：空态里没有可交出去的文件 */
-html.is-empty #open-with-btn,
-html.is-loading #open-with-btn { display: none; }
+/* 大纲开关的是左栏；空态里侧栏整块下线（见 html.no-doc .sidebar），
+   没有目录可开，按钮在首屏只会是个死键——和模式开关一起收掉。 */
+html.is-empty #outline-btn,
+html.is-loading #outline-btn { display: none; }
 
 html[data-shell='windows'] .mode-opt { height: 22px; padding: 0 7px; }
 html[data-shell='windows'] .mode-switch { border-radius: 6px; }
@@ -184,6 +185,11 @@ html[data-shell='windows'] .titlebar-center {
    静态 flex 下标题本来就会自然 ellipsis，不会压到操作区。 */
 html[data-shell='windows'] .titlebar-title { max-width: none; }
 html[data-shell='windows'] .titlebar-actions { margin-left: auto; }
+/* Windows 标题左对齐：⋯ 改走静态流紧跟在名字之后（而不是绝对定位到标题右外侧）。
+   长文件名由 .titlebar-title 的 ellipsis 先省略，⋯ 不会被挤出 .titlebar-center
+   的 overflow:hidden 之外而消失。 */
+html[data-shell='windows'] .titlebar-title-wrap { position: static; }
+html[data-shell='windows'] .titlebar-more { position: static; margin-left: 4px; }
 
 .titlebar-lead,
 .titlebar-center,
@@ -206,6 +212,15 @@ html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 
   /* 扩展名弱化：它总是 .md，密度不该和主名一样 */
   color: rgb(var(--subtle-foreground));
   font-weight: 400;
+}
+/* 标题 + ⋯ 的包裹层：⋯ 相对它绝对定位在标题右外侧，因此不参与 flex 宽度，
+   标题仍精确居中于正文列（ui-verify 断言中心偏差 ≤6px）。
+   overflow 不能放在这一层（会裁掉 ⋯），省略号交给内层的 .titlebar-title。 */
+.titlebar-title-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 .titlebar-title {
   display: flex;
@@ -234,6 +249,20 @@ html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 
   font-weight: 400;
   color: rgb(var(--subtle-foreground));
 }
+
+/* ⋯：文件级低频动作（用其他应用打开 / 导出 PDF / 显示位置 / 复制路径 / 关闭文件）
+   的**唯一可见入口**。常驻但压到 muted，悬停才提亮——它得被看见（否则又退回
+   「右键菜单没人知道」），但不该和文件名抢注意力。 */
+.titlebar-more {
+  position: absolute;
+  left: 100%;
+  margin-left: 2px;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+/* 空态 / 加载态没有文件，菜单本来就是空的：入口一并收掉 */
+html.no-doc .titlebar-more,
+html.is-loading .titlebar-more { display: none; }
 
 /* 脏点：贴着文件名的小圆点，比星号安静 */
 .dirty-dot {
@@ -585,23 +614,32 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   border-radius: var(--radius-card);
 }
 
-/* ───────────── 查找栏：浮层，不是工具条 ─────────────
- * 三组：查询+开关、计数+翻页、替换。空计数必须不占位，
- * 否则 Aa 和 ↑↓ 中间会空出一截（min-width:52px 的老毛病）。 */
+/* ───────────── 查找栏：停靠右上角的工具条 ─────────────
+ * 不进正文列（阅读优先：不能盖住正在读的那一列），所以贴右上角、紧跟在
+ * 顶栏下方——它是工具，不是「点外面就收」的浮层。关闭仍是 Esc / X
+ * （查找栏的通用约定：要边看边选，点正文不能把它收掉）。
+ * 三组：查询+开关、计数+翻页、替换；替换默认收起，点最左的三角展开。 */
 .find-bar {
   position: fixed;
-  top: calc(48px + 10px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(46px + 10px);
+  right: 14px;
   z-index: 90;
+  /* 两行纵向排：行宽取两者较大者（查询行）。别用 flex-wrap + flex-basis:100%——
+     固定定位下宽度是 shrink-to-fit，百分比 basis 会把整条栏撑到可用宽度，
+     展开替换时右边就多出一大片空白。 */
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
   padding: 5px 6px;
   border-radius: var(--radius-card);
   background: rgb(var(--popover));
   box-shadow: var(--shadow-floating);
-  animation: pop-in-centered var(--motion-slow) var(--ease-emphasized) both;
+  animation: pop-in var(--motion-slow) var(--ease-emphasized) both;
+}
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .find-bar .btn-icon { width: 28px; height: 28px; }
 .find-toggles,
@@ -610,13 +648,19 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   align-items: center;
   gap: 1px;
 }
-.find-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 5px 4px;
-  background: rgb(var(--border));
-  flex: none;
+/* 展开/收起替换：收起时三角指右，展开指下（同大纲的扭转三角） */
+.find-bar .find-expand svg { transition: transform var(--motion-fast) var(--ease-standard); }
+.find-bar .find-expand[aria-expanded='false'] svg { transform: rotate(-90deg); }
+/* 替换行：独占第二行、左沿与查询框对齐（左边空出展开三角的宽度），
+   [hidden] 时整行收起，不留空位、也不改栏宽 */
+.find-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 三角 28 + 行内 gap 4：让替换框和查询框落在同一条竖线上 */
+  padding-left: 32px;
 }
+.find-replace-row[hidden] { display: none; }
 /* 查找栏的 Aa/\b/.* 开关：created 时没 CSS 规则 → 原生按钮外观混在自绘浮层里。
    这里复用图标按钮的形态，用 aria-pressed 区分选中态与 .btn-icon 保持一致。 */
 .find-bar .find-toggle {
@@ -661,7 +705,8 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
   box-shadow: 0 0 0 3px var(--primary-softer);
 }
 .find-bar .find-input { width: 168px; }
-.find-bar .find-replace { width: 148px; }
+/* 与查询框同宽：两行左对齐后再等宽，右沿也成一条竖线 */
+.find-bar .find-replace { width: 168px; }
 /* 「全部替换」跟输入框同高、有边，才读得出是按钮而不是一句旁注 */
 .find-bar .find-replaceall {
   min-height: 28px;

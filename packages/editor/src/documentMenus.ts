@@ -3,7 +3,7 @@ import { undo, redo } from '@codemirror/commands'
 import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
-import { showContextMenu, type ContextMenuItem } from './contextMenu.ts'
+import { showContextMenu, hideContextMenu, isContextMenuOpenFor, type ContextMenuItem } from './contextMenu.ts'
 import { resolveMenuDecision } from './menuTarget.ts'
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
@@ -17,12 +17,15 @@ export function createDocumentMenus({
   imageMenuItems,
   contentEl,
   getViewMode,
+  exportPdf,
 }: {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
   files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'openWithLabel' | 'revealCurrent' | 'closeFile'>
   imageMenuItems: (img: HTMLImageElement) => ContextMenuItem[]
   contentEl: HTMLElement
   getViewMode: () => ViewMode
+  /** 导出 PDF：实现在 editorChrome，菜单只负责把它挂进「更多文件操作」。 */
+  exportPdf: () => Promise<void>
 }) {
   // ───────────── 右键菜单 ─────────────
   // 分场景给菜单：读代码的要「复制」，改文档的要「删除/插入」，点了任务的想「勾选」。
@@ -271,6 +274,45 @@ export function createDocumentMenus({
     })
   }
 
+  /**
+   * 文件级菜单：低频文件动作的**唯一真相**。
+   *
+   * 两处入口共用它——右键文件名（加速器）与文件名旁的 ⋯（可见入口，见
+   * editorChrome 的 fileMoreBtn）。两处各写一份必然漂移，用户会看到同一件事
+   * 两种说法。
+   */
+  function fileMenuItems(): ContextMenuItem[] {
+    const path = files.currentDiskPath()
+    const items: ContextMenuItem[] = []
+    if (!path) return items
+    items.push(
+      // 标签跟着设置走：配了外部应用就写明是哪个，没配才说"默认应用"。
+      // 标签与实际行为不一致，比没有这个入口更糟——用户会按标签预期。
+      { label: files.openWithLabel(), run: () => void files.openDefaultApp() },
+      { label: t('exportPdfTip'), run: () => void exportPdf() },
+      { separatorBefore: true, label: t('menuReveal'), run: () => void files.revealCurrent() },
+      { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
+    )
+    if (editor.getSession().source) {
+      items.push({
+        separatorBefore: true,
+        label: t('menuCloseFile'),
+        run: () => void files.closeFile(),
+      })
+    }
+    return items
+  }
+
+  /** ⋯ 按钮入口：贴按钮下沿弹同一份文件菜单；再点一次收起（toggle）。 */
+  function openFileMenu(anchor: HTMLElement): void {
+    if (isContextMenuOpenFor(anchor)) {
+      hideContextMenu()
+      return
+    }
+    const r = anchor.getBoundingClientRect()
+    showContextMenu(fileMenuItems(), Math.round(r.left), Math.round(r.bottom + 6), anchor)
+  }
+
   /** 右键入口：按目标决定给哪套菜单。
    *
    * 这里只做两件事：把 DOM 探测翻译成 MenuHints、按纯函数给出的结论执行。
@@ -305,24 +347,8 @@ export function createDocumentMenus({
 
     switch (decision.kind) {
       case 'titlebar': {
-        const path = files.currentDiskPath()
-        const items: ContextMenuItem[] = []
-        if (path) {
-          items.push(
-            // 标签跟着设置走：配了外部应用就写明是哪个，没配才说"默认应用"。
-            // 标签与实际行为不一致，比没有这个入口更糟——用户会按标签预期。
-            { label: files.openWithLabel(), run: () => void files.openDefaultApp() },
-            { label: t('menuReveal'), run: () => void files.revealCurrent() },
-            { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
-          )
-        }
-        if (session.source) {
-          items.push({
-            separatorBefore: items.length > 0,
-            label: t('menuCloseFile'),
-            run: () => void files.closeFile(),
-          })
-        }
+        // 右键文件名 = 加速器；同一份菜单也能从 ⋯ 按钮弹出（见 openFileMenu）。
+        const items = fileMenuItems()
         if (items.length > 0) showContextMenu(items, e.clientX, e.clientY)
         return
       }
@@ -465,7 +491,7 @@ export function createDocumentMenus({
     sel?.addRange(range)
   }
 
-  return { onContextMenu, openBlockMenu, selectAllText }
+  return { onContextMenu, openBlockMenu, selectAllText, openFileMenu }
 }
 
 export type DocumentMenus = ReturnType<typeof createDocumentMenus>

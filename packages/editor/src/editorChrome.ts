@@ -52,17 +52,15 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
 
   const openBtn = document.getElementById('open-btn')!
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
-  const openWithBtn = document.getElementById('open-with-btn') as HTMLButtonElement
   const modeSwitchEl = document.getElementById('mode-switch')!
   const appearanceBtn = document.getElementById('appearance-btn')!
   const settingsBtn = document.getElementById('settings-btn')!
   const outlineBtn = document.getElementById('outline-btn')!
-  const findBtn = document.getElementById('find-btn')!
   const statusLeft = document.getElementById('status-left')!
   const statusRight = document.getElementById('status-right')!
 
   const keyboardBtn = document.getElementById('keyboard-btn') as HTMLButtonElement
-  const exportBtn = document.getElementById('export-btn') as HTMLButtonElement
+  const fileMoreBtn = document.getElementById('file-more-btn') as HTMLButtonElement
   const titlebarEl = document.getElementById('titlebar')
 
   /** 把文件名写进顶栏：主名 + 弱化的扩展名。 */
@@ -258,15 +256,71 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     }
   }
 
+  /**
+   * 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
+   * 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
+   *
+   * 入口从顶栏按钮换成「更多文件操作」菜单——它和「用其他应用打开」一样是低频
+   * 出口动作，不该常驻。逻辑本身没动。
+   */
+  async function runExportPdf(): Promise<void> {
+    defocus()
+    const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
+    try {
+      // 大文档先打招呼：导出期间界面会变成打印版式（遮罩只盖准备阶段，
+      // 捕获时正文摊平可见），文档越长这状态越久——别让用户以为卡了。
+      const textLen = getSession().source?.text.length ?? 0
+      if (textLen > 200_000) {
+        const go = await showDialog({
+          title: t('pdfLargeTitle'),
+          body: t('pdfLargeBody', {
+            size: formatCount(textLen),
+          }),
+          actions: [
+            { id: 'cancel', label: t('cancelAction') },
+            { id: 'go', label: t('pdfLargeContinue') },
+          ],
+        })
+        if (go !== 'go') return
+      }
+      // 浏览器预览：系统打印对话框，到此为止。
+      if (detectEnv() !== 'shell') {
+        await exportPdf(`${name}.pdf`)
+        return
+      }
+      // 时序（0.26.7 教训：所有视觉变化必须在选完路径之后）：
+      // 存盘对话框（纯原生窗口，页面不动）→ 翻 light → 等 mermaid 重画
+      // → 摊平 + 捕获 → 翻回。翻转必须走 setThemeMode 正规管道：mermaid 的
+      // 重画挂在设置通知上，直接改 data-theme 属性它不重画，SVG 里烘着的
+      // 深色会原样进纸。浅色 mermaid = default 主题 + 靛蓝主色，白底蓝图。
+      const target = await savePdfDialog(`${name}.pdf`)
+      if (!target) return
+      const mode = getSettings().theme
+      const flip = document.documentElement.getAttribute('data-theme') === 'dark'
+      try {
+        await exportPdfTo(target, t('pdfExporting'), async () => {
+          // 翻转在遮罩下进行（0.26.8 教训：翻转让界面「无故变浅」）。
+          // 必须走 setThemeMode 正规管道：mermaid 的重画挂在设置通知上，
+          // 直接改 data-theme 属性它不重画，SVG 里烘着的深色会原样进纸。
+          if (flip) {
+            setThemeMode('light')
+            // 等 mermaid 重画（250ms 去抖 + SVG 渲染）完成再摊平。
+            await new Promise((r) => setTimeout(r, 900))
+          }
+        })
+        showToast(t('pdfSaved'))
+      } finally {
+        if (flip) setThemeMode(mode)
+      }
+    } catch (err) {
+      showToast(`${t('pdfFailed')}：${String(err)}`)
+    }
+  }
+
   function init(): void {
     openBtn.innerHTML = iconSvg('folder', 16)
     openBtn.setAttribute('aria-label', t('openAria'))
     openBtn.dataset.tip = t('openAria')
-    // 「用其他应用打开」的 tip 跟随设置里的应用名，由 appBindings 订阅设置来同步；
-    // 这里只放图标与兜底文案。
-    openWithBtn.innerHTML = iconSvg('externalLink', 16)
-    openWithBtn.setAttribute('aria-label', t('menuOpenDefault'))
-    openWithBtn.dataset.tip = t('menuOpenDefault')
     saveBtn.innerHTML = iconSvg('save', 16)
     saveBtn.setAttribute('aria-label', t('saveAria'))
     saveBtn.dataset.tip = t('saveAria')
@@ -275,9 +329,6 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     outlineBtn.innerHTML = iconSvg('outline', 16)
     outlineBtn.setAttribute('aria-label', t('outlineAria'))
     outlineBtn.dataset.tip = t('outlineAria')
-    findBtn.innerHTML = iconSvg('search', 16)
-    findBtn.setAttribute('aria-label', t('findAria'))
-    findBtn.dataset.tip = t('findAria')
   // 「外观」按钮：调色盘——明暗 + 阅读主题都在这里面。之前用「T」（type 图标）
   // 会被误读成文字排版配置；月亮/太阳又只覆盖明暗一半。调色盘是「外观」的通用语言。
   appearanceBtn.innerHTML = iconSvg('palette', 16)
@@ -287,62 +338,12 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     settingsBtn.setAttribute('aria-label', t('settingsAria'))
     settingsBtn.dataset.tip = t('settingsAria')
     openBtn.dataset.tip = t('openAria')
-    // 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
-    // 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
-    exportBtn.innerHTML = iconSvg('filePdf', 16)
-    exportBtn.setAttribute('aria-label', t('exportPdfTip'))
-    exportBtn.dataset.tip = t('exportPdfTip')
-    exportBtn.addEventListener('click', () => {
-      defocus()
-      const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
-      void (async () => {
-        // 大文档先打招呼：导出期间界面会变成打印版式（遮罩只盖准备阶段，
-        // 捕获时正文摊平可见），文档越长这状态越久——别让用户以为卡了。
-        const textLen = getSession().source?.text.length ?? 0
-        if (textLen > 200_000) {
-          const go = await showDialog({
-            title: t('pdfLargeTitle'),
-            body: t('pdfLargeBody', {
-              size: formatCount(textLen),
-            }),
-            actions: [
-              { id: 'cancel', label: t('cancelAction') },
-              { id: 'go', label: t('pdfLargeContinue') },
-            ],
-          })
-          if (go !== 'go') return
-        }
-        // 浏览器预览：系统打印对话框，到此为止。
-        if (detectEnv() !== 'shell') {
-          await exportPdf(`${name}.pdf`)
-          return
-        }
-        // 时序（0.26.7 教训：所有视觉变化必须在选完路径之后）：
-        // 存盘对话框（纯原生窗口，页面不动）→ 翻 light → 等 mermaid 重画
-        // → 摊平 + 捕获 → 翻回。翻转必须走 setThemeMode 正规管道：mermaid 的
-        // 重画挂在设置通知上，直接改 data-theme 属性它不重画，SVG 里烘着的
-        // 深色会原样进纸。浅色 mermaid = default 主题 + 靛蓝主色，白底蓝图。
-        const target = await savePdfDialog(`${name}.pdf`)
-        if (!target) return
-        const mode = getSettings().theme
-        const flip = document.documentElement.getAttribute('data-theme') === 'dark'
-        try {
-          await exportPdfTo(target, t('pdfExporting'), async () => {
-            // 翻转在遮罩下进行（0.26.8 教训：翻转让界面「无故变浅」）。
-            // 必须走 setThemeMode 正规管道：mermaid 的重画挂在设置通知上，
-            // 直接改 data-theme 属性它不重画，SVG 里烘着的深色会原样进纸。
-            if (flip) {
-              setThemeMode('light')
-              // 等 mermaid 重画（250ms 去抖 + SVG 渲染）完成再摊平。
-              await new Promise((r) => setTimeout(r, 900))
-            }
-          })
-          showToast(t('pdfSaved'))
-        } finally {
-          if (flip) setThemeMode(mode)
-        }
-      })().catch((err) => showToast(`${t('pdfFailed')}：${String(err)}`))
-    })
+    // 「更多文件操作」：低频文件动作（用其他应用打开 / 导出 PDF / 显示位置 /
+    // 复制路径 / 关闭文件）统一收口。文件名旁常驻一个 ⋯，菜单由 documentMenus
+    // 的 fileMenuItems() 提供——右键文件名是加速器，这个按钮才是可发现的入口。
+    fileMoreBtn.innerHTML = iconSvg('moreHorizontal', 16)
+    fileMoreBtn.setAttribute('aria-label', t('moreActions'))
+    fileMoreBtn.dataset.tip = t('moreActions')
     // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
     keyboardBtn.innerHTML = iconSvg('keyboard', 16)
     keyboardBtn.setAttribute('aria-label', t('shortcutTitle'))
@@ -359,8 +360,18 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   }
 
   return {
-    elements: { contentEl, fileNameEl, openBtn, saveBtn, openWithBtn, appearanceBtn, settingsBtn, outlineBtn, findBtn },
+    elements: {
+      contentEl,
+      fileNameEl,
+      openBtn,
+      saveBtn,
+      fileMoreBtn,
+      appearanceBtn,
+      settingsBtn,
+      outlineBtn,
+    },
     init,
+    runExportPdf,
     getViewMode: () => viewMode,
     setViewMode,
     toggleMode,

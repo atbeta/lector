@@ -108,7 +108,13 @@ const menus = createDocumentMenus({
   contentEl,
   // 菜单要分档：阅读档只给「读」的动作（见 documentMenus 的 forMode）
   getViewMode: () => chrome.getViewMode(),
+  // 导出 PDF 实现在 editorChrome，菜单只负责把它挂进「更多文件操作」
+  exportPdf: () => chrome.runExportPdf(),
 })
+// 文件名旁的 ⋯：低频文件动作的唯一可见入口（右键文件名是加速器，同一份菜单）
+chrome.elements.fileMoreBtn.addEventListener('click', () =>
+  menus.openFileMenu(chrome.elements.fileMoreBtn),
+)
 
 // 初始化：壳环境注入资源解析器 + 绑定事件
 chrome.init()
