@@ -266,8 +266,8 @@ html.lightbox-open #content { overflow: hidden; }
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 18px;
+  gap: 10px;
+  padding: 15px 20px;
   background: rgb(var(--popover));
   border-bottom: 1px solid rgb(var(--border-subtle));
 }
@@ -411,7 +411,7 @@ html.lightbox-open #content { overflow: hidden; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid rgb(var(--border-subtle));
 }
 .settings-row:last-child { border-bottom: none; }
@@ -431,7 +431,7 @@ html.lightbox-open #content { overflow: hidden; }
   padding: 2px;
   gap: 2px;
   border-radius: var(--radius-btn);
-  background: rgb(var(--muted));
+  background: rgb(var(--muted) / 0.65);
 }
 .seg-indicator {
   position: absolute;
@@ -440,7 +440,7 @@ html.lightbox-open #content { overflow: hidden; }
   left: 0;
   border-radius: 4px;
   background: rgb(var(--paper));
-  box-shadow: 0 0 0 1px rgb(var(--border)), 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  box-shadow: 0 0 0 1px rgb(var(--border)), 0 1px 3px rgb(var(--shadow-color) / 0.1);
   transition: left var(--motion-base) var(--ease-emphasized),
     width var(--motion-base) var(--ease-emphasized);
 }
@@ -455,6 +455,8 @@ html.lightbox-open #content { overflow: hidden; }
   color: rgb(var(--muted-foreground));
   background: transparent;
   cursor: pointer;
+  /* CJK 任意字间断行，窄一档就折成两行——分段项永远单行 */
+  white-space: nowrap;
   transition: color var(--motion-fast) var(--ease-standard);
 }
 .seg-item.active { color: rgb(var(--foreground)); }
@@ -474,7 +476,21 @@ html.lightbox-open #content { overflow: hidden; }
   align-items: center;
   cursor: pointer;
 }
+/* 未填充段：原来只有填充段一条线，右半边是空的——看起来像没画完。
+   全宽 muted 细轨垫底，填充段压在它上面。 */
+.slider-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  border-radius: 999px;
+  background: rgb(var(--muted));
+  transform: translateY(-50%);
+}
 .slider-fill {
+  position: relative;
   height: 3px;
   border-radius: 999px;
   background: rgb(var(--primary));
@@ -514,7 +530,8 @@ html.lightbox-open #content { overflow: hidden; }
   width: 36px;
   height: 21px;
   border-radius: 999px;
-  background: rgb(var(--border-strong) / 0.5);
+  /* off 态用柔灰（原来是 border-strong 半透，偏黑偏重） */
+  background: rgb(var(--muted-foreground) / 0.28);
   transition: background var(--motion-base) var(--ease-standard);
   position: relative;
 }
@@ -529,10 +546,14 @@ html.lightbox-open #content { overflow: hidden; }
   /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失去「凸起」感 */
   background: #fff;
   box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.2);
-  transition: transform var(--motion-base) var(--ease-emphasized);
+  transition: transform var(--motion-base) var(--ease-emphasized),
+    width var(--motion-fast) var(--ease-standard);
 }
 .switch-track.on { background: rgb(var(--primary)); }
 .switch-track.on::after { transform: translateX(15px); }
+/* 按下时滑块沿运动方向拉长一点（iOS 式按压感），松开回弹 */
+.switch:active .switch-track::after { width: 20px; }
+.switch:active .switch-track.on::after { transform: translateX(12px); }
 
 .modal-footer {
   position: sticky;
@@ -541,7 +562,7 @@ html.lightbox-open #content { overflow: hidden; }
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 12px 18px;
+  padding: 13px 20px;
   background: rgb(var(--popover));
   border-top: 1px solid rgb(var(--border-subtle));
 }

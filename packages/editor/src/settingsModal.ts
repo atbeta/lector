@@ -136,12 +136,17 @@ export function openSettingsModal(onClose?: () => void) {
   search.type = 'search'
   search.placeholder = t('settingsSearch')
   search.setAttribute('aria-label', t('settingsSearch'))
+  // 放大镜挂在胶囊输入框里（装饰，不抢焦点）
+  const searchWrap = h('div', 'settings-search-wrap')
+  const searchIcon = h('span', 'settings-search-icon')
+  searchIcon.innerHTML = iconSvg('search', 14)
+  searchWrap.append(searchIcon, search)
 
   const closeBtn = h('button', 'btn-icon')
   closeBtn.innerHTML = iconSvg('close')
   closeBtn.setAttribute('aria-label', t('close'))
   closeBtn.addEventListener('click', close)
-  header.append(title, search, closeBtn)
+  header.append(title, searchWrap, closeBtn)
   card.appendChild(header)
 
   const panes = h('div', 'settings-panes')
@@ -530,7 +535,11 @@ export function openSettingsModal(onClose?: () => void) {
       renderApps()
     })
   })
-  externalApps.appendChild(row(t('externalAppAdd'), addRow, t('externalAppAddHint')))
+  const addAppRow = row(t('externalAppAdd'), addRow, t('externalAppAddHint'))
+  // 竖排：标签+说明在上，输入框+「浏览…」在下吃满整行——横排时输入框被
+  // 右侧栏挤到只剩半截，placeholder 都显示不全。
+  addAppRow.classList.add('settings-row-stack')
+  externalApps.appendChild(addAppRow)
 
   // 附加参数：与图片命令同一约定（参数数组，文件路径由壳追加在最后）。
   const appArgsInput = h('input', 'settings-input') as HTMLInputElement

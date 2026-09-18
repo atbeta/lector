@@ -33,24 +33,47 @@
   width: min(880px, 94vw);
   height: min(620px, 86vh);
 }
-.settings-search {
-  flex: 0 1 260px;
-  min-width: 120px;
+/* 搜索框做成胶囊：它是「过滤」不是「录入」，形态上和右边的矩形输入框区分开。
+   常态无边框、muted 半透底，聚焦才浮起（纸面 + 光晕）。 */
+.settings-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
   margin-left: auto;
+}
+.settings-search-icon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  color: rgb(var(--subtle-foreground));
+  pointer-events: none;
+}
+.settings-search {
+  flex: 0 1 240px;
+  min-width: 120px;
   height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-btn);
-  background: rgb(var(--background));
+  padding: 0 12px 0 30px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgb(var(--muted) / 0.5);
   color: rgb(var(--foreground));
   font: inherit;
   font-size: var(--text-base);
+  transition: background var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
-.settings-search:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 1px; }
+.settings-search:hover { background: rgb(var(--muted) / 0.7); }
+.settings-search:focus {
+  outline: none;
+  background: rgb(var(--popover));
+  box-shadow: 0 0 0 1px rgb(var(--ring) / 0.45), 0 0 0 4px var(--primary-softer);
+}
+/* 胶囊框里 webkit 的清除按钮贴着右缘，留出一点呼吸 */
+.settings-search::-webkit-search-cancel-button { margin-right: 2px; }
 .settings-header .btn-icon { margin-left: 0; }
 .settings-panes {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
+  grid-template-columns: 184px minmax(0, 1fr);
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -58,7 +81,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 8px;
+  padding: 12px 10px;
   border-right: 1px solid rgb(var(--border-subtle));
   background: rgb(var(--shell));
   overflow-y: auto;
@@ -66,7 +89,7 @@
 .settings-nav-item {
   display: block;
   width: 100%;
-  padding: 7px 10px;
+  padding: 7px 12px;
   border: 0;
   border-radius: var(--radius-btn);
   background: transparent;
@@ -78,8 +101,8 @@
   transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 .settings-nav-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
-.settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 550; }
-.settings-content { overflow-y: auto; min-height: 0; padding: 14px 18px 18px; }
+.settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 600; }
+.settings-content { overflow-y: auto; min-height: 0; padding: 16px 22px 22px; }
 .settings-group-title {
   margin: 0 0 6px;
   font-size: var(--text-sm);
@@ -112,24 +135,37 @@
   padding: 9px 10px;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-btn);
-  background: rgb(var(--background));
+  background: rgb(var(--popover));
   color: rgb(var(--foreground));
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.6;
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+/* 输入框与卡面同色（原来是 --background 灰底，白卡上一块脏灰）；
+   层次交给发丝边与聚焦光晕，hover 时边线先给出回应。 */
+.settings-textarea:hover { border-color: rgb(var(--border-strong) / 0.4); }
+.settings-textarea:focus {
+  outline: none;
+  border-color: rgb(var(--ring) / 0.6);
+  box-shadow: 0 0 0 3px var(--primary-softer);
 }
 .settings-input {
   width: 100%;
   box-sizing: border-box;
-  height: 30px;
+  height: 32px;
   padding: 0 10px;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-btn);
-  background: rgb(var(--background));
+  background: rgb(var(--popover));
   color: rgb(var(--foreground));
   font-family: var(--font-sans);
   font-size: var(--text-sm);
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
+.settings-input:hover { border-color: rgb(var(--border-strong) / 0.4); }
 .settings-input:focus {
   outline: none;
   border-color: rgb(var(--ring) / 0.6);
