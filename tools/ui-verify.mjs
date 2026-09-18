@@ -339,7 +339,12 @@ const PROBE = `(() => {
 // 没有浏览器就跳过：这些脚本量的是真实渲染，服务器上跑不了是常态。
 const browser = await launchBrowser()
 if (!browser) exitSkipped('渲染层验证', process.argv.includes('--strict'))
-const page = await browser.newPage({ viewport: { width: 1200, height: 820 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({
+  viewport: { width: 1200, height: 820 },
+  deviceScaleFactor: 2,
+  // 复制相关断言要读回剪贴板
+  permissions: ['clipboard-read', 'clipboard-write'],
+})
 
 const consoleErrors = []
 page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text()))
@@ -1834,17 +1839,29 @@ const summary = {
     await page.waitForTimeout(350)
     const opened = await page.evaluate(() => {
       const label = document.querySelector('.find-count')?.textContent ?? ''
+      const cur = document.querySelector('mark.find-hit--current')
+      const norm = document.querySelector('mark.find-hit:not(.find-hit--current)')
       return {
         label,
         hits: document.querySelectorAll('mark.find-hit').length,
         current: document.querySelectorAll('mark.find-hit--current').length,
         // 「第几处」的判据：出现了当前序号，且不是只有一个数字
         hasIndex: /第\s*\d+\s*处/.test(label) || /\d+\s*(\/|of)\s*\d+/.test(label),
+        // 当前命中必须比普通命中更深——靠填充深浅区分。两者底色相同，
+        // 说明 .find-hit 又被 ==高亮== 的 mark 规则（特异度更高）盖掉了。
+        bgCurrent: cur ? getComputedStyle(cur).backgroundColor : null,
+        bgNormal: norm ? getComputedStyle(norm).backgroundColor : null,
       }
     })
     if (opened.hits === 0) note('error', `查找没有高亮任何命中（查询词 ${JSON.stringify(query)}）`)
     else if (opened.current !== 1) note('error', `当前命中标记 ${opened.current} 个（期望恰好 1 个）`)
     if (!opened.hasIndex) note('error', `查找没报「当前是第几处」：${JSON.stringify(opened.label)}`)
+    if (opened.bgCurrent && opened.bgNormal && opened.bgCurrent === opened.bgNormal) {
+      note(
+        'error',
+        `当前命中与普通命中底色相同（${opened.bgCurrent}）：.find-hit 多半又被 ==高亮== 的 mark 规则盖掉了`,
+      )
+    }
 
     // 翻页：跳转单位是「处」而不是「块」——旧版按块跳，一个块里多处会像卡住
     await page.press('.find-bar input', 'Enter')
@@ -2362,6 +2379,40 @@ const summary = {
     }))
     if (!afterClose.empty) note('error', '⌘W 没有回到空态（没法验证查找栏随文档关闭）')
     else if (afterClose.bar) note('error', '关文档后查找栏还浮在空态上（应随文档一起关掉）')
+  }
+
+  // 3.18d) 源码档右键「复制为纯文本」必须有内容。
+  //
+  // 曾经源码档没有 .preview，这一项复制的是空串；剪贴板 API 对空串照样 resolve，
+  // 于是弹「已复制」却什么都没进剪贴板（用户实测）。源码档里纯文本 = 源码本身。
+  {
+    await page.goto(`${URL_ARG}?doc=${encodeURIComponent('/samples/sample.md')}`, { waitUntil: 'load' })
+    await page.waitForSelector('#content .block', { timeout: 10000 })
+    await page.keyboard.press(`${MOD}+3`) // 源码档
+    await page.waitForTimeout(400)
+    await page.evaluate(() => {
+      const code = document.querySelector('.source-view code')
+      if (!code) return
+      const range = document.createRange()
+      range.selectNodeContents(code)
+      const sel = getSelection()
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    })
+    const srcBox = await page.locator('.source-view').first().boundingBox()
+    await page.mouse.click(srcBox.x + 12, srcBox.y + 8, { button: 'right' })
+    await page.waitForTimeout(250)
+    const srcItems = await page.evaluate(() =>
+      [...document.querySelectorAll('.context-item')].map((b) => b.textContent ?? ''),
+    )
+    if (srcItems.some((s) => s.includes('HTML')))
+      note('error', `源码档菜单不该有「复制为 HTML」（没有渲染结果）：${srcItems.join(' / ')}`)
+    await page.locator('.context-item', { hasText: '复制为纯文本' }).first().click()
+    await page.waitForTimeout(250)
+    const clipped = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''))
+    if (!clipped) note('error', '源码档「复制为纯文本」复制到空内容（应复制选区或源码本身）')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
   }
 
   // 3.19) 空态不该有"凭空"的滚动条

@@ -99,6 +99,12 @@ export function createDocumentMenus({
   function blockMenuItems(block: BlockView, el: HTMLElement): ContextMenuItem[] {
     const preview = el.querySelector('.preview')
     const raw = block.raw
+    // 源码档没有 .preview，而「纯文本」在那里就是源码本身——早先这里只读
+    // preview，结果源码档复制到的是空串，剪贴板 API 对空串照样成功，于是
+    // 弹「已复制」却什么都没进剪贴板。有过选区时优先复制选区（同其他应用里
+    // 「复制为纯文本」的语义），没有才回退整块。
+    const selection = window.getSelection()?.toString() ?? ''
+    const plain = selection || preview?.textContent || raw
     const tableItems: ContextMenuItem[] =
       block.kind === 'table'
         ? [{ label: t('menuEditTable'), mutates: true, run: () => editor.operations.openTableForBlock(block) }]
@@ -115,13 +121,18 @@ export function createDocumentMenus({
       {
         label: t('menuCopyText'),
         // 渲染后的纯文本：粘进聊天窗口时不该带 ** 和 #
-        run: () => void copyText(preview?.textContent ?? '', t('menuCopied')),
+        run: () => void copyText(plain, t('menuCopied')),
       },
-      {
-        label: t('menuCopyHtml'),
-        // HTML 片段：粘进邮件/富文本编辑器时保留结构与表格
-        run: () => void copyText(preview?.innerHTML ?? '', t('menuCopied')),
-      },
+      // HTML 只在预览档才有：源码档没有渲染结果，留着就是一个只会复制空串的项。
+      ...(preview
+        ? [
+            {
+              label: t('menuCopyHtml'),
+              // HTML 片段：粘进邮件/富文本编辑器时保留结构与表格
+              run: () => void copyText(preview.innerHTML, t('menuCopied')),
+            },
+          ]
+        : []),
       {
         separatorBefore: true,
         label: t('menuCutBlock'),
