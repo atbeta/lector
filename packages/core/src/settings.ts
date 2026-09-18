@@ -242,16 +242,22 @@ export function pushRecentApp(list: readonly string[], app: string): string[] {
 }
 
 /**
- * 值看起来像一个"应用路径"吗——用来决定"失焦时要不要进最近列表"。
+ * 值看起来像一个"应用"时返回 true——用于失焦时决定要不要收进「最近用过」。
  *
- * 判据故意宽松（含分隔符、或带常见可执行扩展名即可）：它的职责是**挡住半截输入**，
- * 不是做路径校验（真正的校验是"点了能不能打开"）。空串显然不算。
+ * 判据必须挡得住**半截输入**：用户打了 `C:\Program` 就点了别处，若"含分隔符就收"，
+ * 列表很快被 `C:\Pro`、`C:\Program` 这类碎片塞满——而列表只有 5 个位置，碎片会把
+ * 真正有用的挤出去。所以要求"看得出是个可执行体"：
+ *   1) 带常见可执行扩展名（exe / app / cmd / bat / com / sh / AppImage）；或
+ *   2) 路径至少三层（`/usr/bin/code`、`C:\Apps\Typora`）——两层正是半截输入的形状。
+ * 光秃秃的名字（`code`）不收：它和"没打完"在形状上无法区分，想在 PATH 里用它的
+ * 用户走「浏览…」更可靠。判据不是路径校验，真正的校验是"点了能不能打开"。
  */
 export function isPlausibleAppPath(value: string): boolean {
   const v = value.trim()
   if (!v) return false
-  if (/[\\/]/.test(v)) return true
-  return /\.(exe|app|cmd|bat|com|sh|AppImage)$/i.test(v)
+  if (/\.(exe|app|cmd|bat|com|sh|AppImage)$/i.test(v)) return true
+  if (v.startsWith('/') && v.split('/').filter(Boolean).length >= 3) return true
+  return /^[a-zA-Z]:[\\/]/.test(v) && v.split(/[\\/]/).filter(Boolean).length >= 3
 }
 
 /**
