@@ -33,6 +33,13 @@ export async function openWithDefault(path: string): Promise<void> {
   await invoke('open_with_default', { path })
 }
 
+/** 用设置里指定的外部应用打开文件（可执行文件 + 参数，文件路径由壳追加在最后）。 */
+export async function openWithApp(path: string, app: string, args: string[]): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('open_with_app', { path, app, args })
+}
+
 
 /** 在系统文件管理器中显示文件。 */
 export async function revealInFolder(path: string): Promise<void> {

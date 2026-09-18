@@ -86,6 +86,11 @@ export interface EditorSettings {
   imageCommandArgs: string[]
   /** command 超时（毫秒），clamp 到 [1000, 300000]，默认 30s。 */
   imageCommandTimeoutMs: number
+
+  /** 「用其他应用打开」里的那个应用（可执行文件）。留空则回退到系统默认应用。 */
+  externalApp: string
+  /** 传给外部应用的附加参数（文件路径由壳追加在最后，与图片命令同一约定）。 */
+  externalAppArgs: string[]
 }
 
 /**
@@ -118,6 +123,8 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   imageCommand: '',
   imageCommandArgs: [],
   imageCommandTimeoutMs: DEFAULT_IMAGE_TIMEOUT_MS,
+  externalApp: '',
+  externalAppArgs: [],
 }
 
 const CLAMP = {
@@ -199,6 +206,10 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
       IMAGE_TIMEOUT_MAX,
       base.imageCommandTimeoutMs,
     ),
+    externalApp: String(src.externalApp ?? base.externalApp ?? '').trim().slice(0, 512),
+    externalAppArgs: Array.isArray(src.externalAppArgs)
+      ? src.externalAppArgs.filter((a): a is string => typeof a === 'string').slice(0, 32).map((a) => a.slice(0, 256))
+      : base.externalAppArgs,
   }
 }
 

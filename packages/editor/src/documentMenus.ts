@@ -19,7 +19,7 @@ export function createDocumentMenus({
   getViewMode,
 }: {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
-  files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'revealCurrent' | 'closeFile'>
+  files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'openWithLabel' | 'revealCurrent' | 'closeFile'>
   imageMenuItems: (img: HTMLImageElement) => ContextMenuItem[]
   contentEl: HTMLElement
   getViewMode: () => ViewMode
@@ -309,7 +309,9 @@ export function createDocumentMenus({
         const items: ContextMenuItem[] = []
         if (path) {
           items.push(
-            { label: t('menuOpenDefault'), run: () => void files.openDefaultApp() },
+            // 标签跟着设置走：配了外部应用就写明是哪个，没配才说"默认应用"。
+            // 标签与实际行为不一致，比没有这个入口更糟——用户会按标签预期。
+            { label: files.openWithLabel(), run: () => void files.openDefaultApp() },
             { label: t('menuReveal'), run: () => void files.revealCurrent() },
             { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },
           )

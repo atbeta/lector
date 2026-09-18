@@ -144,6 +144,29 @@ pub fn open_with_default(path: String) -> Result<(), String> {
   r.map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// 用**用户指定的应用**打开当前文件（设置里的「用其他应用打开」）。
+/// 约定与图片自定义命令一致：可执行文件 + 参数数组，文件路径追加在最后——
+/// 不拼 shell 字符串，所以没有注入面。app 为空时调用方回退到 open_with_default。
+#[tauri::command]
+pub fn open_with_app(path: String, app: String, args: Vec<String>) -> Result<(), String> {
+  let p = PathBuf::from(&path);
+  if !p.is_absolute() {
+    return Err(format!("not an on-disk file: {path}"));
+  }
+  let exe = app.trim();
+  if exe.is_empty() {
+    return Err("empty external app".into());
+  }
+  let mut cmd = std::process::Command::new(exe);
+  cmd.args(&args).arg(&p);
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+  }
+  cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// 在系统文件管理器中显示当前文件（Finder 显示 / 资源管理器选中）。
 #[tauri::command]
 pub fn reveal_in_folder(path: String) -> Result<(), String> {

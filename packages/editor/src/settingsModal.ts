@@ -305,6 +305,25 @@ export function openSettingsModal(onClose?: () => void) {
   )
   images.appendChild(markRowForModes(row(t('imageCommandArgs'), argsInput), 'command'))
 
+  // 「用其他应用打开」：与图片命令同一约定（可执行文件 + 参数数组，文件路径追加在最后）。
+  // 放在图片命令旁边——它们是一类东西：把文件交给外部程序。
+  const appInput = h('input', 'settings-input') as HTMLInputElement
+  appInput.type = 'text'
+  appInput.spellcheck = false
+  appInput.value = getSettings().externalApp
+  appInput.placeholder = 'C:\\Program Files\\Typora\\Typora.exe'
+  appInput.addEventListener('input', () => apply((s) => ({ ...s, externalApp: appInput.value })))
+  images.appendChild(markRowForModes(row(t('externalApp'), appInput, t('externalAppHint')), 'command'))
+
+  const appArgsInput = h('input', 'settings-input') as HTMLInputElement
+  appArgsInput.type = 'text'
+  appArgsInput.spellcheck = false
+  appArgsInput.value = getSettings().externalAppArgs.join(' ')
+  appArgsInput.addEventListener('input', () =>
+    apply((s) => ({ ...s, externalAppArgs: appArgsInput.value.split(/\s+/).filter(Boolean) })),
+  )
+  images.appendChild(markRowForModes(row(t('externalAppArgs'), appArgsInput), 'command'))
+
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),
     1,

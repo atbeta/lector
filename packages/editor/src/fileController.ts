@@ -13,6 +13,7 @@ import {
   onOpen,
   onFileChanged,
   onCloseRequest,
+  openWithApp,
   openWithDefault,
   revealInFolder,
 } from '@lector/shell-web'
@@ -39,6 +40,7 @@ const defaultFileIO = {
   onOpen,
   onFileChanged,
   onCloseRequest,
+  openWithApp,
   openWithDefault,
   revealInFolder,
 }
@@ -327,15 +329,28 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     return isAbsolutePath(p) ? p : null
   }
 
-  /** 用系统默认应用打开当前文件：复杂编辑/预览时联动其他应用的逃生口。 */
+  /** 菜单标签：配了外部应用就写明是哪个，没配才说"默认应用"（标签不能撒谎）。 */
+  function openWithLabel(): string {
+    const app = getSettings().externalApp.trim()
+    return app ? t('menuOpenWith', { app: baseName(app) }) : t('menuOpenDefault')
+  }
+
+  /**
+   * 用外部应用打开当前文件。
+   * 配了「其他应用」就用它，没配就走系统默认——**菜单标签必须跟着变**
+   * （见 documentMenus）：用户得知道会打开哪个程序，否则点了才知道是错的。
+   */
   async function openDefaultApp(): Promise<void> {
     const p = currentDiskPath()
     if (!p) {
       showToast(t('menuNeedDiskFile'))
       return
     }
+    const s = getSettings()
+    const app = s.externalApp.trim()
     try {
-      await io.openWithDefault(p)
+      if (app) await io.openWithApp(p, app, s.externalAppArgs)
+      else await io.openWithDefault(p)
     } catch {
       showToast(t('openFailed'))
     }
@@ -532,6 +547,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     saveAsFlow,
     currentDiskPath,
     openDefaultApp,
+    openWithLabel,
     revealCurrent,
     reloadFromDisk,
     renderEmptyState,
