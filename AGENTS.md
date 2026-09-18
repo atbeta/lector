@@ -49,6 +49,11 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
 - `v*` tag 推上去后 CI 自动构建并发布 Windows 包（安装器 + 便携版 + 校验和），不需要人工点确认。
   分支上的推送只出 artifact，不动 Release。
 - macOS 签名与公证暂不在范围内，也不发未签名的 macOS 包。
+- **CHANGELOG.md 是面向用户的版本日志**：每版按 Conventional Commits 前缀(`feat:` `fix:` `refactor:` `perf:` `style:` `ci:` `docs:`)归入「新增 / 修复 / 改进 / 内部」四栏。
+  `chore:` 与 `test:` 不进版本日志。发版时 `tools/release.mjs` 从 CHANGELOG.md 抽出本版小节写进 `.github/release-notes/<version>.md`,
+  CI 的 release job 拿这个文件作发行说明;CHANGELOG.md 缺失或没本版小节则退回通用 notes。
+- 发布前的 CHANGELOG.md 维护:上一版 `chore(release): vX.Y.Z` 与本版之间所有 commit,
+  按上面的分类规则整理进 CHANGELOG.md;旧版的 rot / encoding 修复 / 仓库维护 commit 直接跳过。
 
 ## 目录
 

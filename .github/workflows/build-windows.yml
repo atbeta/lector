@@ -252,6 +252,15 @@ jobs:
           # v1.2.0-rc.1 这类带后缀的自动标成预发布，不占「最新版」的位置
           pre=""
           case "$TAG" in *-*) pre="--prerelease" ;; esac
+          # 本版发行说明:由 tools/release.mjs 从 CHANGELOG.md 抽出本版小节生成。
+          # 不存在则退回到通用 notes(.github/release-notes.md),
+          # 覆盖重跑也走通用——之前那次发版的本版 notes 还在仓库里,
+          # 真要换笔记直接改 CHANGELOG.md 重新生成 tag。
+          version_notes=".github/release-notes/${TAG}.md"
+          if [ ! -f "$version_notes" ]; then
+            echo "没找到 ${version_notes},退回到通用 notes"
+            version_notes=".github/release-notes.md"
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             # 同一个 tag 重跑（构建失败后重试很常见）不该报错，覆盖产物即可
             echo "release $TAG 已存在，改为覆盖上传"
@@ -259,7 +268,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "Lector $TAG" \
-              --notes-file .github/release-notes.md \
+              --notes-file "$version_notes" \
               --generate-notes \
               $pre \
               dist-win/*.exe dist-win/*.zip dist-win/SHA256SUMS.txt

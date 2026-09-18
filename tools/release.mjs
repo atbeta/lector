@@ -15,7 +15,7 @@
 // 然后把安装器与便携版挂到 Release。macOS 签名不在当前范围。
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -164,7 +164,41 @@ try {
 
 // ── 提交 + tag + 推 ──
 
-sh('git', ['add', ...edits.map((e) => e.file)])
+// 从 CHANGELOG.md 抽出本版小节,写进 .github/release-notes/<version>.md。
+// CI 的 release job 拿这个文件作为本版发布说明(替代之前那个全版本同款模板)。
+// CHANGELOG.md 缺失或没本版小节则不生成文件——CI 退回到通用 notes。
+function extractVersionSection(version) {
+  const file = path.join(ROOT, 'CHANGELOG.md')
+  if (!existsSync(file)) return null
+  const text = readFileSync(file, 'utf8')
+  const lines = text.split('\n')
+  // 节头格式: `## vX.Y.Z (YYYY-MM-DD)` —— startsWith 容忍日期后缀
+  const headerPrefix = `## ${version}`
+  const startIdx = lines.findIndex((l) => l.trim().startsWith(headerPrefix))
+  if (startIdx < 0) return null
+  // 下一个 ## 出现前结束(版本之间不再含 '##')
+  let nextIdx = lines.length
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('## ')) {
+      nextIdx = i
+      break
+    }
+  }
+  const body = lines.slice(startIdx, nextIdx).join('\n').trimEnd()
+  // 去掉 compare 链接(发行说明里与 GitHub auto-notes 重复)
+  return body.replace(/\n*\[[^\]]+\]: https:\/\/github\.com\/.*\n*$/, '').trimEnd() + '\n'
+}
+
+const versionSection = extractVersionSection(version)
+const notesPath = path.join(ROOT, '.github', 'release-notes', `${tag}.md`)
+const stagedFiles = edits.map((e) => e.file)
+if (versionSection) {
+  writeFileSync(notesPath, versionSection)
+  stagedFiles.push(path.relative(ROOT, notesPath))
+  console.log(`  生成 ${path.relative(ROOT, notesPath)}(本版日志,${versionSection.split('\n').length} 行)`)
+}
+
+sh('git', ['add', ...stagedFiles])
 sh('git', ['commit', '-m', `chore(release): ${tag}`])
 sh('git', ['tag', '-a', tag, '-m', `Lector ${tag}`])
 
