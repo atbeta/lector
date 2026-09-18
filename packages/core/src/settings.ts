@@ -50,6 +50,18 @@ export interface EditorSettings {
   uiZoom: number
   /** 自动成对符号（选中即包裹 **、[] 等）。 */
   /**
+   * ==高亮==（Pandoc mark 扩展）：预览里把 `==文字==` 渲染成高亮。
+   * 不是 CommonMark / GFM，属 Obsidian / Typora 一路的扩展语法；关掉则原样显示
+   * 两个等号（给不想让 `==` 被吃掉的人）。
+   */
+  markHighlight: boolean
+  /**
+   * 数学公式：`$…$`（行内）与 `$$…$$`（块级）。关掉则原样显示美元符号。
+   * 与 markHighlight 同属「Markdown 扩展语法」——都不是 CommonMark，
+   * 且 `$` 在价格/区间里天然有歧义，留给用户一个总开关。
+   */
+  math: boolean
+  /**
    * 未保存内容恢复：编辑过的内容留一份草稿在本地，重开这份文件时提示恢复。
    * 做成开关是因为它**会留副本**——有人不接受应用里多存一份内容。
    */
@@ -118,6 +130,8 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   customCss: '',
   mermaidConfig: '',
   autoCharacterPairs: true,
+  markHighlight: true,
+  math: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
   codeLineNumbers: true,
@@ -187,6 +201,8 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     readingWidth: clampInt(src.readingWidth, CLAMP.readingWidth.min, CLAMP.readingWidth.max, base.readingWidth),
     uiZoom: clampInt(src.uiZoom, CLAMP.uiZoom.min, CLAMP.uiZoom.max, base.uiZoom),
     autoCharacterPairs: typeof src.autoCharacterPairs === 'boolean' ? src.autoCharacterPairs : base.autoCharacterPairs,
+    markHighlight: typeof src.markHighlight === 'boolean' ? src.markHighlight : base.markHighlight,
+    math: typeof src.math === 'boolean' ? src.math : base.math,
     closeAlwaysConfirmsChanges:
       typeof src.closeAlwaysConfirmsChanges === 'boolean'
         ? src.closeAlwaysConfirmsChanges

@@ -17,6 +17,7 @@ describe('settings schema', () => {
       autoCharacterPairs: false,
       closeAlwaysConfirmsChanges: false,
       showWhitespace: true,
+      markHighlight: false,
     })
     expect(s.theme).toBe('dark')
     expect(s.fontFamily).toBe('serif')
@@ -26,6 +27,7 @@ describe('settings schema', () => {
     expect(s.autoCharacterPairs).toBe(false)
     expect(s.closeAlwaysConfirmsChanges).toBe(false)
     expect(s.showWhitespace).toBe(true)
+    expect(s.markHighlight).toBe(false)
   })
 
   test('非法类型 / 越界回退默认为基准', () => {
@@ -46,6 +48,20 @@ describe('settings schema', () => {
     expect(normalizeSettings({ theme: 'system' }).theme).toBe('system')
     expect(normalizeSettings({ theme: 'light' }).theme).toBe('light')
     expect(normalizeSettings({ theme: 'dark' }).theme).toBe('dark')
+  })
+
+  test('==高亮== 开关：默认开，非法类型回退', () => {
+    expect(DEFAULT_SETTINGS.markHighlight).toBe(true)
+    expect(normalizeSettings({}).markHighlight).toBe(true)
+    expect(normalizeSettings({ markHighlight: false }).markHighlight).toBe(false)
+    expect(normalizeSettings({ markHighlight: 1 as unknown as boolean }).markHighlight).toBe(true)
+  })
+
+  test('内联公式开关：默认开，非法类型回退', () => {
+    expect(DEFAULT_SETTINGS.math).toBe(true)
+    expect(normalizeSettings({}).math).toBe(true)
+    expect(normalizeSettings({ math: false }).math).toBe(false)
+    expect(normalizeSettings({ math: 'no' as unknown as boolean }).math).toBe(true)
   })
 
   test('图片设置：默认 images + {filename}.assets 模板', () => {

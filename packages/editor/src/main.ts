@@ -1,6 +1,6 @@
 import { detectEnv, shellAssetResolver, notifyWebviewReady } from '@lector/shell-web'
 import { setAssetResolver } from './asset.ts'
-import { initSettings, notify as notifySettings } from './settings.ts'
+import { initSettings, notify as notifySettings, getSettings } from './settings.ts'
 import { mermaidRenderSignature } from './mermaid.ts'
 import { createSidebar } from './sidebar.ts'
 import { createOutline } from './outline.ts'
@@ -18,6 +18,7 @@ import { mountSelectionBubble } from './selectionBubble.ts'
 import { mountLightbox } from './lightbox.ts'
 import { mountTip } from './tip.ts'
 import { hideContextMenu } from './contextMenu.ts'
+import { setMarkHighlight, setMathEnabled } from './mdastHtml.ts'
 import { mountWindowControls, mountHeaderScrollState } from './chrome.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
@@ -149,6 +150,20 @@ notifySettings((s) => {
     mermaidRedrawTimer = null
     void editor.render()
   }, 250)
+})
+
+//「Markdown 扩展语法」的渲染开关：渲染读的是 mdastHtml 的模块旗标，改了要立刻重画预览。
+let markHighlightOn = getSettings().markHighlight
+let mathOn = getSettings().math
+setMarkHighlight(markHighlightOn)
+setMathEnabled(mathOn)
+notifySettings((s) => {
+  if (s.markHighlight === markHighlightOn && s.math === mathOn) return
+  markHighlightOn = s.markHighlight
+  mathOn = s.math
+  setMarkHighlight(markHighlightOn)
+  setMathEnabled(mathOn)
+  void editor.render()
 })
 
 void (async () => {

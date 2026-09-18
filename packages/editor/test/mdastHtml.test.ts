@@ -2,7 +2,7 @@
 // 只测判据本身（渲染层的行为由 ui-verify 的表格断言兜住），
 // 重点是别把"日期/编号/带文字的格子"误判成数字。
 import { expect, test } from 'bun:test'
-import { isNumericCell, looksLikeMath, renderBlockHtml } from '../src/mdastHtml.ts'
+import { isNumericCell, looksLikeMath, renderBlockHtml, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
 import { parseBlocks } from '@lector/core'
 
 test('纯数字与常见单位算数字', () => {
@@ -48,4 +48,32 @@ test('脚注：引用与定义都能在预览里看到（不再隐身）', () =>
   expect(html).toContain('id="fn-two"')
   expect(html).toContain('第二条脚注')
   expect(html).toContain('<a class="footnote-backref" href="#fnref-1"')
+})
+
+test('==高亮==：默认渲染成 mark，关掉后原样显示两个等号', () => {
+  const blocks = parseBlocks('前文 ==重点== 后文')
+  const render = () => blocks.map((b) => renderBlockHtml(b.mdast, b.raw)).join('')
+  expect(render()).toContain('<mark class="html-mark">重点</mark>')
+  setMarkHighlight(false)
+  try {
+    const off = render()
+    expect(off).toContain('==重点==')
+    expect(off).not.toContain('<mark')
+  } finally {
+    setMarkHighlight(true)
+  }
+})
+
+test('内联公式：默认渲染成 math，关掉后原样显示美元符号', () => {
+  const blocks = parseBlocks('公式 $x^2$ 与价格 $5')
+  const render = () => blocks.map((b) => renderBlockHtml(b.mdast, b.raw)).join('')
+  expect(render()).toContain('math-inline')
+  setMathEnabled(false)
+  try {
+    const off = render()
+    expect(off).toContain('$x^2$')
+    expect(off).not.toContain('math-inline')
+  } finally {
+    setMathEnabled(true)
+  }
 })

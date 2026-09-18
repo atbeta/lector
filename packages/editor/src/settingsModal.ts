@@ -310,6 +310,21 @@ export function openSettingsModal(onClose?: () => void) {
     ),
   )
 
+  // ── 扩展语法 ──
+  // 超出 CommonMark / GFM 的语法各给一个开关：它们是「偏好」而不是「基础设施」——
+  // 有人拿 $ 当货币、拿 == 当等号，关掉就该原样看见源文。
+  // 独立一区（而不是混进「编辑」）是为了找得到，也方便以后按 Typora 那样继续加项。
+  const markdown = makeSection('markdown', t('markdownExtensions'))
+  markdown.appendChild(
+    row(t('inlineMath'), Switch(getSettings().math, (v) => apply((s) => ({ ...s, math: v })))),
+  )
+  markdown.appendChild(
+    row(
+      t('markHighlight'),
+      Switch(getSettings().markHighlight, (v) => apply((s) => ({ ...s, markHighlight: v }))),
+    ),
+  )
+
   // ── 图片 ──
   // 三档单选决定图片落哪、要不要跑上传命令。只有选中的那一档相关的行才显示：
   // images/ 没有可配项；同名资源目录只多一个目录模板；自定义上传才展开命令、
