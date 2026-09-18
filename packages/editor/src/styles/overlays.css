@@ -387,7 +387,7 @@ html.lightbox-open #content { overflow: hidden; }
   gap: 8px;
 }
 .appearance-hint {
-  margin: 10px 2px 0;
+  margin: 8px 2px 0;
   font-size: var(--text-2xs);
   line-height: 1.55;
   color: rgb(var(--subtle-foreground));

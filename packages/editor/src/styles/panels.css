@@ -102,7 +102,7 @@
 }
 .settings-nav-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
 .settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 600; }
-.settings-content { overflow-y: auto; min-height: 0; padding: 16px 22px 22px; }
+.settings-content { overflow-y: auto; min-height: 0; padding: 16px 22px 18px; }
 .settings-group-title {
   margin: 0 0 6px;
   font-size: var(--text-sm);

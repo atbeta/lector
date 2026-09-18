@@ -451,7 +451,7 @@ html[data-theme='dark'] [data-reading-theme='sepia'] {
   gap: 0;
   width: 100%;
   min-width: 0; /* 允许被网格压窄（见 .theme-grid 的注释） */
-  padding: 10px 12px 11px;
+  padding: 9px 12px;
   border: 1px solid rgb(var(--border));
   border-radius: var(--radius-card);
   background: rgb(var(--paper));
@@ -470,7 +470,7 @@ html[data-theme='dark'] [data-reading-theme='sepia'] {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-bottom: 9px;
+  margin-bottom: 7px;
   min-width: 0;
   font-size: 15px;
   line-height: 1.35;
