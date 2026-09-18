@@ -77,3 +77,26 @@ test('内联公式：默认渲染成 math，关掉后原样显示美元符号', 
     setMathEnabled(true)
   }
 })
+
+test('表格：GFM 对齐语法生效，未标注的列才回退数字右对齐', () => {
+  const md = [
+    '| 名称 | 居中 | 右 | 左 | 数量 |',
+    '| :--- | :---: | ---: | :--- | --- |',
+    '| a | b | c | 1 | 10 |',
+    '| e | f | g | 2 | 22 |',
+  ].join('\n')
+  const blocks = parseBlocks(md)
+  const html = blocks.map((b) => renderBlockHtml(b.mdast, b.raw)).join('')
+  // 表头跟着列对齐
+  expect(html).toContain('<th data-align="left">名称</th>')
+  expect(html).toContain('<th data-align="center">居中</th>')
+  expect(html).toContain('<th data-align="right">右</th>')
+  expect(html).toContain('<th data-align="left">左</th>')
+  // 「数量」列没写冒号（align=null）：整列是数字 → 回退右对齐
+  expect(html).toContain('<th data-align="right">数量</th>')
+  // 单元格：显式对齐优先，显式左对齐的列即使内容是数字也不右对齐
+  expect(html).toContain('<td data-align="center">b</td>')
+  expect(html).toContain('<td data-align="right">c</td>')
+  expect(html).toContain('<td data-align="left">1</td>')
+  expect(html).toContain('<td data-align="right">22</td>')
+})

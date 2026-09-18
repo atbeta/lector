@@ -187,17 +187,30 @@
 .reading-prose th, .reading-prose td {
   padding: 10px 14px;
   border-bottom: 1px solid rgb(var(--border-subtle));
+  /* 列间竖线：单元格现在会居中 / 右对齐（见下方 data-align），竖线是唯一能把
+     一格和它的表头对上的线索；只有横线时，多列并排容易读成一片。
+     用和行线同一档的 subtle，是「看得见但不吵」的分隔，不是网格线。
+     最右列不画——外框由 .table-wrap 提供，再画一条就和它重了。 */
+  border-right: 1px solid rgb(var(--border-subtle));
   text-align: left;
 }
+.reading-prose th:last-child,
+.reading-prose td:last-child { border-right: none; }
 /* 表头：用「淡底 + 正文色 + 字重」表达层级，不是「灰字 + 一条重线」。
    灰字让表头看起来比表内容还弱；border-strong 那条线在浅色主题里像一道划痕，
    而且它和行分隔线粗细相同、深浅不同，读起来是「断了一截」。
    层级交给底色与字重，线只负责分隔，统一用 border。 */
-/* 数字列右对齐 + 等宽数字：右对齐让数位对齐，tabular-nums 让每个数字等宽，
-   两者合起来才"一眼比得出大小"——只右对齐而数字不等宽，列里的个位数还是参差。 */
+/* GFM 对齐：:--- 左 / :---: 中 / ---: 右 由 mdastHtml 写成 data-align。
+   左对齐是默认（上面那条），这里补居中与右对齐——表头也跟着列对齐。
+   右对齐额外带 tabular-nums：数位对齐 + 数字等宽合起来才"一眼比得出大小"。 */
+.reading-prose th[data-align='right'],
 .reading-prose td[data-align='right'] {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.reading-prose th[data-align='center'],
+.reading-prose td[data-align='center'] {
+  text-align: center;
 }
 .reading-prose th {
   font-weight: 600;

@@ -9,7 +9,7 @@ import { iconSvg } from './icons.ts'
 import { parseBlockRoots } from '@lector/core'
 
 type Node =
-  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; children?: Node[]; position?: unknown }
+  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; align?: Array<'left' | 'right' | 'center' | null> | null; children?: Node[]; position?: unknown }
 
 /**
  * 判断一段行内 $…$ 内容是不是「真的数学公式」。
@@ -452,23 +452,33 @@ function blockToHtml(n: Node): string {
           .filter(Boolean)
         return values.length > 0 && values.every(isNumericCell)
       }
+      // GFM 的对齐语法（:--- 左 / :---: 中 / ---: 右）由 mdast 记在 table.align。
+      // **显式标注优先**；没写冒号的列才回退到「数字列右对齐」这条排版约定。
+      const aligns = n.align ?? []
+      const alignFor = (column: number, numeric: boolean): string | null => {
+        const a = aligns[column]
+        if (a === 'left' || a === 'center' || a === 'right') return a
+        return numeric ? 'right' : null
+      }
+      const attr = (a: string | null) => (a ? ` data-align="${a}"` : '')
       const thead = head
         ? `<thead><tr>${(head.children ?? [])
-            .map((c: Node, column: number) => `<th${columnIsNumeric(column) ? ' data-align="right"' : ''}>${inline(c.children)}</th>`)
+            .map(
+              (c: Node, column: number) =>
+                `<th${attr(alignFor(column, columnIsNumeric(column)))}>${inline(c.children)}</th>`,
+            )
             .join('')}</tr></thead>`
         : ''
       const tbody = bodyRows
         .map(
           (r: Node) =>
             `<tr>${(r.children ?? [])
-              .map((c: Node) => {
-              // 数字列右对齐：表格排版里最常用、也最容易被忽略的一条。
-              // 判据放在渲染这一层（看这一格的内容），而不是"给每列判断类型"——
-              // 后者要扫整列、还要处理列内混排，收益不比这个大。
-              const html = inline(c.children)
-              const plain = html.replace(/<[^>]+>/g, '').trim()
-              return `<td${isNumericCell(plain) ? ' data-align="right"' : ''}>${html}</td>`
-            })
+              .map((c: Node, column: number) => {
+                // 没标对齐时按这一格的内容兜底：数字右对齐（见 alignFor）。
+                const html = inline(c.children)
+                const plain = html.replace(/<[^>]+>/g, '').trim()
+                return `<td${attr(alignFor(column, isNumericCell(plain)))}>${html}</td>`
+              })
               .join('')}</tr>`,
         )
         .join('')
