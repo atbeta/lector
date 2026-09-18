@@ -19,6 +19,7 @@ import { mountLightbox } from './lightbox.ts'
 import { mountTip } from './tip.ts'
 import { hideContextMenu } from './contextMenu.ts'
 import { setMarkHighlight, setMathEnabled } from './mdastHtml.ts'
+import { appInfoFor } from './appInfo.ts'
 import { mountWindowControls, mountHeaderScrollState } from './chrome.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
@@ -164,6 +165,13 @@ notifySettings((s) => {
   setMarkHighlight(markHighlightOn)
   setMathEnabled(mathOn)
   void editor.render()
+})
+
+// 外部应用的真名（exe 产品名）：文件菜单标签是同步渲染的，等不到异步结果，
+// 所以设置一落地/一变就先把当前应用查好（带缓存，重复调用只是一次查表）。
+// 查到的真名与设置页共用同一份缓存，两处显示因此一致（NoteFast 而非 notefast）。
+notifySettings((s) => {
+  void appInfoFor(s.externalApp)
 })
 
 void (async () => {

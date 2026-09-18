@@ -1,4 +1,4 @@
-import { applyEncoding, appDisplayName } from '@lector/core'
+import { applyEncoding } from '@lector/core'
 import {
   detectEnv,
   pickAndRead,
@@ -18,6 +18,7 @@ import {
   revealInFolder,
 } from '@lector/shell-web'
 import { isAbsolutePath, baseName } from './paths.ts'
+import { resolvedAppName } from './appInfo.ts'
 import { getSettings, setSettings } from './settings.ts'
 import { pushRecentApp } from '@lector/core'
 import { showToast } from './feedback.ts'
@@ -333,7 +334,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
   /** 菜单标签：配了外部应用就写明是哪个（剥掉 .exe 等扩展名），没配才说"默认应用"（标签不能撒谎）。 */
   function openWithLabel(): string {
     const app = getSettings().externalApp.trim()
-    return app ? t('menuOpenWith', { app: appDisplayName(app) }) : t('menuOpenDefault')
+    return app ? t('menuOpenWith', { app: resolvedAppName(app) }) : t('menuOpenDefault')
   }
 
   /**

@@ -20,7 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
-import { appDisplayName, isPlausibleAppPath, pushRecentApp } from '@lector/core'
+import { isPlausibleAppPath, pushRecentApp } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -28,28 +28,15 @@ import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
 import { parseMermaidConfig } from './mermaid.ts'
+import { appInfoFor, resolvedAppName } from './appInfo.ts'
 import {
   testImageCommand,
   runImageCommand,
   appVersion,
   pickAppPath,
-  appInfo,
-  type ExternalAppInfo,
 } from '@lector/shell-web'
 
 let root: HTMLElement | null = null
-
-// 应用图标/显示名查询走壳 IPC，按路径缓存到模块级：面板每次打开都重建 DOM，
-// 不缓存的话列表每次都要从占位图标闪一次。
-const appInfoCache = new Map<string, Promise<ExternalAppInfo | null>>()
-function appInfoFor(path: string): Promise<ExternalAppInfo | null> {
-  let p = appInfoCache.get(path)
-  if (!p) {
-    p = appInfo(path)
-    appInfoCache.set(path, p)
-  }
-  return p
-}
 
 /** number[]（IPC 序列化的 PNG 字节）→ data URL，直接喂 <img>。 */
 function pngDataUrl(bytes: number[]): string {
@@ -470,7 +457,7 @@ export function openSettingsModal(onClose?: () => void) {
     iconBox.innerHTML = iconSvg(path ? 'appWindow' : 'fileOutput')
     const text = h('span', 'app-item-text')
     const name = h('span', 'app-item-name')
-    name.textContent = path ? appDisplayName(path) : t('externalAppSystemDefault')
+    name.textContent = path ? resolvedAppName(path) : t('externalAppSystemDefault')
     text.appendChild(name)
     // 两行制：应用行是「名称 + 路径」，系统默认行也给一行说明——
     // 行高一致，列表读起来才是清单而不是参差的几行字。
