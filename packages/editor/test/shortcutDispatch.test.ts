@@ -90,6 +90,16 @@ describe('快捷键分派', () => {
     expect(kind({ mod: true, shift: true, key: 'E' })).toBe(null)
   })
 
+  test('键位表：⌘/ 与 ? 呼出；? 在聚焦编辑块时让位给输入', () => {
+    expect(kind({ mod: true, key: '/' })).toBe('shortcuts')
+    expect(kind({ key: '?', shift: true })).toBe('shortcuts')
+    expect(kind({ key: 'F1' })).toBe('shortcuts')
+    // 块里打字：? 必须留给 CodeMirror（同 ⌘Z 的守卫）
+    expect(kind({ key: '?', shift: true, focusedBlock: true })).toBe(null)
+    // ⌘⇧/ 不是它
+    expect(kind({ mod: true, shift: true, key: '?' })).toBe(null)
+  })
+
   test('defaultPrevented 只挡文档/视图那组，不挡撤销与保存', () => {
     // 聚焦块里的裸 CM 已接管的键（Ctrl+E 行内代码…）冒泡上来必须放行
     expect(kind({ mod: true, key: 'e', defaultPrevented: true })).toBe(null)

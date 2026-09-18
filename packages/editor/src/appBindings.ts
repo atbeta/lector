@@ -5,6 +5,7 @@ import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom } from './settings
 import { openSettingsModal } from './settingsModal.ts'
 import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
+import { openShortcutsPanel } from './shortcutsPanel.ts'
 import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import { resolveShortcut } from './shortcutDispatch.ts'
@@ -175,6 +176,9 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
         break
       case 'find':
         editor.openFind()
+        break
+      case 'shortcuts':
+        openShortcutsPanel()
         break
       case 'cycle-mode':
         chrome.toggleMode()

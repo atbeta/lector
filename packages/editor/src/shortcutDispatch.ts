@@ -43,6 +43,7 @@ export type ShortcutAction =
   | { kind: 'ui-zoom'; dir: 1 | -1 | 0 }
   | { kind: 'font-size'; dir: 1 | -1 | 0 }
   | { kind: 'find' }
+  | { kind: 'shortcuts' }
   | { kind: 'cycle-mode' }
   | { kind: 'set-mode'; index: 0 | 1 | 2 }
 
@@ -59,6 +60,11 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
   if (key === 'Escape' && h.focusedBlock) return { kind: 'leave-edit' }
   if (h.mod && h.shift && lower === 's') return { kind: 'save-as' }
   if (h.mod && lower === 's') return { kind: 'save' }
+  // 键位表：⌘/ 是通用写法（Slack / Linear），? 是 GitHub / Gmail 那一派，F1 照顾 Windows。
+  // ? 只在**没聚焦编辑块**时才接管——否则用户在块里打不出问号（同块级撤销的守卫）。
+  if (h.mod && !h.shift && key === '/') return { kind: 'shortcuts' }
+  if (!h.mod && key === '?' && !h.focusedBlock) return { kind: 'shortcuts' }
+  if (key === 'F1') return { kind: 'shortcuts' }
 
   // 3) 文档与视图快捷键
   if (h.defaultPrevented) return null

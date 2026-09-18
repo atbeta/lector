@@ -25,6 +25,7 @@ import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
 import { mountAppearance } from './themeGallery.ts'
+import { shortcutGroups } from './shortcutsPanel.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
 import { parseMermaidConfig } from './mermaid.ts'
@@ -633,6 +634,25 @@ export function openSettingsModal(onClose?: () => void) {
   syncMermaidHint()
   advanced.appendChild(mermaidRow)
 
+  // ── 键盘快捷键 ──
+  // 键位表没有常驻按钮（⌘/ 或 ? 呼出，见 shortcutsPanel）；这里是「找得到」的那一份：
+  // 内联成一张表、可被设置搜索命中，不必点一下再切一层 UI。数据与浮层同源
+  // （都来自 shortcutGroups），不会有两份会漂移的键位清单。
+  const shortcuts = makeSection('shortcuts', t('shortcutTitle'))
+  // 用设置行来排：标签在左、键位在右——和这一页其他地方一致，也把整行宽度用起来。
+  // 早先做「键位左、标签右」的小表，右半边空一大片，长键还把标签挤得参差。
+  // 每行都是 .settings-row，搜索/显隐因此天然生效，不必再包一层。
+  for (const group of shortcutGroups()) {
+    const groupLabel = h('div', 'settings-row-label')
+    groupLabel.textContent = group.title
+    shortcuts.appendChild(groupLabel)
+    for (const r of group.rows) {
+      const keys = h('kbd', 'shortcut-keys')
+      keys.textContent = r.keys
+      shortcuts.appendChild(row(r.label, keys))
+    }
+  }
+
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
   // 这节没有可调的项，所以不做成左对齐的设置行，而是一张居中的名片：
@@ -702,6 +722,8 @@ export function openSettingsModal(onClose?: () => void) {
         if (hit) visibleInSection++
       }
       el.hidden = visibleInSection === 0
+      // 搜索时收起组内小标题（与分区标题同一取舍）；浏览时按分区显隐。
+      for (const sub of el.querySelectorAll<HTMLElement>('.settings-row-label')) sub.hidden = !browsing
       // 标题只在搜索时留下：常规浏览时左侧选中项已经写着这一节叫什么，右侧再顶一行
       // 就是同一句话说两遍；而搜索结果跨分区，那些标题正是「这条命中属于哪一节」的答案。
       el.querySelector<HTMLElement>('.settings-group-title')!.hidden = browsing || visibleInSection === 0

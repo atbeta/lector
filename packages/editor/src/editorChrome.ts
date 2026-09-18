@@ -1,7 +1,6 @@
 import { countText, formatCount, readingMinutes } from '@lector/core'
 import { bindTitlebar, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
-import { bindShortcutsButton } from './shortcutsPanel.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 import { showDialog } from './dialog.ts'
@@ -59,7 +58,6 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   const statusLeft = document.getElementById('status-left')!
   const statusRight = document.getElementById('status-right')!
 
-  const keyboardBtn = document.getElementById('keyboard-btn') as HTMLButtonElement
   const fileMoreBtn = document.getElementById('file-more-btn') as HTMLButtonElement
   const titlebarEl = document.getElementById('titlebar')
 
@@ -344,12 +342,6 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     fileMoreBtn.innerHTML = iconSvg('moreHorizontal', 16)
     fileMoreBtn.setAttribute('aria-label', t('moreActions'))
     fileMoreBtn.dataset.tip = t('moreActions')
-    // 键盘面板入口：提示语只说"这是什么"，键位清单在面板里（见 shortcutsPanel.ts）。
-    keyboardBtn.innerHTML = iconSvg('keyboard', 16)
-    keyboardBtn.setAttribute('aria-label', t('shortcutTitle'))
-    // 键盘按钮不带 tooltip：悬停 250ms 就会展开快捷键悬浮卡，
-    // 再叠一个「键盘快捷键」气泡只会正好盖住卡片标题
-    bindShortcutsButton(keyboardBtn)
     dirtyDot.dataset.tip = t('dirtyTitle')
     // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
     // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。

@@ -464,7 +464,7 @@ const summary = {
   if (tb.lead < 2) note('error', `顶栏左侧工具 ${tb.lead} 个（至少应有 2：打开/保存）`)
   // 工具组只要求"至少这几件"：每加一个工具就改断言的精确值，会让这条断言变成维护负担，
   // 而它真正要守的是"右侧工具组存在且没被整体删掉"。
-  if (tb.actions < 3) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 3：外观/设置/键盘）`)
+  if (tb.actions < 2) note('error', `顶栏右侧工具 ${tb.actions} 个（至少应有 2：外观/设置）`)
   if (!tb.divider) note('error', '顶栏缺少组间分隔，六个图标会读成一排散兵')
   if (!tb.outlineInLead) note('error', '大纲开关不在左侧 lead 组（它开关的是左栏，应跟着面板走）')
 
@@ -2309,7 +2309,8 @@ const summary = {
         .filter((s) => /[⌘⇧]|Ctrl\+|Cmd\+/.test(s)),
     )
     if (tipsWithKeys.length > 0) note('error', `提示语里仍夹带快捷键：${tipsWithKeys.join(' / ')}`)
-    await page.click('#keyboard-btn')
+    // 键位表没有常驻按钮：⌘/ 呼出（这里顺带守这个入口）
+    await page.keyboard.press(`${MOD}+/`)
     await page.waitForTimeout(400)
     const panel = await page.evaluate(() => ({
       // 键位面板是悬浮卡（.shortcuts-pop），不是模态（.modal-backdrop）：
@@ -2319,7 +2320,7 @@ const summary = {
       rows: document.querySelectorAll('.shortcut-row').length,
       keys: [...document.querySelectorAll('.shortcut-keys')].map((k) => k.textContent ?? '').slice(0, 3),
     }))
-    if (!panel.open) note('error', '键盘图标点了没有打开键位面板')
+    if (!panel.open) note('error', '⌘/ 没有打开键位面板')
     else if (!panel.notModal) note('error', '键位面板变成了模态弹窗（应为悬浮卡）')
     else if (panel.rows < 8) note('error', `键位面板只列了 ${panel.rows} 条（太少，用户查不到）`)
     else note('info', `键盘面板：${panel.rows} 条，首列 ${panel.keys.join(' / ')}`)

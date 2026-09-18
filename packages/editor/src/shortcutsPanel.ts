@@ -40,6 +40,8 @@ export function shortcutGroups(): ShortcutGroup[] {
         { keys: mod('2'), label: t('modeLabelEdit') },
         { keys: mod('3'), label: t('modeLabelSource') },
         { keys: 'Esc', label: t('shortcutLeaveEdit') },
+        // 面板自己也要能被查出来
+        { keys: mod('/'), label: t('shortcutTitle') },
       ],
     },
     {
@@ -57,19 +59,12 @@ export function shortcutGroups(): ShortcutGroup[] {
 
 let root: HTMLElement | null = null
 let dispose: (() => void) | null = null
-let pinned = false
-let hoverTimer: ReturnType<typeof setTimeout> | null = null
 
 export function closeShortcutsPanel(): void {
   dispose?.()
   dispose = null
   root?.remove()
   root = null
-  pinned = false
-  if (hoverTimer !== null) {
-    clearTimeout(hoverTimer)
-    hoverTimer = null
-  }
 }
 
 function buildCard(): HTMLElement {
@@ -104,40 +99,44 @@ function buildCard(): HTMLElement {
   return card
 }
 
-function open(anchor: HTMLElement, pin: boolean): void {
+/**
+ * 打开键位表；已经开着就收起（toggle）。⌘/ 与 ? 都走这里。
+ *
+ * 常驻按钮已经拿掉：键位表是**参考资料**，业界惯例是快捷键呼出（Gmail / GitHub /
+ * Slack / VS Code 都没有常驻图标）。anchor 只在「设置里点查看」时传，面板贴到
+ * 那个按钮下方；否则贴右上角（原来按钮所在的角落）。打开即钉住——没有按钮就没有
+ * 「移开即收」可言，关闭靠 Esc、点外面、再按一次快捷键。
+ */
+export function openShortcutsPanel(anchor?: HTMLElement): void {
   if (root) {
-    pinned = pinned || pin
+    closeShortcutsPanel()
     return
   }
-  pinned = pin
   const pop = buildCard()
-  const r = anchor.getBoundingClientRect()
-  pop.style.top = `${Math.round(r.bottom + 8)}px`
-  pop.style.right = `${Math.round(Math.max(12, window.innerWidth - r.right))}px`
+  if (anchor) {
+    const r = anchor.getBoundingClientRect()
+    pop.style.top = `${Math.round(r.bottom + 8)}px`
+    pop.style.right = `${Math.round(Math.max(12, window.innerWidth - r.right))}px`
+  } else {
+    const bar = document.getElementById('titlebar')
+    const top = bar ? bar.getBoundingClientRect().bottom + 8 : 54
+    pop.style.top = `${Math.round(top)}px`
+    pop.style.right = '14px'
+  }
 
   const onDown = (e: MouseEvent) => {
-    const t = e.target as HTMLElement | null
-    if (t?.closest('.shortcuts-pop, #keyboard-btn')) return
+    const target = e.target as HTMLElement | null
+    if (target?.closest('.shortcuts-pop')) return
     closeShortcutsPanel()
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') closeShortcutsPanel()
   }
   const onViewport = () => closeShortcutsPanel()
-  // 悬停打开的卡片，指针离开按钮与卡片就收（钉住的不收）
-  const onLeave = (e: PointerEvent) => {
-    if (pinned) return
-    const to = e.relatedTarget as HTMLElement | null
-    if (to?.closest('.shortcuts-pop, #keyboard-btn')) return
-    closeShortcutsPanel()
-  }
 
   document.addEventListener('mousedown', onDown, true)
   document.addEventListener('keydown', onKey)
   window.addEventListener('resize', onViewport)
-  pop.addEventListener('pointerleave', onLeave)
-  anchor.addEventListener('pointerleave', onLeave)
-  anchor.setAttribute('aria-expanded', 'true')
 
   document.body.appendChild(pop)
   root = pop
@@ -145,30 +144,5 @@ function open(anchor: HTMLElement, pin: boolean): void {
     document.removeEventListener('mousedown', onDown, true)
     document.removeEventListener('keydown', onKey)
     window.removeEventListener('resize', onViewport)
-    anchor.removeEventListener('pointerleave', onLeave)
-    anchor.setAttribute('aria-expanded', 'false')
   }
-}
-
-/**
- * 绑定键盘按钮：悬停 250ms 展开（看一眼就走），点击钉住（要照着按）。
- * 已钉住时再点按钮 = 收起（toggle 语义）。
- */
-export function bindShortcutsButton(anchor: HTMLElement): void {
-  anchor.setAttribute('aria-haspopup', 'dialog')
-  anchor.addEventListener('pointerenter', () => {
-    if (root) return
-    if (hoverTimer !== null) clearTimeout(hoverTimer)
-    hoverTimer = setTimeout(() => open(anchor, false), 250)
-  })
-  anchor.addEventListener('pointerleave', () => {
-    if (hoverTimer !== null) {
-      clearTimeout(hoverTimer)
-      hoverTimer = null
-    }
-  })
-  anchor.addEventListener('click', () => {
-    if (root && pinned) closeShortcutsPanel()
-    else open(anchor, true)
-  })
 }
