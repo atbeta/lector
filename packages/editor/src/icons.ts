@@ -57,12 +57,12 @@ palette: `<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.
   appWindow: `<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="9" y1="6.5" x2="9.01" y2="6.5"/>`,
   // 用其他应用打开：方块 + 右上外指箭头（lucide external-link），「交给外部程序」的通用语言
   externalLink: `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>`,
-  // 导出 PDF：文件 + 向下落盘箭头（lucide file-down）。和 external-link 的右上箭头
-  // 方向错开——这两个按钮相邻，同方向的箭头会读成同一个动作。
-  fileDown: `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>`,
-  // 打开文件：开着的文件夹（lucide folder-open）。之前的 fileText 是「一张纸」，
-  // 读作「新建文档」；「打开」的通用语言是文件夹。
-  folderOpen: `<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>`,
+  // 导出 PDF：文档轮廓 + 挖空「PDF」的标签带。字母是 mask 掏出来的真透明，
+  // hover 换底也不会穿帮；16px 下依然可读（试镜选出的方案）。
+  filePdf: `<defs><mask id="pdfcut"><rect width="24" height="24" fill="#fff"/><text x="12" y="19.6" text-anchor="middle" font-size="6.2" font-weight="800" font-family="Arial,sans-serif" fill="#000" stroke="none">PDF</text></mask></defs><path d="M14 2.5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5z"/><path d="M14 2.5v5h5"/><rect x="4" y="13.5" width="16" height="7.5" rx="1.8" fill="currentColor" stroke="none" mask="url(#pdfcut)"/>`,
+  // 打开文件：闭合文件夹（feather folder）。试过 lucide folder-open——开盖的
+  // 那道折线在 16px 下糊成噪点，闭合形态才干净。
+  folder: `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>`,
 }
 
 // 窗口控件用 1px 细线（Windows 原生观感），与上面 2px 的工具图标区分开：
