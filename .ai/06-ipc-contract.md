@@ -191,15 +191,28 @@ invoke('save_image', {
   subdir?: string | null,   // 单一子目录，缺省 'images'
 }) → {
   relative_path: string,   // 永远正斜杠，便于直接写进 md
-  abs_path: string | null,  // 给命令模式用：把图床命令的 <image_path> 指着这里
+  abs_path: string | null,  // 给上传命令用：把图床命令的 <image_path> 指着这里
 }
 ```
 
-### `run_image_command`（图片命令模式专用）
+### `stage_image` / `discard_staged_image`
 
-**不是 Web 层随手可调的任意 shell**：这条命令是用户在「图片 → 命令模式」里**显式**配置的退路，所以壳只给它一条很窄的输入：可执行名 + 固定参数 + 图片绝对路径，没有环境变量、没有 shell。
+「不保存本地副本」时上传命令的中转：命令吃的是绝对路径，所以先把字节写成系统临时目录
+（`<temp>/lector-stage/`）里的一个文件，传完就删——文档目录始终干净。
 
-契约：`executable [args…] <image_path>` → stdout 首行 http(s) URL 视为结果；非零退出/超时/无 URL 都算失败。失败由 Web 端静默降级为本地副本，正文写相对路径。Windows `CREATE_NO_WINDOW` 隐藏命令窗口。
+```ts
+invoke('stage_image', { filename: string, bytesBase64: string }) → string  // 绝对路径
+invoke('discard_staged_image', { path: string }) → void
+```
+
+`discard_staged_image` 由 Web 层调用，所以**只允许删暂存目录里的文件**：两边 canonicalize
+之后再比前缀，软链接指到目录外也删不掉（不是「删任意路径」的口子）。
+
+### `run_image_command`（上传配置专用）
+
+**不是 Web 层随手可调的任意 shell**：这条命令是用户在「图片 → 图床 → 上传命令」里**显式**配置的退路，所以壳只给它一条很窄的输入：可执行名 + 固定参数 + 图片绝对路径，没有环境变量、没有 shell。
+
+契约：`executable [args…] <image_path>` → stdout 首行 http(s) URL 视为结果；非零退出/超时/无 URL 都算失败。失败后的后果由 Web 端按「要不要复制」处理：留副本的走法把正文写成相对路径，不留副本的走法补落一份副本兜底（绝不丢图）。Windows `CREATE_NO_WINDOW` 隐藏命令窗口。
 
 ```ts
 invoke('run_image_command', {

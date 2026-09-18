@@ -558,6 +558,13 @@ html.lightbox-open #content { overflow: hidden; }
 /* 按下时滑块沿运动方向拉长一点（iOS 式按压感），松开回弹 */
 .switch:active .switch-track::after { width: 20px; }
 .switch:active .switch-track.on::after { transform: translateX(12px); }
+/* 被另一根轴锁住的开关（图片设置里：没上传命令就不能关掉本地副本）。
+   压暗但**保留开/关的样子**——用户要看到的是「它现在是开着的，只是暂时改不了」，
+   隐藏它反而让人以为设置项不存在；为什么改不了写在旁边那行说明里。 */
+.switch.is-disabled { cursor: not-allowed; }
+.switch.is-disabled .switch-track { opacity: 0.6; }
+.switch.is-disabled:active .switch-track::after { width: 17px; }
+.switch.is-disabled:active .switch-track.on::after { transform: translateX(15px); }
 
 .modal-footer {
   position: sticky;

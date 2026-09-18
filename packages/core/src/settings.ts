@@ -13,15 +13,20 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export type FontFamily = 'system' | 'serif'
 
 /**
- * 贴图/拖图时的写入策略：
- * - 'images'  ：写 md 同目录固定 `images/`（今天的行为，DEFAULT 保持不惊吓老用户）；
- * - 'assets'  ：写常 md、等当前文档同名的 `{filename}.assets`（目录模板可配）；
- * - 'command' ：先写 assets 本地副本，再跑用户配置的命令上传图床，正文写返回的 URL；
- *               失败时静默降级为本地相对路径（本地副本永远在，绝不丢图）。
+ * 图片设置是两根互不相干的轴，而不是三档单选：
+ *
+ * - **本地副本**（imageCopy / imageCopyDir）：图片要不要在文档目录里留一份文件；
+ * - **图床**（imageCommand / imageUploadAuto）：图片要不要交给用户配置的命令上传。
+ *
+ * 原来的 imageMode 把两件事焊在一起（选了哪个目录就不会上传、选了上传就不能手动传），
+ * 于是「不自动上传」被当成了「不能上传」。分开之后组合由 imagePipeline() 裁决：
+ * 只复制 / 复制+自动上传 / 复制+手动上传 / 只上传（临时文件中转）。
  */
-export type ImageInsertMode = 'images' | 'assets' | 'command'
 
-/** 命令模式下 argv 的约定：`command [args…] <图片绝对路径>` → stdout 首行 http(s) URL。 */
+/** 上传档位：off = 没配命令；manual = 只在图片菜单里手动上传；auto = 粘贴/拖入即上传。 */
+export type ImageUploadMode = 'off' | 'manual' | 'auto'
+
+/** 上传命令的 argv 约定：`command [args…] <图片绝对路径>` → stdout 首个 http(s) URL 即结果。 */
 export const DEFAULT_IMAGE_TIMEOUT_MS = 30_000
 const IMAGE_TIMEOUT_MIN = 1_000
 const IMAGE_TIMEOUT_MAX = 300_000
@@ -86,17 +91,22 @@ export interface EditorSettings {
   showWhitespace: boolean
   /** 代码块显示行号（阅读态 gutter + 编辑态 CodeMirror 同一开关）。 */
   codeLineNumbers: boolean
-  /** 贴图/拖图的写入策略（images | assets | command，见 ImageInsertMode）。 */
-  imageMode: ImageInsertMode
-  /** assets/command 模式下的目标目录模板，`{filename}` 会被替换成文档基名（去扩展名）。
-   *  默认 `{filename}.assets`，即 md 同目录下「文档名.assets」。 */
-  imageAssetsDir: string
-  /** command 模式的上传命令：可执行名（PATH 内）或绝对路径，可含前置参数
-   *  （引号感知分词，如 `picgo upload`）。图片路径由 App 追加在最后。 */
+  /** 粘贴/拖入的图片是否在文档目录里留一份本地副本（组合规则见 imagePipeline）。 */
+  imageCopy: boolean
+  /** 本地副本目录：相对文档目录的单段模板，`{filename}` 替换成文档基名（去扩展名）。
+   *  默认 `images`（老行为）；上传失败时的兜底副本也落在这里。 */
+  imageCopyDir: string
+  /** 有上传命令时，粘贴/拖入是否**立刻**上传。
+   *  false = 正文先写本地路径，需要时在图片菜单里手动上传（这只跟时机有关，
+   *  与「有没有图床」无关——没配命令时上传项根本不存在）。 */
+  imageUploadAuto: boolean
+  /** 上传命令：可执行名（PATH 内）或绝对路径，可含前置参数
+   *  （引号感知分词，如 `picgo upload`）。图片路径由壳追加在最后。
+   *  留空 = 没有图床，图片只走本地副本。 */
   imageCommand: string
-  /** command 固定的参数列表（追加在 `<命令+前置参数>` 之后、图片路径之前）。 */
+  /** 上传命令固定的参数列表（追加在 `<命令+前置参数>` 之后、图片路径之前）。 */
   imageCommandArgs: string[]
-  /** command 超时（毫秒），clamp 到 [1000, 300000]，默认 30s。 */
+  /** 上传超时（毫秒），clamp 到 [1000, 300000]，默认 30s。 */
   imageCommandTimeoutMs: number
 
   /** 「用其他应用打开」里的那个应用（可执行文件）。留空则回退到系统默认应用。 */
@@ -135,8 +145,9 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
   codeLineNumbers: true,
-  imageMode: 'images',
-  imageAssetsDir: '{filename}.assets',
+  imageCopy: true,
+  imageCopyDir: 'images',
+  imageUploadAuto: false,
   imageCommand: '',
   imageCommandArgs: [],
   imageCommandTimeoutMs: DEFAULT_IMAGE_TIMEOUT_MS,
@@ -174,16 +185,78 @@ function isFontFamily(v: unknown): v is FontFamily {
   return v === 'system' || v === 'serif'
 }
 
-function isImageMode(v: unknown): v is ImageInsertMode {
-  return v === 'images' || v === 'assets' || v === 'command'
+/** 老键：三档 imageMode。只用于把旧设置迁移到「复制 / 上传」两根轴上。 */
+type LegacyImageMode = 'images' | 'assets' | 'command'
+
+function legacyImageMode(v: unknown): LegacyImageMode | null {
+  return v === 'images' || v === 'assets' || v === 'command' ? v : null
 }
 
-/** 图片目录模板只允许普通字符与 `{filename}` 占位符；不含路径分隔与穿越段。 */
-function normalizeImageAssetsDir(v: unknown): string {
+/** 老版本 assets/command 档的目录模板默认值（现在的默认副本目录是 `images`）。 */
+const LEGACY_ASSETS_DIR = '{filename}.assets'
+
+/** 副本目录模板只允许普通字符与 `{filename}` 占位符；不含路径分隔与穿越段。 */
+function normalizeImageCopyDir(v: unknown, fallback: string): string {
   const s = String(v ?? '').trim()
-  if (s === '') return DEFAULT_SETTINGS.imageAssetsDir
-  if (s.includes('..') || /[\\/]/.test(s)) return DEFAULT_SETTINGS.imageAssetsDir
+  if (s === '' || s.includes('..') || /[\\/]/.test(s)) return fallback
   return s.slice(0, 120)
+}
+
+/**
+ * 副本目录：新键优先；老设置按档位换算——
+ * images 档写的是固定的 `images/`，assets/command 档用的才是 `imageAssetsDir` 模板。
+ */
+function resolveImageCopyDir(src: Record<string, unknown>, base: EditorSettings): string {
+  if (src.imageCopyDir !== undefined) return normalizeImageCopyDir(src.imageCopyDir, base.imageCopyDir)
+  const mode = legacyImageMode(src.imageMode)
+  if (mode === 'images') return 'images'
+  if (mode !== null) return normalizeImageCopyDir(src.imageAssetsDir, LEGACY_ASSETS_DIR)
+  if (src.imageAssetsDir !== undefined) return normalizeImageCopyDir(src.imageAssetsDir, base.imageCopyDir)
+  return base.imageCopyDir
+}
+
+/** 要不要本地副本：老的三档都留副本（command 档留的是兜底副本）。 */
+function resolveImageCopy(src: Record<string, unknown>, base: EditorSettings): boolean {
+  if (typeof src.imageCopy === 'boolean') return src.imageCopy
+  if (legacyImageMode(src.imageMode) !== null) return true
+  return base.imageCopy
+}
+
+/** 上传时机：老的 command 档 = 落盘后立刻上传，另外两档没有上传。 */
+function resolveImageUploadAuto(src: Record<string, unknown>, base: EditorSettings): boolean {
+  if (typeof src.imageUploadAuto === 'boolean') return src.imageUploadAuto
+  const mode = legacyImageMode(src.imageMode)
+  if (mode !== null) return mode === 'command'
+  return base.imageUploadAuto
+}
+
+/** 没有上传命令 = 没有图床。上下两处判据（UI 与插图链路）都从这里取，别各写一份。 */
+export function hasImageCommand(s: EditorSettings): boolean {
+  return s.imageCommand.trim() !== ''
+}
+
+export interface ImagePipeline {
+  /** 要不要在文档目录里留一份本地副本。 */
+  copy: boolean
+  /** 副本目录模板（相对文档目录，单段）。 */
+  copyDir: string
+  /** 上传时机。 */
+  upload: ImageUploadMode
+}
+
+/**
+ * 两根轴合成的一条动作计划。插图链路与设置界面都只看这个结果，
+ * 不再各自去拼 imageCopy / imageUploadAuto——两处各判一次必然会走偏。
+ *
+ * 两条规则把「图片无处可去」的组合挡在这里：
+ *   1) 没有命令 = 没有上传，副本开关因此恒为开（图片只能留在本地）；
+ *   2) 不复制 = 必须当场上传（手动上传时正文没有任何地址可写）。
+ */
+export function imagePipeline(s: EditorSettings): ImagePipeline {
+  const copyDir = normalizeImageCopyDir(s.imageCopyDir, DEFAULT_SETTINGS.imageCopyDir)
+  if (!hasImageCommand(s)) return { copy: true, copyDir, upload: 'off' }
+  if (!s.imageCopy) return { copy: false, copyDir, upload: 'auto' }
+  return { copy: true, copyDir, upload: s.imageUploadAuto ? 'auto' : 'manual' }
 }
 
 /**
@@ -214,8 +287,9 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     customCss: String(src.customCss ?? base.customCss ?? '').slice(0, 20000),
     // 同样限长：mermaid 配置能写很长（themeCSS 动辄上百行），但设置文件不该变成仓库
     mermaidConfig: String(src.mermaidConfig ?? base.mermaidConfig ?? '').slice(0, 20000),
-    imageMode: isImageMode(src.imageMode) ? src.imageMode : base.imageMode,
-    imageAssetsDir: normalizeImageAssetsDir(src.imageAssetsDir),
+    imageCopy: resolveImageCopy(src, base),
+    imageCopyDir: resolveImageCopyDir(src, base),
+    imageUploadAuto: resolveImageUploadAuto(src, base),
     imageCommand: String(src.imageCommand ?? base.imageCommand ?? '').trim().slice(0, 512),
     imageCommandArgs: Array.isArray(src.imageCommandArgs)
       ? src.imageCommandArgs.filter((a): a is string => typeof a === 'string').slice(0, 32).map((a) => a.slice(0, 256))

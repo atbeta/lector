@@ -40,6 +40,27 @@ export interface ImageCommandOutcome {
 }
 
 
+/**
+ * 把图片字节暂存成系统临时目录里的一个文件，返回绝对路径。
+ *
+ * 用途只有一个：「不保存本地副本」时，图片仍然要交给上传命令（命令吃绝对路径），
+ * 于是先落临时文件、传完就删，文档目录始终干净。
+ * 壳里没有这条命令（旧版本）时返回 null——调用方据此退回「先落本地副本再上传」，
+ * 不让一个缺失的 IPC 把图片变成插不进去。
+ */
+export async function stageImage(filename: string, bytesBase64: string): Promise<string | null> {
+  const { invoke } = await tauriApi()
+  const abs = await invoke<string>('stage_image', { filename, bytesBase64 }).catch(() => null)
+  return abs ?? null
+}
+
+/** 删掉暂存文件（壳侧只允许删自己的暂存目录）。失败无所谓：临时目录由系统回收。 */
+export async function discardStagedImage(absPath: string): Promise<void> {
+  const { invoke } = await tauriApi()
+  await invoke('discard_staged_image', { path: absPath }).catch(() => {})
+}
+
+
 /** 执行用户配置的图床上传命令：`executable [args…] <image_path>`。 */
 export async function runImageCommand(
   executable: string,

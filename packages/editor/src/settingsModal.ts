@@ -20,7 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
-import { isPlausibleAppPath, pushRecentApp } from '@lector/core'
+import { hasImageCommand, imagePipeline, isPlausibleAppPath, pushRecentApp } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -95,12 +95,16 @@ function sectionTitle(label: string): HTMLElement {
 }
 
 /**
- * 标记「这行只在某些图片档位下才有意义」。
- * 显隐由 applyFilter 统一裁决——搜索和档位过滤走同一个出口，不会互相覆盖。
+ * 分区内的小标题（比分区标题低一级）。
+ *
+ * 图片设置分「本地副本 / 图床」两组，靠它把两根轴摆在纸面上——
+ * 组内是各自的配置，谁也不管谁。与「键盘快捷键」那几组同一形态：
+ * 常规浏览时显示，搜索时收起（那时靠分区标题说明命中属于哪一节）。
  */
-function markRowForModes(r: HTMLElement, modes: string): HTMLElement {
-  r.dataset.showModes = modes
-  return r
+function groupLabel(label: string): HTMLElement {
+  const el = h('div', 'settings-row-label')
+  el.textContent = label
+  return el
 }
 
 export function closeSettingsModal() {
@@ -314,46 +318,66 @@ export function openSettingsModal(onClose?: () => void) {
   )
 
   // ── 图片 ──
-  // 三档单选决定图片落哪、要不要跑上传命令。只有选中的那一档相关的行才显示：
-  // images/ 没有可配项；同名资源目录只多一个目录模板；自定义上传才展开命令、
-  // 参数、超时与测试。全都常驻会让「哪些项现在真的生效」无从判断。
+  // 两根互不相干的轴：**本地副本**（要不要在文档目录留文件）与**图床**（要不要交给
+  // 上传命令）。旧版是一个三档单选，把两件事焊在一起——选了「自定义上传」就没法只
+  // 手动传，选了目录就彻底没有上传。现在两组各管各的，组合结果由 core 的
+  // imagePipeline() 裁决，面板只负责把「现在哪种组合生效」显示清楚：
+  //   · 没有上传命令 → 副本开关锁在开（图片总要有去处），自动上传锁在关；
+  //   · 关掉本地副本 → 自动上传被锁在开（正文总得写个地址）。
+  // 锁住的开关不是隐藏而是禁用：值还看得见，代价写在旁边的说明里。
   const images = makeSection('images', t('images'))
-  const imageMode = Segmented(
-    getSettings().imageMode,
-    [
-      { v: 'images', label: t('imageModeImages') },
-      { v: 'assets', label: t('imageModeAssets') },
-      { v: 'command', label: t('imageModeCommand') },
-    ],
+
+  const copySwitch = Switch(
+    getSettings().imageCopy,
     (v) => {
-      apply((s) => ({ ...s, imageMode: v as EditorSettings['imageMode'] }))
-      // 换档要同时换掉说明文字、并按新档重算各行的显隐
-      syncImageMode()
+      // 关掉副本 = 只能当场上传（管线的规则），把上传时机一并掰过去，
+      // 免得设置里存着「不复制 + 手动上传」这种没有出路的组合。
+      apply((s) => ({ ...s, imageCopy: v, imageUploadAuto: v ? s.imageUploadAuto : true }))
+      syncImage()
     },
   )
-  const imageModeRow = row(t('imageModeTitle'), imageMode.root, imageModeHint(getSettings().imageMode))
-  const imageModeHintEl = imageModeRow.querySelector<HTMLElement>('.row-hint')!
-  images.appendChild(imageModeRow)
+  // data-field：给渲染层验证用的稳定锚点（ui-verify 要按字段名找控件，
+  // 而不是靠「第几个 input」这种一改就错的位置）
+  copySwitch.dataset.field = 'imageCopy'
+  const copyRow = row(t('imageCopy'), copySwitch, t('imageCopyHint'))
+  const copyHintEl = copyRow.querySelector<HTMLElement>('.row-hint')!
+  images.append(groupLabel(t('imageGroupLocal')), copyRow)
 
   const dirInput = h('input', 'settings-input') as HTMLInputElement
   dirInput.type = 'text'
   dirInput.spellcheck = false
-  dirInput.value = getSettings().imageAssetsDir
-  dirInput.placeholder = '{filename}.assets'
-  dirInput.addEventListener('input', () => apply((s) => ({ ...s, imageAssetsDir: dirInput.value })))
-  const dirRow = row(t('imageAssetsDir'), dirInput, t('imageAssetsDirHint'))
-  // 命令档也要它：上传失败时本地副本就落在这个目录里
-  dirRow.dataset.showModes = 'assets command'
+  dirInput.value = getSettings().imageCopyDir
+  dirInput.placeholder = 'images'
+  dirInput.dataset.field = 'imageCopyDir'
+  dirInput.addEventListener('input', () => apply((s) => ({ ...s, imageCopyDir: dirInput.value })))
+  // 两种常见形状给成候选（原生 datalist）：目录是自由文本，但「固定 images/」和
+  // 「同名资源目录」是绝大多数人的答案——让他们少打一遍模板占位符。
+  const dirList = h('datalist', '') as HTMLDataListElement
+  dirList.id = 'lector-image-copy-dirs'
+  for (const v of ['images', '{filename}.assets']) {
+    const opt = h('option', '') as HTMLOptionElement
+    opt.value = v
+    dirList.appendChild(opt)
+  }
+  dirInput.setAttribute('list', dirList.id)
+  const dirRow = row(t('imageCopyDir'), dirInput, t('imageCopyDirHint'))
+  dirRow.appendChild(dirList)
   const dirHintEl = dirRow.querySelector<HTMLElement>('.row-hint')!
   images.appendChild(dirRow)
 
+  // 图床组：从「命令」开始——命令为空就是没有图床，后面几行都无从谈起。
   const cmdInput = h('input', 'settings-input') as HTMLInputElement
   cmdInput.type = 'text'
   cmdInput.spellcheck = false
   cmdInput.value = getSettings().imageCommand
   cmdInput.placeholder = 'picgo upload'
-  cmdInput.addEventListener('input', () => apply((s) => ({ ...s, imageCommand: cmdInput.value })))
-  images.appendChild(markRowForModes(row(t('imageCommand'), cmdInput, t('imageCommandHint')), 'command'))
+  cmdInput.addEventListener('input', () => {
+    apply((s) => ({ ...s, imageCommand: cmdInput.value }))
+    syncImage()
+  })
+  images.appendChild(groupLabel(t('imageGroupHost')))
+  cmdInput.dataset.field = 'imageCommand'
+  images.appendChild(row(t('imageCommand'), cmdInput, t('imageCommandHint')))
 
   const argsInput = h('input', 'settings-input') as HTMLInputElement
   argsInput.type = 'text'
@@ -363,7 +387,8 @@ export function openSettingsModal(onClose?: () => void) {
   argsInput.addEventListener('input', () =>
     apply((s) => ({ ...s, imageCommandArgs: argsInput.value.split(/\s+/).filter(Boolean) })),
   )
-  images.appendChild(markRowForModes(row(t('imageCommandArgs'), argsInput), 'command'))
+  argsInput.dataset.field = 'imageCommandArgs'
+  images.appendChild(row(t('imageCommandArgs'), argsInput))
 
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),
@@ -373,7 +398,7 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => apply((s) => ({ ...s, imageCommandTimeoutMs: v * 1000 })),
     (n) => `${n}s`,
   )
-  images.appendChild(markRowForModes(cellRow(t('imageCommandTimeoutSec'), timeoutSlider), 'command'))
+  images.appendChild(cellRow(t('imageCommandTimeoutSec'), timeoutSlider))
 
   // 测试命令：用未保存草稿跑一次上传，看 stdout 是否有 URL。
   // 次级按钮（有边框、按内容宽）+ 结果提示行；结果失败时用危险色。
@@ -397,30 +422,47 @@ export function openSettingsModal(onClose?: () => void) {
           testResult.dataset.invalid = 'true'
         }
       } finally {
-        testBtn.disabled = false
+        testBtn.disabled = !hasImageCommand(getSettings())
       }
     })()
   })
-  const testHost = markRowForModes(h('div', 'settings-row settings-row-stack settings-test-row'), 'command')
-  testHost.appendChild(testBtn)
-  testHost.appendChild(testResult)
+  const testHost = h('div', 'settings-row settings-row-stack settings-test-row')
+  testHost.append(testBtn, testResult)
   images.appendChild(testHost)
 
-  /** 当前档位的说明。 */
-  function imageModeHint(mode: EditorSettings['imageMode']): string {
-    if (mode === 'images') return t('imageModeImagesHint')
-    if (mode === 'assets') return t('imageModeAssetsHint')
-    return t('imageModeCommandHint')
-  }
+  const autoSwitch = Switch(getSettings().imageUploadAuto, (v) => {
+    apply((s) => ({ ...s, imageUploadAuto: v }))
+    syncImage()
+  })
+  autoSwitch.dataset.field = 'imageUploadAuto'
+  const autoRow = row(t('imageUploadAuto'), autoSwitch, t('imageUploadAutoHint'))
+  const autoHintEl = autoRow.querySelector<HTMLElement>('.row-hint')!
+  images.appendChild(autoRow)
 
-  /** 换档后同步说明与各行显隐。 */
-  function syncImageMode(): void {
-    const mode = getSettings().imageMode
-    imageModeHintEl.textContent = imageModeHint(mode)
-    // 目录模板在两档里的含义不同：assets 是正文图所在目录，command 是兜底副本目录
-    dirHintEl.textContent = mode === 'command' ? t('imageAssetsDirHintCommand') : t('imageAssetsDirHint')
-    applyFilter()
+  /**
+   * 把「当前生效的组合」同步到面板上：说明文字 + 各控件的可用性。
+   *
+   * 唯一的判据是 imagePipeline()——面板不自己重算「有命令没有 / 复制没有」，
+   * 否则界面和插图链路迟早会各说一套。设置一变（敲命令、拨开关）都走这里。
+   */
+  function syncImage(): void {
+    const s = getSettings()
+    const plan = imagePipeline(s)
+    copySwitch.set(plan.copy)
+    copySwitch.setDisabled(plan.upload === 'off')
+    autoSwitch.set(plan.upload === 'auto')
+    autoSwitch.setDisabled(plan.upload === 'off' || !plan.copy)
+    // 说明随状态换：锁在开/锁在关时，得说清是「为什么不能改」而不是「这是什么」
+    if (plan.upload === 'off') copyHintEl.textContent = t('imageCopyHintLocked')
+    else copyHintEl.textContent = plan.copy ? t('imageCopyHint') : t('imageCopyHintOff')
+    if (plan.upload === 'off') autoHintEl.textContent = t('imageUploadAutoHintLocked')
+    else if (!plan.copy) autoHintEl.textContent = t('imageUploadAutoHintForced')
+    else autoHintEl.textContent = t('imageUploadAutoHint')
+    // 不复制时这个目录不装正文里的图，而是上传失败的兜底去处——同一格，两种含义
+    dirHintEl.textContent = plan.copy ? t('imageCopyDirHint') : t('imageCopyDirHintFallback')
+    testBtn.disabled = plan.upload === 'off'
   }
+  syncImage()
 
   // ── 外部应用 ──
   // 「用其他应用打开」的配置。曾经放在「图片」区跟着上传命令——那只是实现上的邻居
@@ -697,11 +739,12 @@ export function openSettingsModal(onClose?: () => void) {
   card.appendChild(footer)
 
   /**
-   * 行的显隐只有一个出口：搜索与图片档位过滤都走这里，谁也不会盖掉谁。
+   * 行的显隐只有一个出口：搜索和「看哪个分区」都走这里，谁也不会盖掉谁。
    *
-   * 空搜索 = 常规浏览：只看上次的分区，行按当前档位过滤（rowAllowed）。
-   * 有搜索 = 跨分区找：不问分区、不看档位，文案命中的行一律翻出来——
-   * 用户既然点名搜了，就不该因为「你现在是 images 档」而找不到上传命令。
+   * 空搜索 = 常规浏览：只看上次的分区。
+   * 有搜索 = 跨分区找：不问分区，文案命中的行一律翻出来。
+   * （不再有「按图片档位过滤」这一层：档位过滤会让用户搜不到自己看不见的设置，
+   *  而图片那两根轴的可用性现在由禁用态表达——值始终在，只是暂时改不了。）
    *
    * 不重建 DOM、只翻 hidden：拖到一半的滑块不会被搜索打断。
    */
@@ -717,7 +760,7 @@ export function openSettingsModal(onClose?: () => void) {
       }
       let visibleInSection = 0
       for (const r of el.querySelectorAll<HTMLElement>('.settings-row')) {
-        const hit = browsing ? rowAllowed(r) : (r.textContent ?? '').toLowerCase().includes(q)
+        const hit = browsing || (r.textContent ?? '').toLowerCase().includes(q)
         r.hidden = !hit
         if (hit) visibleInSection++
       }
@@ -730,13 +773,6 @@ export function openSettingsModal(onClose?: () => void) {
       visibleTotal += visibleInSection
     }
     empty.hidden = visibleTotal > 0
-  }
-
-  /** 这一行在当前图片档位下是否该出现。没打标记的行恒显示。 */
-  function rowAllowed(r: HTMLElement): boolean {
-    const modes = r.dataset.showModes
-    if (!modes) return true
-    return modes.split(' ').includes(getSettings().imageMode)
   }
 
   const empty = h('div', 'settings-empty')
@@ -756,6 +792,14 @@ export function openSettingsModal(onClose?: () => void) {
     lhSlider.set(s.lineHeight)
     wSlider.set(s.readingWidth)
     zoomSlider.set(s.uiZoom)
+    // 图片两个开关的可用性由命令字段决定（清空命令会把它们锁回去），
+    // 而这条链是「设置变了」的唯一出口——输入框自己改值时也走这里。
+    syncImage()
+    // 输入框不抢正在打字的那一个：其余（如「恢复默认」把值清回去）要跟着走，
+    // 否则界面上留着一份已经不成立的旧文案。
+    if (document.activeElement !== dirInput) dirInput.value = s.imageCopyDir
+    if (document.activeElement !== cmdInput) cmdInput.value = s.imageCommand
+    if (document.activeElement !== argsInput) argsInput.value = s.imageCommandArgs.join(' ')
     if (document.activeElement !== cssBox) cssBox.value = s.customCss ?? ''
     if (document.activeElement !== mermaidBox) {
       mermaidBox.value = s.mermaidConfig ?? ''

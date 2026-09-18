@@ -5,14 +5,17 @@ import {
   extFromMime,
   findDedupImage,
   imageContentHash,
+  imageDedupKey,
   imageMarkdown,
   insertAt,
   isImageMime,
   pastedFileName,
   rememberImage,
+  runImageIngest,
   safeDropName,
   sidecarRelPath,
   splitUploadCommand,
+  type ImageEffects,
 } from '../src/imageInsert.ts'
 
 describe('图片落盘命名', () => {
@@ -102,10 +105,114 @@ describe('图片内容哈希去重', () => {
 
   test('记入 map 后能查到;reset 后查不到', () => {
     _resetDedupForTests()
-    expect(findDedupImage('abc123')).toBeNull()
-    rememberImage('abc123', 'images/foo.png')
-    expect(findDedupImage('abc123')).toBe('images/foo.png')
+    const key = imageDedupKey('abc123', { copy: true, copyDir: 'images', upload: 'off' })
+    expect(findDedupImage(key)).toBeNull()
+    rememberImage(key, 'images/foo.png')
+    expect(findDedupImage(key)).toBe('images/foo.png')
     _resetDedupForTests()
-    expect(findDedupImage('abc123')).toBeNull()
+    expect(findDedupImage(key)).toBeNull()
+  })
+
+  test('去重键带上管线：同一张图换了走法要重新走一遍', () => {
+    const hash = 'abc123'
+    const local = imageDedupKey(hash, { copy: true, copyDir: 'images', upload: 'manual' })
+    // 换目录 / 改成自动上传 / 不再复制——结果都不同，不能互相复用
+    expect(imageDedupKey(hash, { copy: true, copyDir: 'shots', upload: 'manual' })).not.toBe(local)
+    expect(imageDedupKey(hash, { copy: true, copyDir: 'images', upload: 'auto' })).not.toBe(local)
+    expect(imageDedupKey(hash, { copy: false, copyDir: 'images', upload: 'auto' })).not.toBe(local)
+    // 同一管线仍然复用同一个键
+    expect(imageDedupKey(hash, { copy: true, copyDir: 'images', upload: 'manual' })).toBe(local)
+  })
+})
+
+describe('插图管线（复制 × 上传）', () => {
+  /** 假的外部动作：记录调用顺序，返回可预期的结果。 */
+  function fakeEffects(overrides: Partial<ImageEffects> = {}) {
+    const calls: string[] = []
+    const fx: ImageEffects = {
+      copy: async () => {
+        calls.push('copy')
+        return { relative_path: 'images/a.png', abs_path: '/doc/images/a.png' }
+      },
+      stage: async () => {
+        calls.push('stage')
+        return '/tmp/lector-stage/a.png'
+      },
+      upload: async () => {
+        calls.push('upload')
+        return { url: 'https://host/a.png', error: null }
+      },
+      discard: async () => {
+        calls.push('discard')
+      },
+      ...overrides,
+    }
+    return { fx, calls }
+  }
+
+  test('没有上传命令：只落副本，正文写相对路径', async () => {
+    const { fx, calls } = fakeEffects()
+    const r = await runImageIngest({ copy: true, copyDir: 'images', upload: 'off' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'images/a.png', uploaded: false, copied: true, error: null })
+    expect(calls).toEqual(['copy'])
+  })
+
+  test('手动上传：正文同样先写本地路径（上传是之后从图片菜单做的事）', async () => {
+    const { fx, calls } = fakeEffects()
+    const r = await runImageIngest({ copy: true, copyDir: '{filename}.assets', upload: 'manual' }, 'a.png', 'AAA', fx)
+    expect(r.src).toBe('images/a.png')
+    expect(r.uploaded).toBe(false)
+    expect(calls).toEqual(['copy'])
+  })
+
+  test('复制 + 自动上传成功：副本在，正文换成图床地址', async () => {
+    const { fx, calls } = fakeEffects()
+    const r = await runImageIngest({ copy: true, copyDir: 'images', upload: 'auto' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'https://host/a.png', uploaded: true, copied: true, error: null })
+    expect(calls).toEqual(['copy', 'upload'])
+  })
+
+  test('复制 + 自动上传失败：正文退回本地副本，原因带回调用方', async () => {
+    const { fx, calls } = fakeEffects({
+      upload: async () => {
+        calls.push('upload')
+        return { url: null, error: 'exit code 1' }
+      },
+    })
+    const r = await runImageIngest({ copy: true, copyDir: 'images', upload: 'auto' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'images/a.png', uploaded: false, copied: true, error: 'exit code 1' })
+    expect(calls).toEqual(['copy', 'upload'])
+  })
+
+  test('不复制 + 自动上传成功：走临时文件，磁盘上不留副本', async () => {
+    const { fx, calls } = fakeEffects()
+    const r = await runImageIngest({ copy: false, copyDir: 'images', upload: 'auto' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'https://host/a.png', uploaded: true, copied: false, error: null })
+    // 上传用临时文件，传完就删——没有 copy
+    expect(calls).toEqual(['stage', 'upload', 'discard'])
+  })
+
+  test('不复制 + 自动上传失败：补落一份副本兜底（绝不丢图）', async () => {
+    const { fx, calls } = fakeEffects({
+      upload: async () => {
+        calls.push('upload')
+        return { url: null, error: 'timed out after 30000ms' }
+      },
+    })
+    const r = await runImageIngest({ copy: false, copyDir: 'images', upload: 'auto' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'images/a.png', uploaded: false, copied: true, error: 'timed out after 30000ms' })
+    expect(calls).toEqual(['stage', 'upload', 'discard', 'copy'])
+  })
+
+  test('壳里没有 stage_image（旧版本）：退回复制 + 上传', async () => {
+    const { fx, calls } = fakeEffects({
+      stage: async () => {
+        calls.push('stage')
+        return null
+      },
+    })
+    const r = await runImageIngest({ copy: false, copyDir: 'images', upload: 'auto' }, 'a.png', 'AAA', fx)
+    expect(r).toEqual({ src: 'https://host/a.png', uploaded: true, copied: true, error: null })
+    expect(calls).toEqual(['stage', 'copy', 'upload'])
   })
 })

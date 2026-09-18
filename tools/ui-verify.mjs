@@ -2021,10 +2021,14 @@ const summary = {
     await page.waitForTimeout(250)
   }
 
-  // 3.10c) 图片插入方式：说明一行/两行切换时，右侧选择器不许上下跳
+  // 3.10c) 图片设置：两根轴（本地副本 / 图床）的联动与版式
   //
-  // 三档的说明文案行数不同（自定义上传那档更长），行高一变，垂直居中的控件就会被
-  // 顶下去。这里直接量控件顶边：三档必须一样。规则见 .settings-row.has-hint 的对齐。
+  // 守两件事：
+  //   1) 联动：没有上传命令时，本地副本锁在开（图片总要有去处）、自动上传锁在关；
+  //      关掉本地副本时，自动上传锁在开（正文总得写个地址）。两处都是「锁住」而不是
+  //      「隐藏」——值看得见，代价写在旁边的说明里。
+  //   2) 版式：说明文字在「锁定 / 常规 / 不复制」三种长短之间换时，右侧控件不许上下跳
+  //      （规则见 .settings-row.has-hint 的对齐）。
   {
     await page.click('#settings-btn')
     await page.waitForTimeout(400)
@@ -2035,23 +2039,79 @@ const summary = {
       nav?.click()
     })
     await page.waitForTimeout(300)
-    const tops = {}
-    for (const v of ['images', 'assets', 'command']) {
-      const opt = await page.$(`.settings-group[data-section="images"] .seg-item[data-v="${v}"]`)
-      if (!opt) continue
-      await opt.click()
-      await page.waitForTimeout(150)
-      tops[v] = await page.evaluate(() => {
-        const box = document.querySelector('.settings-group[data-section="images"] .segmented')
-        return box ? Math.round(box.getBoundingClientRect().top) : null
+
+    const readImages = () =>
+      page.evaluate(() => {
+        // 先回到顶部再量：Playwright 的 fill/click 会把目标滚进视口，
+        // 而这里比的是**视口坐标**，不归零就会把「滚动」读成「控件跳了」。
+        const content = document.querySelector('.settings-content')
+        if (content) content.scrollTop = 0
+        const sec = document.querySelector('.settings-group[data-section="images"]')
+        const ctl = (f) => sec?.querySelector(`[data-field="${f}"]`)
+        const on = (el) => el?.querySelector('.switch-track')?.classList.contains('on') ?? null
+        const locked = (el) => el?.classList.contains('is-disabled') ?? null
+        const top = (f) => {
+          const el = ctl(f)
+          return el ? Math.round(el.getBoundingClientRect().top) : null
+        }
+        return {
+          groups: [...(sec?.querySelectorAll('.settings-row-label') ?? [])].map((e) => e.textContent),
+          fields: ['imageCopy', 'imageCopyDir', 'imageCommand', 'imageCommandArgs', 'imageUploadAuto']
+            .filter((f) => !ctl(f)),
+          copyOn: on(ctl('imageCopy')),
+          copyLocked: locked(ctl('imageCopy')),
+          autoOn: on(ctl('imageUploadAuto')),
+          autoLocked: locked(ctl('imageUploadAuto')),
+          top: top('imageCopy'),
+        }
       })
+
+    const cmdSel = '.settings-group[data-section="images"] [data-field="imageCommand"]'
+    const copySel = '.settings-group[data-section="images"] [data-field="imageCopy"]'
+    const initial = await readImages()
+    if (initial.fields.length) note('error', `图片区缺少控件：${initial.fields.join(', ')}`)
+    if (!initial.groups.includes('本地副本') || !initial.groups.includes('图床')) {
+      note('error', `图片区没有「本地副本 / 图床」两组标题，实为 ${JSON.stringify(initial.groups)}`)
     }
-    const vals = Object.values(tops).filter((v) => v !== null)
-    if (vals.length < 3) note('error', '图片插入方式没有三档，无法核对对齐')
-    else if (new Set(vals).size !== 1) {
-      note('error', `图片插入方式换档时选择器上下跳：各档顶边 ${JSON.stringify(tops)}`)
+    // 初始（默认设置：没有上传命令）：副本锁在开、自动上传锁在关
+    if (initial.copyOn !== true || initial.copyLocked !== true) {
+      note('error', `没有上传命令时本地副本应为「开 + 锁定」，实为 开=${initial.copyOn} 锁定=${initial.copyLocked}`)
+    }
+    if (initial.autoOn !== false || initial.autoLocked !== true) {
+      note('error', `没有上传命令时自动上传应为「关 + 锁定」，实为 开=${initial.autoOn} 锁定=${initial.autoLocked}`)
+    }
+
+    await page.fill(cmdSel, 'picgo upload')
+    await page.waitForTimeout(250)
+    const withCmd = await readImages()
+    if (withCmd.copyLocked !== false || withCmd.autoLocked !== false) {
+      note('error', `填了上传命令后两个开关仍被锁：副本 ${withCmd.copyLocked} / 自动上传 ${withCmd.autoLocked}`)
+    }
+
+    // 关掉本地副本 → 自动上传被锁在开（不复制就必须当场上传）
+    await page.click(copySel)
+    await page.waitForTimeout(250)
+    const noCopy = await readImages()
+    if (noCopy.copyOn !== false) note('error', '点击后本地副本没有关掉')
+    if (noCopy.autoOn !== true || noCopy.autoLocked !== true) {
+      note('error', `不保存本地副本时自动上传应为「开 + 锁定」，实为 开=${noCopy.autoOn} 锁定=${noCopy.autoLocked}`)
+    }
+
+    // 版式：三态说明文字长短不同，右侧控件顶边必须一致
+    const tops = [initial.top, withCmd.top, noCopy.top]
+    if (tops.some((v) => v === null)) note('error', '量不到图片区开关的位置')
+    else if (new Set(tops).size !== 1) {
+      note('error', `图片说明换文案时开关上下跳：各态顶边 ${JSON.stringify(tops)}`)
     } else {
-      note('info', `图片插入方式：三档选择器顶边一致（${vals[0]}px），说明换行不顶控件`)
+      note('info', `图片设置：两组标题齐备，开关联动正确，说明换文案不顶控件（顶边 ${tops[0]}px）`)
+    }
+
+    // 收尾：把命令清空，回到默认组合（后面的检查还要用这份设置）
+    await page.fill(cmdSel, '')
+    await page.waitForTimeout(200)
+    const restored = await readImages()
+    if (restored.copyOn !== true || restored.copyLocked !== true || restored.autoLocked !== true) {
+      note('error', '清空上传命令后没有回到「副本锁定开 + 自动上传锁定关」')
     }
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)

@@ -57,22 +57,62 @@ export function Segmented<T extends string>(
   return { root: box, set: mark }
 }
 
-/** 开关。 */
-export function Switch(checked: boolean, onChange: (v: boolean) => void): HTMLElement {
+/**
+ * 开关。返回值除了是元素本身，还带两个方法：
+ * - `set(v)`：**程序化**改值。别的设置项（比如上传命令）一变，开关的可用性跟着变，
+ *   不同步的话面板会显示一个和实际行为不符的状态；
+ * - `setDisabled(v)`：不可用态。图片设置里有些开关是被另一根轴锁住的
+ *   （没有上传命令就不能关掉本地副本），锁住时也要看得见它的值。
+ */
+export type SwitchEl = HTMLElement & {
+  set: (v: boolean) => void
+  setDisabled: (v: boolean) => void
+}
+
+export function Switch(
+  checked: boolean,
+  onChange: (v: boolean) => void,
+  opts: { disabled?: boolean } = {},
+): SwitchEl {
   const box = el('label', 'switch')
   const track = el('span', 'switch-track')
   box.appendChild(track)
   box.setAttribute('role', 'switch')
-  box.setAttribute('aria-checked', String(checked))
-  track.classList.toggle('on', checked)
+  box.tabIndex = 0
+  let disabled = opts.disabled ?? false
+
+  function set(v: boolean) {
+    track.classList.toggle('on', v)
+    box.setAttribute('aria-checked', String(v))
+  }
+
+  function setDisabled(v: boolean) {
+    disabled = v
+    box.classList.toggle('is-disabled', v)
+    box.setAttribute('aria-disabled', String(v))
+  }
+
+  function toggle() {
+    if (disabled) return
+    const next = !track.classList.contains('on')
+    set(next)
+    onChange(next)
+  }
+
   box.addEventListener('click', (e) => {
     e.preventDefault()
-    const next = !track.classList.contains('on')
-    track.classList.toggle('on', next)
-    box.setAttribute('aria-checked', String(next))
-    onChange(next)
+    toggle()
   })
-  return box
+  // 开关能聚焦就要能用键盘拨（role="switch" 的约定是 Space / Enter）。
+  // 只加 tabIndex 不给按键，等于多一个拨不动的焦点站。
+  box.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Enter') return
+    e.preventDefault()
+    toggle()
+  })
+  set(checked)
+  setDisabled(disabled)
+  return Object.assign(box, { set, setDisabled })
 }
 
 /**

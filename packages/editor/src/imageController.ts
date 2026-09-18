@@ -1,5 +1,12 @@
-import { listImages, replaceImageUrl, replaceImageAlt, type BlockView } from '@lector/core'
-import { detectEnv, revealInFolder, saveImage, runImageCommand } from '@lector/shell-web'
+import { imagePipeline, listImages, replaceImageUrl, replaceImageAlt, type BlockView } from '@lector/core'
+import {
+  detectEnv,
+  discardStagedImage,
+  revealInFolder,
+  runImageCommand,
+  saveImage,
+  stageImage,
+} from '@lector/shell-web'
 import { getSettings } from './settings.ts'
 import { showPrompt } from './dialog.ts'
 import { showInLightbox } from './lightbox.ts'
@@ -11,11 +18,13 @@ import { t } from './i18n.ts'
 import {
   fileToBase64,
   imageContentHash,
+  imageDedupKey,
   imageMarkdown,
   splitUploadCommand,
   expandImageDir,
   findDedupImage,
   rememberImage,
+  runImageIngest,
 } from './imageInsert.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 
@@ -45,31 +54,45 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     editor.focusBlock(block.id, { mode: 'pos', pos: node.start })
   }
 
-  /** 上传到图床（仅命令模式）：跑用户命令拿到 URL，用它替换这张图的 src。 */
-  async function uploadImageAt(block: BlockView, index: number, absPath: string): Promise<void> {
+  /**
+   * 跑一次上传命令：成功给 URL，失败把原因一并交回。
+   *
+   * 这里不 toast：失败后的后果随走法不同（留副本的走法是「改用了本地路径」，
+   * 不留副本的走法是「补落了一份副本」），得由调用方合成一句交代给用户。
+   */
+  async function tryUpload(absPath: string | null): Promise<{ url: string | null; error: string | null }> {
     const s = getSettings()
     const { command, preArgs } = splitUploadCommand(s.imageCommand)
-    if (!command) return
-    try {
-      const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], absPath, s.imageCommandTimeoutMs)
-      if (!res.ok || !res.url) {
-        showToast(`${t('imageUploadFailed')}：${res.error ?? 'unknown'}`)
-        return
-      }
-      const next = replaceImageUrl(block.raw, index, res.url)
-      if (next == null) {
-        showToast(t('imageFailed'))
-        return
-      }
-      const before = block.raw
-      editor.operations.setBlockRaw(block, next)
-      // 换 src 不经过 CM，得自己进撤销链（同任务勾选/表格写回）
-      editor.operations.pushUndo(t('imageUndoUpload'), () => editor.operations.setBlockRaw(block, before))
-      void editor.render()
-      showToast(t('imageUploaded'))
-    } catch (err) {
-      showToast(`${t('imageUploadFailed')}：${String(err)}`)
+    if (!command || !absPath) return { url: null, error: 'no command' }
+    const res = await runImageCommand(
+      command,
+      [...preArgs, ...s.imageCommandArgs],
+      absPath,
+      s.imageCommandTimeoutMs,
+    ).catch(() => null)
+    if (res?.ok && res.url) return { url: res.url, error: null }
+    return { url: null, error: res?.error ?? 'unknown' }
+  }
+
+  /** 手动上传：把这张图的本地文件传上去，用返回的 URL 替换它的地址。
+   *  这是「不自动上传也能上传」的那条路——与设置里的自动上传开关无关。 */
+  async function uploadImageAt(block: BlockView, index: number, absPath: string): Promise<void> {
+    const { url, error } = await tryUpload(absPath)
+    if (!url) {
+      showToast(t('imageUploadFailed', { error: error ?? 'unknown' }))
+      return
     }
+    const next = replaceImageUrl(block.raw, index, url)
+    if (next == null) {
+      showToast(t('imageFailed'))
+      return
+    }
+    const before = block.raw
+    editor.operations.setBlockRaw(block, next)
+    // 换 src 不经过 CM，得自己进撤销链（同任务勾选/表格写回）
+    editor.operations.pushUndo(t('imageUndoUpload'), () => editor.operations.setBlockRaw(block, before))
+    void editor.render()
+    showToast(t('imageUploaded'))
   }
 
   /** 编辑图片描述（alt）：小输入框确认后只改 `![…]` 那一段，URL 不动。 */
@@ -123,8 +146,8 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
    * 图片动作菜单：只放「针对这一张图」能做的事。
    *
    * 点击图片的意图是「看一眼 / 换个地址 / 拿到它」，不是编辑源码——
-   * 所以「查看原图」排第一，其余按可用性出现（外链图没有本地路径，
-   * 就不给「在文件夹中显示 / 复制路径」；没配图床命令就不给「上传」）。
+   * 所以「查看原图」排第一，其余按可用性出现：外链图没有本地路径，就不给
+   * 「在文件夹中显示 / 复制路径」；没配上传命令，就不给「上传到图床」。
    */
   function imageMenuItems(img: HTMLImageElement): ContextMenuItem[] {
     const target = imageTarget(img)
@@ -169,8 +192,10 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       label: t('menuCopyImagePath'),
       run: () => void copyText(local ?? img.getAttribute('src') ?? '', t('menuCopied')),
     })
-    const s = getSettings()
-    if (target && local && s.imageMode === 'command' && s.imageCommand.trim()) {
+    // 上传项的条件只有两条：配了命令、这张图手上有本地文件。
+    // 与「自动上传」开关**无关**——不自动上传正是手动上传存在的理由；
+    // 已经指向图床的图（src 是 http(s)）没有本地文件，也就没什么可传的。
+    if (target && local && imagePipeline(getSettings()).upload !== 'off') {
       items.push({
         separatorBefore: true,
         label: t('imageUpload'),
@@ -216,9 +241,12 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
   const MAX_IMAGE_BYTES = 15 * 1024 * 1024
 
   /**
-   * 图片字节 → 落盘 → 返回可直接写进 `]()` 的 src。
-   * 命令模式返回图床 URL（失败回退本地相对路径），其余模式返回相对路径。
-   * 插入（粘贴/拖入）与「替换图片」共用这一条链路，模式逻辑只此一份。
+   * 图片字节 → 落盘 / 上传 → 返回可直接写进 `]()` 的 src。
+   *
+   * 走法由 core 的 imagePipeline() 裁决（要不要复制 × 要不要上传两根轴），
+   * 动作由 imageInsert 的 runImageIngest() 执行；这里只做三件事：
+   * 拿字节、查会话内去重、把结果写进正文并出提示。
+   * 插入（粘贴/拖入）与「替换图片」共用这一条链路。
    */
   async function persistImageBytes(name: string, file: File): Promise<string | null> {
     if (file.size > MAX_IMAGE_BYTES) {
@@ -230,40 +258,29 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       return null
     }
     const bytes = await file.arrayBuffer()
-    // 同一张图在本会话内粘 N 次只占一份磁盘：按内容 hash 复用上次返回的路径。
-    // 跨会话的 map 会重置——按 hash 查 image-assets 目录里是下个迭代的事。
-    const hash = await imageContentHash(bytes)
-    const existing = findDedupImage(hash)
+    const plan = imagePipeline(getSettings())
+    // 同一张图在本会话内粘 N 次只占一份磁盘 / 只传一次；换了走法（改目录、改上传）
+    // 就是另一回事，键里带着管线，见 imageDedupKey。
+    const key = imageDedupKey(await imageContentHash(bytes), plan)
+    const existing = findDedupImage(key)
     if (existing) return existing
-    const bytes_base64 = fileToBase64(bytes)
 
-    // 模式 → 落盘子目录：images（旧行为）/ assets 模板 / command 时也先落 assets 副本。
-    const s = getSettings()
-    let local: { relative_path: string; abs_path: string | null }
-    if (s.imageMode === 'command' || s.imageMode === 'assets') {
-      const stem = docStem(editor.getSession().source!.path)
-      const expanded = expandImageDir(s.imageAssetsDir, stem) ?? 'images'
-      local = await saveImage(editor.getSession().source!.path, name, bytes_base64, expanded)
-      if (s.imageMode === 'command') {
-        // 命令模式：本地副本已在 assets 里，传图床拿 URL，失败静默回退本地。
-        const { command, preArgs } = splitUploadCommand(s.imageCommand)
-        if (command && local.abs_path) {
-          const res = await runImageCommand(command, [...preArgs, ...s.imageCommandArgs], local.abs_path, s.imageCommandTimeoutMs).catch(() => null)
-          if (res?.ok && res.url) {
-            rememberImage(hash, res.url)
-            return res.url
-          }
-          showToast(`${t('imageUploadFailed')}：${res?.error ?? 'unknown'}`)
-        }
-        rememberImage(hash, local.relative_path)
-        return local.relative_path
-      }
-    } else {
-      // 缺省 / images：保持老的 images/ 目录。
-      local = await saveImage(editor.getSession().source!.path, name, bytes_base64, 'images')
+    const docPath = editor.getSession().source!.path
+    const base64 = fileToBase64(bytes)
+    const res = await runImageIngest(plan, name, base64, {
+      copy: (n, b64) => saveImage(docPath, n, b64, expandImageDir(plan.copyDir, docStem(docPath)) ?? 'images'),
+      stage: stageImage,
+      upload: tryUpload,
+      discard: discardStagedImage,
+    })
+    // 上传失败：正文落在哪儿就说哪儿（留副本 / 兜底补了一份），顺带把原因交代给用户
+    if (!res.uploaded && res.error) {
+      showToast(t('imageUploadKeptLocal', { path: res.src, error: res.error }))
+    } else if (res.uploaded && !res.copied) {
+      showToast(t('imageUploadedRemote'))
     }
-    rememberImage(hash, local.relative_path)
-    return local.relative_path
+    rememberImage(key, res.src)
+    return res.src
   }
 
   async function ingestImageFile(file: File, name: string | null, insertRef?: ImageInsertRef | null) {

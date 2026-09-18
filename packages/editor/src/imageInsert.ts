@@ -1,9 +1,22 @@
+import type { ImagePipeline } from '@lector/core'
+
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'])
 
 // 内容哈希去重缓存：粘贴同一张图多次只占一份磁盘。
 // 跨会话的 map 会重置——未持久化；设计上有意以此为限：手动管理文件的用户
 // 不会惊讶被「跨重启合并」。想要跨会话的下一轮再加 image manifest。
-const contentHashCache = new Map<string, string>() // hash(12 hex) → images/... 相对路径
+const contentHashCache = new Map<string, string>() // dedup key → 写进正文的 src
+
+/**
+ * 去重键 = 内容哈希 + 当前图片管线。
+ *
+ * 只看内容会把「换个写法」当成同一件事：先只复制、后来改成自动上传，
+ * 同一张图第二次粘贴会直接复用上次的相对路径，命令根本不跑。
+ * 反过来，同一张图在同一管线下粘 N 次只跑一次命令/写一份文件。
+ */
+export function imageDedupKey(hash: string, plan: ImagePipeline): string {
+  return `${hash}|${plan.upload}|${plan.copy ? plan.copyDir : '-'}`
+}
 
 /** SHA-256 前 6 字节（12 hex 字符），用作去重 key。够用、不算长。 */
 export async function imageContentHash(bytes: ArrayBuffer): Promise<string> {
@@ -14,12 +27,12 @@ export async function imageContentHash(bytes: ArrayBuffer): Promise<string> {
   return s
 }
 
-export function findDedupImage(hash: string): string | null {
-  return contentHashCache.get(hash) ?? null
+export function findDedupImage(key: string): string | null {
+  return contentHashCache.get(key) ?? null
 }
 
-export function rememberImage(hash: string, relativePath: string): void {
-  contentHashCache.set(hash, relativePath)
+export function rememberImage(key: string, src: string): void {
+  contentHashCache.set(key, src)
 }
 
 export function _resetDedupForTests(): void {
@@ -113,6 +126,77 @@ export function imageMarkdown(relPath: string, alt = ''): string {
   // 目录模板可能含空格（`My Notes.assets`），CommonMark 的 []() 目标遇空格会错位，
   // 这里统一把空格百分号编码（协议侧会解码回去），中文/其他字符原样保留。
   return `![${alt}](${relPath.replace(/ /g, '%20')})`
+}
+
+/**
+ * 插图要用的四个外部动作。真实实现走壳（save_image / stage_image / run_image_command /
+ * discard_staged_image），测试里换成假的——这样「哪一种组合走哪条路」能直接断言，
+ * 不必搭一台浏览器、更不必真去传一次图。
+ */
+export interface ImageEffects {
+  /** 落一份本地副本，返回正斜杠相对路径与绝对路径（上传命令吃后者）。 */
+  copy(name: string, base64: string): Promise<{ relative_path: string; abs_path: string | null }>
+  /** 暂存成系统临时文件；壳里没有这条命令（旧版本）时给 null。 */
+  stage(name: string, base64: string): Promise<string | null>
+  /** 跑上传命令：成功给 URL，失败给原因。 */
+  upload(absPath: string | null): Promise<{ url: string | null; error: string | null }>
+  /** 删掉暂存文件。 */
+  discard(absPath: string): Promise<void>
+}
+
+export interface ImageIngestResult {
+  /** 写进正文的 src：本地相对路径，或图床 URL。 */
+  src: string
+  /** 上传成功了吗。 */
+  uploaded: boolean
+  /** 这次之后磁盘上有没有这份图的本地副本。 */
+  copied: boolean
+  /** 上传失败的原因（成功或没走上传时为 null）。 */
+  error: string | null
+}
+
+/**
+ * 「要不要复制 × 要不要上传」合成的四种走法，只在这里实现一次。
+ *
+ * 调用方（imageController）负责拿字节、查去重、把结果写进正文与出提示；
+ * 这里只回答一件事：**这次插入到底做了什么**。
+ *
+ * 一条红线：上传失败也绝不丢图——留副本的走法退回那份副本，不留副本的走法
+ * 补落一份副本（用户选了「不复制」，但一次粘贴白做比多一个文件更糟）。
+ */
+export async function runImageIngest(
+  plan: ImagePipeline,
+  name: string,
+  base64: string,
+  fx: ImageEffects,
+): Promise<ImageIngestResult> {
+  // 不上传 / 只手动上传：先把副本放好，正文写相对路径（手动传以后再从图片菜单走）。
+  if (plan.upload !== 'auto') {
+    const local = await fx.copy(name, base64)
+    return { src: local.relative_path, uploaded: false, copied: true, error: null }
+  }
+
+  // 复制 + 自动上传：本地副本永远在，传成了用 URL，传败了用副本。
+  if (plan.copy) {
+    const local = await fx.copy(name, base64)
+    const up = await fx.upload(local.abs_path)
+    return { src: up.url ?? local.relative_path, uploaded: up.url !== null, copied: true, error: up.error }
+  }
+
+  // 不复制 + 自动上传：临时文件转一圈，正文只留图床地址。
+  const staged = await fx.stage(name, base64)
+  if (staged) {
+    const up = await fx.upload(staged)
+    await fx.discard(staged)
+    if (up.url) return { src: up.url, uploaded: true, copied: false, error: null }
+    const fallback = await fx.copy(name, base64)
+    return { src: fallback.relative_path, uploaded: false, copied: true, error: up.error }
+  }
+
+  // 壳里还没有 stage_image（旧版本）：退回「复制 + 上传」，行为一致、只是多留一份副本。
+  const local = await fx.copy(name, base64)
+  const up = await fx.upload(local.abs_path)
+  return { src: up.url ?? local.relative_path, uploaded: up.url !== null, copied: true, error: up.error }
 }
 
 export function insertAt(text: string, offset: number, chunk: string): { text: string; caret: number } {

@@ -397,6 +397,45 @@ pub fn save_image(
   })
 }
 
+// ───────────────────── 图片临时暂存（不保存本地副本时的中转） ─────────────────────
+// 「不留本地副本」的图片照样要交给上传命令，而命令吃的是**绝对路径**，
+// 所以得先有一个真文件。它落在系统临时目录下的 lector-stage/，上传完就删；
+// 文档目录始终干净（万一进程被杀，脏的也是系统会回收的临时目录）。
+
+/// 暂存目录。discard 也按它收口：这条命令由 Web 层调用，不能变成删任意路径的口子。
+fn stage_dir() -> PathBuf {
+  std::env::temp_dir().join("lector-stage")
+}
+
+/// 把图片字节写成临时文件，返回绝对路径（交给上传命令）。
+#[tauri::command]
+pub fn stage_image(filename: String, bytes_base64: String) -> Result<String, String> {
+  let name = sanitize_image_name(&filename).ok_or_else(|| "invalid image name".to_string())?;
+  let dir = stage_dir();
+  fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+  let bytes = decode_base64(&bytes_base64)?;
+  if bytes.is_empty() {
+    return Err("empty image".into());
+  }
+  if bytes.len() > MAX_IMAGE_BYTES {
+    return Err("image too large".into());
+  }
+  let dest = unique_path(&dir, &name);
+  atomic_write(&dest, &bytes).map_err(|e| e.to_string())?;
+  Ok(dest.to_string_lossy().into_owned())
+}
+
+/// 删掉一个暂存文件。canonicalize 之后再比前缀——软链接指到暂存目录外也删不掉。
+#[tauri::command]
+pub fn discard_staged_image(path: String) -> Result<(), String> {
+  let dir = fs::canonicalize(stage_dir()).map_err(|e| e.to_string())?;
+  let target = fs::canonicalize(&path).map_err(|e| e.to_string())?;
+  if !target.starts_with(&dir) {
+    return Err("not a staged image".into());
+  }
+  fs::remove_file(&target).map_err(|e| e.to_string())
+}
+
 /// web 层就绪信号：此刻 WebView2 必然可见且完成置顶，snap 覆盖层此时 raise
 /// 才能稳稳压在它上面（竞态细节见 snap.rs::raise 的注释）。每个窗口的页面
 /// 各调一次，命令按调用方窗口各自处理，天然多窗口安全。
@@ -609,5 +648,28 @@ mod tests {
     let r = run_command("/this/does/not/exist/__nope__", &[], "/tmp/x.png", 1000);
     assert!(!r.ok);
     assert!(r.error.is_some());
+  }
+
+  #[test]
+  fn staged_image_roundtrip_and_discard() {
+    // 1×1 PNG 的 base64（与 test_image_command 里那份同一个像素）
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQz0AEAAABAgAB\
+               oTVHKQAAAABJRU5ErkJggg==";
+    let staged = stage_image("shot.png".into(), png.into()).unwrap();
+    let path = PathBuf::from(&staged);
+    assert!(path.is_file());
+    // 两边都 canonicalize 再比：macOS 的 temp_dir() 是 /var/…，真身是 /private/var/…
+    assert!(fs::canonicalize(&path)
+      .unwrap()
+      .starts_with(fs::canonicalize(stage_dir()).unwrap()));
+    discard_staged_image(staged.clone()).unwrap();
+    assert!(!path.exists());
+
+    // 暂存目录外的文件：一条命令都不许删
+    let outside = tdir("discard").join("keep.png");
+    atomic_write(&outside, b"x").unwrap();
+    assert!(discard_staged_image(outside.to_string_lossy().into()).is_err());
+    assert!(outside.is_file());
+    let _ = fs::remove_dir_all(outside.parent().unwrap());
   }
 }

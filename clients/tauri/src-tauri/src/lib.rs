@@ -144,6 +144,8 @@ pub fn run() {
       io::commands::save_settings,
       io::commands::bind_document,
       io::commands::save_image,
+      io::commands::stage_image,
+      io::commands::discard_staged_image,
       io::commands::run_image_command,
       io::commands::test_image_command,
       io::commands::recent_list,

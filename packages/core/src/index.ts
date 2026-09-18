@@ -25,8 +25,12 @@ export {
   isPlausibleAppPath,
   appDisplayName,
   withReadingTheme,
+  hasImageCommand,
+  imagePipeline,
   type EditorSettings,
   type FontFamily,
+  type ImagePipeline,
+  type ImageUploadMode,
   type ThemeMode,
 } from './settings.ts'
 export {
