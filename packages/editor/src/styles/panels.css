@@ -114,10 +114,23 @@
    被右侧控件挤到比标签还窄，「参数」就会被折成两行。说明文字可长可短，用
    overflow-wrap 兜住长 token，不让它把这一列撑宽。 */
 .row-text { display: flex; flex-direction: column; gap: 2px; min-width: min-content; }
-.row-hint { max-width: 46ch; overflow-wrap: anywhere; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
+/* 说明文字可长可短，用 overflow-wrap 兜住长 token，不让它把这一列撑宽。
+   break-word 而不是 anywhere：anywhere 会为了填满行在行中硬断（`%%{init}%%`
+   被拆成 `%%` + 换行 + `{init}%%`），break-word 只在 token 本身超宽时才断。 */
+.row-hint { max-width: 46ch; overflow-wrap: break-word; font-size: var(--text-2xs); line-height: 1.5; color: rgb(var(--subtle-foreground)); }
 /* 提示位里的错误（如 mermaid 配置 JSON 不合法）：它不再是说明，是一句「你写错了」，
    得和周围的灰字区分开。字形与位置不动，只换颜色——布局不跳。 */
 .row-hint[data-invalid='true'] { color: rgb(var(--destructive)); }
+/* 提示里的代码 token（如 %%{init}%%）：等宽 + 淡底小胶囊 + 禁断行。 */
+.hint-token {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(var(--muted) / 0.55);
+  color: rgb(var(--muted-foreground));
+}
 .settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 /* 「测试命令」：stack 行默认把子项拉伸满宽，次级按钮会被拉成一条通栏灰字（很难看）。
    按钮按内容宽左对齐；结果提示另起一行，没结果时不占位。 */
@@ -177,38 +190,42 @@
 .settings-inline > .btn { flex: 0 0 auto; }
 
 /* ── 外部应用列表 ──
- * 书目式清单（与空态「最近打开」同一语言）：发丝级分区、悬停中性灰底，
- * 选中态用主色浅底 + 对勾，不用单选圈——列表本身就是"选一个"。 */
+ * 成组卡片：与空态「最近打开」同一语言（.recent-list）——卡片描边定界、
+ * 发丝线分行，而不是一排各自悬停浮起的裸行。选中态 = 主色浅底 + 右侧对勾。 */
 .app-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  border-radius: var(--radius-card);
+  background: rgb(var(--popover));
+  box-shadow: 0 0 0 1px rgb(var(--border));
+  overflow: hidden;
 }
 .app-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 12px;
+  padding: 9px 12px;
   border: 0;
-  border-radius: var(--radius-btn);
   background: transparent;
   font: inherit;
   text-align: left;
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-standard);
 }
+/* 发丝分隔线用 inset 投影而不是 border：border 会占布局高度，行高会 1px 1px 地跳 */
+.app-item + .app-item { box-shadow: inset 0 1px 0 rgb(var(--border-subtle)); }
 .app-item:hover { background: var(--block-hover-bg); }
 .app-item[data-active='true'] { background: var(--primary-softer); }
-.app-item:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: 1px; }
+.app-item:focus-visible { outline: 2px solid rgb(var(--primary)); outline-offset: -2px; }
 .app-item-icon {
   flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   color: rgb(var(--muted-foreground));
 }
-.app-item-icon img { width: 24px; height: 24px; }
+.app-item-icon img { width: 26px; height: 26px; }
 .app-item-text {
   flex: 1 1 auto;
   min-width: 0;

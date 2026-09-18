@@ -104,35 +104,43 @@ export function themeCard(
  * theme 决定「白天还是晚上」，readingTheme 决定「读起来像什么」。
  * 混成一个列表（「米黄夜间」这类组合项）会立刻变成排列组合地狱。
  */
-export function appearanceControls(opts: {
-  settings: () => EditorSettings
-  onThemeMode: (m: ThemeMode) => void
-  onReadingTheme: (id: ReadingThemeId) => void
-}): HTMLElement {
+export function appearanceControls(
+  opts: {
+    settings: () => EditorSettings
+    onThemeMode: (m: ThemeMode) => void
+    onReadingTheme: (id: ReadingThemeId) => void
+  },
+  // popover：顶栏浮层，自带「主题」行与「阅读主题」小标签；
+  // settings：设置面板——那两个标签由面板自己的设置行渲染（同一字级、可搜索），
+  // 这里只出卡片网格与说明，避免一块内容两套标题样式。
+  variant: 'popover' | 'settings' = 'popover',
+): HTMLElement {
   const wrap = document.createElement('div')
   wrap.className = 'appearance'
 
-  const modeRow = document.createElement('div')
-  modeRow.className = 'appearance-row'
-  const modeLabel = document.createElement('span')
-  modeLabel.className = 'appearance-label'
-  modeLabel.textContent = t('theme')
-  const seg = Segmented(
-    opts.settings().theme,
-    [
-      { v: 'system', label: t('themeSystem') },
-      { v: 'light', label: t('themeLight') },
-      { v: 'dark', label: t('themeDark') },
-    ],
-    opts.onThemeMode,
-  )
-  modeRow.append(modeLabel, seg.root)
-  wrap.appendChild(modeRow)
+  if (variant !== 'settings') {
+    const modeRow = document.createElement('div')
+    modeRow.className = 'appearance-row'
+    const modeLabel = document.createElement('span')
+    modeLabel.className = 'appearance-label'
+    modeLabel.textContent = t('theme')
+    const seg = Segmented(
+      opts.settings().theme,
+      [
+        { v: 'system', label: t('themeSystem') },
+        { v: 'light', label: t('themeLight') },
+        { v: 'dark', label: t('themeDark') },
+      ],
+      opts.onThemeMode,
+    )
+    modeRow.append(modeLabel, seg.root)
+    wrap.appendChild(modeRow)
 
-  const themeLabel = document.createElement('div')
-  themeLabel.className = 'appearance-group-label'
-  themeLabel.textContent = t('readingTheme')
-  wrap.appendChild(themeLabel)
+    const themeLabel = document.createElement('div')
+    themeLabel.className = 'appearance-group-label'
+    themeLabel.textContent = t('readingTheme')
+    wrap.appendChild(themeLabel)
+  }
 
   const grid = document.createElement('div')
   grid.className = 'theme-grid'
@@ -165,6 +173,7 @@ export function mountAppearance(
     onThemeMode: (m: ThemeMode) => void
     onReadingTheme: (id: ReadingThemeId) => void
   },
+  variant: 'popover' | 'settings' = 'popover',
 ): (force?: boolean) => void {
   let sig = ''
   const render = (force = false) => {
@@ -172,7 +181,7 @@ export function mountAppearance(
     const next = [s.readingTheme, s.fontFamily, s.fontSize, s.lineHeight, s.readingWidth].join('|')
     if (!force && next === sig) return
     sig = next
-    host.replaceChildren(appearanceControls(opts))
+    host.replaceChildren(appearanceControls(opts, variant))
   }
   render(true)
   return render

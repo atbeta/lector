@@ -186,15 +186,38 @@ export function openSettingsModal(onClose?: () => void) {
 
   // ── 外观 ──
   const appearance = makeSection('appearance', t('appearance'))
+  // 主题（明暗）与画廊、界面缩放是同级三块，全部走普通设置行：
+  // 同一字级的标签 + 统一的发丝线分隔。画廊自己的「主题/阅读主题」小标签
+  // 是给顶栏浮层用的，在设置面板里要拆掉（variant: 'settings'），否则
+  // 三块三种标题样式，分块全靠猜。
+  const themeSeg = Segmented(
+    getSettings().theme,
+    [
+      { v: 'system', label: t('themeSystem') },
+      { v: 'light', label: t('themeLight') },
+      { v: 'dark', label: t('themeDark') },
+    ],
+    (v) => setThemeMode(v),
+  )
+  appearance.appendChild(row(t('theme'), themeSeg.root))
+
   const galleryHost = h('div', 'settings-gallery')
-  // 画廊自带明暗分段 + 六张主题卡。设置一变就重画「选中态 / 已微调标记」——
+  // 画廊自带六张主题卡。设置一变就重画「选中态 / 已微调标记」——
   // 不订阅的话，用户在弹窗里换主题，卡片上的高亮还停在旧的那张。
-  const renderGallery = mountAppearance(galleryHost, {
-    settings: getSettings,
-    onThemeMode: setThemeMode,
-    onReadingTheme: setReadingTheme,
-  })
-  appearance.appendChild(galleryHost)
+  const renderGallery = mountAppearance(
+    galleryHost,
+    {
+      settings: getSettings,
+      onThemeMode: setThemeMode,
+      onReadingTheme: setReadingTheme,
+    },
+    'settings',
+  )
+  // 画廊作为一条 stack 行：标签可搜索（搜「纸」能翻到这张画廊），
+  // 行的发丝底边正好把它和「界面缩放」分开。
+  const galleryRow = row(t('readingTheme'), galleryHost)
+  galleryRow.classList.add('settings-row-stack')
+  appearance.appendChild(galleryRow)
 
   // 界面缩放：「整块屏幕多大」的旋钮，比正文的字体字号更外一层。
   // 与正文字号是两件事：读得舒服 ≠ 隔着三米能看清，所以两个旋钮都留着。
@@ -434,11 +457,11 @@ export function openSettingsModal(onClose?: () => void) {
     const name = h('span', 'app-item-name')
     name.textContent = path ? appDisplayName(path) : t('externalAppSystemDefault')
     text.appendChild(name)
-    if (path) {
-      const pathEl = h('span', 'app-item-path')
-      pathEl.textContent = path
-      text.appendChild(pathEl)
-    }
+    // 两行制：应用行是「名称 + 路径」，系统默认行也给一行说明——
+    // 行高一致，列表读起来才是清单而不是参差的几行字。
+    const sub = h('span', 'app-item-path')
+    sub.textContent = path ?? t('externalAppSystemDefaultHint')
+    text.appendChild(sub)
     const check = h('span', 'app-item-check')
     check.innerHTML = iconSvg('check', 14)
     item.append(iconBox, text, check)
@@ -583,8 +606,23 @@ export function openSettingsModal(onClose?: () => void) {
     // 解析失败时**不**报错到控制台就完事：用户要在这里看到哪一行不对。
     // 图不会跟着坏——坏的 JSON 期间沿用上一份能用的配置（见 mermaid.ts 的 effectiveUserConfig）。
     const { error } = parseMermaidConfig(mermaidBox.value)
-    mermaidHint.textContent = error ? t('mermaidConfigInvalid', { error }) : t('mermaidConfigHint')
     mermaidHint.dataset.invalid = error ? 'true' : 'false'
+    if (error) {
+      mermaidHint.textContent = t('mermaidConfigInvalid', { error })
+      return
+    }
+    // `%%{init}%%` 包成 nowrap 的 code token：纯文本下 UAX#14 允许在 %% 和 { 之间断行，
+    // 它会断成「%%\n{init}%%」；token 化之后既不断行，也更好认。
+    const text = t('mermaidConfigHint')
+    const token = '%%{init}%%'
+    const at = text.indexOf(token)
+    if (at < 0) {
+      mermaidHint.textContent = text
+      return
+    }
+    const codeEl = h('code', 'hint-token')
+    codeEl.textContent = token
+    mermaidHint.replaceChildren(text.slice(0, at), codeEl, text.slice(at + token.length))
   }
   mermaidBox.addEventListener('input', () => {
     syncMermaidHint()
@@ -688,6 +726,7 @@ export function openSettingsModal(onClose?: () => void) {
   // 只 set() 值、不动结构：拖到一半被重建，拖拽就断了。
   let galleryTick = false
   const off = notify((s) => {
+    themeSeg.set(s.theme)
     font.set(s.fontFamily)
     fontSlider.set(s.fontSize)
     lhSlider.set(s.lineHeight)
