@@ -38,7 +38,11 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
   别让它经过 PowerShell 的文本管道。
 - 代码注释中文；**用户文案 i18n（zh-CN + en）从第一天就做**，不后补。
 - 最小变更。不提交密钥。`testdata/` 只放自造夹具，不提交别人的私密笔记。
-- Commit messages：Conventional Commits，`type(scope): subject`，简洁英文。
+- **Commit messages 一律英文**。Conventional Commits `type(scope): subject`，简洁、祈使句、72 字符内。
+  Subject 后面跟正文时，空一行再写正文。中文 commit message 不接受(混合语言造成 CHANGELOG 阅读成本,
+  AI Agent 在跨仓库协作时也得能读懂——后面 release note 要批量 LLM 翻译,英文 commit 翻译质量更好)。
+  代码注释可以继续中文(只在仓库内,不上用户界面);用户文案必须中英双语。
+  现有老的中文 commit 不必改写——`git blame` 追溯比翻译更重要,CHANGELOG.md 顶部已注明这一点。
 
 ## 发版
 
