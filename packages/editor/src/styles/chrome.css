@@ -122,6 +122,9 @@ html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: r
    摆一排禁用感的控件只是噪音。名字与 tip 在悬停层，空间全给图标。 */
 html.is-empty .mode-switch,
 html.is-loading .mode-switch { display: none; }
+/* 「用其他应用打开」同理：空态里没有可交出去的文件 */
+html.is-empty #open-with-btn,
+html.is-loading #open-with-btn { display: none; }
 
 html[data-shell='windows'] .mode-opt { height: 22px; padding: 0 7px; }
 html[data-shell='windows'] .mode-switch { border-radius: 6px; }

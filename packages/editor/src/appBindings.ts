@@ -1,7 +1,7 @@
 import { detectEnv, onMenu, closeWindow } from '@lector/shell-web'
 import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
-import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom } from './settings.ts'
+import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom, notify } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
@@ -18,7 +18,7 @@ import type { createReadingPositionController } from './readingPositionControlle
 
 interface AppBindingsDeps {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'>
-  files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
+  files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'openWithLabel' | 'revealCurrent'>
   chrome: Pick<EditorChrome, 'elements' | 'getViewMode' | 'setViewMode' | 'toggleMode'>
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
@@ -214,6 +214,16 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
 
   chrome.elements.findBtn.addEventListener('click', () => editor.openFind())
   chrome.elements.saveBtn.addEventListener('click', () => void files.persistToDisk())
+  // 「用其他应用打开」从标题右键菜单提到顶栏：它和打开/保存一样是「对这份文件做的事」。
+  // tip 跟随设置里的应用名（用 Typora 打开 / 用默认应用打开），与右键菜单同一口径——
+  // 标签必须说真话，否则用户点了才知道打开的是谁。
+  chrome.elements.openWithBtn.addEventListener('click', () => void files.openDefaultApp())
+  const syncOpenWithTip = () => {
+    chrome.elements.openWithBtn.dataset.tip = files.openWithLabel()
+    chrome.elements.openWithBtn.setAttribute('aria-label', files.openWithLabel())
+  }
+  syncOpenWithTip()
+  notify(syncOpenWithTip)
   // 原生菜单
   if (detectEnv() !== 'shell') return
   void onMenu((action) => {

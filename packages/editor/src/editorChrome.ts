@@ -52,6 +52,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
 
   const openBtn = document.getElementById('open-btn')!
   const saveBtn = document.getElementById('save-btn') as HTMLButtonElement
+  const openWithBtn = document.getElementById('open-with-btn') as HTMLButtonElement
   const modeSwitchEl = document.getElementById('mode-switch')!
   const appearanceBtn = document.getElementById('appearance-btn')!
   const settingsBtn = document.getElementById('settings-btn')!
@@ -258,9 +259,14 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   }
 
   function init(): void {
-    openBtn.innerHTML = iconSvg('fileText', 16)
+    openBtn.innerHTML = iconSvg('folderOpen', 16)
     openBtn.setAttribute('aria-label', t('openAria'))
     openBtn.dataset.tip = t('openAria')
+    // 「用其他应用打开」的 tip 跟随设置里的应用名，由 appBindings 订阅设置来同步；
+    // 这里只放图标与兜底文案。
+    openWithBtn.innerHTML = iconSvg('externalLink', 16)
+    openWithBtn.setAttribute('aria-label', t('menuOpenDefault'))
+    openWithBtn.dataset.tip = t('menuOpenDefault')
     saveBtn.innerHTML = iconSvg('save', 16)
     saveBtn.setAttribute('aria-label', t('saveAria'))
     saveBtn.dataset.tip = t('saveAria')
@@ -283,7 +289,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     openBtn.dataset.tip = t('openAria')
     // 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
     // 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
-    exportBtn.innerHTML = iconSvg('fileOutput', 16)
+    exportBtn.innerHTML = iconSvg('fileDown', 16)
     exportBtn.setAttribute('aria-label', t('exportPdfTip'))
     exportBtn.dataset.tip = t('exportPdfTip')
     exportBtn.addEventListener('click', () => {
@@ -353,7 +359,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   }
 
   return {
-    elements: { contentEl, fileNameEl, openBtn, saveBtn, appearanceBtn, settingsBtn, outlineBtn, findBtn },
+    elements: { contentEl, fileNameEl, openBtn, saveBtn, openWithBtn, appearanceBtn, settingsBtn, outlineBtn, findBtn },
     init,
     getViewMode: () => viewMode,
     setViewMode,
