@@ -21,6 +21,7 @@ export {
   isDefaultSettings,
   matchesReadingThemePreset,
   normalizeSettings,
+  pushRecentApp,
   withReadingTheme,
   type EditorSettings,
   type FontFamily,

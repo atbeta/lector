@@ -20,6 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
+import { pushRecentApp } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -27,7 +28,7 @@ import { mountAppearance } from './themeGallery.ts'
 import { t } from './i18n.ts'
 import { splitUploadCommand } from './imageInsert.ts'
 import { parseMermaidConfig } from './mermaid.ts'
-import { testImageCommand, runImageCommand, appVersion } from '@lector/shell-web'
+import { testImageCommand, runImageCommand, appVersion, pickAppPath } from '@lector/shell-web'
 
 let root: HTMLElement | null = null
 
@@ -313,7 +314,7 @@ export function openSettingsModal(onClose?: () => void) {
   appInput.value = getSettings().externalApp
   appInput.placeholder = 'C:\\Program Files\\Typora\\Typora.exe'
   appInput.addEventListener('input', () => apply((s) => ({ ...s, externalApp: appInput.value })))
-  images.appendChild(markRowForModes(row(t('externalApp'), appInput, t('externalAppHint')), 'command'))
+  // 这一行在下面和「浏览…」按钮一起组装（见 appRow），这里不再单独 append。
 
   const appArgsInput = h('input', 'settings-input') as HTMLInputElement
   appArgsInput.type = 'text'
@@ -323,6 +324,49 @@ export function openSettingsModal(onClose?: () => void) {
     apply((s) => ({ ...s, externalAppArgs: appArgsInput.value.split(/\s+/).filter(Boolean) })),
   )
   images.appendChild(markRowForModes(row(t('externalAppArgs'), appArgsInput), 'command'))
+
+  // 「浏览…」+「最近用过」：
+  // - 手打可执行文件路径在 Windows 上太难（长、带空格、per-user / per-machine 两套位置）；
+  // - 常用应用列表由**用户自己的选择**长出来，而不是硬编码一份猜的路径表——
+  //   那些路径随安装方式变化，猜错一次就是"点了打不开"，比没有更糟。
+  const browseBtn = h('button', 'settings-btn') as HTMLButtonElement
+  browseBtn.type = 'button'
+  browseBtn.textContent = t('externalAppBrowse')
+  const recentSelect = h('select', 'settings-input') as HTMLSelectElement
+  const recentRow = markRowForModes(row(t('externalAppRecent'), recentSelect), 'command')
+
+  const renderRecent = (): void => {
+    const list = getSettings().externalAppRecent
+    recentRow.hidden = list.length === 0
+    recentSelect.replaceChildren()
+    for (const app of list) {
+      const opt = document.createElement('option')
+      opt.value = app
+      opt.textContent = app.split(/[\\/]/).pop() || app
+      recentSelect.append(opt)
+    }
+    recentSelect.value = getSettings().externalApp
+  }
+
+  browseBtn.addEventListener('click', () => {
+    void pickAppPath().then((picked) => {
+      if (!picked) return
+      appInput.value = picked
+      apply((s) => ({ ...s, externalApp: picked, externalAppRecent: pushRecentApp(s.externalAppRecent, picked) }))
+      renderRecent()
+    })
+  })
+  recentSelect.addEventListener('change', () => {
+    const picked = recentSelect.value
+    appInput.value = picked
+    apply((s) => ({ ...s, externalApp: picked }))
+  })
+
+  const appRow = h('div', 'settings-inline')
+  appRow.append(appInput, browseBtn)
+  images.appendChild(markRowForModes(row(t('externalApp'), appRow, t('externalAppHint')), 'command'))
+  images.appendChild(recentRow)
+  renderRecent()
 
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),

@@ -40,6 +40,24 @@ export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> 
 }
 
 
+/** 选一个外部应用（可执行文件）。壳里走系统文件对话框；预览环境返回 null（没有这个能力）。 */
+export async function pickAppPath(): Promise<string | null> {
+  if (detectEnv() !== 'shell') return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const isMac = navigator.platform.toLowerCase().includes('mac')
+  const picked = await open({
+    multiple: false,
+    directory: false,
+    // macOS 的可执行体是 .app 包（壳会解析包内二进制）；Windows 上可执行文件扩展名很杂，
+    // 只给 .exe 会选不到 .cmd/.bat 包装器。
+    filters: isMac
+      ? [{ name: 'Application', extensions: ['app'] }]
+      : [{ name: 'Executable', extensions: ['exe', 'cmd', 'bat', 'com'] }],
+  })
+  if (!picked) return null
+  return typeof picked === 'string' ? picked : (picked[0] ?? null)
+}
+
 /** 另存为：dialog 插件选目标路径，只返回 path；写盘仍走 write_file。 */
 export async function pickSavePath(defaultName: string): Promise<string | null> {
   if (detectEnv() !== 'shell') return null

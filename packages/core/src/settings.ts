@@ -91,6 +91,9 @@ export interface EditorSettings {
   externalApp: string
   /** 传给外部应用的附加参数（文件路径由壳追加在最后，与图片命令同一约定）。 */
   externalAppArgs: string[]
+  /** 最近用过的外部应用（最新在前，最多 KEEP 个）。让"常用应用"由用户自己的选择长出来，
+   *  而不是硬编码一份猜出来的路径表——猜错的路径只会让人点了得到"打开失败"。 */
+  externalAppRecent: string[]
 }
 
 /**
@@ -125,6 +128,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   imageCommandTimeoutMs: DEFAULT_IMAGE_TIMEOUT_MS,
   externalApp: '',
   externalAppArgs: [],
+  externalAppRecent: [],
 }
 
 const CLAMP = {
@@ -210,11 +214,31 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     externalAppArgs: Array.isArray(src.externalAppArgs)
       ? src.externalAppArgs.filter((a): a is string => typeof a === 'string').slice(0, 32).map((a) => a.slice(0, 256))
       : base.externalAppArgs,
+    // 最近用过：去重（最新在前）、丢空串、最多 5 个——它只服务一个下拉，没理由无限增长。
+    externalAppRecent: Array.isArray(src.externalAppRecent)
+      ? [
+          ...new Set(
+            src.externalAppRecent
+              .filter((a): a is string => typeof a === 'string' && a.trim() !== '')
+              .map((a) => a.trim().slice(0, 512)),
+          ),
+        ].slice(0, 5)
+      : base.externalAppRecent,
   }
 }
 
 export function isDefaultSettings(s: EditorSettings): boolean {
   return JSON.stringify(s) === JSON.stringify(DEFAULT_SETTINGS)
+}
+
+/**
+ * 把"刚用过的应用"放进最近列表：去重、最新的排最前、最多 5 个。
+ * 放 core 而不是 UI 里，是因为它是个纯函数——能单测的东西就别塞进面板。
+ */
+export function pushRecentApp(list: readonly string[], app: string): string[] {
+  const trimmed = app.trim()
+  if (!trimmed) return [...list].slice(0, 5)
+  return [trimmed, ...list.filter((a) => a !== trimmed)].slice(0, 5)
 }
 
 /**

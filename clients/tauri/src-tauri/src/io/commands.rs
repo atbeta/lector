@@ -157,8 +157,19 @@ pub fn open_with_app(path: String, app: String, args: Vec<String>) -> Result<(),
   if exe.is_empty() {
     return Err("empty external app".into());
   }
-  let mut cmd = std::process::Command::new(exe);
+  let cmd = std::process::Command::new(exe);
   cmd.args(&args).arg(&p);
+  // macOS 的外部应用是 .app 包：直接 spawn 包路径会失败，包内的真正可执行体在
+  // Contents/MacOS/ 下。交给系统的 open -a 去解析包，是最省事也最稳的做法。
+  #[cfg(target_os = "macos")]
+  if exe.ends_with(".app") {
+    return std::process::Command::new("open")
+      .args(["-a", exe])
+      .arg(&p)
+      .spawn()
+      .map(|_| ())
+      .map_err(|e| e.to_string());
+  }
   #[cfg(windows)]
   {
     use std::os::windows::process::CommandExt;
