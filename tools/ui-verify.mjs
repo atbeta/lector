@@ -2429,11 +2429,26 @@ const summary = {
     await page.waitForTimeout(900)
     const fit = await page.evaluate(() => {
       const el = document.getElementById('content')
-      return el ? { scroll: el.scrollHeight, client: el.clientHeight } : null
+      return el
+        ? {
+            scroll: el.scrollHeight,
+            client: el.clientHeight,
+            // 空态收掉大纲与模式开关后，分隔线不该留成孤零零的一条竖线
+            visibleDividers: [...document.querySelectorAll('.titlebar-divider')].filter(
+              (d) => d.getBoundingClientRect().width > 0,
+            ).length,
+            outlineVisible: (document.getElementById('outline-btn')?.getBoundingClientRect().width ?? 0) > 0,
+          }
+        : null
     })
     if (!fit) note('error', '空态找不到正文容器')
-    else if (fit.scroll > fit.client + 1) note('error', `空态出现滚动条：${fit.scroll}px / 可视 ${fit.client}px`)
-    else note('info', `空态无多余滚动条：${fit.scroll}px / ${fit.client}px`)
+    else {
+      if (fit.scroll > fit.client + 1) note('error', `空态出现滚动条：${fit.scroll}px / 可视 ${fit.client}px`)
+      else note('info', `空态无多余滚动条：${fit.scroll}px / ${fit.client}px`)
+      if (fit.visibleDividers > 0)
+        note('error', `空态顶栏还剩 ${fit.visibleDividers} 条分隔线（大纲/模式开关都收掉了，应一起收）`)
+      if (fit.outlineVisible) note('error', '空态里大纲按钮还可见（没有侧栏可开）')
+    }
     await page.setViewportSize({ width: 1200, height: 820 })
     await page.waitForTimeout(200)
   }

@@ -126,6 +126,10 @@ html.is-loading .mode-switch { display: none; }
    没有目录可开，按钮在首屏只会是个死键——和模式开关一起收掉。 */
 html.is-empty #outline-btn,
 html.is-loading #outline-btn { display: none; }
+/* 分隔线是给两侧都有的东西分组的：空态里大纲和模式开关都收掉了，
+   两头各剩一条孤零零的竖线（左边那对尤其像多余的笔画），一起收掉。 */
+html.is-empty .titlebar-divider,
+html.is-loading .titlebar-divider { display: none; }
 
 html[data-shell='windows'] .mode-opt { height: 22px; padding: 0 7px; }
 html[data-shell='windows'] .mode-switch { border-radius: 6px; }
