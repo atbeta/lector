@@ -18,7 +18,8 @@ import {
   revealInFolder,
 } from '@lector/shell-web'
 import { isAbsolutePath, baseName } from './paths.ts'
-import { getSettings } from './settings.ts'
+import { getSettings, setSettings } from './settings.ts'
+import { pushRecentApp } from '@lector/core'
 import { showToast } from './feedback.ts'
 import { chooseConflict, confirmDiscard, showDialog } from './dialog.ts'
 import { renderEmptyState as renderEmptyStateView, renderLoadingState as renderLoadingStateView } from './loadState.ts'
@@ -349,8 +350,12 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     const s = getSettings()
     const app = s.externalApp.trim()
     try {
-      if (app) await io.openWithApp(p, app, s.externalAppArgs)
-      else await io.openWithDefault(p)
+      if (app) {
+        await io.openWithApp(p, app, s.externalAppArgs)
+        // 真正用过就把它提到"最近用过"最前：这个列表的语义是"用过"而不是"选过"——
+        // 用几次才知道哪个顺手。纯顺序变化，界面不需要动。
+        setSettings({ ...s, externalAppRecent: pushRecentApp(s.externalAppRecent, app) })
+      } else await io.openWithDefault(p)
     } catch {
       showToast(t('openFailed'))
     }

@@ -242,6 +242,19 @@ export function pushRecentApp(list: readonly string[], app: string): string[] {
 }
 
 /**
+ * 值看起来像一个"应用路径"吗——用来决定"失焦时要不要进最近列表"。
+ *
+ * 判据故意宽松（含分隔符、或带常见可执行扩展名即可）：它的职责是**挡住半截输入**，
+ * 不是做路径校验（真正的校验是"点了能不能打开"）。空串显然不算。
+ */
+export function isPlausibleAppPath(value: string): boolean {
+  const v = value.trim()
+  if (!v) return false
+  if (/[\\/]/.test(v)) return true
+  return /\.(exe|app|cmd|bat|com|sh|AppImage)$/i.test(v)
+}
+
+/**
  * 套用某款阅读主题的标定排版：返回一份新设置。
  *
  * 只覆盖主题标定的四项（字体 / 字号 / 行距 / 栏宽），其余设置不动。

@@ -20,7 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
-import { pushRecentApp } from '@lector/core'
+import { isPlausibleAppPath, pushRecentApp } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -367,6 +367,15 @@ export function openSettingsModal(onClose?: () => void) {
   images.appendChild(markRowForModes(row(t('externalApp'), appRow, t('externalAppHint')), 'command'))
   images.appendChild(recentRow)
   renderRecent()
+
+  // 手打路径也要进"最近用过"，但只在**失焦**时收，且看起来像路径才收：
+  // 输入过程中收会把 "C:\Pro"、"C:\Program" 这些半截值全塞进列表。
+  // （注册放在 renderRecent 之后：它要用这个名字，块作用域里先引用会报错。）
+  appInput.addEventListener('blur', () => {
+    if (!isPlausibleAppPath(appInput.value)) return
+    apply((s) => ({ ...s, externalAppRecent: pushRecentApp(s.externalAppRecent, appInput.value) }))
+    renderRecent()
+  })
 
   const timeoutSlider = Slider(
     Math.round(getSettings().imageCommandTimeoutMs / 1000),

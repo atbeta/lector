@@ -22,6 +22,7 @@ export {
   matchesReadingThemePreset,
   normalizeSettings,
   pushRecentApp,
+  isPlausibleAppPath,
   withReadingTheme,
   type EditorSettings,
   type FontFamily,
