@@ -37,6 +37,30 @@ function mathKey(display: boolean, tex: string): string {
   return `${display ? 'block' : 'inline'}::${tex}`
 }
 
+/**
+ * ==高亮== 是否按高亮渲染。
+ *
+ * 解析层始终认得 `==…==`（core 的 pandoc mark 扩展），这里只管**渲染成什么**：
+ * 关掉时把定界符原样补回去——「不支持这个语法」的正确表现是让你看见源文，
+ * 而不是把两个等号吃掉、留一段没有颜色的文字。设置项见 settings.markHighlight。
+ * 放在模块级而不是逐层传参：渲染是纯函数调用链，加参数只会污染一整条签名。
+ */
+let markHighlight = true
+
+export function setMarkHighlight(on: boolean): void {
+  markHighlight = on
+}
+
+/**
+ * `$…$` / `$$…$$` 是否渲染成公式。关掉时原样显示美元符号（同 setMarkHighlight）。
+ * 与 markHighlight 同属「Markdown 扩展语法」设置。
+ */
+let mathEnabled = true
+
+export function setMathEnabled(on: boolean): void {
+  mathEnabled = on
+}
+
 /** 走一块 mdast,找出所有 math / inlineMath,调 katex 渲完后填表。
  *  单条公式出错绝不让整篇崩：renderMathToHtml 的 reject 在这里被吃掉，
  *  把该式的退化原文写进缓存，渲染层读到就按原样显示。 */
@@ -130,7 +154,7 @@ function inline(children: Node[] | undefined): string {
           pending.pop()
           const inner = out.slice(top.outIndex + 1).join('')
           out.length = top.outIndex
-          out.push(`<${tag} class="html-inline">${inner}</${tag}>`)
+          out.push(`<${tag} class="html-${tag}">${inner}</${tag}>`)
           continue
         }
         out.push(`<code>${esc(v)}</code>`)
@@ -182,6 +206,8 @@ function inlineNode(n: Node): string {
       return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
     case 'inlineMath': {
       const tex = n.value ?? ''
+      // 关掉「Markdown 扩展语法 → 内联公式」：原样吐回 `$…$`，让用户看见源文。
+      if (!mathEnabled) return `$${esc(tex)}$`
       // 行内非公式（货币/区间被 micromark 误判成 inlineMath）：按普通文本显示，
       // 不再进 KaTeX——否则「$5 - $10」会被渲染成一串错位的数学斜体。
       const k = mathKey(false, tex)
@@ -206,8 +232,10 @@ function inlineNode(n: Node): string {
     case 'break':
       return '<br />'
     case 'mark':
-      // ==高亮==（pandoc mark 扩展）
-      return `<mark class="html-mark">${inline(n.children)}</mark>`
+      // ==高亮==（pandoc mark 扩展）。关掉时原样吐回定界符（见 setMarkHighlight）。
+      return markHighlight
+        ? `<mark class="html-mark">${inline(n.children)}</mark>`
+        : `==${inline(n.children)}==`
     case 'html': {
       // 行内 HTML：白名单内「无属性、无嵌套标签」的简单元素原样渲染，
       // 其余转义降级为原文（红线：预览不执行任意 HTML）
@@ -215,7 +243,9 @@ function inlineNode(n: Node): string {
       const simple = v.match(/^<(kbd|sub|sup|u)>([^<]*)<\/\1>$/i)
       if (simple) {
         const tag = simple[1]!.toLowerCase()
-        return `<${tag} class="html-inline">${esc(simple[2]!)}</${tag}>`
+        // 各带各的 class：kbd 是键帽、sub/sup 是上下标、u 是下划线，
+        // 三者排版完全不同，不能共用一个类（见 reader.css）。
+        return `<${tag} class="html-${tag}">${esc(simple[2]!)}</${tag}>`
       }
       if (/^<br\s*\/?>$/i.test(v)) return '<br />'
       return `<code>${esc(v)}</code>`
@@ -403,6 +433,8 @@ function blockToHtml(n: Node): string {
     case 'thematicBreak':
       return '<hr />'
     case 'math': {
+      // 关掉「内联公式」：块级公式同样原样显示 `$$…$$`。
+      if (!mathEnabled) return `<div class="math math-block math-raw">$$${esc(n.value ?? '')}$$</div>`
       // 块级 KaTeX：preRenderMath 阶段已把 katex HTML 填到 mathHtmlCache
       const k = mathKey(true, n.value ?? '')
       const html = mathHtmlCache.get(k) ?? esc(n.value ?? '')

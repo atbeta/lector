@@ -281,17 +281,20 @@ html.lightbox-open #content { overflow: hidden; }
 .modal-body { padding: 0; }
 
 /* ───────────── 查找命中 ─────────────
- * 命中用「纸上的荧光笔」，当前命中用主色加深一层。
- * 不用系统默认的 <mark> 黄：它在深色主题上会亮得刺眼，也和我们的纸墨不搭。 */
+ * 命中用「纸上的荧光笔」，当前命中用同色加深一档。
+ * 两档**只靠填充深浅区分**，不靠描边：1px 环在内联文字上会被读成「选中框/边距」，
+ * 落在链接这种本身带下划线的文字里尤其像排版错位。
+ *
+ * 底色走 --primary（各阅读主题自己的强调色；默认主题是温石墨），
+ * 不跟着 --accent（241/240/237 的近白灰）走——那个铺上去几乎看不见。 */
 .find-hit {
   border-radius: 2px;
-  padding: 0 1px;
-  background: rgb(var(--primary) / 0.18);
+  padding: 0.06em 0.12em;
+  background: rgb(var(--primary) / 0.26);
   color: inherit;
 }
 .find-hit--current {
-  background: rgb(var(--primary) / 0.42);
-  box-shadow: 0 0 0 1px rgb(var(--primary) / 0.5);
+  background: rgb(var(--primary) / 0.5);
 }
 
 /* ───────────── 选区浮条（编辑态） ─────────────

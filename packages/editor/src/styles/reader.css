@@ -693,15 +693,19 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 
 /* ───────────── 扩展语法渲染 ─────────────
  * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
-.reading-prose mark,
+/* :not(.find-hit) 是必须的：查找命中也是 <mark>，本规则的特异度 (0,1,1) 高于
+   .find-hit 的 (0,1,0)，不排除就会把命中的底色刷成这里近白的 --accent，
+   并带上这里的 padding——表现就是「搜到的东西只像多了点边距、根本没高亮」。 */
+.reading-prose mark:not(.find-hit),
 .reading-prose .html-mark {
-  background: rgb(var(--accent) / 0.22);
+  background: rgb(var(--mark-bg));
   color: inherit;
   padding: 0.05em 0.2em;
   border-radius: 3px;
 }
+/* 键帽：只有 kbd 才是「实体键」的盒子 */
 .reading-prose kbd,
-.reading-prose .html-inline {
+.reading-prose .html-kbd {
   font-family: var(--font-mono);
   font-size: 0.85em;
   border: 1px solid rgb(var(--border));
@@ -710,6 +714,19 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   padding: 0.08em 0.4em;
   background: rgb(var(--border-subtle) / 0.35);
 }
+/* 上下标：字号收小、行高归零（不撑开行距）、自己定位。
+   早先 sub/sup/u 和 kbd 共用一条规则，被套上键帽盒子 + 0.85em 等宽字，
+   在中文正文里反而比周围还显眼；现在按脚注上标那一套（相对定位 + top）排。
+   下划线不写规则：<u> 的浏览器默认下划线就是我们要的。 */
+.reading-prose .html-sub,
+.reading-prose .html-sup {
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: baseline;
+  position: relative;
+}
+.reading-prose .html-sup { top: -0.45em; }
+.reading-prose .html-sub { top: 0.24em; }
 .reading-prose .html-details {
   border: 1px solid rgb(var(--border-subtle));
   border-radius: 8px;
