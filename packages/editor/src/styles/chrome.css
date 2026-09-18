@@ -123,8 +123,8 @@ html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: r
 html.is-empty .mode-switch,
 html.is-loading .mode-switch { display: none; }
 
-html[data-shell='windows'] .mode-opt { height: 24px; }
-html[data-shell='windows'] .mode-switch { border-radius: 7px; }
+html[data-shell='windows'] .mode-opt { height: 22px; padding: 0 7px; }
+html[data-shell='windows'] .mode-switch { border-radius: 6px; }
 .titlebar-center {
   position: absolute;
   top: 0;
@@ -161,7 +161,10 @@ html[data-shell='windows'] #titlebar {
   padding: 0 0 0 12px;
   gap: 6px;
 }
-html[data-shell='windows'] .btn-icon { width: 28px; height: 28px; }
+/* 32px 的栏里 28px 按钮顶天立地：悬停/按下的色块直接顶到栏边，读成「挤」。
+   收成 26px（图标不变），栏就有了呼吸；命中区仍远大于触达下限。 */
+html[data-shell='windows'] .btn-icon { width: 26px; height: 26px; border-radius: 5px; }
+html[data-shell='windows'] .titlebar-divider { height: 16px; }
 html[data-shell='windows'] .window-controls { height: 32px; }
 html[data-shell='windows'] .win-btn { width: 46px; }
 /* 标题在 Windows 上跟在导航之后左对齐（系统惯例），不参与居中夹取 */
