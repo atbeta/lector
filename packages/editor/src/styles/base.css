@@ -95,23 +95,43 @@ html[data-theme='dark'] body {
  * `*:hover` 规则以 0.12 盖在所有内层滚动容器上，暗色下滚动条就是这么消失的）。
  * 0.4 在浅色约 2.7:1、深色约 3.5:1；静止时仍是透明的，阅读不受打扰。
  *
- * 标准属性（scrollbar-width / scrollbar-color）与 ::-webkit-scrollbar 同时写是
- * 安全的：Chromium 在有标准属性时忽略伪元素，老引擎反过来——正好互为兜底。
+ * 标准属性与 ::-webkit-scrollbar **不能同时写**：规范规定 scrollbar-width /
+ * scrollbar-color 只要不是 auto，`::-webkit-scrollbar` 整套立刻作废，而两个引擎给
+ * thin 的都是**系统档**，不是我们要的 8px。macOS 27 真机实测（Tauri 在 macOS 上跑的
+ * 就是系统 WKWebView，Chromium 153 作对照）：
+ *
+ *   scrollbar-width: thin        条槽 13 / 11 px，画出来的滑块 7 / 6 px
+ *   只留 ::-webkit-scrollbar     条槽  8 /  8 px，画出来的滑块 4 / 4 px
+ *
+ * 也就是说写下 thin 的那一刻，我们自己的 `::-webkit-scrollbar`（含那圈
+ * `border: 2px solid transparent` 的 4px 内缩）就成了死代码——这正是「浏览器里细、
+ * macOS 原生里粗」的全部原因：两边的 8px 都来自伪元素那套，标准属性一插进来两边
+ * 就各退回系统档，而系统档两家还不一样宽。
+ *
+ * 所以标准属性只留给**没有** ::-webkit-scrollbar 的引擎（Firefox 等）兜底，写进
+ * `@supports` 里：两个引擎实测 `not selector(::-webkit-scrollbar)` 都为 false，
+ * 各走各的路，谁也不会静默盖掉谁。
+ *
+ * 显隐**只由 --scrollbar-thumb 一个变量决定**：滚动中（html.is-scrolling）与悬停
+ * （*:hover）都只是把这个变量改成 0.4，上面两套机制都从它取色，不会出现「两条规则
+ * 各写一个浓度、靠后的静默遮蔽靠前的」。
+ *
  * 注意 `::-webkit-scrollbar` 不带选择器即等价于 `*::`，所有滚动容器都吃得到，
  * 不需要（也不要）再写第二条 `*` 规则——两条规则并存必然有一方被静默盖掉。 */
 html {
   --scrollbar-thumb: transparent;
   --scrollbar-thumb-delay: 0.3s;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
-/* 细档要写在 * 上：scrollbar-width 不继承，只写 html 的话内层容器
-   （#content、侧栏、代码块）会退回系统默认那根粗条。
-   颜色走继承的自定义属性：滚动时只改 html 上的变量，不再用
-   `html.is-scrolling *` 把整棵树重新匹配一遍。 */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
+/* 兜底：没有 ::-webkit-scrollbar 的引擎只能靠标准属性，细档写在 * 上是因为
+   scrollbar-width 不继承，只写 html 的话内层容器（#content、侧栏、代码块）
+   会退回系统默认那根粗条。 */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
+/* 细档在这里：8px 条槽，滑块靠 2px 透明边框内缩成 4px 可见的一条 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -127,19 +147,13 @@ html {
   /* 0.3s 延迟：滚动停止后滑块停留一会儿再淡出 */
   transition: background-color var(--motion-base) var(--ease-standard) var(--scrollbar-thumb-delay);
 }
-html.is-scrolling {
+/* 两个现身条件只改这一个变量：滚动中，或鼠标进了容器。颜色与延迟都一致 */
+html.is-scrolling,
+*:hover {
   --scrollbar-thumb: rgb(var(--foreground) / 0.4);
   --scrollbar-thumb-delay: 0s;
 }
-*:hover {
-  scrollbar-color: rgb(var(--foreground) / 0.4) transparent;
-}
-*:hover::-webkit-scrollbar-thumb {
-  background: rgb(var(--foreground) / 0.4);
-  background-clip: content-box;
-  border: 2px solid transparent;
-  transition-delay: 0s;
-}
+/* 抓在滑块上时再实一档 */
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--foreground) / 0.55);
   background-clip: content-box;
