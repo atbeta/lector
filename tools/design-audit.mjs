@@ -372,12 +372,30 @@ if (globalGuards.length > 1) {
 // (d) 「滑块显出来」只允许一条规则决定。
 // 曾经两套滚动条系统并存（html 上 .is-scrolling 30% + 全局 :hover 12%），
 // 内层容器被后者接管且只有 12% —— 深色下等于没有，而浅色下看起来正常。
+// 只算**自己写死颜色**的规则：静止态的 transparent 不算，`var(--scrollbar-thumb)`
+// 也不算——那只是读状态变量，颜色的来源仍然只有一个（滚动条改成变量驱动之后，
+// 这条一直在把这道门误报成红）。
 {
   const visible = [...APP.matchAll(/([^{}]+)\{([^}]*scrollbar-color:[^;]+;[^}]*)\}/g)]
     .map(([, sel, body]) => [sel.trim().replace(/\s+/g, ' '), body.match(/scrollbar-color:\s*([^;]+)/)[1].trim()])
-    .filter(([, v]) => !v.startsWith('transparent'))
+    .filter(([, v]) => !v.startsWith('transparent') && !/^var\(--scrollbar-thumb\)/.test(v))
   if (visible.length > 1) {
     note('error', `滚动条有 ${visible.length} 条规则在决定「滑块显出来」（${visible.map(([s]) => s.slice(0, 28)).join(' | ')}）：靠后的会静默遮蔽靠前的`)
+  }
+}
+// (e) 滚动条的标准属性只允许待在 @supports 兜底里。
+// scrollbar-width / scrollbar-color 只要不是 auto，`::-webkit-scrollbar` 整套立刻作废，
+// 而它们给 thin 的是**系统档**：macOS 27 真机实测 WKWebView 13px / Chromium 11px，
+// 我们要的 8px 只存在于伪元素那套（两家都是 8px）。写在 @supports 外 = 浏览器里看着
+// 正常、macOS 原生里退回系统粗条——这个 bug 已经犯过一次，别再来第二次。
+{
+  const outside = APP.replace(/@supports[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
+  const hit = outside.match(/scrollbar-(?:width|color)\s*:/)
+  if (hit) {
+    note(
+      'error',
+      `scrollbar-width/scrollbar-color 出现在 @supports not selector(::-webkit-scrollbar) 之外（${hit[0]}）：它会让 ::-webkit-scrollbar 整套作废，细档退回系统条宽（macOS 原生实测 13px）`,
+    )
   }
 }
 
