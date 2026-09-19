@@ -9,6 +9,7 @@ import {
   type OutlineNode,
 } from './outlineModel.ts'
 import { headingOffsetsStale, pickActiveHeadingId, type HeadingOffset } from './outlineSpy.ts'
+import { presentEmojiShortcodes } from './emojiShortcode.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 
@@ -132,7 +133,11 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
     const headings: OutlineHeading[] = getBlocks()
       .filter((b) => b.kind === 'heading')
       .map((b) => {
-        return { id: b.id, depth: headingDepth(b) ?? 1, text: headingText(b.mdast) || b.raw.trim() }
+        return {
+          id: b.id,
+          depth: headingDepth(b) ?? 1,
+          text: presentEmojiShortcodes(headingText(b.mdast) || b.raw.trim()),
+        }
       })
     sidebar.body.innerHTML = ''
     outlineRows.clear()

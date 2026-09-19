@@ -3,6 +3,7 @@
 // 重点是别把"日期/编号/带文字的格子"误判成数字。
 import { expect, test } from 'bun:test'
 import { isNumericCell, looksLikeMath, renderBlockHtml, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
+import { setEmojiShortcodes } from '../src/emojiShortcode.ts'
 import { parseBlocks } from '@lector/core'
 import { setAssetResolver } from '../src/asset.ts'
 
@@ -126,6 +127,22 @@ test('HTML <img>：行内与块级走 resolveImageSrc，带 data-html-img', () =
     expect(inP).toContain('data-html-img="1"')
   } finally {
     setAssetResolver(null)
+  }
+})
+
+test('GitHub emoji 短代码：预览换成字符，行内代码不展开', () => {
+  expect(renderMd('基础：:smile: :rocket:')).toContain('😄')
+  expect(renderMd('基础：:smile: :rocket:')).toContain('🚀')
+  expect(renderMd('状态：:white_check_mark: :x:')).toContain('✅')
+  expect(renderMd('`:smile:`')).toContain(':smile:')
+  expect(renderMd('`:smile:`')).not.toContain('😄')
+  setEmojiShortcodes(false)
+  try {
+    const off = renderMd('基础：:smile:')
+    expect(off).toContain(':smile:')
+    expect(off).not.toContain('😄')
+  } finally {
+    setEmojiShortcodes(true)
   }
 })
 

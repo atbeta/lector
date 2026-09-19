@@ -61,6 +61,11 @@ export interface EditorSettings {
    */
   markHighlight: boolean
   /**
+   * GitHub 风格 emoji 短代码：预览里把 `:smile:` 渲成 😄。
+   * 不是 CommonMark；关掉则原样显示冒号名。磁盘里的短代码一个字节都不改。
+   */
+  emojiShortcodes: boolean
+  /**
    * 数学公式：`$…$`（行内）与 `$$…$$`（块级）。关掉则原样显示美元符号。
    * 与 markHighlight 同属「Markdown 扩展语法」——都不是 CommonMark，
    * 且 `$` 在价格/区间里天然有歧义，留给用户一个总开关。
@@ -141,6 +146,7 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   mermaidConfig: '',
   autoCharacterPairs: true,
   markHighlight: true,
+  emojiShortcodes: true,
   math: true,
   closeAlwaysConfirmsChanges: true,
   showWhitespace: false,
@@ -275,6 +281,7 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
     uiZoom: clampInt(src.uiZoom, CLAMP.uiZoom.min, CLAMP.uiZoom.max, base.uiZoom),
     autoCharacterPairs: typeof src.autoCharacterPairs === 'boolean' ? src.autoCharacterPairs : base.autoCharacterPairs,
     markHighlight: typeof src.markHighlight === 'boolean' ? src.markHighlight : base.markHighlight,
+    emojiShortcodes: typeof src.emojiShortcodes === 'boolean' ? src.emojiShortcodes : base.emojiShortcodes,
     math: typeof src.math === 'boolean' ? src.math : base.math,
     closeAlwaysConfirmsChanges:
       typeof src.closeAlwaysConfirmsChanges === 'boolean'

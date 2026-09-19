@@ -57,6 +57,13 @@ describe('settings schema', () => {
     expect(normalizeSettings({ markHighlight: 1 as unknown as boolean }).markHighlight).toBe(true)
   })
 
+  test('emoji 短代码开关：默认开，非法类型回退', () => {
+    expect(DEFAULT_SETTINGS.emojiShortcodes).toBe(true)
+    expect(normalizeSettings({}).emojiShortcodes).toBe(true)
+    expect(normalizeSettings({ emojiShortcodes: false }).emojiShortcodes).toBe(false)
+    expect(normalizeSettings({ emojiShortcodes: 1 as unknown as boolean }).emojiShortcodes).toBe(true)
+  })
+
   test('内联公式开关：默认开，非法类型回退', () => {
     expect(DEFAULT_SETTINGS.math).toBe(true)
     expect(normalizeSettings({}).math).toBe(true)

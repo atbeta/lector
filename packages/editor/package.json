@@ -23,6 +23,7 @@
     "@lector/core": "0.0.0",
     "@lector/shell-web": "0.0.0",
     "@lezer/highlight": "1.2.3",
+    "gemoji": "8.1.0",
     "katex": "^0.18.7",
     "mermaid": "^12.0.0",
     "prismjs": "^1.30.0"

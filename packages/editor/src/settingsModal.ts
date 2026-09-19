@@ -322,6 +322,12 @@ export function openSettingsModal(onClose?: () => void) {
       Switch(getSettings().markHighlight, (v) => apply((s) => ({ ...s, markHighlight: v }))),
     ),
   )
+  markdown.appendChild(
+    row(
+      t('emojiShortcodes'),
+      Switch(getSettings().emojiShortcodes, (v) => apply((s) => ({ ...s, emojiShortcodes: v }))),
+    ),
+  )
   markdown.appendChild(groupLabel(t('settingsGroupCodeBlocks')))
   markdown.appendChild(
     row(

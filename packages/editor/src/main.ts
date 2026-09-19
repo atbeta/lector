@@ -19,6 +19,7 @@ import { mountLightbox } from './lightbox.ts'
 import { mountTip } from './tip.ts'
 import { hideContextMenu } from './contextMenu.ts'
 import { setMarkHighlight, setMathEnabled } from './mdastHtml.ts'
+import { setEmojiShortcodes } from './emojiShortcode.ts'
 import { appInfoFor } from './appInfo.ts'
 import { mountWindowControls, mountHeaderScrollState } from './chrome.ts'
 import '@fontsource-variable/inter'
@@ -156,15 +157,26 @@ notifySettings((s) => {
 //「Markdown 扩展语法」的渲染开关：渲染读的是 mdastHtml 的模块旗标，改了要立刻重画预览。
 let markHighlightOn = getSettings().markHighlight
 let mathOn = getSettings().math
+let emojiShortcodesOn = getSettings().emojiShortcodes
 setMarkHighlight(markHighlightOn)
 setMathEnabled(mathOn)
+setEmojiShortcodes(emojiShortcodesOn)
 notifySettings((s) => {
-  if (s.markHighlight === markHighlightOn && s.math === mathOn) return
+  if (
+    s.markHighlight === markHighlightOn &&
+    s.math === mathOn &&
+    s.emojiShortcodes === emojiShortcodesOn
+  ) {
+    return
+  }
   markHighlightOn = s.markHighlight
   mathOn = s.math
+  emojiShortcodesOn = s.emojiShortcodes
   setMarkHighlight(markHighlightOn)
   setMathEnabled(mathOn)
+  setEmojiShortcodes(emojiShortcodesOn)
   void editor.render()
+  outline.renderOutline()
 })
 
 // 外部应用的真名（exe 产品名）：文件菜单标签是同步渲染的，等不到异步结果，

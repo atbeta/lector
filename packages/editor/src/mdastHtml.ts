@@ -7,6 +7,7 @@ import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './kate
 import { t } from './i18n.ts'
 import { iconSvg } from './icons.ts'
 import { decodeEntities, parseBlockRoots } from '@lector/core'
+import { presentEmojiShortcodes } from './emojiShortcode.ts'
 
 /** 行内 HTML 白名单：无属性开闭标签，micromark 会拆成三个节点再在这里配对。 */
 const INLINE_HTML_TAGS = 'kbd|sub|sup|u|mark'
@@ -298,7 +299,7 @@ export function safeHref(url: string): string | null {
 function inlineNode(n: Node): string {
   switch (n.type) {
     case 'text':
-      return esc(n.value ?? '')
+      return presentEmojiShortcodes(esc(n.value ?? ''))
     case 'emphasis':
       return `<em>${inline(n.children)}</em>`
     case 'strong':
