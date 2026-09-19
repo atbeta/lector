@@ -17,6 +17,9 @@ clients/tauri/gen/
 # 本机校验用的临时 CARGO_TARGET_DIR（cargo 产物动辄上百 MB，绝不入库）
 .cargo-check*/
 
+# 本机性能测试夹具（脚本生成，勿入库）
+perf-fixtures/
+
 # 本机环境
 .env
 # 验证工具的本地产物：截图、Chrome/Playwright profile、浏览器二进制

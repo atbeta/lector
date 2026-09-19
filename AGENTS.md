@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类协作者的本仓库级行为规范。
+Lector —— 阅读优先的 Markdown 编辑器。AI 编码 Agent 与人类协作者的本仓库级行为规范。
 
 ## 产品红线（任何需求先过这关）
 

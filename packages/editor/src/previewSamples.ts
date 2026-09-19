@@ -59,7 +59,7 @@ graph TD
 
 export const sample = `# 阅读体验展示
 
-> Lector —— 阅读优先的纯 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。
+> Lector —— 阅读优先的 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。
 
 ## 中西文混排与行内
 
