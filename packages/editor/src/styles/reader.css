@@ -171,10 +171,15 @@
 .reading-prose hr {
   /* 主流阅读器（GitHub / Obsidian / Typora / VS Code）都是「整幅单像素发丝线 +
      约 24px 上下留白」。之前那条 6rem 居中短线是我们自己发明的花饰，容易读成
-     "掉了根线头"，改成标准的整幅发丝线。 */
+     「掉了根线头」，改成标准的整幅发丝线。
+     两侧的呼吸**由块给**：`.block[data-kind='thematicBreak'] { margin-top:
+     var(--space-section) }`——tokens 里那行注释写的就是「分隔线两侧的呼吸」。
+     这里若再写一份 `margin: 2em 0`（34px）就和块级那 35px 叠成两份，阅读面比
+     源码档整整高出一档（源码档里分隔线只是一行 `---` 原文，只吃块级那一档）。
+     留 `margin: 0` 是显式声明：块级留白已经给过，别在这里再加。 */
   border: 0;
   height: 1px;
-  margin: 2em 0;
+  margin: 0;
   background: rgb(var(--border-strong) / 0.4);
 }
 
