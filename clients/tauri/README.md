@@ -23,6 +23,16 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 `lector-portable.zip`（`lector.exe` + `resources\markdown.ico` + 关联脚本，见 `portable/`），
 推 `v*` tag 时挂到 release。
 
+## macOS 打包
+
+出包走 `.github/workflows/build-macos.yml`（`macos-latest` + `aarch64-apple-darwin`），
+步骤对齐 NoteFast：导入 Developer ID p12 → `tauri build --bundles app --no-sign` →
+自己 `codesign`（Hardened Runtime + `entitlements.plist`）→ `notarytool` 公证 `.app` 与
+DMG → `stapler` 钉章。缺凭证时 Tauri 内置公证只会 warn，不能当闸门。
+
+本机 `tauri:dev` / `tauri:build` 继续不签名。只有 CI 的 tag 流水线带 `APPLE_*` secret。
+产物：`Lector_<版本>_arm64-apple-darwin.dmg` 与同名 `.zip`，挂到同一个 GitHub Release。
+
 ### 便携版的文件关联（portable/*.cmd）
 
 便携包没有安装器写注册表，关联靠两个 `.cmd`：`register-file-assoc.cmd` /
@@ -97,5 +107,4 @@ Tauri 会注册一个**用 `fileAssociations[].name` 命名的类键**（本仓�
   `DefaultIcon` 指向存在的 `markdown.ico`、卸载后值为空 → 卸载）。NSIS 脚本是压缩存放的，
   在安装器二进制里 grep 字符串是假阴性，别用那种办法验。
 
-macOS 那边暂时无解：Tauri 不支持 `CFBundleTypeIconFile`，文档图标只能跟应用图标一致。
-macOS 打包与签名不在范围内，先不管。
+macOS 文档图标暂时无解：Tauri 不支持 `CFBundleTypeIconFile`，只能跟应用图标一致。

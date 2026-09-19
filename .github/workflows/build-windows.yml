@@ -1,7 +1,8 @@
 name: build-windows
 
-# Lector 主要面向 Windows。这个流水线是唯一能出 Windows 包的地方：
+# 这个流水线是唯一能出 Windows 包的地方：
 # NSIS 安装器只能在 Windows 上打，macOS 本机无法交叉打包。
+# macOS 包走 build-macos.yml，两边各自挂到同一个 Release。
 #
 # 触发：仅在打 tag 时跑实际构建 + 发布；main push / PR 上的检查由 ci.yml 接管。
 # 这样每次 push 不会跑一次 Windows 几分钟的构建，又能保证发版是从「过检的 main」上打的。

@@ -60,5 +60,5 @@ node tools/design-audit.mjs   # 版式/对比度，0 error 0 warn
 
 - **「送到 NoteFast 收集箱」**：v1 不做，接入点见 `03-architecture.md`，尚未建 `companion.ts`。
 - **Linux**：同一套 Web 编辑器，可后做。
-- **macOS 打包 / 签名 / 公证**：暂不在范围，也不发未签名包。
+- **macOS 打包 / 签名 / 公证**：`build-macos.yml` 在 `v*` tag 上打已公证的 arm64 DMG/ZIP；不发未签名包。
 - **浏览器预览（无壳）的 md 拖放**：壳里走原生通道；见 `packages/editor/src/styles/panels.css` 的 TODO。

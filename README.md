@@ -51,10 +51,10 @@ owns itself.
 
 ## Platform support
 
-| OS      | Status                                                    |
-| ------- | --------------------------------------------------------- |
-| Windows | Released (NSIS installer + portable archive, x86_64)      |
-| macOS   | Planned (codebase is dual-target; signing & notarization pending) |
+| OS      | Status                                                          |
+| ------- | --------------------------------------------------------------- |
+| Windows | Released (NSIS installer + portable archive, x86_64)            |
+| macOS   | Released (signed & notarized DMG + ZIP, Apple Silicon)          |
 
 Linux is not in scope.
 
@@ -69,9 +69,13 @@ provides:
 - `lector-portable.zip` — portable archive, includes `.md` icon and
   `register-file-assoc.cmd` / `unregister-file-assoc.cmd` to opt in to
   file associations
+- `Lector_<version>_arm64-apple-darwin.dmg` — signed & notarized disk image
+  (Apple Silicon). Drag `Lector.app` onto Applications
+- `Lector_<version>_arm64-apple-darwin.zip` — the same notarized `.app`
 - `SHA256SUMS.txt` — checksums
 
-Verify with `certutil -hashfile <file> SHA256` on Windows.
+Verify with `certutil -hashfile <file> SHA256` on Windows, or
+`shasum -a 256 <file>` on macOS.
 
 ## Use
 

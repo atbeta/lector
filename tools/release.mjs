@@ -12,7 +12,7 @@
 //   node tools/release.mjs 0.2.0 --no-push   # 提交并打 tag，但不推（自己看一眼再推）
 //
 // tag 推上去之后 CI 会重新跑全套检查（含 Windows 上的静默安装与注册表校验），
-// 然后把安装器与便携版挂到 Release。macOS 签名不在当前范围。
+// 然后把 Windows 安装器 / 便携版和已公证的 macOS DMG 挂到 Release。
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'

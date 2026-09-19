@@ -50,9 +50,9 @@ Lector —— 阅读优先的纯 Markdown 编辑器。AI 编码 Agent 与人类�
   不要手改版本号，也不要手打 tag 后才发现文件没跟。
 - tag 必须等于打包版本号。CI 的 `check` job 第一件事就是查这个：对不上直接失败，
   否则 Release 里会躺着一个版本号不相符的安装器。
-- `v*` tag 推上去后 CI 自动构建并发布 Windows 包（安装器 + 便携版 + 校验和），不需要人工点确认。
+- `v*` tag 推上去后 CI 自动构建并发布 Windows 包与已公证的 macOS 包，不需要人工点确认。
   分支上的推送只出 artifact，不动 Release。
-- macOS 签名与公证暂不在范围内，也不发未签名的 macOS 包。
+- macOS 只发 Developer ID 签名 + 公证 + staple 的 DMG/ZIP（流水线对齐 NoteFast：`build-macos.yml` 自己 codesign / notarytool，不靠 Tauri 内置公证）。不发未签名、未公证的包。
 - **CHANGELOG.md 是面向用户的版本日志**:每版按 Conventional Commits 前缀(`feat:` `fix:` `refactor:` `perf:` `style:` `ci:` `docs:`)归入 **Added / Fixed / Improved / Internal** 四栏(英文段头,跟当前 commit 风格一致)。
   `chore:` 与 `test:` 不进版本日志。发版时 `tools/release.mjs` 从 CHANGELOG.md 抽出本版小节写进 `.github/release-notes/<version>.md`,
   CI 的 release job 拿这个文件作发行说明;CHANGELOG.md 缺失或没本版小节则退回 `.github/release-notes.md`(这份保留装说明作 fallback)。
