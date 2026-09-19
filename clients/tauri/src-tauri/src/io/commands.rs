@@ -462,7 +462,10 @@ pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Result<(), String> 
   if !scale.is_finite() || !(0.2..=5.0).contains(&scale) {
     return Err("zoom scale out of range".into());
   }
-  window.set_zoom(scale).map_err(|e| e.to_string())
+  window.set_zoom(scale).map_err(|e| e.to_string())?;
+  #[cfg(target_os = "macos")]
+  super::window::align_macos_traffic_lights(&window, scale)?;
+  Ok(())
 }
 
 // ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────

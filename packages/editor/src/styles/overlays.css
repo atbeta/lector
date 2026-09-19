@@ -490,30 +490,30 @@ html.lightbox-open #content { overflow: hidden; }
   top: 50%;
   height: 3px;
   border-radius: 999px;
-  background: rgb(var(--muted));
+  background: rgb(var(--border-strong) / 0.32);
   transform: translateY(-50%);
 }
 .slider-fill {
   position: relative;
   height: 3px;
   border-radius: 999px;
-  background: rgb(var(--primary));
+  background: rgb(var(--content-accent));
   transition: width var(--motion-fast) var(--ease-standard);
 }
 .slider-thumb {
   position: absolute;
   top: 50%;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: rgb(var(--paper));
-  border: 1.5px solid rgb(var(--primary));
-  box-shadow: 0 1px 3px rgb(var(--shadow-color) / 0.16);
+  border: 2px solid rgb(var(--content-accent));
+  box-shadow: 0 1px 3px rgb(var(--shadow-color) / 0.18);
   transform: translate(-50%, -50%);
   transition: box-shadow var(--motion-fast) var(--ease-standard);
 }
-.slider:hover .slider-thumb { box-shadow: 0 0 0 5px var(--primary-softer); }
-.slider:focus-visible .slider-thumb { box-shadow: 0 0 0 5px var(--primary-soft); }
+.slider:hover .slider-thumb { box-shadow: 0 0 0 5px rgb(var(--content-accent) / 0.14); }
+.slider:focus-visible .slider-thumb { box-shadow: 0 0 0 5px rgb(var(--content-accent) / 0.22); }
 .slider-value {
   min-width: 48px;
   margin-left: 10px;
@@ -549,11 +549,11 @@ html.lightbox-open #content { overflow: hidden; }
   border-radius: 999px;
   /* 开关滑块固定纯白：它坐在彩色/灰轨道上，跟随主题反而会失去「凸起」感 */
   background: #fff;
-  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.2);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12), 0 1px 2px rgb(var(--shadow-color) / 0.24);
   transition: transform var(--motion-base) var(--ease-emphasized),
     width var(--motion-fast) var(--ease-standard);
 }
-.switch-track.on { background: rgb(var(--primary)); }
+.switch-track.on { background: rgb(var(--content-accent)); }
 .switch-track.on::after { transform: translateX(15px); }
 /* 按下时滑块沿运动方向拉长一点（iOS 式按压感），松开回弹 */
 .switch:active .switch-track::after { width: 20px; }

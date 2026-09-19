@@ -1927,8 +1927,7 @@ const summary = {
     const z2 = await readZoomValue()
     if (z2 !== '100%') note('error', `⌘/Ctrl + 0 没有回到 100%：${z2}`)
 
-    // 分区标题的显隐：浏览时藏（左侧选中项已经写着这一节叫什么，右侧再顶一行是同一句话说两遍），
-    // 搜索时露（结果跨分区，那些标题正是「这条命中属于哪一节」的答案）。
+    // 分区标题浏览时隐藏（左侧已说明当前分区），搜索时显示以说明跨分区结果归属。
     //
     // 查询词从界面里取（「界面缩放」这一行的标签），不硬写字符串：这个脚本的页面没钉 locale，
     // 文案跟着机器语言走，写死中文会在英文环境下永远搜不到东西、把检查变成假红。
@@ -1968,11 +1967,11 @@ const summary = {
     note(
       'info',
       `界面缩放快捷键：${z0} → ${z1} → 复位 ${z2}；设置里读数 ${zoomRow ? zoomRow.value : '缺失'}；` +
-        `分区标题 浏览时藏 ${browsing.length} 个，搜「${probe}」时露 ${searching.length} 个`,
+        `分区标题 浏览时隐藏 ${browsing.length} 个，搜「${probe}」时显示 ${searching.length} 个`,
     )
   }
 
-  // 3.10b) 设置里的两段高级 textarea：不可缩放、不横向溢出（右侧留白必须在）
+  // 3.10b) 分散在外观与 Markdown 的两段高级 textarea：不可缩放、不横向溢出（右侧留白必须在）
   //
   // 踩过的坑：全局没有 box-sizing: border-box，width:100% 再加 padding/border 会比
   // 容器宽约 22px，把右侧留白吃掉、边框顶到卡片边；再叠上 resize: vertical 的右下角
@@ -1980,42 +1979,38 @@ const summary = {
   {
     await page.click('#settings-btn')
     await page.waitForTimeout(400)
-    const hasAdvanced = await page.evaluate(() => {
-      const navBtn = [...document.querySelectorAll('.settings-nav-item')].find((b) =>
-        /高级|Advanced/i.test(b.textContent ?? ''),
-      )
-      if (navBtn) navBtn.click()
-      return !!navBtn
-    })
-    if (!hasAdvanced) note('error', '设置里找不到「高级」分区')
-    else {
+    const boxes = []
+    for (const section of ['appearance', 'markdown']) {
+      await page.click(`.settings-nav-item[data-section="${section}"]`)
       await page.waitForTimeout(250)
-      const box = await page.evaluate(() => {
-        const content = document.querySelector('.settings-content')
-        const boxes = [...document.querySelectorAll('.settings-textarea')]
-        const cs = content ? getComputedStyle(content) : null
-        const padRight = cs ? parseFloat(cs.paddingRight) || 0 : 0
-        return {
-          count: boxes.length,
-          resize: boxes.map((b) => getComputedStyle(b).resize),
-          // 最右一块的右缘相对「内容区右内边」越出了多少（取整余量 1px）
-          maxOverflow: boxes.reduce(
-            (m, b) => Math.max(m, b.getBoundingClientRect().right - (content.getBoundingClientRect().right - padRight)),
-            -Infinity,
-          ),
-          hScroll: content ? content.scrollWidth - content.clientWidth : 0,
-        }
-      })
-      const noResize = box.resize.length > 0 && box.resize.every((v) => v === 'none')
-      if (box.count < 2) note('error', `高级分区里的 textarea 少于 2 个（自定义样式 / Mermaid 配置），实为 ${box.count}`)
-      if (!noResize) note('error', `高级 textarea 仍可缩放：resize=${box.resize.join(',')}`)
-      if (box.maxOverflow > 1) {
-        note('error', `高级 textarea 越过右侧留白 ${Math.round(box.maxOverflow)}px（漏了 box-sizing: border-box？）`)
-      }
-      if (box.hScroll > 0) note('error', `设置内容区被顶出横向滚动 ${box.hScroll}px`)
-      if (box.count >= 2 && noResize && box.maxOverflow <= 1 && box.hScroll <= 0) {
-        note('info', `高级 textarea：${box.count} 个，resize=none，右侧留白完好`)
-      }
+      boxes.push(
+        await page.evaluate((id) => {
+          const content = document.querySelector('.settings-content')
+          const box = document.querySelector(`.settings-group[data-section="${id}"] .settings-textarea`)
+          const cs = content ? getComputedStyle(content) : null
+          const padRight = cs ? parseFloat(cs.paddingRight) || 0 : 0
+          return {
+            section: id,
+            found: !!box,
+            resize: box ? getComputedStyle(box).resize : '',
+            overflow: box
+              ? box.getBoundingClientRect().right - (content.getBoundingClientRect().right - padRight)
+              : Infinity,
+            hScroll: content ? content.scrollWidth - content.clientWidth : 0,
+          }
+        }, section),
+      )
+    }
+    const missing = boxes.filter((b) => !b.found).map((b) => b.section)
+    const resizable = boxes.filter((b) => b.resize !== 'none').map((b) => b.section)
+    const overflow = Math.max(...boxes.map((b) => b.overflow))
+    const hScroll = Math.max(...boxes.map((b) => b.hScroll))
+    if (missing.length) note('error', `设置里缺少 textarea：${missing.join(', ')}`)
+    if (resizable.length) note('error', `设置 textarea 仍可缩放：${resizable.join(', ')}`)
+    if (overflow > 1) note('error', `设置 textarea 越过右侧留白 ${Math.round(overflow)}px（漏了 box-sizing: border-box？）`)
+    if (hScroll > 0) note('error', `设置内容区被顶出横向滚动 ${hScroll}px`)
+    if (!missing.length && !resizable.length && overflow <= 1 && hScroll <= 0) {
+      note('info', '外观与 Markdown textarea：resize=none，右侧留白完好')
     }
     await page.keyboard.press('Escape')
     await page.waitForTimeout(250)
@@ -2358,11 +2353,43 @@ const summary = {
     await page.waitForTimeout(500)
   }
 
-  // 3.18) 键盘面板：键位有地方可查；且提示语里不再夹带快捷键
+  // 3.18) 键盘面板：设置里是紧凑分组卡片，浮层里也有地方可查；提示语不夹带快捷键
   //
   // 两件事一起守：**提示语**只描述按钮做什么（快捷键不属于它的语义），
   // **面板**提供唯一可查的键位清单。只做前者会让用户无处可查，只做后者会留下双份真相。
   {
+    await page.click('#settings-btn')
+    await page.click('.settings-nav-item[data-section="shortcuts"]')
+    await page.waitForTimeout(250)
+    const settingsPanel = await page.evaluate(() => {
+      const grid = document.querySelector('.settings-shortcut-grid')
+      const rows = [...document.querySelectorAll('.settings-shortcut-row')]
+      return {
+        cards: document.querySelectorAll('.settings-shortcut-card').length,
+        rows: rows.length,
+        columns: grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0,
+        misplaced: rows.filter((row) => {
+          const label = row.querySelector('.settings-shortcut-label')
+          const keys = row.querySelector('.shortcut-keys')
+          return !label || !keys || keys.getBoundingClientRect().left <= label.getBoundingClientRect().right
+        }).length,
+        clipped: rows.filter((row) => {
+          const label = row.querySelector('.settings-shortcut-label')
+          return label && label.scrollWidth > label.clientWidth
+        }).length,
+      }
+    })
+    if (settingsPanel.cards !== 3) note('error', `设置里的快捷键分组应为 3 张卡片，实为 ${settingsPanel.cards}`)
+    if (settingsPanel.rows !== 16) note('error', `设置里的快捷键应为 16 条，实为 ${settingsPanel.rows}`)
+    if (settingsPanel.columns < 2) note('error', `设置里的快捷键仍是单列长清单：${settingsPanel.columns} 列`)
+    if (settingsPanel.misplaced > 0) note('error', `设置里的键帽没有排在功能名右侧：${settingsPanel.misplaced} 行`)
+    if (settingsPanel.clipped > 0) note('error', `设置里的快捷键名称被截断：${settingsPanel.clipped} 行`)
+    if (settingsPanel.cards === 3 && settingsPanel.rows === 16 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
+      note('info', `快捷键设置：${settingsPanel.cards} 组 / ${settingsPanel.columns} 列 / ${settingsPanel.rows} 条，键帽右对齐且无截断`)
+    }
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(250)
+
     const tipsWithKeys = await page.evaluate(() =>
       [...document.querySelectorAll('[data-tip]')]
         .map((el) => el.dataset.tip ?? '')

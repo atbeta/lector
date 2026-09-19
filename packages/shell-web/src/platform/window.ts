@@ -16,6 +16,7 @@ import {
  * 壳侧的原生 zoom 没有 getter；PDF 导出前后要临时复位、之后再还原，所以在这层记住它。
  */
 let appliedZoom = 1
+let nativeZoomApplied = false
 
 export function currentUiZoom(): number {
   return appliedZoom
@@ -33,12 +34,19 @@ export function currentUiZoom(): number {
  * 是壳的能力，浏览器里只保留设置链路。
  */
 export async function applyUiZoom(scale: number): Promise<void> {
-  // applyVars 会在任何设置变化时被调；缩放值没变就别再走一趟 IPC。
-  if (scale === appliedZoom) return
+  if (detectEnv() !== 'shell') {
+    appliedZoom = scale
+    return
+  }
+  if (scale === appliedZoom && nativeZoomApplied) return
   appliedZoom = scale
-  if (detectEnv() !== 'shell') return
   const { invoke } = await tauriApi()
-  await invoke('set_zoom', { scale }).catch((err) => console.error('[lector] set_zoom', err))
+  try {
+    await invoke('set_zoom', { scale })
+    nativeZoomApplied = true
+  } catch (err) {
+    console.error('[lector] set_zoom', err)
+  }
 }
 
 

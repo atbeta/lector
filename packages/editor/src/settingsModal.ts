@@ -49,7 +49,7 @@ function pngDataUrl(bytes: number[]): string {
 }
 
 /** 打开时定位到哪一节（面板是每次重建的，用模块变量记住用户上次看的那节）。 */
-let lastSection = 'appearance'
+let lastSection = 'reading'
 
 function h(tag: string, cls = ''): HTMLElement {
   const e = document.createElement(tag)
@@ -162,6 +162,7 @@ export function openSettingsModal(onClose?: () => void) {
 
     const btn = h('button', 'settings-nav-item') as HTMLButtonElement
     btn.type = 'button'
+    btn.dataset.section = id
     btn.textContent = label
     btn.addEventListener('click', () => showSection(id))
     nav.appendChild(btn)
@@ -176,12 +177,21 @@ export function openSettingsModal(onClose?: () => void) {
     content.scrollTop = 0
   }
 
-  // ── 外观 ──
+  const reading = makeSection('reading', t('reading'))
   const appearance = makeSection('appearance', t('appearance'))
-  // 主题（明暗）与画廊、界面缩放是同级三块，全部走普通设置行：
-  // 同一字级的标签 + 统一的发丝线分隔。画廊自己的「主题/阅读主题」小标签
-  // 是给顶栏浮层用的，在设置面板里要拆掉（variant: 'settings'），否则
-  // 三块三种标题样式，分块全靠猜。
+  const editing = makeSection('editing', t('editing'))
+  const markdown = makeSection('markdown', t('markdown'))
+  const images = makeSection('images', t('images'))
+  const files = makeSection('files', t('files'))
+  const shortcuts = makeSection('shortcuts', t('shortcutTitle'))
+  const about = makeSection('about', t('about'))
+  navButtons.get('shortcuts')?.classList.add('settings-nav-reference')
+
+  // ── 外观 ──
+  // 应用明暗、界面缩放与全局样式预设留在外观；阅读只负责正文排版微调。
+  // 画廊自己的「主题/阅读主题」小标签是给顶栏浮层用的，在设置面板里要拆掉
+  // （variant: 'settings'），由分区和组标题建立层级。
+  appearance.appendChild(groupLabel(t('settingsGroupInterface')))
   const themeSeg = Segmented(
     getSettings().theme,
     [
@@ -205,11 +215,9 @@ export function openSettingsModal(onClose?: () => void) {
     },
     'settings',
   )
-  // 画廊作为一条 stack 行：标签可搜索（搜「纸」能翻到这张画廊），
-  // 行的发丝底边正好把它和「界面缩放」分开。
+  // 画廊作为一条 stack 行：标签可搜索（搜「纸」能翻到这张画廊）。
   const galleryRow = row(t('readingTheme'), galleryHost)
   galleryRow.classList.add('settings-row-stack')
-  appearance.appendChild(galleryRow)
 
   // 界面缩放：「整块屏幕多大」的旋钮，比正文的字体字号更外一层。
   // 与正文字号是两件事：读得舒服 ≠ 隔着三米能看清，所以两个旋钮都留着。
@@ -222,9 +230,11 @@ export function openSettingsModal(onClose?: () => void) {
     (n) => `${n}%`,
   )
   appearance.appendChild(cellRow(t('uiZoom'), zoomSlider))
+  appearance.appendChild(groupLabel(t('settingsGroupGlobalStyle')))
+  appearance.appendChild(galleryRow)
 
   // ── 阅读 ──
-  const reading = makeSection('reading', t('reading'))
+  reading.appendChild(groupLabel(t('settingsGroupTypography')))
   const font = Segmented(
     getSettings().fontFamily,
     [
@@ -266,7 +276,7 @@ export function openSettingsModal(onClose?: () => void) {
   reading.appendChild(cellRow(t('readingWidth'), wSlider))
 
   // ── 编辑 ──
-  const editing = makeSection('editing', t('editing'))
+  editing.appendChild(groupLabel(t('settingsGroupInput')))
   editing.appendChild(
     row(
       t('autoPairs'),
@@ -274,18 +284,14 @@ export function openSettingsModal(onClose?: () => void) {
     ),
   )
   editing.appendChild(
-  row(
-  t('showWhitespace'),
-  Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v }))),
-  ),
+    row(
+      t('showWhitespace'),
+      Switch(getSettings().showWhitespace, (v) => apply((s) => ({ ...s, showWhitespace: v }))),
+    ),
   )
-  editing.appendChild(
-  row(
-  t('codeLineNumbers'),
-  Switch(getSettings().codeLineNumbers, (v) => apply((s) => ({ ...s, codeLineNumbers: v }))),
-  ),
-  )
-  editing.appendChild(
+
+  files.appendChild(groupLabel(t('settingsGroupFileSafety')))
+  files.appendChild(
     row(
       t('confirmClose'),
       Switch(
@@ -294,7 +300,7 @@ export function openSettingsModal(onClose?: () => void) {
       ),
     ),
   )
-  editing.appendChild(
+  files.appendChild(
     row(
       t('recoverUnsaved'),
       Switch(getSettings().recoverUnsaved, (v) => apply((s) => ({ ...s, recoverUnsaved: v }))),
@@ -305,8 +311,8 @@ export function openSettingsModal(onClose?: () => void) {
   // ── 扩展语法 ──
   // 超出 CommonMark / GFM 的语法各给一个开关：它们是「偏好」而不是「基础设施」——
   // 有人拿 $ 当货币、拿 == 当等号，关掉就该原样看见源文。
-  // 独立一区（而不是混进「编辑」）是为了找得到，也方便以后按 Typora 那样继续加项。
-  const markdown = makeSection('markdown', t('markdownExtensions'))
+  // 归入 Markdown（而不是混进「编辑」），也方便以后按 Typora 那样继续加项。
+  markdown.appendChild(groupLabel(t('markdownExtensions')))
   markdown.appendChild(
     row(t('inlineMath'), Switch(getSettings().math, (v) => apply((s) => ({ ...s, math: v })))),
   )
@@ -314,6 +320,13 @@ export function openSettingsModal(onClose?: () => void) {
     row(
       t('markHighlight'),
       Switch(getSettings().markHighlight, (v) => apply((s) => ({ ...s, markHighlight: v }))),
+    ),
+  )
+  markdown.appendChild(groupLabel(t('settingsGroupCodeBlocks')))
+  markdown.appendChild(
+    row(
+      t('codeLineNumbers'),
+      Switch(getSettings().codeLineNumbers, (v) => apply((s) => ({ ...s, codeLineNumbers: v }))),
     ),
   )
 
@@ -325,8 +338,6 @@ export function openSettingsModal(onClose?: () => void) {
   //   · 没有上传命令 → 副本开关锁在开（图片总要有去处），自动上传锁在关；
   //   · 关掉本地副本 → 自动上传被锁在开（正文总得写个地址）。
   // 锁住的开关不是隐藏而是禁用：值还看得见，代价写在旁边的说明里。
-  const images = makeSection('images', t('images'))
-
   const copySwitch = Switch(
     getSettings().imageCopy,
     (v) => {
@@ -350,18 +361,7 @@ export function openSettingsModal(onClose?: () => void) {
   dirInput.placeholder = 'images'
   dirInput.dataset.field = 'imageCopyDir'
   dirInput.addEventListener('input', () => apply((s) => ({ ...s, imageCopyDir: dirInput.value })))
-  // 两种常见形状给成候选（原生 datalist）：目录是自由文本，但「固定 images/」和
-  // 「同名资源目录」是绝大多数人的答案——让他们少打一遍模板占位符。
-  const dirList = h('datalist', '') as HTMLDataListElement
-  dirList.id = 'lector-image-copy-dirs'
-  for (const v of ['images', '{filename}.assets']) {
-    const opt = h('option', '') as HTMLOptionElement
-    opt.value = v
-    dirList.appendChild(opt)
-  }
-  dirInput.setAttribute('list', dirList.id)
   const dirRow = row(t('imageCopyDir'), dirInput, t('imageCopyDirHint'))
-  dirRow.appendChild(dirList)
   const dirHintEl = dirRow.querySelector<HTMLElement>('.row-hint')!
   images.appendChild(dirRow)
 
@@ -378,6 +378,16 @@ export function openSettingsModal(onClose?: () => void) {
   images.appendChild(groupLabel(t('imageGroupHost')))
   cmdInput.dataset.field = 'imageCommand'
   images.appendChild(row(t('imageCommand'), cmdInput, t('imageCommandHint')))
+
+  const autoSwitch = Switch(getSettings().imageUploadAuto, (v) => {
+    apply((s) => ({ ...s, imageUploadAuto: v }))
+    syncImage()
+  })
+  autoSwitch.dataset.field = 'imageUploadAuto'
+  const autoRow = row(t('imageUploadAuto'), autoSwitch, t('imageUploadAutoHint'))
+  const autoHintEl = autoRow.querySelector<HTMLElement>('.row-hint')!
+  images.appendChild(autoRow)
+  images.appendChild(groupLabel(t('settingsGroupCommandOptions')))
 
   const argsInput = h('input', 'settings-input') as HTMLInputElement
   argsInput.type = 'text'
@@ -430,15 +440,6 @@ export function openSettingsModal(onClose?: () => void) {
   testHost.append(testBtn, testResult)
   images.appendChild(testHost)
 
-  const autoSwitch = Switch(getSettings().imageUploadAuto, (v) => {
-    apply((s) => ({ ...s, imageUploadAuto: v }))
-    syncImage()
-  })
-  autoSwitch.dataset.field = 'imageUploadAuto'
-  const autoRow = row(t('imageUploadAuto'), autoSwitch, t('imageUploadAutoHint'))
-  const autoHintEl = autoRow.querySelector<HTMLElement>('.row-hint')!
-  images.appendChild(autoRow)
-
   /**
    * 把「当前生效的组合」同步到面板上：说明文字 + 各控件的可用性。
    *
@@ -471,7 +472,7 @@ export function openSettingsModal(onClose?: () => void) {
   // 形态是**可点选的应用列表**（图标 + 显示名 + 路径），而不是裸路径输入框：
   // 路径是给人认的，应用是给人点的。列表 = 最近用过 ∪ 当前选中；
   // 首项永远是「系统默认」（externalApp 为空）。
-  const externalApps = makeSection('externalApps', t('externalApps'))
+  files.appendChild(groupLabel(t('settingsGroupOpenWith')))
   const appListEl = h('div', 'app-list')
 
   const selectApp = (path: string | null): void => {
@@ -561,7 +562,7 @@ export function openSettingsModal(onClose?: () => void) {
 
   const listRow = row(t('externalAppList'), appListEl, t('externalAppListHint'))
   listRow.classList.add('settings-row-stack')
-  externalApps.appendChild(listRow)
+  files.appendChild(listRow)
 
   // 添加：「浏览…」是主路径（手打可执行文件路径在 Windows 上太难：长、带空格、
   // per-user / per-machine 两套位置）；输入框留给粘贴与 PATH 上的命令名。
@@ -607,7 +608,7 @@ export function openSettingsModal(onClose?: () => void) {
   // 竖排：标签+说明在上，输入框+「浏览…」在下吃满整行——横排时输入框被
   // 右侧栏挤到只剩半截，placeholder 都显示不全。
   addAppRow.classList.add('settings-row-stack')
-  externalApps.appendChild(addAppRow)
+  files.appendChild(addAppRow)
 
   // 附加参数：与图片命令同一约定（参数数组，文件路径由壳追加在最后）。
   const appArgsInput = h('input', 'settings-input') as HTMLInputElement
@@ -617,12 +618,12 @@ export function openSettingsModal(onClose?: () => void) {
   appArgsInput.addEventListener('input', () =>
     apply((s) => ({ ...s, externalAppArgs: appArgsInput.value.split(/\s+/).filter(Boolean) })),
   )
-  externalApps.appendChild(row(t('externalAppArgs'), appArgsInput))
+  files.appendChild(row(t('externalAppArgs'), appArgsInput))
 
   renderApps()
 
-  // ── 高级 ──
-  const advanced = makeSection('advanced', t('advanced'))
+  // ── 自定义样式与 Mermaid 配置 ──
+  appearance.appendChild(groupLabel(t('advanced')))
   const cssBox = h('textarea', 'settings-textarea') as HTMLTextAreaElement
   cssBox.value = getSettings().customCss ?? ''
   cssBox.placeholder = t('customCssPlaceholder')
@@ -632,12 +633,13 @@ export function openSettingsModal(onClose?: () => void) {
   cssBox.addEventListener('input', () => apply((s) => ({ ...s, customCss: cssBox.value })))
   const cssRow = row(t('customCss'), cssBox, t('customCssHint'))
   cssRow.classList.add('settings-row-stack')
-  advanced.appendChild(cssRow)
+  appearance.appendChild(cssRow)
 
   // mermaid 的额外配置。整份合并进 mermaid.initialize()：theme、themeVariables、
   // themeCSS，以及各图种的选项（flowchart.curve / sequence.showSequenceNumbers /
   // gantt.leftPadding…）。做成一段 JSON 而不是一排控件，是因为它的配置面又宽又长，
   // 做成 UI 必然残缺；而 mermaid 自己文档写的就是这个对象，可以直接粘过来。
+  markdown.appendChild(groupLabel(t('settingsGroupMermaid')))
   const mermaidBox = h('textarea', 'settings-textarea') as HTMLTextAreaElement
   mermaidBox.value = getSettings().mermaidConfig ?? ''
   mermaidBox.placeholder = t('mermaidConfigPlaceholder')
@@ -645,7 +647,7 @@ export function openSettingsModal(onClose?: () => void) {
   mermaidBox.rows = 6
   const mermaidHint = h('div', 'row-hint')
   const mermaidRow = row(t('mermaidConfig'), mermaidBox)
-  mermaidRow.classList.add('settings-row-stack')
+  mermaidRow.classList.add('settings-row-stack', 'settings-mermaid-row')
   mermaidRow.querySelector('.row-text')?.appendChild(mermaidHint)
   const syncMermaidHint = () => {
     // 解析失败时**不**报错到控制台就完事：用户要在这里看到哪一行不对。
@@ -674,32 +676,35 @@ export function openSettingsModal(onClose?: () => void) {
     apply((s) => ({ ...s, mermaidConfig: mermaidBox.value }))
   })
   syncMermaidHint()
-  advanced.appendChild(mermaidRow)
+  markdown.appendChild(mermaidRow)
 
   // ── 键盘快捷键 ──
   // 键位表没有常驻按钮（⌘/ 或 ? 呼出，见 shortcutsPanel）；这里是「找得到」的那一份：
-  // 内联成一张表、可被设置搜索命中，不必点一下再切一层 UI。数据与浮层同源
-  // （都来自 shortcutGroups），不会有两份会漂移的键位清单。
-  const shortcuts = makeSection('shortcuts', t('shortcutTitle'))
-  // 用设置行来排：标签在左、键位在右——和这一页其他地方一致，也把整行宽度用起来。
-  // 早先做「键位左、标签右」的小表，右半边空一大片，长键还把标签挤得参差。
-  // 每行都是 .settings-row，搜索/显隐因此天然生效，不必再包一层。
+  // 内联成分组卡片、可被设置搜索命中。数据与浮层同源（都来自 shortcutGroups），
+  // 不会有两份会漂移的键位清单。
+  const shortcutGrid = h('div', 'settings-shortcut-grid')
   for (const group of shortcutGroups()) {
-    const groupLabel = h('div', 'settings-row-label')
-    groupLabel.textContent = group.title
-    shortcuts.appendChild(groupLabel)
+    const groupCard = h('section', 'settings-shortcut-card')
+    const title = h('h3', 'settings-row-label settings-shortcut-title')
+    title.textContent = group.title
+    groupCard.appendChild(title)
     for (const r of group.rows) {
+      const line = h('div', 'settings-row settings-shortcut-row')
+      const label = h('span', 'settings-shortcut-label')
+      label.textContent = r.label
       const keys = h('kbd', 'shortcut-keys')
       keys.textContent = r.keys
-      shortcuts.appendChild(row(r.label, keys))
+      line.append(label, keys)
+      groupCard.appendChild(line)
     }
+    shortcutGrid.appendChild(groupCard)
   }
+  shortcuts.appendChild(shortcutGrid)
 
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
   // 这节没有可调的项，所以不做成左对齐的设置行，而是一张居中的名片：
   // logo / 名字 / 一句话 / 版本号，竖直居中撑满整节，避免矮矮一行吊在左上角。
-  const about = makeSection('about', t('about'))
   const pane = h('div', 'about-pane')
   const hero = h('div', 'about-hero')
   const aboutLogo = h('img', 'about-logo') as HTMLImageElement
@@ -764,11 +769,13 @@ export function openSettingsModal(onClose?: () => void) {
         r.hidden = !hit
         if (hit) visibleInSection++
       }
+      for (const card of el.querySelectorAll<HTMLElement>('.settings-shortcut-card')) {
+        card.hidden = !browsing && ![...card.querySelectorAll<HTMLElement>('.settings-row')].some((r) => !r.hidden)
+      }
       el.hidden = visibleInSection === 0
       // 搜索时收起组内小标题（与分区标题同一取舍）；浏览时按分区显隐。
       for (const sub of el.querySelectorAll<HTMLElement>('.settings-row-label')) sub.hidden = !browsing
-      // 标题只在搜索时留下：常规浏览时左侧选中项已经写着这一节叫什么，右侧再顶一行
-      // 就是同一句话说两遍；而搜索结果跨分区，那些标题正是「这条命中属于哪一节」的答案。
+      // 常规浏览时左侧选中项已经说明当前分区；搜索跨分区时才显示标题说明命中归属。
       el.querySelector<HTMLElement>('.settings-group-title')!.hidden = browsing || visibleInSection === 0
       visibleTotal += visibleInSection
     }

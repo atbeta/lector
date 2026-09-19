@@ -97,6 +97,7 @@
 }
 .settings-nav-item:hover { background: var(--primary-softer); color: rgb(var(--foreground)); }
 .settings-nav-item.active { background: rgb(var(--accent)); color: rgb(var(--foreground)); font-weight: 600; }
+.settings-nav-reference { margin-top: 10px; padding-top: 12px; border-top: 1px solid rgb(var(--border-subtle)); }
 .settings-content { overflow-y: auto; min-height: 0; padding: 16px 22px 18px; }
 .settings-group-title {
   margin: 0 0 6px;
@@ -126,6 +127,7 @@
   background: rgb(var(--muted) / 0.55);
   color: rgb(var(--muted-foreground));
 }
+.settings-mermaid-row .row-hint { max-width: none; }
 .settings-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 /* 「测试命令」：stack 行默认把子项拉伸满宽，次级按钮会被拉成一条通栏灰字（很难看）。
    按钮按内容宽左对齐；结果提示另起一行，没结果时不占位。 */
@@ -172,6 +174,16 @@
   font-size: var(--text-sm);
   transition: border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard);
+}
+.settings-row:not(.settings-row-stack) > .settings-input {
+  flex: 0 0 65%;
+  width: 65%;
+  min-width: 0;
+}
+.settings-input::placeholder,
+.settings-textarea::placeholder {
+  color: rgb(var(--subtle-foreground));
+  opacity: 0.58;
 }
 .settings-input:hover { border-color: rgb(var(--border-strong) / 0.4); }
 .settings-input:focus {
@@ -330,6 +342,48 @@
   color: rgb(var(--foreground));
 }
 .shortcut-label { font-size: var(--text-base); color: rgb(var(--foreground)); white-space: nowrap; }
+.settings-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  padding-top: 4px;
+}
+.settings-shortcut-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: var(--radius-card);
+  background: rgb(var(--muted) / 0.18);
+}
+.settings-shortcut-title {
+  margin: 0;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+  background: rgb(var(--muted) / 0.28);
+}
+.settings-shortcut-row {
+  min-height: 34px;
+  padding: 7px 10px;
+  gap: 8px;
+  border-bottom: 1px solid rgb(var(--border-subtle));
+}
+.settings-shortcut-row:last-child { border-bottom: 0; }
+.settings-shortcut-label {
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(var(--foreground));
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-shortcut-row .shortcut-keys {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 2px 6px;
+  background: rgb(var(--popover));
+  border-color: rgb(var(--border));
+  box-shadow: 0 1px 0 rgb(var(--border-strong) / 0.28);
+}
 
 .recover-text { font-size: var(--text-base); color: rgb(var(--foreground)); }
 
