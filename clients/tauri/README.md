@@ -20,8 +20,33 @@ bun run tauri:build -- --target x86_64-pc-windows-msvc --bundles nsis
 
 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe`
 （安装器，`installMode: currentUser`，无需管理员），CI 另附一份免安装的
-`lector-portable.zip`（`lector.exe` + `resources\markdown.ico` + 关联脚本，见 `portable/`），
-推 `v*` tag 时挂到 release。
+`lector-portable.zip`（`lector.exe` + `lector.portable` 标记 + `resources\markdown.ico`
++ 关联脚本，见 `portable/`），推 `v*` tag 时挂到 release。
+
+### 便携模式（`lector.portable` 标记）
+
+exe 同目录存在 `lector.portable` 时（便携 zip 里就有），配置 / WebView 数据 / 日志全部
+落在程序目录旁的 `data\`，而不是系统 appdata——用户复制整个目录即可带走全部数据：
+
+```
+<解压目录>\
+├── lector.exe
+├── lector.portable          # 标记，缺了就是普通模式
+└── data\
+    ├── config\              # lector-settings.json / lector-recent.json / .window-state.json
+    ├── webview\             # WebView2 用户数据（localStorage：侧栏 / 阅读位置 / 草稿…）
+    └── logs\Lector.log
+```
+
+- 判定看标记文件、不看「有没有 data 目录」：语义明确，不会被误触发。安装版目录里没有它，
+  行为与以前一致，数据仍在 `%APPDATA%\com.lector.reader` 与
+  `%LOCALAPPDATA%\com.lector.reader`。
+- `data\` 写不进去（只读介质、解压进 `Program Files`）时逐项回退系统目录，不影响启动。
+- 唯一例外：window-state 插件硬编码 `app_config_dir()`，便携模式靠传一个**绝对文件名**
+  把它指进 `data\config`（`Path::join` 遇绝对路径会替换基路径）；代价是插件仍会
+  `create_dir_all(app_config_dir)`，所以便携运行会留下一个**空**的
+  `%APPDATA%\com.lector.reader`。要做到「零 appdata」得弃用插件、自己存窗口几何。
+- 设置面板「维护」里能直接打开数据目录与日志目录（壳命令 `app_dirs`）。
 
 ## macOS 打包
 

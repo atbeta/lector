@@ -111,3 +111,24 @@ export async function appVersion(): Promise<string> {
   return getVersion()
 }
 
+
+/** 数据目录 / 日志目录（壳侧按便携模式解析）。 */
+export interface AppDirs {
+  data: string
+  logs: string
+}
+
+/**
+ * 应用数据与日志目录。设置面板「维护」用它显示路径并打开。
+ * 便携模式下两者都在程序目录旁；浏览器预览没有壳，返回 null。
+ */
+export async function appDirs(): Promise<AppDirs | null> {
+  if (detectEnv() !== 'shell') return null
+  const { invoke } = await tauriApi()
+  try {
+    return await invoke<AppDirs>('app_dirs')
+  } catch {
+    return null
+  }
+}
+

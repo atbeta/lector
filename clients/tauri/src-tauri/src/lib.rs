@@ -50,6 +50,18 @@ pub(crate) fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 pub fn run() {
+  // 窗口状态：便携模式把几何也指进程序目录（<exe>/data/config）。
+  // 插件按 app_config_dir().join(filename) 定位存档，而 Path::join 遇绝对路径会直接
+  // 替换基路径——用一个绝对文件名即可让它改写便携目录，无需 fork 插件。
+  // 已知代价：插件仍会 create_dir_all(app_config_dir)，便携运行会留下一个空的
+  // %APPDATA%\com.lector.reader——换「零 appdata」就得弃用插件自己存窗口几何。
+  let window_state = tauri_plugin_window_state::Builder::default().skip_initial_state("main");
+  let window_state = match io::portable::config_dir() {
+    Some(dir) => {
+      window_state.with_filename(dir.join(".window-state.json").to_string_lossy().into_owned())
+    }
+    None => window_state,
+  };
   let app = tauri::Builder::default()
     .manage(WindowRegistry::default())
     .manage(WatcherStore::default())
@@ -78,15 +90,11 @@ pub fn run() {
     // 必须在建窗口（setup 里的 ensure_main_window）**之前**注册——
     // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
     // 主窗口跳过插件的自动恢复：几何由 io/window.rs::build_doc_window 在建窗前预应用
-  // （窗口可见前），插件的恢复发生在窗口就绪后——可见窗口被二次挪动就是
-  // 「打开时位置变化」。动态文档窗口（doc-N）的 label 无法提前注册跳过，
-  // 但其预应用与插件恢复读同一存档、同值幂等，且插件自带显示器存在性检查。
-  // 保存不受影响，仍归插件。
-  .plugin(
-    tauri_plugin_window_state::Builder::default()
-      .skip_initial_state("main")
-      .build(),
-  )
+    // （窗口可见前），插件的恢复发生在窗口就绪后——可见窗口被二次挪动就是
+    // 「打开时位置变化」。动态文档窗口（doc-N）的 label 无法提前注册跳过，
+    // 但其预应用与插件恢复读同一存档、同值幂等，且插件自带显示器存在性检查。
+    // 保存不受影响，仍归插件。
+    .plugin(window_state.build())
     .setup(|app| {
       // 日志三路：Stdout（开发）、Webview（控制台）、文件（Windows 双击启动时唯一能找回的）。
       // 之前整段包在 cfg!(debug_assertions) 里——用户装的 release 包一条日志都没有，
@@ -97,13 +105,23 @@ pub fn run() {
       } else {
         log::LevelFilter::Info
       };
+      // 便携模式：日志也写进程序目录，而不是系统日志目录。
+      let log_file_target = match io::portable::log_dir() {
+        Some(dir) => tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+          path: dir,
+          file_name: Some("Lector".into()),
+        }),
+        None => {
+          tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None })
+        }
+      };
       app.handle().plugin(
         tauri_plugin_log::Builder::default()
           .level(level)
           .targets([
             tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
             tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+            log_file_target,
           ])
           .build(),
       )?;
@@ -150,6 +168,7 @@ pub fn run() {
       io::commands::test_image_command,
       io::commands::recent_list,
       io::commands::recent_clear,
+      io::commands::app_dirs,
       pdf::print_to_pdf,
       io::commands::webview_ready,
       io::commands::set_zoom,

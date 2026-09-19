@@ -34,6 +34,8 @@ import {
   testImageCommand,
   runImageCommand,
   appVersion,
+  appDirs,
+  openWithDefault,
   pickAppPath,
 } from '@lector/shell-web'
 
@@ -184,6 +186,7 @@ export function openSettingsModal(onClose?: () => void) {
   const images = makeSection('images', t('images'))
   const files = makeSection('files', t('files'))
   const shortcuts = makeSection('shortcuts', t('shortcutTitle'))
+  const maintenance = makeSection('maintenance', t('maintenance'))
   const about = makeSection('about', t('about'))
   navButtons.get('shortcuts')?.classList.add('settings-nav-reference')
 
@@ -706,6 +709,34 @@ export function openSettingsModal(onClose?: () => void) {
     shortcutGrid.appendChild(groupCard)
   }
   shortcuts.appendChild(shortcutGrid)
+
+  // ── 维护 ──
+  // 「我的数据存在哪」的自问自答处。便携版用户尤其需要看见数据是否在程序旁，
+  // 以及随时能打开这两个目录。壳侧解析路径，Web 只拿到这两条并交给
+  // open_with_default 打开——不开通用路径能力。
+  const openDirRow = (label: string, hint: HTMLElement, open: () => void): HTMLElement => {
+    const btn = h('button', 'btn btn-ghost') as HTMLButtonElement
+    btn.type = 'button'
+    btn.textContent = t('openFolderAction')
+    btn.addEventListener('click', open)
+    const r = row(label, btn)
+    r.classList.add('has-hint')
+    r.querySelector('.row-text')?.appendChild(hint)
+    return r
+  }
+  const dataHint = h('span', 'row-hint')
+  const logsHint = h('span', 'row-hint')
+  let dataPath = ''
+  let logsPath = ''
+  maintenance.appendChild(openDirRow(t('openDataDir'), dataHint, () => { if (dataPath) void openWithDefault(dataPath) }))
+  maintenance.appendChild(openDirRow(t('openLogDir'), logsHint, () => { if (logsPath) void openWithDefault(logsPath) }))
+  void appDirs().then((dirs) => {
+    if (!dirs) return
+    dataPath = dirs.data
+    logsPath = dirs.logs
+    dataHint.textContent = dirs.data
+    logsHint.textContent = dirs.logs
+  })
 
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。

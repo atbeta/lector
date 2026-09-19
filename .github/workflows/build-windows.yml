@@ -94,6 +94,10 @@ jobs:
           $portable = "$stage/lector-portable"
           New-Item -ItemType Directory -Force -Path "$portable/resources" | Out-Null
           Copy-Item "$dir/lector.exe" "$portable/lector.exe" -ErrorAction Stop
+          # 便携标记：exe 同目录有这个文件，运行时才把配置 / WebView 数据 / 日志落在
+          # 程序目录旁的 data\，而不是 appdata——用户复制整个目录即可带走全部数据。
+          # 安装版目录里没有它，行为不变。
+          New-Item -ItemType File -Path "$portable/lector.portable" -Force | Out-Null
           Copy-Item "clients/tauri/src-tauri/icons/markdown.ico" "$portable/resources/markdown.ico" -ErrorAction Stop
           # .cmd 必须以 GBK(936) 进包：cmd 按系统码页（中文 Windows = CP936）解析，
           # UTF-8 中文会被拆成碎片命令。仓库源文件保持 UTF-8（可 diff/grep），
@@ -181,7 +185,7 @@ jobs:
           # （漏拷是静默的，不在解包后验一眼就发不出去了）。
           Expand-Archive $env:LECTOR_PORTABLE -DestinationPath "$env:TEMP\lector-smoke\app" -Force
           $app = "$env:TEMP\lector-smoke\app"
-          foreach ($f in @("lector.exe", "resources\markdown.ico", `
+          foreach ($f in @("lector.exe", "lector.portable", "resources\markdown.ico", `
                            "register-file-assoc.cmd", "unregister-file-assoc.cmd")) {
             if (-not (Test-Path "$app\$f")) {
               Write-Error "portable zip missing $f"

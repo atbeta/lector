@@ -248,7 +248,7 @@ fn default_window_size(app: &AppHandle) -> (f64, f64) {
 /// 上次退出时这个窗口标签的几何（读 window-state 插件的存档）。
 /// (x, y, 宽, 高, 是否最大化)。最大化时用 prev_x/prev_y 作还原矩形。
 fn saved_window_geometry(app: &AppHandle, label: &str) -> Option<(f64, f64, f64, f64, bool)> {
-  let dir = app.path().app_config_dir().ok()?;
+  let dir = super::portable::resolve_config_dir(app).ok()?;
   let text = fs::read_to_string(dir.join(".window-state.json")).ok()?;
   let map: serde_json::Value = serde_json::from_str(&text).ok()?;
   let st = map.get(label)?;
@@ -284,9 +284,7 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   // 主题早应用：把设置里的明暗模式在首帧前交给页面（index.html 的内联脚本消费）。
   // 前端 load_settings 要等模块加载完才到——深色用户会先看到一帧浅色再变深，
   // 系统浅色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
-  let theme_mode = app
-    .path()
-    .app_config_dir()
+  let theme_mode = super::portable::resolve_config_dir(app)
     .ok()
     .and_then(|dir| fs::read_to_string(dir.join("lector-settings.json")).ok())
     .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
@@ -374,6 +372,13 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
       // tao 的 y 是「按钮之上的空隙」（容器高 = 按钮高 + y）。(14, 16) 钉在
       // 系统那条 ~28pt 顶带；Web 顶栏收成 36px 去就位，见 chrome.css。
       .traffic_light_position(tauri::LogicalPosition::new(14.0, 16.0));
+  }
+  // 便携模式：WebView 用户数据也落在程序目录旁。前端 localStorage（侧栏 / 阅读位置 /
+  // 未保存草稿 / 代码折行…）全在这个目录里，不重定向就换台机器全丢。
+  // WKWebView 没有 data_directory 这条路（macOS 也不是便携包的目标平台）。
+  #[cfg(not(target_os = "macos"))]
+  if let Some(dir) = super::portable::webview_dir() {
+    builder = builder.data_directory(dir);
   }
   log::info!("[win] 准备建窗 {label}");
   let win = builder.build()?;

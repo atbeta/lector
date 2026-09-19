@@ -241,7 +241,7 @@ pub fn take_pending_open(window: tauri::Window, app: AppHandle) -> Option<String
 /// 读取设置 JSON（app 配置目录 lector-settings.json）。无则 None。
 #[tauri::command]
 pub fn load_settings(app: AppHandle) -> Result<Option<serde_json::Value>, String> {
-  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  let dir = super::portable::resolve_config_dir(&app)?;
   let path = dir.join("lector-settings.json");
   if !path.exists() {
     return Ok(None);
@@ -253,7 +253,7 @@ pub fn load_settings(app: AppHandle) -> Result<Option<serde_json::Value>, String
 /// 写设置 JSON。前端已用 core normalizeSettings 校验，壳只负责落盘。
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
-  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  let dir = super::portable::resolve_config_dir(&app)?;
   fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let path = dir.join("lector-settings.json");
   let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
@@ -264,7 +264,7 @@ pub fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), 
 const RECENT_MAX: usize = 20;
 
 fn recent_file(app: &AppHandle) -> Result<PathBuf, String> {
-  let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+  let dir = super::portable::resolve_config_dir(app)?;
   Ok(dir.join("lector-recent.json"))
 }
 
@@ -282,6 +282,28 @@ pub fn recent_list(app: AppHandle) -> Vec<String> {
 #[tauri::command]
 pub fn recent_clear(app: AppHandle) {
   clear_recent(&app);
+}
+
+#[derive(Serialize)]
+pub struct AppDirs {
+  data: String,
+  logs: String,
+}
+
+/// 数据目录与日志目录的解析结果：设置面板「维护」用它显示路径并打开。
+///
+/// 便携模式下两个都在程序目录旁（各函数已解析），Web 只拿到这两条路径，
+/// 不去碰任意路径——打开动作仍走 open_with_default。
+#[tauri::command]
+pub fn app_dirs(app: AppHandle) -> Result<AppDirs, String> {
+  let data = super::portable::resolve_config_dir(&app)?;
+  let logs = super::portable::log_dir()
+    .or_else(|| app.path().app_log_dir().ok())
+    .ok_or_else(|| "no log dir".to_string())?;
+  Ok(AppDirs {
+    data: data.to_string_lossy().into_owned(),
+    logs: logs.to_string_lossy().into_owned(),
+  })
 }
 
 /// 读「最近打开」列表（新在前）。文件缺失或损坏都当空表。
