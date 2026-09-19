@@ -172,9 +172,11 @@ function extractVersionSection(version) {
   if (!existsSync(file)) return null
   const text = readFileSync(file, 'utf8')
   const lines = text.split('\n')
-  // 节头格式: `## vX.Y.Z (YYYY-MM-DD)` —— startsWith 容忍日期后缀
-  const headerPrefix = `## ${version}`
-  const startIdx = lines.findIndex((l) => l.trim().startsWith(headerPrefix))
+  // 节头在 CHANGELOG.md 里写作 `## vX.Y.Z (YYYY-MM-DD)`，而命令行传进来的是不带 v 的
+  // 版本号：只认 `## ${version}` 的话永远命中不了，每一版都会**静默**退回通用发行说明
+  // （v0.30.x 就是这么退的）。两种写法都认。
+  const headerPrefixes = [`## v${version}`, `## ${version}`]
+  const startIdx = lines.findIndex((l) => headerPrefixes.some((p) => l.trim().startsWith(p)))
   if (startIdx < 0) return null
   // 下一个 ## 出现前结束(版本之间不再含 '##')
   let nextIdx = lines.length

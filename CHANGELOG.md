@@ -16,6 +16,44 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.31.0 (2026-09-19)
+
+### Added
+
+- render GitHub emoji shortcodes in preview
+- render HTML mark and img via the preview whitelist
+- split image settings into copy and upload axes
+- honor GFM column alignment and add column rules
+- add an Extensions section for math and ==highlight==
+- surface open-with in the file action group
+- rework external-app config as a dedicated section
+
+### Fixed
+
+- stop double-spacing the divider in read mode
+- stop toggling content-visibility on every render
+- keep the scrollbar thin in WKWebView
+- show the same external app name in the menu and settings
+- hide stranded dividers in the empty state
+- copy plain text works in source mode
+- make find hits and inline sub/sup render correctly
+
+### Improved
+
+- keep mid-size docs smooth while typing and reading
+- keep scroll at 60fps by caching outline offsets
+- skip unchanged blocks when re-rendering
+- reorganize settings and polish window chrome
+- drop the toolbar button, open the sheet with Cmd+/
+- trim the toolbar and dock the find bar
+- cleaner lead-group icons, literal PDF glyph
+- give the 32px Windows bar breathing room
+- fit the appearance section without scrolling
+- unify block labels, group app list, protect hint tokens
+- polish settings panel surfaces and controls
+
+[v0.31.0]: https://github.com/atbeta/lector/compare/v0.30.1...v0.31.0
+
 ## v0.29.0 (2026-09-18)
 
 ### Added
