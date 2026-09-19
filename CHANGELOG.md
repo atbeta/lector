@@ -16,6 +16,23 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.33.0 (2026-09-20)
+
+### Added
+
+- keep data beside the app and open it from settings
+- report uncaught errors to the shell log
+
+### Fixed
+
+- keep error reporting from looping and flooding
+
+### Improved
+
+- align settings search and tighten copy
+
+[v0.33.0]: https://github.com/atbeta/lector/compare/v0.32.0...v0.33.0
+
 ## v0.32.0 (2026-09-20)
 
 ### Added
