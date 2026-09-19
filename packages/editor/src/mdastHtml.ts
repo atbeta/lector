@@ -1,12 +1,21 @@
 // mdast → HTML 的安全预览渲染。
-// 只发已知标签；html / yaml / unknown 一律降级为等宽源码，绝不 dangerouslySetInnerHTML 任意值。
+// 只发已知标签；白名单外的 html / yaml / unknown 降级为等宽源码，绝不 dangerouslySetInnerHTML 任意值。
 
 import { resolveImageSrc } from './asset.ts'
 import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
 import { t } from './i18n.ts'
 import { iconSvg } from './icons.ts'
-import { parseBlockRoots } from '@lector/core'
+import { decodeEntities, parseBlockRoots } from '@lector/core'
+
+/** 行内 HTML 白名单：无属性开闭标签，micromark 会拆成三个节点再在这里配对。 */
+const INLINE_HTML_TAGS = 'kbd|sub|sup|u|mark'
+const INLINE_HTML_OPEN = new RegExp(`^<(${INLINE_HTML_TAGS})>$`, 'i')
+const INLINE_HTML_CLOSE = new RegExp(`^<\\/(${INLINE_HTML_TAGS})>$`, 'i')
+const INLINE_HTML_SIMPLE = new RegExp(`^<(${INLINE_HTML_TAGS})>([^<]*)<\\/\\1>$`, 'i')
+
+/** HTML `<img>` 只认这四个属性；其余（on* / style / srcset…）整段降级。 */
+const HTML_IMG_ATTRS = new Set(['src', 'alt', 'width', 'height'])
 
 type Node =
   | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; align?: Array<'left' | 'right' | 'center' | null> | null; children?: Node[]; position?: unknown }
@@ -120,6 +129,92 @@ function esc(s: string): string {
 }
 
 /**
+ * 白名单 HTML `<img>`：只认 src/alt/数字宽高，src 走 resolveImageSrc。
+ * 带 on* / style / srcset 等未知属性、危险协议、解析失败 → null（调用方转义降级）。
+ * 渲出的节点带 data-html-img，图片菜单据此不把它算进 listImages 下标。
+ */
+function renderHtmlImg(value: string): string | null {
+  const raw = value.trim()
+  const wrapped = /^<p>\s*(<img\b[\s\S]*?\/?>)\s*<\/p>$/i.exec(raw)
+  const tag = (wrapped?.[1] ?? raw).trim()
+  const m = /^<img(\s[\s\S]*)?\/?>$/i.exec(tag)
+  if (!m) return null
+  const attrs = parseHtmlAttrs(m[1] ?? '')
+  if (!attrs) return null
+  for (const key of Object.keys(attrs)) {
+    if (!HTML_IMG_ATTRS.has(key)) return null
+  }
+  const srcRaw = (attrs.src ?? '').trim()
+  if (!srcRaw) return null
+  // javascript: / vbscript: / file: 不能当相对路径漏出去（resolveImageSrc 会把未知 scheme 当文件名）
+  if (/^[a-z][a-z0-9+.-]*:/i.test(srcRaw) && !/^(https?:|data:)/i.test(srcRaw)) return null
+  const src = resolveImageSrc(srcRaw)
+  if (!src) return null
+  const alt = attrs.alt ?? ''
+  const width = parseImgDimension(attrs.width)
+  const height = parseImgDimension(attrs.height)
+  if (attrs.width != null && width == null) return null
+  if (attrs.height != null && height == null) return null
+  const dim = `${width != null ? ` width="${width}"` : ''}${height != null ? ` height="${height}"` : ''}`
+  return `<img src="${esc(src)}" alt="${esc(alt)}"${dim} data-html-img="1" />`
+}
+
+/** 只认纯数字或数字+px；拒 100% / auto / 表达式。 */
+function parseImgDimension(raw: string | undefined): string | null {
+  if (raw == null) return null
+  const m = /^(\d+)(?:px)?$/i.exec(raw.trim())
+  if (!m) return null
+  const n = Number(m[1])
+  if (!Number.isInteger(n) || n <= 0 || n > 10000) return null
+  return String(n)
+}
+
+/**
+ * 极小属性解析：名=值，值可双引/单引/无引号。布尔属性、重复名、解析失败一律 null。
+ * 不做通用 HTML 解析——只够 lone <img> 的白名单属性。
+ */
+function parseHtmlAttrs(input: string): Record<string, string> | null {
+  const out: Record<string, string> = {}
+  let i = 0
+  const s = input
+  while (i < s.length) {
+    while (i < s.length && /\s/.test(s[i]!)) i++
+    if (i >= s.length) break
+    if (s[i] === '/') {
+      i++
+      continue
+    }
+    if (!/[A-Za-z_]/.test(s[i]!)) return null
+    const start = i
+    i++
+    while (i < s.length && /[\w:-]/.test(s[i]!)) i++
+    const name = s.slice(start, i).toLowerCase()
+    if (name.startsWith('on')) return null
+    while (i < s.length && /\s/.test(s[i]!)) i++
+    if (s[i] !== '=') return null
+    i++
+    while (i < s.length && /\s/.test(s[i]!)) i++
+    let value = ''
+    const q = s[i]
+    if (q === '"' || q === "'") {
+      i++
+      const end = s.indexOf(q, i)
+      if (end < 0) return null
+      value = s.slice(i, end)
+      i = end + 1
+    } else {
+      const vStart = i
+      while (i < s.length && !/[\s/>]/.test(s[i]!)) i++
+      if (i === vStart) return null
+      value = s.slice(vStart, i)
+    }
+    if (Object.hasOwn(out, name)) return null
+    out[name] = decodeEntities(value)
+  }
+  return out
+}
+
+/**
  * 纯数字单元格：可带正负号、千分位、小数，可带常见单位/后缀。
  * 长度设上限，是为了别把 "2026-09-14 的会议记录" 这种也判成数字。
  */
@@ -131,17 +226,27 @@ export function isNumericCell(text: string): boolean {
   return text.length > 0 && text.length <= 24 && NUMERIC_CELL.test(text)
 }
 
+function wrapInlineHtml(tag: string, inner: string): string {
+  // mark 跟 ==高亮== 共用开关与样式：关掉时把定界符（这里是标签）原样露出来。
+  if (tag === 'mark') {
+    return markHighlight
+      ? `<mark class="html-mark">${inner}</mark>`
+      : `&lt;mark&gt;${inner}&lt;/mark&gt;`
+  }
+  return `<${tag} class="html-${tag}">${inner}</${tag}>`
+}
+
 function inline(children: Node[] | undefined): string {
   if (!children) return ''
-  // 白名单行内标签（kbd/sub/sup/u）被 micromark 拆成「开标签/文本/闭标签」
-  // 三个节点——这里跨节点配对包裹；br 直接放行；其余 html 节点转义降级。
+  // 白名单行内标签（kbd/sub/sup/u/mark）被 micromark 拆成「开标签/文本/闭标签」
+  // 三个节点——这里跨节点配对包裹；br / 白名单 <img> 直接放行；其余转义降级。
   const out: string[] = []
   const pending: { tag: string; outIndex: number; raw: string }[] = []
   for (const c of children) {
     if (c.type === 'html') {
       const v = c.value ?? ''
-      const open = v.match(/^<(kbd|sub|sup|u)>$/i)
-      const close = v.match(/^<\/(kbd|sub|sup|u)>$/i)
+      const open = v.match(INLINE_HTML_OPEN)
+      const close = v.match(INLINE_HTML_CLOSE)
       if (open) {
         pending.push({ tag: open[1]!.toLowerCase(), outIndex: out.length, raw: v })
         out.push('')
@@ -154,7 +259,7 @@ function inline(children: Node[] | undefined): string {
           pending.pop()
           const inner = out.slice(top.outIndex + 1).join('')
           out.length = top.outIndex
-          out.push(`<${tag} class="html-${tag}">${inner}</${tag}>`)
+          out.push(wrapInlineHtml(tag, inner))
           continue
         }
         out.push(`<code>${esc(v)}</code>`)
@@ -162,6 +267,11 @@ function inline(children: Node[] | undefined): string {
       }
       if (/^<br\s*\/?>$/i.test(v)) {
         out.push('<br />')
+        continue
+      }
+      const img = renderHtmlImg(v)
+      if (img) {
+        out.push(img)
         continue
       }
       out.push(`<code>${esc(v)}</code>`)
@@ -240,15 +350,13 @@ function inlineNode(n: Node): string {
       // 行内 HTML：白名单内「无属性、无嵌套标签」的简单元素原样渲染，
       // 其余转义降级为原文（红线：预览不执行任意 HTML）
       const v = n.value ?? ''
-      const simple = v.match(/^<(kbd|sub|sup|u)>([^<]*)<\/\1>$/i)
+      const simple = v.match(INLINE_HTML_SIMPLE)
       if (simple) {
         const tag = simple[1]!.toLowerCase()
-        // 各带各的 class：kbd 是键帽、sub/sup 是上下标、u 是下划线，
-        // 三者排版完全不同，不能共用一个类（见 reader.css）。
-        return `<${tag} class="html-${tag}">${esc(simple[2]!)}</${tag}>`
+        return wrapInlineHtml(tag, esc(simple[2]!))
       }
       if (/^<br\s*\/?>$/i.test(v)) return '<br />'
-      return `<code>${esc(v)}</code>`
+      return renderHtmlImg(v) ?? `<code>${esc(v)}</code>`
     }
     default:
       return esc(n.value ?? '')
@@ -497,7 +605,9 @@ function blockToHtml(n: Node): string {
       return `<div class="footnote-definition" id="fn-${fid}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span><div class="footnote-definition-body">${body}<a class="footnote-backref" href="#fnref-${fid}" aria-label="${esc(t('footnoteBack'))}">${iconSvg('backref', 12)}</a></div></div>`
     }
     case 'html': {
-      // 块级 HTML：details 折叠块白名单放行，其余安全降级为等宽源码
+      // 块级 HTML：lone <img> / details 白名单放行，其余安全降级为等宽源码
+      const img = renderHtmlImg(n.value ?? '')
+      if (img) return img
       const details = renderDetailsBlock(n.value ?? '')
       return details ?? `<pre class="preform">${esc(n.value ?? '')}</pre>`
     }

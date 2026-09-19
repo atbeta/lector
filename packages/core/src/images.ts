@@ -41,6 +41,21 @@ function collect(nodes: MdNode[], out: ImageRef[]): void {
   }
 }
 
+/**
+ * 预览 DOM 里第 clicked 张 <img> 对应 listImages 的下标。
+ * htmlFlags[i] === true 表示这张是 HTML `<img>` 渲出来的（没有 Markdown 语法）。
+ * 点到 HTML 图或越界返回 null——调用方不得拿去 replaceImageUrl。
+ */
+export function markdownImageIndex(htmlFlags: readonly boolean[], clicked: number): number | null {
+  if (clicked < 0 || clicked >= htmlFlags.length) return null
+  if (htmlFlags[clicked]) return null
+  let n = 0
+  for (let i = 0; i < clicked; i++) {
+    if (!htmlFlags[i]) n++
+  }
+  return n
+}
+
 /** 按文档顺序列出块内所有 Markdown 图片。 */
 export function listImages(raw: string): ImageRef[] {
   if (!raw) return []

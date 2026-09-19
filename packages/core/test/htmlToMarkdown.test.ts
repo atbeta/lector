@@ -77,6 +77,11 @@ describe('行内', () => {
     expect(htmlToMarkdown('<p><img src="data:text/html;base64,xx"></p>')).toBe('')
   })
 
+  test('mark 变 == 高亮', () => {
+    expect(htmlToMarkdown('<p>a <mark>重点</mark> b</p>')).toBe('a ==重点== b')
+    expect(htmlToMarkdown('<p>x <mark> bold </mark> y</p>')).toBe('x  ==bold==  y')
+  })
+
   test('br 变硬换行，且解析回来仍在同一段里', () => {
     const md = htmlToMarkdown('<p>上<br>下</p>')
     expect(md).toBe('上\\\n下')

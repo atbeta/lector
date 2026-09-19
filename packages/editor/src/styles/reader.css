@@ -705,7 +705,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
 }
 
 /* ───────────── 扩展语法渲染 ─────────────
- * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u）、details 折叠块。 */
+ * ==高亮==（mark）、行内白名单 HTML（kbd/sub/sup/u/mark）、details 折叠块、白名单 <img>。 */
 /* :not(.find-hit) 是必须的：查找命中也是 <mark>，本规则的特异度 (0,1,1) 高于
    .find-hit 的 (0,1,0)，不排除就会把命中的底色刷成这里近白的 --accent，
    并带上这里的 padding——表现就是「搜到的东西只像多了点边距、根本没高亮」。 */

@@ -412,6 +412,10 @@ function inlineMarkdown(nodes: HtmlNode[]): string {
       case 'strike':
         out += wrap('~~', inner)
         break
+      case 'mark':
+        // 浏览器/Word 高亮 → pandoc ==，进文件后跟 ==高亮== 同一条渲染路
+        out += wrap('==', inner)
+        break
       case 'a':
         out += linkMarkdown(node, inner)
         break

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { listImages, replaceImageAlt, replaceImageUrl } from '../src/images.ts'
+import { listImages, markdownImageIndex, replaceImageAlt, replaceImageUrl } from '../src/images.ts'
 
 describe('listImages', () => {
   test('单张行内图片：url/alt/位置都对', () => {
@@ -31,6 +31,20 @@ describe('listImages', () => {
     expect(listImages('![a](x.png "标题")')[0]!.title).toBe('标题')
     expect(listImages('没有图片的段落')).toEqual([])
     expect(listImages('')).toEqual([])
+  })
+
+  test('HTML <img> 不进 listImages，改 Markdown 图下标不错位', () => {
+    const raw = '![一](1.png) <img src="html.png" alt="h"> ![二](2.png)'
+    const imgs = listImages(raw)
+    expect(imgs.map((i) => i.url)).toEqual(['1.png', '2.png'])
+    expect(replaceImageUrl(raw, 1, 'new.png')).toBe(
+      '![一](1.png) <img src="html.png" alt="h"> ![二](new.png)',
+    )
+    // DOM 顺序：md / html / md → 点第三张应对 listImages[1]
+    expect(markdownImageIndex([false, true, false], 2)).toBe(1)
+    expect(markdownImageIndex([false, true, false], 1)).toBeNull()
+    expect(markdownImageIndex([false, true, false], 0)).toBe(0)
+    expect(markdownImageIndex([false, true, false], -1)).toBeNull()
   })
 })
 

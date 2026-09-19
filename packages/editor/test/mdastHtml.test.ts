@@ -4,6 +4,13 @@
 import { expect, test } from 'bun:test'
 import { isNumericCell, looksLikeMath, renderBlockHtml, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
 import { parseBlocks } from '@lector/core'
+import { setAssetResolver } from '../src/asset.ts'
+
+function renderMd(md: string): string {
+  return parseBlocks(md)
+    .map((b) => renderBlockHtml(b.mdast, b.raw))
+    .join('')
+}
 
 test('纯数字与常见单位算数字', () => {
   for (const s of ['1', '-3', '+2.5', '1,234', '1,234.56', '42%', '120ms', '3.6 GB', '18px', '5 次', '2 小时', '~150 MB', '≈3.6 GB', '±5%']) {
@@ -75,6 +82,64 @@ test('内联公式：默认渲染成 math，关掉后原样显示美元符号', 
     expect(off).not.toContain('math-inline')
   } finally {
     setMathEnabled(true)
+  }
+})
+
+test('HTML <mark>：无属性放行，关掉后露出标签源码', () => {
+  const md = '前文 <mark>重点</mark> 后文'
+  expect(renderMd(md)).toContain('<mark class="html-mark">重点</mark>')
+  setMarkHighlight(false)
+  try {
+    const off = renderMd(md)
+    expect(off).toContain('&lt;mark&gt;重点&lt;/mark&gt;')
+    expect(off).not.toContain('<mark class="html-mark">')
+  } finally {
+    setMarkHighlight(true)
+  }
+})
+
+test('HTML <mark> 带属性：转义降级', () => {
+  const html = renderMd('前文 <mark class="x">重点</mark> 后文')
+  expect(html).not.toContain('<mark class="html-mark">')
+  expect(html).toContain('&lt;mark')
+})
+
+test('HTML <mark> 里的加粗仍按 markdown 渲染', () => {
+  expect(renderMd('x <mark>**粗**</mark> y')).toContain(
+    '<mark class="html-mark"><strong>粗</strong></mark>',
+  )
+})
+
+test('HTML <img>：行内与块级走 resolveImageSrc，带 data-html-img', () => {
+  setAssetResolver((raw) => `resolved:${raw}`)
+  try {
+    const inline = renderMd('看 <img src="a.png" alt="图"> 完')
+    expect(inline).toContain('<img src="resolved:a.png" alt="图" data-html-img="1" />')
+    const block = renderMd('<img src="b.png" alt="块" width="120" height="80">')
+    expect(block).toContain('src="resolved:b.png"')
+    expect(block).toContain('width="120"')
+    expect(block).toContain('height="80"')
+    expect(block).toContain('data-html-img="1"')
+    expect(block).not.toContain('<pre class="preform">')
+    const inP = renderMd('<p><img src="c.png" alt="包"></p>')
+    expect(inP).toContain('src="resolved:c.png"')
+    expect(inP).toContain('data-html-img="1"')
+  } finally {
+    setAssetResolver(null)
+  }
+})
+
+test('HTML <img> 危险属性/协议：转义降级', () => {
+  for (const src of [
+    '<img src="a.png" onerror="alert(1)">',
+    '<img src="javascript:alert(1)">',
+    '<img src="a.png" style="width:1px">',
+    '<img src="a.png" srcset="x">',
+    '<img src="file:///etc/passwd">',
+  ]) {
+    const html = renderMd(`x ${src} y`)
+    expect(html, src).not.toMatch(/<img src=/)
+    expect(html, src).toContain('&lt;img')
   }
 })
 

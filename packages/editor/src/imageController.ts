@@ -1,4 +1,11 @@
-import { imagePipeline, listImages, replaceImageUrl, replaceImageAlt, type BlockView } from '@lector/core'
+import {
+  imagePipeline,
+  listImages,
+  markdownImageIndex,
+  replaceImageUrl,
+  replaceImageAlt,
+  type BlockView,
+} from '@lector/core'
 import {
   detectEnv,
   discardStagedImage,
@@ -32,15 +39,23 @@ export type ImageInsertRef = { type: 'caret' } | { type: 'afterBlock'; blockId: 
 
 export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret'> }) {
   /** 图片上的菜单。 */
-  /** 图片在正文里的归属：哪个块、块内第几张（按渲染 DOM 顺序，与 listImages 对齐）。 */
-  function imageTarget(img: HTMLImageElement): { block: BlockView; index: number } | null {
+  /**
+   * 图片在正文里的归属：哪个块、块内第几张 Markdown 图。
+   * HTML `<img>` 带 data-html-img，不算进 listImages 下标；index 为 null 时
+   * 只给「看 / 编辑源码（聚焦该块）」——改 alt / 替换 / 上传会对错另一张。
+   */
+  function imageTarget(img: HTMLImageElement): { block: BlockView; index: number | null } | null {
     const blockEl = img.closest<HTMLElement>('.block')
     const id = blockEl?.dataset.blockId
     const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
     if (!block || !blockEl) return null
     const imgs = Array.from(blockEl.querySelectorAll<HTMLImageElement>('img'))
-    const index = imgs.indexOf(img)
-    if (index < 0) return null
+    const clicked = imgs.indexOf(img)
+    if (clicked < 0) return null
+    const index = markdownImageIndex(
+      imgs.map((el) => el.hasAttribute('data-html-img')),
+      clicked,
+    )
     return { block, index }
   }
 
@@ -155,11 +170,16 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       { label: t('imageView'), run: () => showInLightbox(img.src, img.alt) },
     ]
     if (target) {
-      // mutates：三项都会改文档（描述写进 alt、替换写盘、编辑源码把块切进 CM），
-      // 阅读档一律不出现——过滤在 documentMenus 的 forMode()
-      items.push({ label: t('imageEditAlt'), mutates: true, run: () => void editImageAlt(target.block, target.index) })
-      items.push({ label: t('imageReplace'), mutates: true, run: () => replaceImageFile(target.block, target.index) })
-      items.push({ label: t('imageEditSource'), mutates: true, run: () => focusImageSource(target.block, target.index) })
+      // mutates：改文档的项阅读档不出现——过滤在 documentMenus 的 forMode()
+      const mdIndex = target.index
+      if (mdIndex != null) {
+        items.push({ label: t('imageEditAlt'), mutates: true, run: () => void editImageAlt(target.block, mdIndex) })
+        items.push({ label: t('imageReplace'), mutates: true, run: () => replaceImageFile(target.block, mdIndex) })
+        items.push({ label: t('imageEditSource'), mutates: true, run: () => focusImageSource(target.block, mdIndex) })
+      } else {
+        // HTML <img>：没有 Markdown 语法可改，只聚焦该块露出源码
+        items.push({ label: t('imageEditSource'), mutates: true, run: () => editor.focusBlock(target.block.id) })
+      }
       // 块级动作：图片块也是块，删除/插入段落与普通块共用同一套 operations
       // （mutates：阅读档不出现，过滤在 documentMenus 的 forMode()，与块菜单同一规矩）
       items.push({
@@ -195,13 +215,14 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     // 上传项的条件只有两条：配了命令、这张图手上有本地文件。
     // 与「自动上传」开关**无关**——不自动上传正是手动上传存在的理由；
     // 已经指向图床的图（src 是 http(s)）没有本地文件，也就没什么可传的。
-    if (target && local && imagePipeline(getSettings()).upload !== 'off') {
+    const uploadIndex = target?.index
+    if (target && uploadIndex != null && local && imagePipeline(getSettings()).upload !== 'off') {
       items.push({
         separatorBefore: true,
         label: t('imageUpload'),
         // 上传会回写正文里的图片地址，属于改文档
         mutates: true,
-        run: () => void uploadImageAt(target.block, target.index, local),
+        run: () => void uploadImageAt(target.block, uploadIndex, local),
       })
     }
     return items
