@@ -68,6 +68,23 @@ const mountPreferenceOutline = async () => {
   }
 
   try {
+    // 先等大纲**稳定**再抓行句柄。启动要等 initSettings 落地，设置每通知一次就重画
+    // 一次大纲（main.ts 的 notifySettings → renderOutline）。那次重画若落在「抓句柄」
+    // 与「点击」之间，这条断言量到的就不是「折叠是否就地更新」，而是并发重画——
+    // 实测跑十次能假失败两三次（含把改动全部 stash 掉的干净 HEAD）。
+    // 连续两次取样（间隔 250ms）拿到同一个元素，才算它已经不再被换掉。
+    await page.waitForFunction(
+      (sel) => {
+        const el = document.querySelector(sel)
+        const w = window
+        if (!el) return false
+        if (w.__stableOutlineRow === el) return true
+        w.__stableOutlineRow = el
+        return false
+      },
+      '.outline-node:has(.outline-kids) .outline-row',
+      { polling: 250, timeout: 5000 },
+    )
     const row = await page.waitForSelector('.outline-node:has(.outline-kids) .outline-row', { timeout: 5000 })
     await page.evaluate((el) => {
       window.__row = el
