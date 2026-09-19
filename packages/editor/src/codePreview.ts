@@ -231,8 +231,8 @@ export function decorateCodeBlock(preview: HTMLElement): void {
     void renderInto().finally(endPreviewWork)
 
     // 栏宽变化（拖窗口、开关侧栏、调最大宽度）后重渲染：画布自然宽烘在 SVG 里，
-    // 不重画的话窄栏甘特的短任务条装不下任务名，标签溢出到条外。diagram 是块级
-    // 盒，宽度跟栏走、与内部 SVG 无关——观察它不会因重画自身而循环。首帧回调
+    // 甘特任务条按栏宽比例算，不重画的话拉宽后仍是窄栏那张。diagram 是块级盒，
+    // 宽度跟栏走、与内部 SVG 无关——观察它不会因重画自身而循环。首帧回调
     // 只记基准宽度不重画（首渲已在跑）；之后宽度变化超过阈值才防抖重画。
     let baseWidth = 0
     let roTimer: ReturnType<typeof setTimeout> | undefined

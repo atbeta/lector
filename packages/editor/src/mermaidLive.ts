@@ -74,7 +74,7 @@ export function createMermaidLivePanel(
   function renderNow(source: string): void {
     const mySeq = ++seq
     body.classList.add('rendering')
-    renderMermaidSvg(source, currentTheme())
+    renderMermaidSvg(source, currentTheme(), undefined, body.clientWidth || undefined)
       .then((svg) => {
         if (!el.isConnected || mySeq !== seq) return
         showSvg(svg)

@@ -345,42 +345,26 @@ export async function renderMermaidSvg(
   //   栏宽由调用方传入（图所在容器的实际宽度）——全局 querySelector 会抓到
   //   文档里第一个 .reading-prose，多栏/测试环境下量错对象。
   const measured = columnWidth || document.querySelector('.reading-prose')?.clientWidth || 800
-  // 甘特画布保底 1000px：任务条宽度 = 跨度天数占比 × 画布，40 天跨度里 2 天的
-  // 任务在 760px 画布上只有 ~36px，装不下四个汉字的任务名（标签溢出到条外，
-  // 看着像「条前面的纯文字」）。保底宽度 + min-width 锁 + 容器横向滚动，
-  // 窄栏也能完整读图——其他甘特渲染器都是这个策略。
-  const canvasWidth = isGanttSource(code) ? Math.max(measured, 1000) : measured
-  const key = `${theme}::${canvasWidth}::${cssRgbToken('--card', '')}::${cssRgbToken('--content-accent', '')}::${effectiveUserConfig().signature}::${code}`
+  const key = `${theme}::${measured}::${cssRgbToken('--card', '')}::${cssRgbToken('--content-accent', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 
   const mermaid = await getMermaid()
   applyTheme(mermaid, theme)
-  // 甘特图等「按容器宽度定画」的图：mermaid 渲染时读临时容器父级的宽度当画布宽
-  // （ganttDiagram 源码：st = N.parentElement.offsetWidth）。不传容器时挂在 body
-  // 下，量到的宽度不可控（实测 288px，整张甘特缩在左边）。传入宽度等于阅读栏宽
-  // 的临时容器，自然宽度一开始就算对；svg 自带 width=100% + max-width=自然宽，
-  // 显示时仍随实际栏宽自适应。visibility:hidden 保留布局，offsetWidth 可量。
+  // 甘特等「按容器宽度定画」的图：mermaid 读临时节点父级的 offsetWidth 当画布
+  // （ganttDiagram：elem.parentElement.offsetWidth）。不传容器时挂在 body 下，
+  // 量到的宽度不可控（实测 288px，整张甘特缩在左边）。临时容器设成栏宽，
+  // 图跟栏走、该压就压；栏变宽由调用方重渲。短任务名装不下时 mermaid 自己
+  // 把标签放到条外——不锁最小宽度。visibility:hidden 保留布局，offsetWidth 可量。
   const tmp = document.createElement('div')
   // 这个类名是给 base.css 的 reduced-motion 守卫看的：那条守卫会把全局的
   // transition-duration 压成 0.01ms，而 mermaid 正是在这里量尺寸的——
   // 被压过的时长会让它的包围盒算飞（详见 base.css 里的注释）。
   tmp.className = 'mermaid-render-host'
-  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${canvasWidth}px`
+  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${measured}px`
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)
-    // 甘特图的任务条宽度跟轴走：窄栏里短任务（如 2d）会被压到装不下任务名，
-    // 标签居中溢出到条外，看着像「条前面的纯文字」。锁最小宽度 = 不缩于自然宽，
-    // 窄栏走容器横向滚动（.mermaid-diagram 已有 overflow-x: auto）。
-    if (isGanttSource(code)) {
-      const patched = svg.replace(
-        /max-width:\s*([\d.]+px)/,
-        'max-width: $1; min-width: $1',
-      )
-      cachePut(key, patched)
-      return patched
-    }
     cachePut(key, svg)
     return svg
   } finally {
@@ -391,14 +375,4 @@ export async function renderMermaidSvg(
 /** 测试钩子：清空缓存。生产代码不要调。 */
 export function _resetCacheForTests(): void {
   svgCache.clear()
-}
-
-/** 首个有效行（跳过空行与 %% 注释）是否为 gantt——只有甘特需要锁最小宽度。 */
-function isGanttSource(code: string): boolean {
-  for (const line of code.split('\n')) {
-    const t = line.trim()
-    if (t === '' || t.startsWith('%%')) continue
-    return t === 'gantt' || t.startsWith('gantt ')
-  }
-  return false
 }
