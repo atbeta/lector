@@ -16,6 +16,26 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.32.0 (2026-09-20)
+
+### Added
+
+- give macOS an inset satin Dock icon
+
+### Fixed
+
+- align titlebar buttons to native traffic lights
+- keep the outline scrollbar out from under the grip
+- keep pipes inside code spans as one cell
+- size gantt charts to the reading column
+- enter the block on click in edit mode
+
+### Improved
+
+- sign and notarize arm64 releases
+
+[v0.32.0]: https://github.com/atbeta/lector/compare/v0.31.0...v0.32.0
+
 ## v0.31.0 (2026-09-19)
 
 ### Added
