@@ -284,6 +284,7 @@ export function openSettingsModal(onClose?: () => void) {
     row(
       t('autoPairs'),
       Switch(getSettings().autoCharacterPairs, (v) => apply((s) => ({ ...s, autoCharacterPairs: v }))),
+      t('autoPairsHint'),
     ),
   )
   editing.appendChild(
