@@ -132,11 +132,28 @@ export function createDocumentEditor({
   }
 
   let containGen = 0
+  /**
+   * 块集合变过没有（新块 / 删块 / 换文档）。
+   *
+   * content-visibility 是**布局模式**，摘掉再挂上会让同一批块在「塌边距 / 不塌边距」
+   * 两种高度之间跳一帧。实测（1280×820、内置样例）：摘掉那一帧整篇 scrollHeight
+   * 1538→1474，被点那块在屏幕上抖 5.4px，屏幕外没渲染过的块还会从「4.5em 估高」
+   * 掉回真实高度（69→1px）。勾选任务项正是踩在这上面。
+   *
+   * 所以只有块集合真的变了才值得走这一趟；改内容（勾选、改字、撤销块的编辑）就地
+   * 重画就够了——被改的那块就在眼前，高度是实时量的，不必让整篇按另一种模式重估一遍。
+   */
+  let containStale = true
+  /** 上次走测量那趟时是哪个档（content-visibility 只作用于阅读档）。 */
+  let containMode = ''
 
   /** 首屏（含 mermaid）量完真实高度后再开 content-visibility，大纲位置才不会漂。 */
   function scheduleBlockContainment(): void {
+    // 已经在 contain 态、块集合又没变：这套布局就是量准过的，再摘一次只会白抖一下
+    if (!containStale && contentEl.classList.contains('blocks-cv')) return
     contentEl.classList.remove('blocks-cv')
     const gen = ++containGen
+    containStale = false
     void whenCodePreviewIdle()
       .then(
         () =>
@@ -179,6 +196,7 @@ export function createDocumentEditor({
     lastPaint.clear()
     liveText.clear()
     containGen++
+    containStale = true
     contentEl.classList.remove('large-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
     session.source = createSourceDocument(path, raw, mtimeMs)
@@ -278,6 +296,7 @@ export function createDocumentEditor({
       if (!el) {
         el = createBlockEl(block)
         blocksEl.set(block.id, el)
+        containStale = true // 新块的高度是估的，得让它真实布局一次
       }
       desired.push(el)
     }
@@ -287,10 +306,17 @@ export function createDocumentEditor({
         el.remove()
         blocksEl.delete(id)
         lastPaint.delete(id)
+        containStale = true // 少了一块，下面的东西整体上移，也要重量
       }
     }
     applyKeyedChildren(contentEl, desired)
     const mode = getViewMode()
+    // content-visibility 只在阅读档生效（见 chrome.css）：档位一变，「contain 态现在
+    // 长什么样」就换了一套，得重新量一遍——否则切回阅读档时屏幕外的块还在用估高。
+    if (mode !== containMode) {
+      containMode = mode
+      containStale = true
+    }
     for (const block of session.blocks) {
       paintBlock(block, mode)
     }
@@ -729,6 +755,7 @@ export function createDocumentEditor({
     setCurrentMdPath(null)
     large.clearLargeFileBar()
     containGen++
+    containStale = true
     contentEl.classList.remove('large-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
   }
