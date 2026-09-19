@@ -500,6 +500,18 @@ html.lightbox-open #content { overflow: hidden; }
   background: rgb(var(--content-accent));
   transition: width var(--motion-fast) var(--ease-standard);
 }
+/* 「家」刻度：当前主题标定 / 界面缩放 100%。比拇指细、比轨道高一截，拖的时候能瞄到。 */
+.slider-home {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: rgb(var(--muted-foreground) / 0.55);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 .slider-thumb {
   position: absolute;
   top: 50%;

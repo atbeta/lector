@@ -72,6 +72,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
   // 撤销/剪切/复制/粘贴走系统实现：它们作用于当前焦点控件（CodeMirror），
   // 由系统派发标准 selector，比我们自己转发按键可靠。
   let find = MenuItem::with_id(app, "edit-find", "查找", true, Some("CmdOrCtrl+F"))?;
+  let insert_image = MenuItem::with_id(app, "edit-insert-image", "插入图片…", true, None::<&str>)?;
   let edit_menu = Submenu::with_items(
     app,
     "编辑",
@@ -86,6 +87,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
       &PredefinedMenuItem::select_all(app, None)?,
       &PredefinedMenuItem::separator(app)?,
       &find,
+      &insert_image,
     ],
   )?;
 
@@ -93,9 +95,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
   let outline = MenuItem::with_id(app, "view-outline", "大纲", true, Some("CmdOrCtrl+Shift+O"))?;
   let theme = MenuItem::with_id(app, "view-theme", "切换主题", true, None::<&str>)?;
   let settings = MenuItem::with_id(app, "view-settings", "阅读设置…", true, Some("CmdOrCtrl+,"))?;
-  let zoom_in = MenuItem::with_id(app, "view-zoom-in", "增大字号", true, Some("CmdOrCtrl+Plus"))?;
-  let zoom_out = MenuItem::with_id(app, "view-zoom-out", "减小字号", true, Some("CmdOrCtrl+-"))?;
-  let zoom_reset = MenuItem::with_id(app, "view-zoom-reset", "恢复默认字号", true, Some("CmdOrCtrl+0"))?;
+  let ui_zoom_in = MenuItem::with_id(app, "view-ui-zoom-in", "放大界面", true, Some("CmdOrCtrl+Plus"))?;
+  let ui_zoom_out = MenuItem::with_id(app, "view-ui-zoom-out", "缩小界面", true, Some("CmdOrCtrl+-"))?;
+  let ui_zoom_reset = MenuItem::with_id(app, "view-ui-zoom-reset", "恢复界面缩放", true, Some("CmdOrCtrl+0"))?;
+  let font_in = MenuItem::with_id(app, "view-font-in", "增大字号", true, Some("CmdOrCtrl+Shift+Plus"))?;
+  let font_out = MenuItem::with_id(app, "view-font-out", "减小字号", true, Some("CmdOrCtrl+Shift+-"))?;
+  let font_reset = MenuItem::with_id(app, "view-font-reset", "恢复默认字号", true, Some("CmdOrCtrl+Shift+0"))?;
   let view_menu = Submenu::with_items(
     app,
     "显示",
@@ -103,9 +108,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     &[
       &outline,
       &PredefinedMenuItem::separator(app)?,
-      &zoom_in,
-      &zoom_out,
-      &zoom_reset,
+      &ui_zoom_in,
+      &ui_zoom_out,
+      &ui_zoom_reset,
+      &PredefinedMenuItem::separator(app)?,
+      &font_in,
+      &font_out,
+      &font_reset,
       &PredefinedMenuItem::separator(app)?,
       &theme,
       &settings,
@@ -182,12 +191,16 @@ pub fn route(app: &AppHandle, id: &str) {
     "file-open-default" => "open-default",
     "file-reveal" => "reveal",
     "edit-find" => "find",
+    "edit-insert-image" => "insert-image",
     "view-theme" => "theme",
     "view-outline" => "outline",
     "view-settings" => "settings",
-    "view-zoom-in" => "zoom-in",
-    "view-zoom-out" => "zoom-out",
-    "view-zoom-reset" => "zoom-reset",
+    "view-ui-zoom-in" => "ui-zoom-in",
+    "view-ui-zoom-out" => "ui-zoom-out",
+    "view-ui-zoom-reset" => "ui-zoom-reset",
+    "view-font-in" => "font-size-in",
+    "view-font-out" => "font-size-out",
+    "view-font-reset" => "font-size-reset",
     _ => return,
   };
   let payload = serde_json::json!({ "action": action });

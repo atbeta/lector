@@ -112,6 +112,8 @@ const menus = createDocumentMenus({
   editor,
   files,
   imageMenuItems: images.imageMenuItems,
+  insertImageAfter: (blockId) => void images.pickAndInsert({ type: 'afterBlock', blockId }),
+  insertImageAtCaret: () => void images.pickAndInsert({ type: 'caret' }),
   contentEl,
   // 菜单要分档：阅读档只给「读」的动作（见 documentMenus 的 forMode）
   getViewMode: () => chrome.getViewMode(),
@@ -129,7 +131,14 @@ bindImageTransfer({
   getBlocks: () => editor.getSession().blocks,
   ingestImageFile: (f, name, ref) => images.ingestImageFile(f, name, ref),
 })
-bindAppEvents({ editor, files, chrome, outline, menus })
+bindAppEvents({
+  editor,
+  files,
+  chrome,
+  outline,
+  menus,
+  insertImageAtCaret: () => void images.pickAndInsert({ type: 'caret' }),
+})
 if (detectEnv() === 'shell') {
   setAssetResolver(shellAssetResolver)
 }

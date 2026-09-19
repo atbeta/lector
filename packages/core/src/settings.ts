@@ -387,9 +387,14 @@ export function withReadingTheme(s: EditorSettings, id: ReadingThemeId): EditorS
   }
 }
 
+/** 当前阅读主题的排版「家」：滑块刻度、双击复位、⇧⌘0 都指这里，不是全局 17px。 */
+export function typographyHome(s: Pick<EditorSettings, 'readingTheme'>) {
+  return readingTheme(s.readingTheme).preset
+}
+
 /** 当前设置是否与所选主题的标定值逐项一致（用于画廊里标「已微调」）。 */
 export function matchesReadingThemePreset(s: EditorSettings): boolean {
-  const { preset } = readingTheme(s.readingTheme)
+  const preset = typographyHome(s)
   return (
     s.fontFamily === preset.fontFamily &&
     s.fontSize === preset.fontSize &&

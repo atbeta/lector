@@ -20,6 +20,7 @@ export {
   DEFAULT_SETTINGS,
   isDefaultSettings,
   matchesReadingThemePreset,
+  typographyHome,
   normalizeSettings,
   pushRecentApp,
   isPlausibleAppPath,

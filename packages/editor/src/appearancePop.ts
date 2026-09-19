@@ -8,6 +8,7 @@
 // （弹窗会把正文全遮住），所以要能一边看着正文一边换。
 // 栏宽与界面缩放是同一类动作——也要能看着正文调——所以一并放在这里。
 
+import { DEFAULT_SETTINGS, typographyHome } from '@lector/core'
 import { getSettings, notify, setReadingTheme, setSettings, setThemeMode } from './settings.ts'
 import { appearanceControls } from './themeGallery.ts'
 import { Slider } from './ui.ts'
@@ -54,6 +55,7 @@ export function openAppearancePop(anchor: HTMLElement): void {
     16,
     (v) => setSettings({ ...getSettings(), readingWidth: v }),
     (n) => `${n}px`,
+    { home: typographyHome(getSettings()).readingWidth, resetTip: t('sliderResetTip') },
   )
   const zoom = Slider(
     getSettings().uiZoom,
@@ -62,6 +64,7 @@ export function openAppearancePop(anchor: HTMLElement): void {
     10,
     (v) => setSettings({ ...getSettings(), uiZoom: v }),
     (n) => `${n}%`,
+    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip') },
   )
   // 三列网格而不是「每行一个 flex」：两行的标签宽度不同，各自 flex 会让两个
   // 滑块的起点错开；同一个网格里列宽才是共享的，也就不会写死 em 去赌文案长度。
@@ -98,6 +101,8 @@ export function openAppearancePop(anchor: HTMLElement): void {
     // 换主题会连带改这套排版的字号/行距/栏宽，滑块必须跟着走，否则读数就是说谎
     width.set(s.readingWidth)
     zoom.set(s.uiZoom)
+    width.setHome(typographyHome(s).readingWidth)
+    zoom.setHome(DEFAULT_SETTINGS.uiZoom)
     render()
   })
 

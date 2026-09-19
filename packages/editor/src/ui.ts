@@ -115,11 +115,19 @@ export function Switch(
   return Object.assign(box, { set, setDisabled })
 }
 
+export interface SliderOptions {
+  /** 「家」的位置：轨道上打刻度，双击弹回这里。不传就不画、也不响应双击。 */
+  home?: number
+  /** 双击复位的提示（写在 title 上，侧栏宽度已经用过同一句）。 */
+  resetTip?: string
+}
+
 /**
  * 滑块：自绘 track/fill/thumb，支持拖拽与键盘步进。
  *
- * 返回 { root, readout, set }：set 用于程序化改值（切主题会把标定值写回设置），
+ * 返回 { root, readout, set, setHome }：set 用于程序化改值（切主题会把标定值写回设置），
  * 拖拽期间不会被外部调用打断——拖动中的 thumb 属于用户，谁都不能抢。
+ * setHome 换主题时跟着走：家是当前主题的标定，不是写死的 17px。
  */
 export function Slider(
   value: number,
@@ -128,13 +136,15 @@ export function Slider(
   step: number,
   onChange: (v: number) => void,
   format: (n: number) => string = (n) => String(n),
-): { root: HTMLElement; readout: HTMLElement; set: (v: number) => void } {
+  opts: SliderOptions = {},
+): { root: HTMLElement; readout: HTMLElement; set: (v: number) => void; setHome: (home: number | undefined) => void } {
   const wrap = el('div', 'slider')
   const readout = el('span', 'slider-value')
   const track = el('div', 'slider-track')
   const fill = el('div', 'slider-fill')
+  const homeTick = el('div', 'slider-home')
   const thumb = el('div', 'slider-thumb')
-  track.append(fill, thumb)
+  track.append(fill, homeTick, thumb)
   wrap.appendChild(track)
   wrap.setAttribute('role', 'slider')
   wrap.setAttribute('aria-valuemin', String(min))
@@ -142,6 +152,19 @@ export function Slider(
   wrap.tabIndex = 0
 
   let dragging = false
+  let home = opts.home
+
+  function placeHome() {
+    if (home == null || !Number.isFinite(home)) {
+      homeTick.hidden = true
+      wrap.removeAttribute('title')
+      return
+    }
+    const pct = ((clamp(home, min, max) - min) / (max - min)) * 100
+    homeTick.style.left = `${pct}%`
+    homeTick.hidden = false
+    if (opts.resetTip) wrap.title = opts.resetTip
+  }
 
   function render(v: number) {
     const pct = ((v - min) / (max - min)) * 100
@@ -154,6 +177,18 @@ export function Slider(
   function set(v: number) {
     if (dragging) return
     render(clamp(v, min, max))
+  }
+
+  function setHome(next: number | undefined) {
+    home = next
+    placeHome()
+  }
+
+  function snapHome() {
+    if (home == null || !Number.isFinite(home)) return
+    const v = clamp(home, min, max)
+    render(v)
+    onChange(v)
   }
 
   function setFrom(clientX: number) {
@@ -176,16 +211,27 @@ export function Slider(
   })
   track.addEventListener('pointerup', () => (dragging = false))
   track.addEventListener('pointercancel', () => (dragging = false))
+  // 双击回家：侧栏宽度已经是这个手势。第一次 pointerdown 会先落到点击处，
+  // dblclick 再弹回——中间那一帧的跳动可以接受，比另做长按轻。
+  wrap.addEventListener('dblclick', (e) => {
+    e.preventDefault()
+    snapHome()
+  })
   wrap.addEventListener('keydown', (e) => {
     let v = parseFloat(wrap.getAttribute('aria-valuenow') ?? String(value))
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = clamp(v + step, min, max)
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = clamp(v - step, min, max)
-    else return
+    else if (e.key === 'Home' && home != null) {
+      e.preventDefault()
+      snapHome()
+      return
+    } else return
     e.preventDefault()
     render(v)
     onChange(v)
   })
 
   render(value)
-  return { root: wrap, readout, set }
+  placeHome()
+  return { root: wrap, readout, set, setHome }
 }

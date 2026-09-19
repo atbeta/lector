@@ -15,6 +15,8 @@ export function createDocumentMenus({
   editor,
   files,
   imageMenuItems,
+  insertImageAfter,
+  insertImageAtCaret,
   contentEl,
   getViewMode,
   exportPdf,
@@ -22,6 +24,10 @@ export function createDocumentMenus({
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
   files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'openWithLabel' | 'revealCurrent' | 'closeFile'>
   imageMenuItems: (img: HTMLImageElement) => ContextMenuItem[]
+  /** 选文件插入图片：落在这块后面。实现住在 imageController，菜单只负责入口。 */
+  insertImageAfter: (blockId: string) => void
+  /** 选文件插入图片：落在当前光标（没聚焦块则文末）。 */
+  insertImageAtCaret: () => void
   contentEl: HTMLElement
   getViewMode: () => ViewMode
   /** 导出 PDF：实现在 editorChrome，菜单只负责把它挂进「更多文件操作」。 */
@@ -92,6 +98,12 @@ export function createDocumentMenus({
         },
       },
       { label: t('menuSelectAll'), hint: mod('A'), run: run('selectAll') },
+      {
+        separatorBefore: true,
+        label: t('menuInsertImage'),
+        mutates: true,
+        run: () => insertImageAtCaret(),
+      },
     ]
   }
 
@@ -163,6 +175,11 @@ export function createDocumentMenus({
         label: t('menuInsertMermaid'),
         mutates: true,
         run: () => editor.operations.insertMermaidAfter(block.id),
+      },
+      {
+        label: t('menuInsertImage'),
+        mutates: true,
+        run: () => insertImageAfter(block.id),
       },
     ]
   }

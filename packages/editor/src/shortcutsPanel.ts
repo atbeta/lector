@@ -45,6 +45,17 @@ export function shortcutGroups(): ShortcutGroup[] {
       ],
     },
     {
+      title: t('shortcutGroupZoom'),
+      rows: [
+        { keys: mod('='), label: t('shortcutUiZoomIn') },
+        { keys: mod('-'), label: t('shortcutUiZoomOut') },
+        { keys: mod('0'), label: t('shortcutUiZoomReset') },
+        { keys: modShift('='), label: t('shortcutFontSizeIn') },
+        { keys: modShift('-'), label: t('shortcutFontSizeOut') },
+        { keys: modShift('0'), label: t('shortcutFontSizeReset') },
+      ],
+    },
+    {
       title: t('shortcutGroupEdit'),
       rows: [
         { keys: mod('F'), label: t('findAria') },

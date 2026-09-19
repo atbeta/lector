@@ -1,6 +1,7 @@
 import {
   DEFAULT_SETTINGS,
   normalizeSettings,
+  typographyHome,
   withReadingTheme,
   type EditorSettings,
   type ReadingThemeId,
@@ -102,7 +103,8 @@ export function stepFontSize(delta: number) {
 }
 
 export function resetFontSize() {
-  setSettings({ ...current, fontSize: DEFAULT_SETTINGS.fontSize })
+  // 回到当前阅读主题的标定字号，不是写死 17。手册主题的家是 16。
+  setSettings({ ...current, fontSize: typographyHome(current).fontSize })
 }
 
 /** 界面缩放的档位：演示时常用 125/150，两个端点之间不留太多空档 */
@@ -119,7 +121,7 @@ export function stepUiZoom(delta: number) {
 
 /** 界面缩放回到 100%。 */
 export function resetUiZoom() {
-  setSettings({ ...getSettings(), uiZoom: 100 })
+  setSettings({ ...getSettings(), uiZoom: DEFAULT_SETTINGS.uiZoom })
 }
 
 export async function initSettings() {

@@ -9,6 +9,7 @@ import {
 import {
   detectEnv,
   discardStagedImage,
+  pickImageFiles,
   revealInFolder,
   runImageCommand,
   saveImage,
@@ -27,6 +28,8 @@ import {
   imageContentHash,
   imageDedupKey,
   imageMarkdown,
+  pastedFileName,
+  safeDropName,
   splitUploadCommand,
   expandImageDir,
   findDedupImage,
@@ -129,32 +132,34 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
 
   /** 替换图片文件：选新图 → 走同一条落盘链路 → 只换 URL 段，alt 保留。 */
   function replaceImageFile(block: BlockView, index: number): void {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.addEventListener('change', () => {
-      const file = input.files?.[0]
+    void pickImageFiles(false).then(async (files) => {
+      const file = files[0]
       if (!file) return
-      void (async () => {
-        try {
-          const src = await persistImageBytes(file.name, file)
-          if (!src) return
-          const md = replaceImageUrl(block.raw, index, src)
-          if (md == null) {
-            showToast(t('imageFailed'))
-            return
-          }
-          const before = block.raw
-          editor.operations.setBlockRaw(block, md)
-          editor.operations.pushUndo(t('imageUndoReplace'), () => editor.operations.setBlockRaw(block, before))
-          void editor.render()
-          showToast(t('imageReplaced'))
-        } catch (err) {
-          showToast(`${t('imageFailed')}：${String(err)}`)
+      try {
+        const src = await persistImageBytes(file.name, file)
+        if (!src) return
+        const md = replaceImageUrl(block.raw, index, src)
+        if (md == null) {
+          showToast(t('imageFailed'))
+          return
         }
-      })()
+        const before = block.raw
+        editor.operations.setBlockRaw(block, md)
+        editor.operations.pushUndo(t('imageUndoReplace'), () => editor.operations.setBlockRaw(block, before))
+        void editor.render()
+        showToast(t('imageReplaced'))
+      } catch (err) {
+        showToast(`${t('imageFailed')}：${String(err)}`)
+      }
     })
-    input.click()
+  }
+
+  /** 从文件选择器插入图片：块菜单 / 原生编辑菜单共用。 */
+  async function pickAndInsert(insertRef?: ImageInsertRef | null): Promise<void> {
+    const files = await pickImageFiles(true)
+    for (const file of files) {
+      await ingestImageFile(file, safeDropName(file.name) ?? pastedFileName(new Date(), file.type), insertRef)
+    }
   }
 
   /**
@@ -323,7 +328,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     editor.insertImageMarkdownAtCaret(md)
   }
 
-  return { imageMenuItems, mountImageActions, ingestImageFile }
+  return { imageMenuItems, mountImageActions, ingestImageFile, pickAndInsert }
 }
 
 export type ImageController = ReturnType<typeof createImageController>

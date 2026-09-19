@@ -1944,12 +1944,15 @@ const summary = {
         ? {
             value: (row.querySelector('.slider-value')?.textContent ?? '').trim(),
             label: (row.querySelector('.row-label')?.textContent ?? '').trim(),
+            home: !!row.querySelector('.slider-home:not([hidden])'),
           }
         : null
     })
     if (!zoomRow) note('error', '设置里找不到「界面缩放」这一行（可能误用了 row 而不是 cellRow 而整行丢失）')
     else if (!/%$/.test(zoomRow.value)) {
       note('error', `界面缩放的读数没有渲染：${JSON.stringify(zoomRow.value)}（slider 的 readout 是独立元素，必须用 cellRow）`)
+    } else if (!zoomRow.home) {
+      note('error', '界面缩放滑块没有「家」刻度（100% 的位置应当看得见）')
     }
 
     // 快捷键链路：读数在设置面板里实时跟着变（settingsModal 订阅了设置通知）。
@@ -2422,12 +2425,12 @@ const summary = {
         }).length,
       }
     })
-    if (settingsPanel.cards !== 3) note('error', `设置里的快捷键分组应为 3 张卡片，实为 ${settingsPanel.cards}`)
-    if (settingsPanel.rows !== 16) note('error', `设置里的快捷键应为 16 条，实为 ${settingsPanel.rows}`)
+    if (settingsPanel.cards !== 4) note('error', `设置里的快捷键分组应为 4 张卡片，实为 ${settingsPanel.cards}`)
+    if (settingsPanel.rows !== 22) note('error', `设置里的快捷键应为 22 条，实为 ${settingsPanel.rows}`)
     if (settingsPanel.columns < 2) note('error', `设置里的快捷键仍是单列长清单：${settingsPanel.columns} 列`)
     if (settingsPanel.misplaced > 0) note('error', `设置里的键帽没有排在功能名右侧：${settingsPanel.misplaced} 行`)
     if (settingsPanel.clipped > 0) note('error', `设置里的快捷键名称被截断：${settingsPanel.clipped} 行`)
-    if (settingsPanel.cards === 3 && settingsPanel.rows === 16 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
+    if (settingsPanel.cards === 4 && settingsPanel.rows === 22 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
       note('info', `快捷键设置：${settingsPanel.cards} 组 / ${settingsPanel.columns} 列 / ${settingsPanel.rows} 条，键帽右对齐且无截断`)
     }
     await page.keyboard.press('Escape')

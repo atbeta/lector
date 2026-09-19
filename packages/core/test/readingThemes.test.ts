@@ -13,6 +13,7 @@ import {
   matchesReadingThemePreset,
   normalizeSettings,
   readingTheme,
+  typographyHome,
   withReadingTheme,
 } from '../src/index.ts'
 
@@ -97,6 +98,13 @@ describe('套用阅读主题', () => {
     const applied = withReadingTheme(DEFAULT_SETTINGS, 'focus')
     expect(matchesReadingThemePreset(applied)).toBe(true)
     expect(matchesReadingThemePreset({ ...applied, fontSize: 22 })).toBe(false)
+  })
+
+  test('排版的家是当前主题标定，不是全局 17px', () => {
+    expect(typographyHome({ readingTheme: 'default' }).fontSize).toBe(17)
+    expect(typographyHome({ readingTheme: 'manual' }).fontSize).toBe(16)
+    expect(typographyHome({ readingTheme: 'paper' }).fontSize).toBe(18)
+    expect(typographyHome({ readingTheme: 'manual' }).readingWidth).toBe(1000)
   })
 })
 

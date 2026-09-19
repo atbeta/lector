@@ -24,9 +24,11 @@ interface AppBindingsDeps {
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
   menus: Pick<DocumentMenus, 'openBlockMenu'>
+  /** 原生「编辑 → 插入图片」：落在光标处（没聚焦块则文末）。 */
+  insertImageAtCaret: () => void
 }
 
-export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBindingsDeps): void {
+export function bindAppEvents({ editor, files, chrome, outline, menus, insertImageAtCaret }: AppBindingsDeps): void {
   chrome.elements.contentEl.addEventListener('click', (e) => {
     // 块把手：它只负责唤出块菜单，**不聚焦、不进入编辑**——
     // 「点块正文」才是进来改，「点把手」是管理这一块，两件事不能混成一个动作。
@@ -255,14 +257,26 @@ export function bindAppEvents({ editor, files, chrome, outline, menus }: AppBind
       case 'settings':
         openSettingsModal()
         break
-      case 'zoom-in':
+      case 'ui-zoom-in':
+        stepUiZoom(1)
+        break
+      case 'ui-zoom-out':
+        stepUiZoom(-1)
+        break
+      case 'ui-zoom-reset':
+        resetUiZoom()
+        break
+      case 'font-size-in':
         stepFontSize(1)
         break
-      case 'zoom-out':
+      case 'font-size-out':
         stepFontSize(-1)
         break
-      case 'zoom-reset':
+      case 'font-size-reset':
         resetFontSize()
+        break
+      case 'insert-image':
+        insertImageAtCaret()
         break
     }
   })

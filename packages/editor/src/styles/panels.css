@@ -302,12 +302,12 @@
 .shortcuts-pop {
   position: fixed;
   z-index: 100;
-  /* 三组并排（每组一列）：面板又短又宽，常态下根本够不到滚动条 */
+  /* 四组并排（每组一列）：文档 / 视图 / 缩放 / 编辑。面板又短又宽，常态下够不到滚动条 */
   display: flex;
   flex-wrap: wrap;
   gap: 10px 26px;
   width: max-content;
-  max-width: min(92vw, 700px);
+  max-width: min(92vw, 860px);
   /* 只有极端小的窗口才需要滚动；上限留够，不常驻滚动条 */
   max-height: calc(100vh - 72px);
   overflow-y: auto;

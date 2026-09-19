@@ -40,6 +40,43 @@ export async function pickAndRead(): Promise<(OpenPayload & ReadResult) | null> 
 }
 
 
+const IMAGE_OPEN_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif'] as const
+
+/**
+ * 选一张或多张图片。壳里走系统文件对话框；浏览器预览退回 `<input type=file>`。
+ * 取消选择返回空数组（不是 null）——调用方按「没选」处理即可。
+ */
+export async function pickImageFiles(multiple = true): Promise<File[]> {
+  if (detectEnv() === 'shell') {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const picked = await open({
+      multiple,
+      directory: false,
+      filters: [{ name: 'Images', extensions: [...IMAGE_OPEN_EXTS] }],
+    })
+    if (!picked) return []
+    const paths = typeof picked === 'string' ? [picked] : picked
+    const files: File[] = []
+    for (const p of paths) {
+      const bytes = await readBytes(p)
+      const name = p.split(/[\\/]/).pop() ?? 'image'
+      files.push(new File([bytes], name))
+    }
+    return files
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.multiple = multiple
+    const finish = (files: File[]) => resolve(files)
+    input.addEventListener('change', () => finish(Array.from(input.files ?? [])))
+    input.addEventListener('cancel', () => finish([]))
+    input.click()
+  })
+}
+
+
 /** 选一个外部应用（可执行文件）。壳里走系统文件对话框；预览环境返回 null（没有这个能力）。 */
 export async function pickAppPath(): Promise<string | null> {
   if (detectEnv() !== 'shell') return null

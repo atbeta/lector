@@ -20,7 +20,7 @@ import {
   setThemeMode,
   notify,
 } from './settings.ts'
-import { hasImageCommand, imagePipeline, isPlausibleAppPath, pushRecentApp } from '@lector/core'
+import { DEFAULT_SETTINGS, hasImageCommand, imagePipeline, isPlausibleAppPath, pushRecentApp, typographyHome } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { Segmented, Slider, Switch } from './ui.ts'
@@ -231,6 +231,7 @@ export function openSettingsModal(onClose?: () => void) {
     10,
     (v) => apply((s) => ({ ...s, uiZoom: v })),
     (n) => `${n}%`,
+    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip') },
   )
   appearance.appendChild(cellRow(t('uiZoom'), zoomSlider))
   appearance.appendChild(groupLabel(t('settingsGroupGlobalStyle')))
@@ -248,6 +249,7 @@ export function openSettingsModal(onClose?: () => void) {
   )
   reading.appendChild(row(t('readingFont'), font.root))
 
+  const typeHome = () => typographyHome(getSettings())
   const fontSlider = Slider(
     getSettings().fontSize,
     11,
@@ -255,6 +257,7 @@ export function openSettingsModal(onClose?: () => void) {
     1,
     (v) => apply((s) => ({ ...s, fontSize: v })),
     (n) => `${n}px`,
+    { home: typeHome().fontSize, resetTip: t('sliderResetTip') },
   )
   reading.appendChild(cellRow(t('fontSize'), fontSlider))
 
@@ -265,6 +268,7 @@ export function openSettingsModal(onClose?: () => void) {
     0.05,
     (v) => apply((s) => ({ ...s, lineHeight: v })),
     (n) => n.toFixed(2),
+    { home: typeHome().lineHeight, resetTip: t('sliderResetTip') },
   )
   reading.appendChild(cellRow(t('lineHeight'), lhSlider))
 
@@ -275,6 +279,7 @@ export function openSettingsModal(onClose?: () => void) {
     16,
     (v) => apply((s) => ({ ...s, readingWidth: v })),
     (n) => `${n}px`,
+    { home: typeHome().readingWidth, resetTip: t('sliderResetTip') },
   )
   reading.appendChild(cellRow(t('readingWidth'), wSlider))
 
@@ -837,6 +842,11 @@ export function openSettingsModal(onClose?: () => void) {
     lhSlider.set(s.lineHeight)
     wSlider.set(s.readingWidth)
     zoomSlider.set(s.uiZoom)
+    const home = typographyHome(s)
+    fontSlider.setHome(home.fontSize)
+    lhSlider.setHome(home.lineHeight)
+    wSlider.setHome(home.readingWidth)
+    zoomSlider.setHome(DEFAULT_SETTINGS.uiZoom)
     // 图片两个开关的可用性由命令字段决定（清空命令会把它们锁回去），
     // 而这条链是「设置变了」的唯一出口——输入框自己改值时也走这里。
     syncImage()
