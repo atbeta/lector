@@ -33,14 +33,55 @@ export function clampReport(text: string, max = MAX_REPORT_CHARS): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
+/** 报告节流器：避免同一处异常反复触发时把 IPC 和日志刷爆。 */
+export interface ReportThrottle {
+  /** 是否放行这条报告。now 可注入，便于测试。 */
+  allow(message: string, now?: number): boolean
+}
+
+/**
+ * 节流规则（纯逻辑，便于测试）：
+ *   - 同一条消息在 dedupeMs 内只记一次（循环里反复抛同一异常的情形）；
+ *   - 每个 windowMs 窗口最多 max 条（整体防洪），超了丢弃，窗口滚动后恢复。
+ * 磁盘本身有 40KB 轮转兜底，这里防的是 CPU 与 IPC 抖动。
+ */
+export function createReportThrottle(
+  dedupeMs = 3000,
+  max = 30,
+  windowMs = 10_000,
+): ReportThrottle {
+  let lastMessage = ''
+  let lastAt = Number.NEGATIVE_INFINITY
+  let windowStart = Number.NEGATIVE_INFINITY
+  let count = 0
+  return {
+    allow(message, now = Date.now()) {
+      if (now - windowStart > windowMs) {
+        windowStart = now
+        count = 0
+      }
+      if (count >= max) return false
+      if (message === lastMessage && now - lastAt < dedupeMs) return false
+      lastMessage = message
+      lastAt = now
+      count++
+      return true
+    },
+  }
+}
+
 /**
  * 注册全局兜底。每类错误只提示一次——首个错误之后的连锁失败再弹会淹没界面；
  * 日志仍逐条记，提示只是「出事了」的可见信号。
  */
 export function installGlobalErrorReporting(): void {
   let notified = false
+  const throttle = createReportThrottle()
   const report = (message: string) => {
-    void webLog('error', clampReport(message))
+    // 节流挡住循环刷屏；`.catch` 是最后一道保险，确保这里永不产生未处理拒绝。
+    if (throttle.allow(message)) {
+      webLog('error', clampReport(message)).catch(() => {})
+    }
     if (notified) return
     notified = true
     showToast(t('errorToast'))

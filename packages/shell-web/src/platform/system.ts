@@ -139,17 +139,19 @@ export async function appDirs(): Promise<AppDirs | null> {
  * 自身失败不再抛：它本来就是兜底路径，别再制造新的未处理拒绝。
  */
 export async function webLog(level: 'error' | 'warn' | 'info', message: string): Promise<void> {
-  if (detectEnv() !== 'shell') {
-    if (level === 'error') console.error(message)
-    else if (level === 'warn') console.warn(message)
-    else console.info(message)
-    return
-  }
-  const { invoke } = await tauriApi()
+  // 整个函数体都要兜住：tauriApi() 的动态 import 失败时它缓存的 promise 会永久 rejected，
+  // 若让它漏出去，就成了「未处理拒绝 → 上报 → 再失败」的自激环。
   try {
+    if (detectEnv() !== 'shell') {
+      if (level === 'error') console.error(message)
+      else if (level === 'warn') console.warn(message)
+      else console.info(message)
+      return
+    }
+    const { invoke } = await tauriApi()
     await invoke('web_log', { level, message })
   } catch {
-    /* 回传失败就此打住 */
+    /* 回传失败就此打住：兜底路径不该制造新的未处理拒绝 */
   }
 }
 
