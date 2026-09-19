@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Lector</title>
+  <desc id="desc">Same L/M mark as app-icon.svg. Plate inset ~10% for the macOS icon grid; graphite is lit satin, not a flat fill.</desc>
+  <defs>
+    <linearGradient id="plate" x1="16" y1="3.2" x2="16" y2="28.8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4A5F6E"/>
+      <stop offset="0.42" stop-color="#364653"/>
+      <stop offset="1" stop-color="#242F37"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="12" cy="8.4" r="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+    <clipPath id="plate-clip">
+      <rect x="3.2" y="3.2" width="25.6" height="25.6" rx="5.6"/>
+    </clipPath>
+    <filter id="mark-sit" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0.2" stdDeviation="0.15" flood-color="#1A242C" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#plate-clip)">
+    <rect x="3.2" y="3.2" width="25.6" height="25.6" rx="5.6" fill="url(#plate)"/>
+    <rect x="3.2" y="3.2" width="25.6" height="25.6" rx="5.6" fill="url(#sheen)"/>
+    <g transform="translate(16 16) scale(0.8) translate(-16 -16)" stroke="#F7F9FB" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" filter="url(#mark-sit)">
+      <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
+      <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+    </g>
+  </g>
+  <rect x="3.42" y="3.42" width="25.16" height="25.16" rx="5.42" fill="none" stroke="url(#rim)" stroke-width="0.36"/>
+</svg>

@@ -88,7 +88,31 @@ Tauri 会注册一个**用 `fileAssociations[].name` 命名的类键**（本仓�
 太重、在一堆文件里也认不出「这是一份文档」。文档图标是浅色纸张 + 折角 + Lector 标记，
 放在一堆白色页面里也是一眼能认出的一个。
 
-- 源文件 `file-icon.svg`（应用图标是 `app-icon.svg`），重新生成：
+### 应用图标（macOS 与 Windows 不是同一张）
+
+源文件两份，**不要**用一份 SVG 同时出 `.icns` 和 `.ico`：
+
+- `app-icon.svg`：满幅圆角底板。给 Windows `.ico` 与 PNG（任务栏 / 开始菜单会再裁圆角，留白会显得小）。
+- `app-icon-macos.svg`：同一套 L/M，底板按图标网格内缩约 10%。给 `icon.icns`（Dock / Finder）。满幅图在 macOS 上会被系统再套一层超椭圆，光学上比旁边的应用大一圈。
+- 底板色相仍是 `#364653`，不要平涂：顶光 + 左上高光 + 内沿，让石墨像缎面而不是色块。空态 `lector-mark.svg` 跟满幅稿同一套光。
+
+```
+# Windows（只取 ico；顺带的 icns/android 丢掉）
+bunx tauri icon clients/tauri/app-icon.svg -o /tmp/lector-win-icon
+cp /tmp/lector-win-icon/icon.ico clients/tauri/src-tauri/icons/icon.ico
+cp /tmp/lector-win-icon/32x32.png clients/tauri/src-tauri/icons/32x32.png
+cp /tmp/lector-win-icon/128x128.png clients/tauri/src-tauri/icons/128x128.png
+cp /tmp/lector-win-icon/128x128@2x.png clients/tauri/src-tauri/icons/128x128@2x.png
+cp /tmp/lector-win-icon/icon.png clients/tauri/src-tauri/icons/icon.png
+
+# macOS（只取 icns）
+bunx tauri icon clients/tauri/app-icon-macos.svg -o /tmp/lector-mac-icon
+cp /tmp/lector-mac-icon/icon.icns clients/tauri/src-tauri/icons/icon.icns
+```
+
+空态 / About 的 `lector-mark.svg` 仍用满幅稿，那是页面里的品牌块，不受 Dock 网格约束。
+
+- 源文件 `file-icon.svg`（文档图标，与应用图标分开），重新生成：
   ```
   bunx tauri icon clients/tauri/file-icon.svg -o /tmp/md-icon
   cp /tmp/md-icon/icon.ico clients/tauri/src-tauri/icons/markdown.ico

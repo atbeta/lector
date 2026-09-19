@@ -1034,58 +1034,52 @@ html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
   gap: 10px;
 }
 .empty-actions .empty-new { margin-left: 0; }
-.empty-open, .empty-new { min-width: 112px; justify-content: center; }
-.empty-open { min-height: 36px; padding-inline: 16px; }
-.empty-new { min-height: 36px; padding-inline: 14px; }
+.empty-open, .empty-new { justify-content: center; }
 @media (max-width: 560px) {
   .empty-actions { flex-direction: column; width: min(100%, 220px); }
   .empty-open, .empty-new { width: 100%; }
 }
-/* 墨色按钮：空态的主动作用「最强、不带品牌色」的墨色（tokens 里 --ink 的本义） */
-.empty-open {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 15px;
-  border: 0;
-  border-radius: var(--radius-card);
-  background: rgb(var(--ink));
-  color: rgb(var(--ink-foreground));
-  font: inherit;
-  font-size: var(--text-base);
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.18), 0 6px 16px rgb(var(--shadow-color) / 0.08);
-  transition: transform var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard);
-}
-/* 「新建」是次要动作：与主按钮同高、无底色、只留一道描边。
-   两个按钮并排时，主次不该靠颜色争抢——底色归主按钮，描边归次按钮。 */
+/* 两个动作同一套语言：发丝边、轻底、无投影。实心白胶囊在扉页上会
+   抢过 logo 和定位语——阅读器的第一屏不该长得像下载页 CTA。
+   「打开」只比「新建」多一层极淡的底，主次靠浓度，不靠两套形状。 */
+.empty-open,
 .empty-new {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-left: 10px;
-  padding: 7px 13px;
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-card);
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 8px;
   background: transparent;
   color: rgb(var(--foreground));
   font: inherit;
   font-size: var(--text-base);
+  font-weight: 450;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease-standard),
-    background var(--motion-fast) var(--ease-standard);
+  box-shadow: none;
+  transition: background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
-.empty-new:hover {
-  border-color: rgb(var(--border-strong));
-  background: rgb(var(--accent));
+.empty-open {
+  background: rgb(var(--foreground) / 0.06);
+  border-color: rgb(var(--border));
 }
 .empty-open:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgb(var(--shadow-color) / 0.16), 0 10px 24px rgb(var(--shadow-color) / 0.12);
+  background: rgb(var(--foreground) / 0.1);
 }
-.empty-open:active { transform: none; }
+.empty-new {
+  color: rgb(var(--muted-foreground));
+}
+.empty-new:hover {
+  color: rgb(var(--foreground));
+  border-color: rgb(var(--border));
+  background: rgb(var(--foreground) / 0.04);
+}
+.empty-open:active,
+.empty-new:active { background: rgb(var(--foreground) / 0.08); }
 .empty-open kbd {
   padding: 1px 6px;
   border-radius: 5px;

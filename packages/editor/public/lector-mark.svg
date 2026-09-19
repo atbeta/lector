@@ -1,9 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Lector</title>
-  <desc id="desc">蓝石墨色圆角底，白色 L 以流畅弧角托住 M，分别代表 Lector 与 Markdown。</desc>
-  <rect width="32" height="32" rx="8" fill="#364653"/>
-  <g stroke="#FFFFFF" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
-    <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+  <desc id="desc">蓝石墨色圆角底，白色 L 以流畅弧角托住 M，分别代表 Lector 与 Markdown。底板是同一色相的缎面，不是平涂。</desc>
+  <defs>
+    <linearGradient id="plate" x1="16" y1="0" x2="16" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4A5F6E"/>
+      <stop offset="0.42" stop-color="#364653"/>
+      <stop offset="1" stop-color="#242F37"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="11" cy="7.5" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="4" y1="1.5" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+    <clipPath id="plate-clip">
+      <rect width="32" height="32" rx="8"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#plate-clip)">
+    <rect width="32" height="32" rx="8" fill="url(#plate)"/>
+    <rect width="32" height="32" rx="8" fill="url(#sheen)"/>
+    <g stroke="#F7F9FB" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
+      <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+    </g>
   </g>
+  <rect x="0.28" y="0.28" width="31.44" height="31.44" rx="7.72" fill="none" stroke="url(#rim)" stroke-width="0.4"/>
 </svg>
