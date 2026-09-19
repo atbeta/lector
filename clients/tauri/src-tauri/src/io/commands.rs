@@ -284,6 +284,21 @@ pub fn recent_clear(app: AppHandle) {
   clear_recent(&app);
 }
 
+/// 前端未捕获异常 / 未处理拒绝的回传口。
+///
+/// release 下 WebView 控制台没人收，`console.error` 等于丢掉；前端把漏网异常经这里
+/// 写进壳的文件日志（log 插件的文件 target），排障时才有证据。
+/// 只接 level + message，不接任意路径——同 read_clipboard，不给 web 开插件通配能力，
+/// 所以走自定义命令而不是暴露 log 插件。
+#[tauri::command]
+pub fn web_log(level: String, message: String) {
+  match level.as_str() {
+    "warn" => log::warn!(target: "web", "{message}"),
+    "info" => log::info!(target: "web", "{message}"),
+    _ => log::error!(target: "web", "{message}"),
+  }
+}
+
 #[derive(Serialize)]
 pub struct AppDirs {
   data: String,

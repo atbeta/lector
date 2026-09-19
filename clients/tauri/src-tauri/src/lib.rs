@@ -169,6 +169,7 @@ pub fn run() {
       io::commands::recent_list,
       io::commands::recent_clear,
       io::commands::app_dirs,
+      io::commands::web_log,
       pdf::print_to_pdf,
       io::commands::webview_ready,
       io::commands::set_zoom,

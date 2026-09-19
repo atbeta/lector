@@ -132,3 +132,24 @@ export async function appDirs(): Promise<AppDirs | null> {
   }
 }
 
+
+/**
+ * 把前端日志送进壳的文件日志。release 下 WebView 控制台没人接收，未捕获异常只有
+ * 走这条才能留下证据。浏览器预览没有壳，退回 console。
+ * 自身失败不再抛：它本来就是兜底路径，别再制造新的未处理拒绝。
+ */
+export async function webLog(level: 'error' | 'warn' | 'info', message: string): Promise<void> {
+  if (detectEnv() !== 'shell') {
+    if (level === 'error') console.error(message)
+    else if (level === 'warn') console.warn(message)
+    else console.info(message)
+    return
+  }
+  const { invoke } = await tauriApi()
+  try {
+    await invoke('web_log', { level, message })
+  } catch {
+    /* 回传失败就此打住 */
+  }
+}
+
