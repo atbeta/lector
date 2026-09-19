@@ -30,3 +30,11 @@ clients/tauri/gen/
 .runlog.txt
 .runid
 .review/
+
+# 本机 AI 编码工具的产物。Kilo 会往 .git/info/exclude 里写一份，但那是每个 clone
+# 各写一次的本地文件；仓库里再兜一层，换台机器也不会把 worktree 提进来。
+.kilo/
+.kilocode/
+# 本机真机渲染探针（WKWebView 截图、一次性 swift 脚本）。macOS 原生渲染差异只能在
+# 真 WKWebView 里量，但那是一次性证据，不进仓库。
+.probe/

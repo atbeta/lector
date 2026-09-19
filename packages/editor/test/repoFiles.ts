@@ -8,7 +8,11 @@ import { join, resolve, extname } from 'node:path'
 /** 仓库根：本文件在 packages/editor/test/ 下。 */
 export const REPO_ROOT = resolve(import.meta.dirname, '../../..')
 
-const SKIP = /node_modules|[\\/]\.git|[\\/]target|[\\/]dist|[\\/]\.tmp|gen[\\/]schemas/
+// 不算「仓库源码」的目录：依赖、版本库元数据、构建产物、生成物，以及**本机工具
+// 的临时目录**。最后这一类必须挡住：`.kilo/worktrees/` 里是整份仓库的副本，
+// 扫进去会让文本完整性测试因为那份副本里的存量腐化而变红（本机实测过）。
+const SKIP =
+  /node_modules|[\\/]\.git|[\\/]target|[\\/]dist|[\\/]\.tmp|[\\/]\.kilo|[\\/]\.kilocode|[\\/]\.probe|gen[\\/]schemas/
 
 export function walkRepo(dir: string = REPO_ROOT, out: string[] = []): string[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
