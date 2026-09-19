@@ -44,8 +44,26 @@ export async function applyUiZoom(scale: number): Promise<void> {
   try {
     await invoke('set_zoom', { scale })
     nativeZoomApplied = true
+    await syncMacTitlebarToLights()
   } catch (err) {
     console.error('[lector] set_zoom', err)
+  }
+}
+
+/** 量原生红绿灯中心，写给 CSS。灯不动，顶栏按钮去就位。 */
+async function syncMacTitlebarToLights(): Promise<void> {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  if (/Windows/i.test(ua) || !/Mac/i.test(ua)) return
+  try {
+    const { invoke } = await tauriApi()
+    const center = await invoke<number>('macos_traffic_light_center')
+    if (!Number.isFinite(center)) return
+    document.documentElement.style.setProperty(
+      '--traffic-light-center',
+      `${center / appliedZoom}px`,
+    )
+  } catch {
+    /* 灯组还没建好，或不是 mac 壳 */
   }
 }
 

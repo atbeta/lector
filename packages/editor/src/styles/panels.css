@@ -498,6 +498,7 @@
 #titlebar.scrolled { border-bottom-color: rgb(var(--border-subtle) / 0.56); }
 html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
 html[data-shell='windows'] .find-bar { top: 42px; }
+html[data-shell='macos'] .find-bar { top: calc(36px + 10px); }
 .titlebar-title { font-weight: 550; }
 .titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
 .sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }

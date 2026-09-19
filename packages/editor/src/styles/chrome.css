@@ -206,6 +206,21 @@ html[data-shell='windows'] .titlebar-more { position: static; margin-left: 4px; 
    （与正文的偏差只在极窄窗口出现，那时正文本身也快贴边了）。 */
 html[data-shell='macos'] #titlebar,
 html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 14px)); }
+/* 灯的中心由壳量一次写成 --traffic-light-center（窗口点 / 界面缩放）。
+   26px 按钮半高 13：padding = 中心 - 13。不再手估。栏 36px，避免 48px 下面空一截。 */
+html[data-shell='macos'] #titlebar {
+  height: 36px;
+  align-items: flex-start;
+  padding-top: max(0px, calc(var(--traffic-light-center, 16px) - 13px));
+}
+html[data-shell='macos'] #titlebar .btn-icon {
+  width: 26px;
+  height: 26px;
+}
+html[data-shell='macos'] .titlebar-center {
+  top: max(0px, calc(var(--traffic-light-center, 16px) - 13px));
+  bottom: auto;
+}
 
 
 .titlebar-ext {
@@ -846,6 +861,7 @@ html.sidebar-overlay .sidebar {
   animation: sidebar-in var(--motion-slow) var(--ease-emphasized) both;
 }
 html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
+html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
 
 /* ── 树形大纲 ──
  * 层级用**结构**表达（子节点容器缩进 12px），不再给每一级写一条 padding 规则。

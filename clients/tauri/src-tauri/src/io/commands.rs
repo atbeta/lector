@@ -462,10 +462,21 @@ pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Result<(), String> 
   if !scale.is_finite() || !(0.2..=5.0).contains(&scale) {
     return Err("zoom scale out of range".into());
   }
-  window.set_zoom(scale).map_err(|e| e.to_string())?;
+  window.set_zoom(scale).map_err(|e| e.to_string())
+}
+
+/// macOS 红绿灯中心距窗口顶（逻辑点）。Web 顶栏用它算 padding，不搬灯。
+#[tauri::command]
+pub async fn macos_traffic_light_center(window: tauri::WebviewWindow) -> Result<f64, String> {
   #[cfg(target_os = "macos")]
-  super::window::align_macos_traffic_lights(&window, scale)?;
-  Ok(())
+  {
+    super::window::traffic_light_center_from_top(&window)
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    let _ = window;
+    Err("macos only".into())
+  }
 }
 
 // ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────

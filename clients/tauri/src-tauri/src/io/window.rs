@@ -125,39 +125,33 @@ pub const fn window_chrome() -> WindowChrome {
   WindowChrome { decorations: true, transparent: false }
 }
 
+/// 关闭按钮中心距窗口顶的逻辑点。只量、不 setFrame，给 Web 顶栏 padding 对齐用。
+#[cfg(target_os = "macos")]
+pub fn traffic_light_center_from_top(window: &tauri::WebviewWindow) -> Result<f64, String> {
+  use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+  use std::sync::mpsc;
+
+  let (tx, rx) = mpsc::channel();
+  window
+    .with_webview(move |webview| unsafe {
+      let ns_window: &NSWindow = &*webview.ns_window().cast();
+      let Some(close) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
+        let _ = tx.send(Err("traffic light button missing".into()));
+        return;
+      };
+      let in_window = NSView::convertRect_toView(&close, NSView::bounds(&close), None);
+      let center = ns_window.frame().size.height - (in_window.origin.y + in_window.size.height / 2.0);
+      let _ = tx.send(Ok(center));
+    })
+    .map_err(|e| e.to_string())?;
+  rx.recv().map_err(|e| e.to_string())?
+}
+
 #[cfg(not(target_os = "macos"))]
 pub const fn window_chrome() -> WindowChrome {
   // Windows / Linux：无边框自绘，最小化/最大化/关闭由 Web 层的 chrome.ts 调窗口命令。
   // Windows 透明窗口是圆角的前提（DWM 材质方案，见 apply_platform_window_tweaks）。
   WindowChrome { decorations: false, transparent: true }
-}
-
-#[cfg(target_os = "macos")]
-pub fn align_macos_traffic_lights(window: &tauri::WebviewWindow, scale: f64) -> Result<(), String> {
-  use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
-
-  window
-    .with_webview(move |webview| unsafe {
-      let window: &NSWindow = &*webview.ns_window().cast();
-      let close = window.standardWindowButton(NSWindowButton::CloseButton).unwrap();
-      let minimize = window.standardWindowButton(NSWindowButton::MiniaturizeButton).unwrap();
-      let zoom = window.standardWindowButton(NSWindowButton::ZoomButton).unwrap();
-      let container = close.superview().unwrap().superview().unwrap();
-      let close_rect = NSView::frame(&close);
-      let titlebar_height = 48.0 * scale;
-      let mut titlebar_rect = NSView::frame(&container);
-      titlebar_rect.size.height = titlebar_height;
-      titlebar_rect.origin.y = window.frame().size.height - titlebar_height;
-      container.setFrame(titlebar_rect);
-      let spacing = NSView::frame(&minimize).origin.x - close_rect.origin.x;
-      for (i, button) in [close, minimize, zoom].into_iter().enumerate() {
-        let mut rect = NSView::frame(&button);
-        rect.origin.x = 14.0 + i as f64 * spacing;
-        rect.origin.y = ((titlebar_height - rect.size.height) / 2.0).max(0.0);
-        button.setFrameOrigin(rect.origin);
-      }
-    })
-    .map_err(|e| e.to_string())
 }
 
 /// 平台级的窗口观感微调，在窗口创建后、显示前调用。
@@ -375,9 +369,11 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
       .hidden_title(true)
       .title_bar_style(tauri::TitleBarStyle::Overlay)
       .accept_first_mouse(true)
-      // 48px 顶栏里把 13px 高的灯组垂直居中：(48-13)/2 = 17.5。
-      // 第一颗按钮左沿取 14pt，灯组与后面的文件按钮因此有对称的呼吸空间。
-      .traffic_light_position(tauri::LogicalPosition::new(14.0, 17.5));
+      // 红绿灯交给系统，不要事后 setFrame——wry/tao 每次 drawRect 都会按这个值
+      // 复位，跟手改坐标就是缩放时灯组上下跳的根因。
+      // tao 的 y 是「按钮之上的空隙」（容器高 = 按钮高 + y）。(14, 16) 钉在
+      // 系统那条 ~28pt 顶带；Web 顶栏收成 36px 去就位，见 chrome.css。
+      .traffic_light_position(tauri::LogicalPosition::new(14.0, 16.0));
   }
   log::info!("[win] 准备建窗 {label}");
   let win = builder.build()?;

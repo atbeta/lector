@@ -153,6 +153,7 @@ pub fn run() {
       pdf::print_to_pdf,
       io::commands::webview_ready,
       io::commands::set_zoom,
+      io::commands::macos_traffic_light_center,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");
