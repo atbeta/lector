@@ -26,6 +26,7 @@ import { headingDepth } from './outlineModel.ts'
 import { showSvgInLightbox } from './lightbox.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
+import { sameBlockPaint } from './blockPaint.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
 import { createDocumentSession, type DocumentSession } from './documentSession.ts'
@@ -92,6 +93,12 @@ export function createDocumentEditor({
 }: DocumentEditorDeps): DocumentEditor {
   const session = createDocumentSession()
   const blocksEl = new Map<string, HTMLElement>()
+  /**
+   * 上一轮每个块真正画进 DOM 的形态。勾选任务 / 改一张图都会 render() 整篇，
+   * 但未变块再 replaceChildren 会把文中其它图重新解码、mermaid 重画、代码块
+   * 重高亮——勾一下任务就卡死。raw / kind / 聚焦 / 视图档都没变就跳过。
+   */
+  const lastPaint = new Map<string, { raw: string; kind: string; focused: boolean; mode: string }>()
   let cm: CmHandle | null = null
   const liveText = new Map<string, string>()
   /** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
@@ -149,6 +156,7 @@ export function createDocumentEditor({
     }
     large.destroy()
     blocksEl.clear()
+    lastPaint.clear()
     liveText.clear()
     contentEl.classList.remove('large-doc')
     document.documentElement.classList.remove('large-file')
@@ -256,16 +264,21 @@ export function createDocumentEditor({
       if (!seen.has(id)) {
         el.remove()
         blocksEl.delete(id)
+        lastPaint.delete(id)
       }
     }
     applyKeyedChildren(contentEl, desired)
+    const mode = getViewMode()
     for (const block of session.blocks) {
       const el = blocksEl.get(block.id)
-      if (el) {
-        renderBlockContent(el, block)
-        // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
-        appendBlockChrome(el, block)
-      }
+      if (!el) continue
+      const focused = block.id === session.focusedId
+      const next = { raw: block.raw, kind: block.kind, focused, mode }
+      if (sameBlockPaint(lastPaint.get(block.id), next)) continue
+      renderBlockContent(el, block)
+      // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
+      appendBlockChrome(el, block)
+      lastPaint.set(block.id, next)
     }
   }
 
@@ -654,6 +667,7 @@ export function createDocumentEditor({
     }
     large.destroy()
     large.deactivate()
+    lastPaint.clear()
     session.source = null
     session.focusedId = null
     session.dirty = false
@@ -671,6 +685,7 @@ export function createDocumentEditor({
 
   function clearBlockElements(): void {
     blocksEl.clear()
+    lastPaint.clear()
   }
 
   function acceptDiskMtime(mtimeMs: number): void {
