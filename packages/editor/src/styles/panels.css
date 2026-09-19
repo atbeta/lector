@@ -503,7 +503,6 @@ html[data-shell='macos'] .find-bar { top: calc(36px + 10px); }
 .titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
 .sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
 html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
-.sidebar-head { padding-top: 16px; }
 #statusbar {
   height: 32px;
   border-top: 1px solid rgb(var(--border-subtle) / 0.56);

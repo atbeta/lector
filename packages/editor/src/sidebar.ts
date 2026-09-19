@@ -124,18 +124,11 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     return 'docked'
   }
 
-  // 标题行：一列目录要有名字。初版直接从条目开始，288px 的白栏看起来像没加载完。
-  const head = document.createElement('div')
-  head.className = 'sidebar-head'
-  const headLabel = document.createElement('span')
-  headLabel.textContent = t('outlineTitle')
-  // 标题右侧原本挂了一个「节数」。它没有信息量：一列目录里的条目是看得见的，
-  // 数一遍就能数出来，而这个数字既不能点也不能筛选，只是常驻的噪音——去掉。
-  head.append(headLabel)
-
+  // 不再挂「大纲」标题行。顶栏按钮已经点明这是目录，栏里又只有标题列表，
+  // 再印一遍和当初那个「节数」一样，是常驻噪音。aside 的 aria-label 留给读屏。
   const body = document.createElement('div')
   body.className = 'sidebar-body'
-  el.append(head, body)
+  el.append(body)
 
   // ───────────── 宽度把手 ─────────────
   // 侧栏宽度是「这份文档要看多少目录」的偏好，一个固定值总有一半人嫌宽或嫌窄，
@@ -238,7 +231,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
     root.classList.toggle('sidebar-docked', m === 'docked')
     root.classList.toggle('sidebar-overlay', m === 'overlay')
     if (open) {
-      // 开：立刻显示，内容由变宽的轨道逐步揭示（head/body 锁宽不重排，见 chrome.css）
+      // 开：立刻显示，内容由变宽的轨道逐步揭示（body 锁宽不重排，见 chrome.css）
       clearTimeout(hideTimer)
       el.removeAttribute('hidden')
       el.setAttribute('aria-hidden', 'false')

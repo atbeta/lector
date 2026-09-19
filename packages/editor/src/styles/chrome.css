@@ -754,9 +754,10 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
  * 窄窗口放不下「正文列 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
  * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
 .sidebar {
+  --sidebar-grip-w: 6px;
   grid-area: side;
   /* 三件套：定位锚点（宽度把手要绝对定位）、列向布局、不外溢。
-     滚动下放到 .sidebar-body——标题行要常驻，滚目录时不能让「大纲」两个字滚走。 */
+     滚动只发生在 .sidebar-body。 */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -771,16 +772,24 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
 }
 .sidebar[hidden] { display: none; }
 /* 开合动画期间内容不重排：轨道伸缩时 aside 宽度逐帧变化，内容若跟着伸缩，目录
-   文字会逐帧挤压换行（发皱）。head/body 锁在停靠宽度上（-1px = 右边框），超出
+   文字会逐帧挤压换行（发皱）。body 锁在停靠宽度上（-1px = 右边框），超出
    部分由 aside 的 overflow: hidden 裁掉——动画变成干净的揭示/收起，文字纹丝不动。 */
-.sidebar-head,
 .sidebar-body {
-  width: calc(var(--sidebar-w) - 1px);
+  /* 右边让出握把宽：8px 滑轨在这一列里，6px 热区在它外侧。叠在一起时
+     永远点不到滑轨（光标先变成 col-resize）。-1px = 侧栏右边框。 */
+  width: calc(var(--sidebar-w) - 1px - var(--sidebar-grip-w));
   /* 本仓库没有全局 box-sizing。不补这行，width 是内容宽、再叠加左右各 8px 的
-     padding，head/body 会比侧栏宽 16px：右侧留白被裁掉，而且 .sidebar-body 变成
+     padding，body 会比侧栏宽 16px：右侧留白被裁掉，而且 .sidebar-body 变成
      可横向滚动的盒子——点大纲条目时 scrollIntoView 会把它滚 8px，左侧留白当场消失
      （「有时有、点一下又没了」就是这一下）。 */
   box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 8px 16px;
 }
 /* 没有文档（空态 / 加载态）时侧栏整块下线：轨道归零、竖线消失。
    保留一条 288px 的空栏 = 在首屏正中放一块「这里本该有内容」的空白。
@@ -790,15 +799,14 @@ html.no-doc .sidebar { display: none; }
 /* 状态行写的是「这份文档现在什么状态」。没有文档时就无话可写，留一条空带
    既没信息又打破空态「整窗一块画布」的扉页感——一起收掉。 */
 html.no-doc #statusbar { display: none; }
-/* 宽度把手：贴在右边缘的一条 7px 热区。
-   平时只是一条发丝线（侧栏悬停才显形），拖起来才点成主色——
-   它得能被发现，但不能在静态视觉里跟目录条目抢注意力。 */
+/* 宽度把手：贴在右边缘、在滚动条外侧。不能盖住滑轨，否则悬停永远是
+   col-resize，滚轮可以、拖滑块不行。平时只是发丝线，拖起来才点成主色。 */
 .sidebar-grip {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 7px;
+  width: var(--sidebar-grip-w);
   z-index: 2;
   cursor: col-resize;
   outline-offset: -2px;
@@ -822,30 +830,6 @@ html.no-doc #statusbar { display: none; }
 html.sidebar-resizing .sidebar-grip::after { background: rgb(var(--primary)); }
 /* 拖拽中：光标与选区全局锁住，否则会选中侧栏文字 */
 html.sidebar-resizing { cursor: col-resize; user-select: none; }
-.sidebar-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 0 8px 16px;
-}
-/* 侧栏标题：一列目录需要一句话说明它是什么。初版没有任何标题，
-   288px 的白栏里直接开始列条目，看起来像加载了一半。 */
-.sidebar-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 8px 8px;
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgb(var(--subtle-foreground));
-}
-html[data-shell='macos'] .sidebar-body { padding-top: 12px; }
 
 /* 浮层模式：窄窗口下的退化形态 */
 html.sidebar-overlay .sidebar {

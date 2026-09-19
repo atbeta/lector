@@ -702,6 +702,21 @@ const summary = {
       if (!grip) {
         note('error', '侧栏没有宽度把手（.sidebar-grip），宽度不可调')
       } else {
+        const seam = await page.evaluate(() => {
+          const body = document.querySelector('.sidebar-body')
+          const g = document.querySelector('.sidebar-grip')
+          if (!body || !g) return null
+          const br = body.getBoundingClientRect()
+          const gr = g.getBoundingClientRect()
+          const y = br.top + 80
+          return {
+            overlap: br.right - gr.left,
+            trackIsGrip: !!document.elementFromPoint(br.right - 4, y)?.closest('.sidebar-grip'),
+          }
+        })
+        if (seam && (seam.overlap > 1 || seam.trackIsGrip)) {
+          note('error', `宽度把手盖住了大纲滑轨：重叠 ${seam.overlap.toFixed(1)}px，滑轨命中握把=${seam.trackIsGrip}`)
+        }
         await page.mouse.move(grip.x + 3, grip.y + 160)
         await page.mouse.down()
         await page.mouse.move(grip.x + 3 + 80, grip.y + 160, { steps: 6 })
