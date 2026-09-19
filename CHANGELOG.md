@@ -16,6 +16,18 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.34.0 (2026-09-20)
+
+### Added
+
+- insert images from a picker and expose setting homes
+
+### Improved
+
+- fix auto-pair label and tighten image hint
+
+[v0.34.0]: https://github.com/atbeta/lector/compare/v0.33.0...v0.34.0
+
 ## v0.33.0 (2026-09-20)
 
 ### Added
