@@ -97,6 +97,7 @@ export async function preRenderMath(blocks: ReadonlyArray<{ mdast: unknown }>): 
       )
     })
   }
+  if (pending.length === 0) return
   await Promise.all(pending)
 }
 

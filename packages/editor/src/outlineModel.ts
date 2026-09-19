@@ -53,3 +53,11 @@ export function outlineSignature(blocks: readonly BlockView[]): string {
     .map((b) => `${b.id}:${headingDepth(b) ?? 1}:${headingText(b.mdast)}`)
     .join('|')
 }
+
+/**
+ * 打字只改 raw，mdast 要失焦才重解析。非标题块上的逐键 refresh 是空转。
+ * 分裂 / 合并 / 换档这类结构变更必须扫。
+ */
+export function outlineNeedsRefresh(kind: string | undefined, structural: boolean): boolean {
+  return structural || kind === 'heading'
+}

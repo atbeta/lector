@@ -683,6 +683,10 @@ html.printing #content {
   overflow: visible !important;
   height: auto !important;
 }
+/* 导出要整篇进分页流：屏外跳过绘制会让后面的页变成估高空白。 */
+html.printing #content > .block {
+  content-visibility: visible !important;
+}
 /* 强制浅色：覆写主题 token。必须 !important——深色主题的 token 挂在
    html[data-theme='dark'][data-reading-theme='…']（特异度 0,2,1），
    html.printing（0,1,1）普通声明打不赢，实测深底浅字原样进 PDF。

@@ -5,6 +5,7 @@ import {
   headingDepth,
   headingText,
   outlineSignature,
+  outlineNeedsRefresh,
   type OutlineHeading,
 } from '../src/outlineModel.ts'
 
@@ -104,5 +105,15 @@ describe('outlineSignature', () => {
     expect(outlineSignature(changed({ ...heading, id: 'different-id' }))).not.toBe(sig)
     expect(outlineSignature(changed({ ...heading, mdast: { type: 'heading', depth: 2, children: [{ type: 'text', value: '标题' }] } }))).not.toBe(sig)
     expect(outlineSignature(changed({ ...heading, mdast: { type: 'heading', depth: 1, children: [{ type: 'text', value: '换名' }] } }))).not.toBe(sig)
+  })
+})
+
+describe('outlineNeedsRefresh', () => {
+  test('段落打字不扫大纲，标题打字或结构变更要扫', () => {
+    expect(outlineNeedsRefresh('paragraph', false)).toBe(false)
+    expect(outlineNeedsRefresh('list', false)).toBe(false)
+    expect(outlineNeedsRefresh('heading', false)).toBe(true)
+    expect(outlineNeedsRefresh('paragraph', true)).toBe(true)
+    expect(outlineNeedsRefresh(undefined, true)).toBe(true)
   })
 })

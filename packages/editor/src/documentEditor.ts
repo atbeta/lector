@@ -21,12 +21,12 @@ import { getSettings } from './settings.ts'
 import { findBar, closeFindBar } from './findBar.ts'
 import { replaceFind } from './findMatch.ts'
 import { showToast } from './feedback.ts'
-import { decorateCodeBlock } from './codePreview.ts'
-import { headingDepth } from './outlineModel.ts'
+import { decorateCodeBlock, teardownCodePreview, whenCodePreviewIdle } from './codePreview.ts'
+import { headingDepth, outlineNeedsRefresh } from './outlineModel.ts'
 import { showSvgInLightbox } from './lightbox.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
-import { sameBlockPaint } from './blockPaint.ts'
+import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
 import { createDocumentSession, type DocumentSession } from './documentSession.ts'
@@ -62,7 +62,7 @@ export interface DocumentEditor {
   focusBlock(id: string, intent?: CaretIntent): void
   defocus(): void
   finalizeFocused(): void
-  markDirty(): void
+  markDirty(opts?: { fromTyping?: boolean; kind?: string }): void
   markStructuralDirty(): void
   allRawText(): string
   getNormalizedText(): string
@@ -94,11 +94,11 @@ export function createDocumentEditor({
   const session = createDocumentSession()
   const blocksEl = new Map<string, HTMLElement>()
   /**
-   * 上一轮每个块真正画进 DOM 的形态。勾选任务 / 改一张图都会 render() 整篇，
-   * 但未变块再 replaceChildren 会把文中其它图重新解码、mermaid 重画、代码块
-   * 重高亮——勾一下任务就卡死。raw / kind / 聚焦 / 视图档都没变就跳过。
+   * 上一轮每个块真正画进 DOM 的形态。勾选 / 聚焦 / 切档都会走 render()，
+   * 但阅读档和编辑档的未聚焦块是同一份预览——把 data-mode 写进判定会让
+   * 「点一块」或「切回阅读」拆掉整篇 mermaid 和图。raw / kind / 表面没变就跳过。
    */
-  const lastPaint = new Map<string, { raw: string; kind: string; focused: boolean; mode: string }>()
+  const lastPaint = new Map<string, BlockPaint>()
   let cm: CmHandle | null = null
   const liveText = new Map<string, string>()
   /** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
@@ -131,10 +131,30 @@ export function createDocumentEditor({
     return contentEl
   }
 
-  function markDirty() {
+  let containGen = 0
+
+  /** 首屏（含 mermaid）量完真实高度后再开 content-visibility，大纲位置才不会漂。 */
+  function scheduleBlockContainment(): void {
+    contentEl.classList.remove('blocks-cv')
+    const gen = ++containGen
+    void whenCodePreviewIdle()
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          }),
+      )
+      .then(() => {
+        if (gen !== containGen || !session.source || large.isActive()) return
+        contentEl.classList.add('blocks-cv')
+      })
+  }
+
+  function markDirty(opts?: { fromTyping?: boolean; kind?: string }) {
     // 编辑可能增删标题、改级别或改文字（分裂/合并会换 id），
     // 大纲不重建就会指着一批不存在的块——表现为高亮消失、点击无反应。
-    beforeDirty()
+    // 段落打字只改 raw，签名不会变，不必每键扫 50 个标题。
+    if (!opts?.fromTyping || outlineNeedsRefresh(opts.kind, false)) beforeDirty()
     session.dirty = large.isActive() ? large.isDirty() : sessionIsDirty(session.blocks, session.structuralDirty)
     // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
     document.documentElement.classList.toggle('dirty', session.dirty)
@@ -158,7 +178,8 @@ export function createDocumentEditor({
     blocksEl.clear()
     lastPaint.clear()
     liveText.clear()
-    contentEl.classList.remove('large-doc')
+    containGen++
+    contentEl.classList.remove('large-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
     session.source = createSourceDocument(path, raw, mtimeMs)
     setCurrentMdPath(session.source.path)
@@ -262,6 +283,7 @@ export function createDocumentEditor({
     }
     for (const [id, el] of blocksEl) {
       if (!seen.has(id)) {
+        teardownCodePreview(el)
         el.remove()
         blocksEl.delete(id)
         lastPaint.delete(id)
@@ -270,16 +292,27 @@ export function createDocumentEditor({
     applyKeyedChildren(contentEl, desired)
     const mode = getViewMode()
     for (const block of session.blocks) {
-      const el = blocksEl.get(block.id)
-      if (!el) continue
-      const focused = block.id === session.focusedId
-      const next = { raw: block.raw, kind: block.kind, focused, mode }
-      if (sameBlockPaint(lastPaint.get(block.id), next)) continue
-      renderBlockContent(el, block)
-      // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
-      appendBlockChrome(el, block)
-      lastPaint.set(block.id, next)
+      paintBlock(block, mode)
     }
+    caretIntent = null
+    scheduleBlockContainment()
+  }
+
+  /** 只重画一块。聚焦/失焦走这条，避免整篇 render() 先 await 公式再按文档序重画上一块。 */
+  function paintBlock(block: BlockView, mode: string = getViewMode()): void {
+    const el = blocksEl.get(block.id)
+    if (!el) return
+    const focused = block.id === session.focusedId
+    const next = {
+      raw: block.raw,
+      kind: block.kind,
+      surface: blockPaintSurface(mode, focused),
+    }
+    if (sameBlockPaint(lastPaint.get(block.id), next)) return
+    renderBlockContent(el, block)
+    // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
+    appendBlockChrome(el, block)
+    lastPaint.set(block.id, next)
   }
 
   function applyBlockMeta(el: HTMLElement, block: BlockView) {
@@ -373,6 +406,7 @@ export function createDocumentEditor({
   }
 
   function renderBlockContent(el: HTMLElement, block: BlockView) {
+    teardownCodePreview(el)
     if (isWhitespaceGap(block)) {
       el.className = 'block gap'
       el.replaceChildren()
@@ -473,7 +507,7 @@ export function createDocumentEditor({
     const original = session.originals.get(block.id) ?? block.raw
     block.raw = text
     block.dirty = text !== original
-    markDirty()
+    markDirty({ fromTyping: true, kind: block.kind })
   }
 
   function finalizeFocused() {
@@ -503,6 +537,7 @@ export function createDocumentEditor({
     }
     const next = session.blocks.find((b) => b.id === id)
     if (!next || !isFocusableBlock(next)) return
+    const prevId = session.focusedId
     finalizeFocused()
     if (cm) {
       cm.destroy()
@@ -511,11 +546,23 @@ export function createDocumentEditor({
     destroyMermaidPanel()
     session.focusedId = id
     caretIntent = intent ?? null
-    render()
+    // 先挂这块的 CM：编辑档还原上一块预览（图 / mermaid）若插在前面，
+    // 源码档只是填一段文本，观感就是「源码点一下就进、编辑要顿一下」。
+    paintBlock(next)
     caretIntent = null
+    if (prevId && prevId !== id) {
+      const prev = session.blocks.find((b) => b.id === prevId)
+      if (prev) {
+        requestAnimationFrame(() => {
+          if (session.focusedId === prev.id) return
+          paintBlock(prev)
+        })
+      }
+    }
   }
 
   function defocus() {
+    const prevId = session.focusedId
     finalizeFocused()
     if (cm) {
       cm.destroy()
@@ -523,12 +570,19 @@ export function createDocumentEditor({
     }
     destroyMermaidPanel()
     session.focusedId = null
-    render()
+    if (prevId) {
+      const prev = session.blocks.find((b) => b.id === prevId)
+      if (prev) paintBlock(prev)
+      return
+    }
+    void render()
   }
 
   function forgetBlockViews(removed: readonly BlockView[]): void {
     for (const r of removed) {
-      blocksEl.get(r.id)?.remove()
+      const el = blocksEl.get(r.id)
+      if (el) teardownCodePreview(el)
+      el?.remove()
       blocksEl.delete(r.id)
     }
     if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
@@ -548,8 +602,7 @@ export function createDocumentEditor({
       cm = null
     }
     markDirty()
-    render()
-    caretIntent = null
+    void render()
   }
 
   function insertImageMarkdownAtCaret(md: string) {
@@ -675,7 +728,8 @@ export function createDocumentEditor({
     session.originals = new Map()
     setCurrentMdPath(null)
     large.clearLargeFileBar()
-    contentEl.classList.remove('large-doc')
+    containGen++
+    contentEl.classList.remove('large-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
   }
 

@@ -327,15 +327,27 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
     if (sidebar.isOpen()) renderOutline()
   }
 
+  let refreshRaf = 0
+
   function refresh(): void {
-    const sig = outlineSignature(getBlocks())
-    if (sig !== lastOutlineSignature) {
-      lastOutlineSignature = sig
-      if (sidebar.isOpen()) renderOutline()
-    }
+    // 打字时 mdast 要失焦才重解析，标题签名此时不会变；
+    // 同一帧里多次 markDirty 只扫一次 heading 即可。
+    if (refreshRaf) return
+    refreshRaf = requestAnimationFrame(() => {
+      refreshRaf = 0
+      const sig = outlineSignature(getBlocks())
+      if (sig !== lastOutlineSignature) {
+        lastOutlineSignature = sig
+        if (sidebar.isOpen()) renderOutline()
+      }
+    })
   }
 
   function reset(): void {
+    if (refreshRaf) {
+      cancelAnimationFrame(refreshRaf)
+      refreshRaf = 0
+    }
     lastOutlineSignature = ''
     headingOffsets = []
     headingOffsetHeight = null

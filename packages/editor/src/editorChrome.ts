@@ -120,6 +120,20 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     renderStatus()
   }
 
+  let statusTimer: ReturnType<typeof setTimeout> | undefined
+
+  /**
+   * 打字路径用：状态行数字可以晚一帧，保存按钮不行。
+   * 立即版仍走 renderStatus()（开档、切档、侧栏停靠）。
+   */
+  function scheduleRenderStatus(): void {
+    clearTimeout(statusTimer)
+    statusTimer = setTimeout(() => {
+      statusTimer = undefined
+      renderStatusNow()
+    }, 160)
+  }
+
   /**
    * 保存按钮：**始终在位**，只在「确实有东西可存」时点亮。
    *
@@ -165,6 +179,12 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
    * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 字、保存后变 98」。
    */
   function renderStatus() {
+    clearTimeout(statusTimer)
+    statusTimer = undefined
+    renderStatusNow()
+  }
+
+  function renderStatusNow() {
     // 项目之间补一个空格字符：视觉间隔由 CSS gap 负责，
     // 但读屏与「选中状态行复制」拿到的是 textContent，不能连成一串。
     const item = (text: string, strong = false) => {
@@ -370,6 +390,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     forceSourceMode,
     refreshSaveButton,
     renderStatus,
+    scheduleRenderStatus,
     setDocumentTitle,
     setDocPresent,
   }

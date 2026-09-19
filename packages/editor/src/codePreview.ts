@@ -12,6 +12,42 @@ import { copyText } from './feedback.ts'
 const CODE_WRAP_KEY = 'lector_code_wrap'
 const CODE_WRAP_EVENT = 'lector:code-wrap'
 
+const mermaidObservers = new WeakMap<Element, { ro: ResizeObserver; clearTimer: () => void }>()
+
+let previewInflight = 0
+const previewIdle = new Set<() => void>()
+
+function beginPreviewWork(): void {
+  previewInflight++
+}
+
+function endPreviewWork(): void {
+  previewInflight = Math.max(0, previewInflight - 1)
+  if (previewInflight === 0) {
+    for (const fn of previewIdle) fn()
+    previewIdle.clear()
+  }
+}
+
+/** 首屏 mermaid 都落笔后才开 content-visibility，避免大纲用估算高度。 */
+export function whenCodePreviewIdle(): Promise<void> {
+  if (previewInflight === 0) return Promise.resolve()
+  return new Promise((resolve) => {
+    previewIdle.add(resolve)
+  })
+}
+
+/** 块被 replaceChildren / 卸掉之前拆 mermaid 观察者，避免旧图还在听宽度。 */
+export function teardownCodePreview(root: ParentNode): void {
+  for (const diagram of root.querySelectorAll('.mermaid-diagram')) {
+    const held = mermaidObservers.get(diagram)
+    if (!held) continue
+    held.clearTimer()
+    held.ro.disconnect()
+    mermaidObservers.delete(diagram)
+  }
+}
+
 function readCodeWrap(): boolean {
   try {
     return localStorage.getItem(CODE_WRAP_KEY) === '1'
@@ -191,7 +227,8 @@ export function decorateCodeBlock(preview: HTMLElement): void {
           diagram.appendChild(fallback)
         })
     }
-    renderInto()
+    beginPreviewWork()
+    void renderInto().finally(endPreviewWork)
 
     // 栏宽变化（拖窗口、开关侧栏、调最大宽度）后重渲染：画布自然宽烘在 SVG 里，
     // 不重画的话窄栏甘特的短任务条装不下任务名，标签溢出到条外。diagram 是块级
@@ -212,6 +249,7 @@ export function decorateCodeBlock(preview: HTMLElement): void {
       roTimer = setTimeout(renderInto, 250)
     })
     ro.observe(diagram)
+    mermaidObservers.set(diagram, { ro, clearTimer: () => clearTimeout(roTimer) })
 
     return
   }

@@ -104,20 +104,16 @@
 .mode-opt:hover { color: rgb(var(--foreground)); }
 .mode-opt-icon { display: inline-flex; align-items: center; }
 .mode-opt-icon svg { display: block; }
-/* 选中档：抬成纸面（比容器亮一档）+ 发丝边。这是 iOS/Linear 那套分段控件的
-   语言：选中 = 从槽里「浮起来」，而不是「换一个底色」。 */
+/* 选中档：抬成纸面（比容器亮一档）+ 发丝边 + 主色墨。
+   三档平级：阅读是默认态，但「当前选中」仍要一眼认出来——只给后两档上色
+   会让最左边那档看起来像没按下。 */
 .mode-opt.active {
-  color: rgb(var(--foreground));
+  color: rgb(var(--primary));
   background: rgb(var(--paper));
   border-color: rgb(var(--border));
   box-shadow: 0 1px 2px rgb(var(--foreground) / 0.07);
 }
-/* 编辑 / 源码档额外点一点主色：这三档不是平级的「三个视图」，
-   后两档会改文档，值得一眼看出「我现在在可写状态」。 */
-html[data-mode='edit'] .mode-opt[data-mode='edit'],
-html[data-mode='source'] .mode-opt[data-mode='source'] { color: rgb(var(--primary)); }
-html[data-mode='edit'] .mode-opt[data-mode='edit'] .mode-opt-icon,
-html[data-mode='source'] .mode-opt[data-mode='source'] .mode-opt-icon { color: rgb(var(--primary)); }
+.mode-opt.active .mode-opt-icon { color: rgb(var(--primary)); }
 /* 没打开文档时（空态 / 加载态）不出现视图档：没有可切换的内容，
    摆一排禁用感的控件只是噪音。名字与 tip 在悬停层，空间全给图标。 */
 html.is-empty .mode-switch,
@@ -477,6 +473,15 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
    「上方留白」（松），两者折叠取较大值——因此标题下方总是更紧，
    而且不受中间有没有空行缝影响（空隙块为零高、无内外边距，不参与折叠计算）。 */
 .block:not(.gap) { margin: 0; margin-top: var(--space-block); }
+
+/* 屏外块跳过绘制。auto 记住上一轮真实高度，所以要等首屏（含 mermaid）量完
+   再挂 .blocks-cv——否则大纲 offsetTop 会按 4.5em 估高，点过去对不齐。
+   只开在阅读档：编辑/源码档的把手在块左缘外 24px，contain 会裁掉点击
+   （#content 把事件截走，块指示器校验就点不中）。阅读才是长文滚动的主场。 */
+html[data-mode='read'] #content.blocks-cv > .block:not(.focused):not(.gap) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5em;
+}
 
 /* ───────────── 块指示器（左缘轨道 + 把手） ─────────────
    解决的问题：一个块的边界在哪。而**每个档只出一样东西**：

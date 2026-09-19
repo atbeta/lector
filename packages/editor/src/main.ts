@@ -92,7 +92,7 @@ const editor: DocumentEditor = createDocumentEditor({
     recovery.syncDirty()
     // 保存按钮跟着脏状态亮/灭（见 refreshSaveButton）
     chrome.refreshSaveButton()
-    chrome.renderStatus()
+    chrome.scheduleRenderStatus()
   },
   resetOutline: () => outline.reset(),
   renderOutline: () => {
