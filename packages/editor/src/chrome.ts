@@ -212,7 +212,20 @@ export function mountTitlebarInset(): () => void {
   //    早期版本只盯容器，结果侧栏一开一合，标题夹取区间还是旧值（实测偏 131px）。
   const ro = new ResizeObserver(schedule)
   ro.observe(content)
-  const mo = new MutationObserver(schedule)
+  // 只关心会改网格的 class（侧栏停靠等）。is-scrolling 每个滚动都会翻，
+  // 跟进去量一遍顶栏等于滚动第一帧必掉。
+  const classSig = () =>
+    document.documentElement.className
+      .split(/\s+/)
+      .filter((c) => c && c !== 'is-scrolling')
+      .join(' ')
+  let lastClassSig = classSig()
+  const mo = new MutationObserver(() => {
+    const next = classSig()
+    if (next === lastClassSig) return
+    lastClassSig = next
+    schedule()
+  })
   mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   window.addEventListener('lector:doc-changed', schedule as EventListener)
   // grid 轨道有过渡：动画结束后再校一次，拿到的是终值而不是中间值

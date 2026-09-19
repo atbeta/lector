@@ -8,6 +8,7 @@ import {
   type OutlineHeading,
   type OutlineNode,
 } from './outlineModel.ts'
+import { headingOffsetsStale, pickActiveHeadingId, type HeadingOffset } from './outlineSpy.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 
@@ -37,6 +38,12 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   /** 每个标题节点的 DOM 句柄：折叠时要就地改属性，不能重建整棵树（会丢焦点）。 */
   const outlineNodes = new Map<string, { node: HTMLElement; key: string }>()
   let activeHeadingId: string | null = null
+  /**
+   * 标题偏移缓存。滚动每帧只比 scrollTop，不再对每个标题 getBoundingClientRect——
+   * 那篇带几十个标题 + mermaid 的文档，量一遍就是掉帧。高度变了再重测。
+   */
+  let headingOffsets: HeadingOffset[] = []
+  let headingOffsetHeight: number | null = null
 
   const OUTLINE_COLLAPSE_KEY = 'lector-outline-collapsed'
 
@@ -110,6 +117,8 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   }
 
   function renderOutline() {
+    headingOffsets = []
+    headingOffsetHeight = null
     if (isLargeDocument()) {
       // 大文件不建块，也就没有现成的标题列表。这里明确说明「不可用」，
       // 而不是留一片空白让人以为文档没有标题。
@@ -258,7 +267,9 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
   }
 
   function setActiveHeading(id: string | null, opts: { reveal?: boolean } = {}): void {
-    if (id === activeHeadingId && !opts.reveal) return
+    // 标题没变就整段跳过：滚动热路径每帧都会走进来，reveal/贴类/scrollIntoView
+    // 都是布局。小节切换时再动一次侧栏即可。
+    if (id === activeHeadingId) return
     activeHeadingId = id
     // 读到的小节若藏在收起的分支里，先把它所在的分支展开——否则「读到哪了」看不见
     revealActiveBranch()
@@ -275,33 +286,34 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
    * 阅读线定在容器顶部下方 72px：标题刚进视口时就切过去太早
    * （读者还在看上一节的最后一段），太晚则高亮总是慢半拍。
    */
+  function ensureHeadingOffsets(): HeadingOffset[] {
+    const scrollHeight = contentEl.scrollHeight
+    if (!headingOffsetsStale(headingOffsetHeight, scrollHeight) && headingOffsets.length > 0) {
+      return headingOffsets
+    }
+    const scrollTop = contentEl.scrollTop
+    const contentTop = contentEl.getBoundingClientRect().top
+    const next: HeadingOffset[] = []
+    for (const id of outlineRows.keys()) {
+      const el = getBlockElement(id)
+      if (!el) continue
+      next.push({ id, top: el.getBoundingClientRect().top - contentTop + scrollTop })
+    }
+    headingOffsets = next
+    headingOffsetHeight = scrollHeight
+    return headingOffsets
+  }
+
   function updateActiveHeading(): void {
     if (outlineRows.size === 0) return
-    const headingIds = [...outlineRows.keys()]
-    const contentTop = contentEl.getBoundingClientRect().top
-    const scrollTop = contentEl.scrollTop
-    const atBottom =
-      contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 2
-
-    let active: string | null = null
-    if (atBottom) {
-      // 到底了：最后一节未必能滚到阅读线（后面内容不够），
-      // 不特判的话最后一节永远高亮不到。
-      active = headingIds[headingIds.length - 1] ?? null
-    } else {
-      const line = scrollTop + 72
-      for (const id of headingIds) {
-        const el = getBlockElement(id)
-        if (!el) continue
-        const top = el.getBoundingClientRect().top - contentTop + scrollTop
-        if (top <= line) active = id
-        else break
-      }
-    }
-    // reveal: 阅读位置变了，也要把大纲里对应那一项滚进可视区。
-    // 不传的话高亮会跟着走、但侧栏不跟滚——大纲比侧栏高时，用户看到的高亮
-    // 会"跑出屏幕外"，等于没在指示位置。只滚侧栏（block:'nearest' 顺带保证
-    // 已经在视野里时不乱动），正文不受影响。
+    const offsets = ensureHeadingOffsets()
+    const active = pickActiveHeadingId(
+      offsets,
+      contentEl.scrollTop,
+      contentEl.clientHeight,
+      contentEl.scrollHeight,
+    )
+    // reveal: 小节变了才把大纲对应项滚进可视区。已经在视野里时 nearest 不乱动。
     setActiveHeading(active, { reveal: true })
   }
 
@@ -320,6 +332,9 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
 
   function reset(): void {
     lastOutlineSignature = ''
+    headingOffsets = []
+    headingOffsetHeight = null
+    activeHeadingId = null
   }
 
   return { readCollapsedPref, renderOutline, updateActiveHeading, toggleOutline, refresh, reset }

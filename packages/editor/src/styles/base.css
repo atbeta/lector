@@ -100,13 +100,17 @@ html[data-theme='dark'] body {
  * 注意 `::-webkit-scrollbar` 不带选择器即等价于 `*::`，所有滚动容器都吃得到，
  * 不需要（也不要）再写第二条 `*` 规则——两条规则并存必然有一方被静默盖掉。 */
 html {
-  scrollbar-color: transparent transparent;
+  --scrollbar-thumb: transparent;
+  --scrollbar-thumb-delay: 0.3s;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 /* 细档要写在 * 上：scrollbar-width 不继承，只写 html 的话内层容器
-   （#content、侧栏、代码块）会退回系统默认那根粗条。 */
+   （#content、侧栏、代码块）会退回系统默认那根粗条。
+   颜色走继承的自定义属性：滚动时只改 html 上的变量，不再用
+   `html.is-scrolling *` 把整棵树重新匹配一遍。 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
@@ -116,22 +120,20 @@ html {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: var(--scrollbar-thumb);
   border-radius: 99px;
   background-clip: content-box;
   border: 2px solid transparent;
   /* 0.3s 延迟：滚动停止后滑块停留一会儿再淡出 */
-  transition: background-color var(--motion-base) var(--ease-standard) 0.3s;
+  transition: background-color var(--motion-base) var(--ease-standard) var(--scrollbar-thumb-delay);
 }
-/* 滚动中（main.ts 在 html 上翻 is-scrolling）或悬停在该容器内。
- * html.is-scrolling * 是必须的：内层容器（#content、侧栏、代码块）各有自己的
- * scrollbar-color，只写 html 的话它们不继承、滚动中也不会显现。 */
-html.is-scrolling,
-html.is-scrolling *,
+html.is-scrolling {
+  --scrollbar-thumb: rgb(var(--foreground) / 0.4);
+  --scrollbar-thumb-delay: 0s;
+}
 *:hover {
   scrollbar-color: rgb(var(--foreground) / 0.4) transparent;
 }
-html.is-scrolling ::-webkit-scrollbar-thumb,
 *:hover::-webkit-scrollbar-thumb {
   background: rgb(var(--foreground) / 0.4);
   background-clip: content-box;

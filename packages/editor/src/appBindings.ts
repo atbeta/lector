@@ -289,7 +289,9 @@ export function bindReadingEvents({
   contentEl.addEventListener(
     'scroll',
     () => {
-      document.documentElement.classList.add('is-scrolling')
+      if (!document.documentElement.classList.contains('is-scrolling')) {
+        document.documentElement.classList.add('is-scrolling')
+      }
       if (scrollIdleTimer !== null) clearTimeout(scrollIdleTimer)
       scrollIdleTimer = window.setTimeout(() => {
         document.documentElement.classList.remove('is-scrolling')

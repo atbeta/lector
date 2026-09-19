@@ -448,6 +448,8 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   min-height: 80px;
   cursor: zoom-in;
   transition: border-color var(--motion-fast) var(--ease-standard);
+  /* 图内部布局不向外扩散：滚动时旁边的块不必跟着重排 */
+  contain: layout style;
 }
 /* 在代码卡里时，画布自己的边界全部让位给卡 */
 .code-card .mermaid-diagram {
