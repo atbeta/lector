@@ -1,9 +1,8 @@
 // GFM 管道表格的解析 / 序列化 / 网格变更。
-// 移植自 notefast（packages/web .../cm/tableModel.ts），同一套约定：
-// 单元格内 `|` 以 `\|` 转义（GFM 惯例）；对齐保留 none / left / center / right。
-//
-// 为什么自己维护一份而不依赖 notefast：产品红线是不引其 workspace 包，
-// 且这份模型是纯函数、无依赖，复制比抽公共包更诚实。
+// 切列走 @lector/core 的 splitTableRow：代码 span 里的 `|` 不是列界。
+// 单元格内其余 `|` 以 `\|` 转义（GFM 惯例）；对齐保留 none / left / center / right。
+
+import { splitTableRow } from '@lector/core'
 
 export type TableAlign = 'none' | 'left' | 'center' | 'right'
 
@@ -13,26 +12,9 @@ export interface ParsedTable {
   body: string[][]
 }
 
-/** 按 | 切列；`\|` 视为字面管道，不增列 */
+/** 按 | 切列；`\|` 与代码 span 里的管道视为字面量，不增列 */
 export function splitRow(line: string): string[] {
-  const t = line.trim().replace(/^\|/, '').replace(/\|$/, '')
-  const cells: string[] = []
-  let cur = ''
-  for (let i = 0; i < t.length; i++) {
-    if (t[i] === '\\' && t[i + 1] === '|') {
-      cur += '|'
-      i++
-      continue
-    }
-    if (t[i] === '|') {
-      cells.push(cur.trim())
-      cur = ''
-      continue
-    }
-    cur += t[i]
-  }
-  cells.push(cur.trim())
-  return cells
+  return splitTableRow(line)
 }
 
 function parseAlign(cell: string): TableAlign {

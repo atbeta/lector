@@ -41,6 +41,15 @@ describe('parseTable / serializeTable', () => {
     expect(parseTable(md.split('\n')).header).toEqual(['a | b', 'c'])
   })
 
+  test('代码 span 里的管道 `` `|` `` 不增列', () => {
+    const table = parseTable([
+      '| 字符 | 转义写法 | 效果 |',
+      '| --- | --- | --- |',
+      '| `|` | `\\|` | \\|不是表格分隔 |',
+    ])
+    expect(table.body[0]).toEqual(['`|`', '`|`', '|不是表格分隔'])
+  })
+
   test('类型联合 number \\| string 保持单格四列表', () => {
     const table = parseTable([
       '| prop | 类型 | 默认 | 说明 |',

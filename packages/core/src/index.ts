@@ -41,5 +41,6 @@ export {
   type ReadingTheme,
   type ReadingThemeId,
 } from './readingThemes.ts'
+export { splitTableRow, type SplitTableRowOptions } from './tableRow.ts'
 export { decodeEntities, htmlToMarkdown } from './htmlToMarkdown.ts'
 export { listImages, markdownImageIndex, replaceImageUrl, replaceImageAlt, type ImageRef } from './images.ts'

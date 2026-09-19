@@ -13,6 +13,7 @@ import { frontmatterFromMarkdown } from 'mdast-util-frontmatter'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { mathFromMarkdown } from 'mdast-util-math'
 import { pandocMark } from 'micromark-extension-mark'
+import { splitTableRow } from './tableRow.ts'
 import type { BlockKind, BlockView } from './types.ts'
 
 /** mdast node.type → BlockKind；未识别归 unknown（整段当一块 raw 预览降级）。 */
@@ -98,15 +99,61 @@ function makeContentBlock(
   mdastOverride?: unknown,
 ): BlockView {
   const kind = KIND_MAP[node.type] ?? 'unknown'
+  const raw = text.slice(start, end)
+  let mdast: unknown = mdastOverride ?? node
+  if (kind === 'table') mdast = repairTableMdast(raw, mdast)
   return {
     id: `b${start}:${end}`,
     kind,
     start,
     end,
-    raw: text.slice(start, end),
-    mdast: mdastOverride ?? node,
+    raw,
+    mdast,
     dirty: false,
   }
+}
+
+type MdastInline = { type: string; children?: MdastInline[]; value?: string }
+type MdastTableCell = { type: 'tableCell'; children: MdastInline[] }
+type MdastTableRow = { type: 'tableRow'; children: MdastTableCell[] }
+type MdastTable = {
+  type: 'table'
+  align?: Array<'left' | 'right' | 'center' | null>
+  children: MdastTableRow[]
+}
+
+function parseTableCellChildren(cell: string): MdastInline[] {
+  if (cell === '') return []
+  const roots = parseBlockRootsUnrepaired(cell) as Array<{ type: string; children?: MdastInline[] }>
+  const out: MdastInline[] = []
+  for (const r of roots) {
+    if (r.type === 'paragraph' && r.children) out.push(...r.children)
+    else out.push(r as MdastInline)
+  }
+  return out
+}
+
+function rowFromCells(cells: string[]): MdastTableRow {
+  return {
+    type: 'tableRow',
+    children: cells.map((c) => ({ type: 'tableCell', children: parseTableCellChildren(c) })),
+  }
+}
+
+/**
+ * 用认代码 span 的切列重做表格 mdast。raw 仍是原文，只修预览树。
+ */
+function repairTableMdast(raw: string, node: unknown): unknown {
+  const lines = raw.replace(/\n$/, '').split('\n')
+  if (lines.length < 2) return node
+  const header = splitTableRow(lines[0]!, { unescapePipes: false })
+  const body = lines.slice(2).map((l) => splitTableRow(l, { unescapePipes: false }))
+  const prev = node as MdastTable
+  return {
+    type: 'table',
+    align: prev.align ?? [],
+    children: [rowFromCells(header), ...body.map(rowFromCells)],
+  } satisfies MdastTable
 }
 
 /**
@@ -295,14 +342,24 @@ export function adjacentFocusableId(
   return null
 }
 
-/**
- * 解析一块 raw，返回全部块级根节点（一段改成两段时预览不能只画第一个）。
- */
-export function parseBlockRoots(raw: string): unknown[] {
+function parseBlockRootsUnrepaired(raw: string): unknown[] {
   const tree = fromMarkdown(raw, { extensions, mdastExtensions }) as {
     children: unknown[]
   }
   return tree.children
+}
+
+/**
+ * 解析一块 raw，返回全部块级根节点（一段改成两段时预览不能只画第一个）。
+ */
+export function parseBlockRoots(raw: string): unknown[] {
+  return parseBlockRootsUnrepaired(raw).map((node) => {
+    const n = node as { type?: string; position?: { start?: { offset?: number }; end?: { offset?: number } } }
+    if (n.type !== 'table') return node
+    const s = n.position?.start?.offset ?? 0
+    const e = n.position?.end?.offset ?? raw.length
+    return repairTableMdast(raw.slice(s, e), node)
+  })
 }
 
 /**
