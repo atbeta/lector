@@ -182,9 +182,11 @@ export function decorateCodeBlock(preview: HTMLElement): void {
     card.append(bar, diagram)
     host.appendChild(card)
 
-    // 点击放大：与 notefast 一致，把**内联的 SVG 标记**交给灯箱（不转 data URL）。
-    // 停上后由 outer-content click 统一处理返回。
+    // 阅读档：点图放大（内联 SVG 进灯箱，不转 data URL）。
+    // 编辑/源码档：不拦冒泡——点块正文的第一含义是进这一块改源码，
+    // 跟点段落、点标题同一件事。已经聚焦时底下的实时预览另有灯箱。
     diagram.addEventListener('click', (e) => {
+      if (document.documentElement.dataset.mode !== 'read') return
       e.stopPropagation()
       const svgEl = diagram.querySelector('svg')
       if (!svgEl) return

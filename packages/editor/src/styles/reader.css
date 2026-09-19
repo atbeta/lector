@@ -451,7 +451,6 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   justify-content: center;
   align-items: center;
   min-height: 80px;
-  cursor: zoom-in;
   transition: border-color var(--motion-fast) var(--ease-standard);
   /* 图内部布局不向外扩散：滚动时旁边的块不必跟着重排 */
   contain: layout style;
@@ -461,6 +460,10 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   border: 0;
   border-radius: 0;
   background: transparent;
+}
+/* 阅读档才是放大；编辑档继承 .block 的 text cursor，点进去改源码 */
+html[data-mode='read'] .mermaid-diagram {
+  cursor: zoom-in;
 }
 .mermaid-diagram:hover {
   border-color: rgb(var(--border-strong) / 0.6);
@@ -523,6 +526,7 @@ html[data-reading-theme='focus'] .code-bar { border-bottom-color: transparent; }
   padding: 16px;
   display: flex;
   justify-content: center;
+  cursor: zoom-in;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 /* 重渲进行中：旧图压暗而不是闪没 */

@@ -105,6 +105,9 @@ export function createMermaidLivePanel(
   // 首帧直接渲，不防抖：聚焦瞬间就该看到图
   renderNow(lastSource)
 
+  // 面板在聚焦块里：点它不该冒泡去 content click，否则会按坐标重放光标。
+  // 点图本身才放大（已经在改源码，灯箱是「看清这张图」）。
+  el.addEventListener('click', (e) => e.stopPropagation())
   body.addEventListener('click', () => {
     if (lastGoodSvg) onOpenLightbox(lastGoodSvg)
   })

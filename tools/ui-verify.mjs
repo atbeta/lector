@@ -1779,6 +1779,34 @@ const summary = {
     await page.keyboard.press('Escape')
   }
 
+  // 编辑档：点图是进块改源码，不是再开灯箱（阅读档才放大）。
+  if (!mmd.missing) {
+    await page.evaluate(() => document.querySelector('.mode-opt[data-mode="edit"]')?.click())
+    await page.waitForTimeout(200)
+    const editCursor = await page.evaluate(
+      () => getComputedStyle(document.querySelector('.mermaid-diagram') ?? document.body).cursor,
+    )
+    if (editCursor === 'zoom-in') note('error', '编辑档 mermaid 图仍是放大光标')
+    await page.click('.mermaid-diagram')
+    await page.waitForTimeout(400)
+    const editClick = await page.evaluate(() => ({
+      focused: !!document.querySelector('.block.focused .cm-editor'),
+      live: !!document.querySelector('.mermaid-live'),
+      lbOpen: !document.querySelector('.lightbox')?.hidden,
+    }))
+    if (editClick.lbOpen) note('error', '编辑档点 mermaid 图仍打开放大浮层')
+    else if (!editClick.focused || !editClick.live) {
+      note(
+        'error',
+        `编辑档点 mermaid 图没有进入该块编辑（focused=${editClick.focused} live=${editClick.live}）`,
+      )
+    } else {
+      note('info', '编辑档点 mermaid：进块改源码，底下实时预览，没有开灯箱')
+    }
+    await page.evaluate(() => document.querySelector('.mode-opt[data-mode="read"]')?.click())
+    await page.waitForTimeout(200)
+  }
+
   // 4b) 用户自定义 mermaid 配置：设置里那段 JSON 必须真的落到图上
   //
   // 判据用「配置里写的颜色出现在 SVG 里」：mermaid 的配色是**烘进 SVG** 的，
