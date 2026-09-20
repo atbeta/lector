@@ -13,6 +13,8 @@ import { mod, modShift } from './keys.ts'
 // ⚠ 这份表必须与 shortcutDispatch.ts 的判定表、cm.ts 的键位映射保持一致：
 //   两处改动要同时改。面板与实际按键不一致，比没有面板更糟——
 //   用户会照着按，然后以为功能坏了。
+//   唯一有意的例外：界面缩放/字号那 6 个键不列在这儿（判定表仍保留），
+//   原因见下面「编辑与查找」组前的注释。
 export interface ShortcutGroup {
   title: string
   rows: Array<{ keys: string; label: string }>
@@ -45,17 +47,10 @@ export function shortcutGroups(): ShortcutGroup[] {
       ],
     },
     {
-      title: t('shortcutGroupZoom'),
-      rows: [
-        { keys: mod('='), label: t('shortcutUiZoomIn') },
-        { keys: mod('-'), label: t('shortcutUiZoomOut') },
-        { keys: mod('0'), label: t('shortcutUiZoomReset') },
-        { keys: modShift('='), label: t('shortcutFontSizeIn') },
-        { keys: modShift('-'), label: t('shortcutFontSizeOut') },
-        { keys: modShift('0'), label: t('shortcutFontSizeReset') },
-      ],
-    },
-    {
+      // 界面缩放 / 字号那 6 个快捷键（⌘=/-/0、⇧⌘=/-/0）**故意不列在这里**：
+      // 它们在壳里不可靠——macOS 菜单把 ⇧⌘0 判给了 ⌘0，Windows 的 WebView2 又会
+      // 先吃掉一部分缩放组合键。判定表仍保留（键还能按），但不再向用户宣传，
+      // 免得照着按然后以为坏了。缩放/字号从菜单项与设置里调。
       title: t('shortcutGroupEdit'),
       rows: [
         { keys: mod('F'), label: t('findAria') },
