@@ -95,12 +95,23 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
   let outline = MenuItem::with_id(app, "view-outline", "大纲", true, Some("CmdOrCtrl+Shift+O"))?;
   let theme = MenuItem::with_id(app, "view-theme", "切换主题", true, None::<&str>)?;
   let settings = MenuItem::with_id(app, "view-settings", "阅读设置…", true, Some("CmdOrCtrl+,"))?;
-  let ui_zoom_in = MenuItem::with_id(app, "view-ui-zoom-in", "放大界面", true, Some("CmdOrCtrl+Plus"))?;
-  let ui_zoom_out = MenuItem::with_id(app, "view-ui-zoom-out", "缩小界面", true, Some("CmdOrCtrl+-"))?;
-  let ui_zoom_reset = MenuItem::with_id(app, "view-ui-zoom-reset", "恢复界面缩放", true, Some("CmdOrCtrl+0"))?;
-  let font_in = MenuItem::with_id(app, "view-font-in", "增大字号", true, Some("CmdOrCtrl+Shift+Plus"))?;
-  let font_out = MenuItem::with_id(app, "view-font-out", "减小字号", true, Some("CmdOrCtrl+Shift+-"))?;
-  let font_reset = MenuItem::with_id(app, "view-font-reset", "恢复默认字号", true, Some("CmdOrCtrl+Shift+0"))?;
+  // 界面缩放 / 字号这组的快捷键**不挂原生加速键**，由 Web 层接管（shortcutDispatch.ts）。
+  // 两个原因：
+  //   1. macOS 菜单的 key equivalent 按「字符」匹配，而这些键的字符在 Shift 下会变
+  //      （= → +、- → _、0 → )）。muda 的加速键语法只认无 Shift 的字符，表达不出
+  //      +/_/)："CmdOrCtrl+Plus" 直接解析失败被静默丢掉（所以「放大界面/增大字号」
+  //      的加速键一直是空的）。
+  //   2. 更糟的是撞车：⌘0 与 ⇧⌘0 的 key equivalent 都是 "0"，macOS 会把 ⇧⌘0 判给
+  //      排在前面的「恢复界面缩放」，事件被菜单吃掉，Web 层的 font-size 分支根本收不到
+  //      ——这正是「⇧⌘0 恢复默认字号不生效」。⌘- / ⇧⌘- 同理。
+  // Web 层本来就拥有全部快捷键（Windows 没有菜单栏，⌘R 之类也走这条路），菜单项留着
+  // 供点击与发现，键位说明以 ⌘/ 的键位表为准。
+  let ui_zoom_in = MenuItem::with_id(app, "view-ui-zoom-in", "放大界面", true, None::<&str>)?;
+  let ui_zoom_out = MenuItem::with_id(app, "view-ui-zoom-out", "缩小界面", true, None::<&str>)?;
+  let ui_zoom_reset = MenuItem::with_id(app, "view-ui-zoom-reset", "恢复界面缩放", true, None::<&str>)?;
+  let font_in = MenuItem::with_id(app, "view-font-in", "增大字号", true, None::<&str>)?;
+  let font_out = MenuItem::with_id(app, "view-font-out", "减小字号", true, None::<&str>)?;
+  let font_reset = MenuItem::with_id(app, "view-font-reset", "恢复默认字号", true, None::<&str>)?;
   let view_menu = Submenu::with_items(
     app,
     "显示",
