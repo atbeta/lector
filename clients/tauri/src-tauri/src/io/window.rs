@@ -67,6 +67,14 @@ pub fn open_path(app: &AppHandle, path: &str) {
     let map = crate::lock(&registry.0);
     map.get(&key).cloned()
   };
+  // 去重命中与否、以及两侧的路径键长什么样——"重复打开同一个文件"这类问题
+  // 十有八九是键对不上（大小写 / 8.3 短名 / \\?\ 前缀 / canonicalize 失败回退），
+  // 把原始路径和归一化后的键都打出来，一次复现就能判定。
+  log::info!(
+    "[win] open_path 原始={path} 键={} 登记命中={:?}",
+    key.display(),
+    existing
+  );
 
   if let Some(label) = existing {
     if let Some(win) = app.get_webview_window(&label) {
@@ -75,6 +83,7 @@ pub fn open_path(app: &AppHandle, path: &str) {
       return;
     }
     // 登记还在、窗口已关：清掉再新建
+    log::info!("[win] open_path 命中登记但窗口已不在（label={label}），清掉后新建");
     crate::lock(&registry.0).remove(&key);
     unwatch(app, &key);
   }
@@ -385,6 +394,10 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   log::info!("[win] 建窗完成 {label}");
   // Windows 的无边框窗口 DWM 不保证给圆角（截图里就是直角的），显式向 DWM 要。
   apply_platform_window_tweaks(&win);
+  // 临时诊断（Windows）：记录窗口的 HWND/样式并跟踪激活消息。
+  // 用于定位"多窗口在系统层面串了"——定位完连同 win_diag.rs 一起删。
+  #[cfg(target_os = "windows")]
+  crate::win_diag::watch(&win);
   // 兜底：页面加载没能完成时（devUrl 挂了、前端在解析前就抛错）别把窗口永远藏着。
   // 2.5s 是「页面加载」的宽限量级——正常路径下 on_page_load 早就 show 过了。
   #[cfg(target_os = "windows")]

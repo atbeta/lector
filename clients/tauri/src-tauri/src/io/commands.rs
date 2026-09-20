@@ -376,7 +376,12 @@ pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Res
     let registry = app.state::<WindowRegistry>();
     let mut map = crate::lock(&registry.0);
     map.retain(|_, l| l != &label);
-    map.insert(canon, label);
+    map.insert(canon.clone(), label.clone());
+    log::info!(
+      "[win] bind_document label={label} 键={} 登记总数={}",
+      canon.display(),
+      map.len()
+    );
   }
   // 白名单按路径表重建，顺带收紧旧目录。
   rebuild_allowed_dirs(&app);
