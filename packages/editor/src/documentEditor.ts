@@ -656,14 +656,27 @@ export function createDocumentEditor({
   }
 
   function openFind() {
-    // 大文件不建块，现有查找是按块计数 + 按块高亮/跳转的，跑不动。
-    // 明确说不支持，而不是打开一个「0 处命中」的假面板。
-    if (large.isActive()) {
-      showToast(t('findLargeUnavailable'))
-      return
-    }
     if (document.querySelector('.find-bar')) {
       document.querySelector<HTMLInputElement>('.find-input')?.focus()
+      return
+    }
+    // 大文件不建块：走整篇 CM 的源码查找（装饰 + 上一个/下一个），不做替换。
+    if (large.isActive()) {
+      const view = large.getView()
+      if (!view) {
+        showToast(t('findLargeUnavailable'))
+        return
+      }
+      findBar({
+        getBlocks: () => [],
+        replaceInBlock: () => {},
+        scrollTo: () => {},
+        sourceFind: {
+          getDoc: () => view.state.doc,
+          reveal: (hits, current) => large.revealFind(hits, current),
+          clear: () => large.clearFind(),
+        },
+      })
       return
     }
     findBar({

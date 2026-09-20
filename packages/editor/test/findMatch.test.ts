@@ -1,6 +1,6 @@
 // 匹配器的契约：三处（计数/高亮/替换）共用它，所以边界必须钉死。
 import { describe, expect, test } from 'bun:test'
-import { compileFind, countFind, DEFAULT_FIND_OPTIONS, replaceFind } from '../src/findMatch.ts'
+import { compileFind, countFind, DEFAULT_FIND_OPTIONS, findInLineSource, replaceFind } from '../src/findMatch.ts'
 
 const O = (o: Partial<typeof DEFAULT_FIND_OPTIONS> = {}) => ({ ...DEFAULT_FIND_OPTIONS, ...o })
 
@@ -50,6 +50,38 @@ test('空查询是 empty，不是"命中 0 处"', () => {
   const c = compileFind('', O())
   expect(c.ok).toBe(false)
   if (!c.ok) expect(c.error).toBe('empty')
+})
+
+describe('源码按行查找（大文件）', () => {
+  function lines(text: string) {
+    const raw = text.split('\n')
+    return {
+      lines: raw.length,
+      line(n: number) {
+        const prev = raw.slice(0, n - 1).join('\n')
+        const from = n === 1 ? 0 : prev.length + 1
+        return { from, text: raw[n - 1]! }
+      },
+    }
+  }
+
+  test('第二行命中的偏移含换行', () => {
+    const src = lines('alpha\nbeta beta\ngamma')
+    const hits = findInLineSource(src, 'beta', O())
+    expect(hits).toEqual([
+      { start: 6, end: 10 },
+      { start: 11, end: 15 },
+    ])
+  })
+
+  test('查询含换行时能跨行命中', () => {
+    const src = lines('foo\nbar\nbaz')
+    expect(findInLineSource(src, 'foo\nbar', O())).toEqual([{ start: 0, end: 7 }])
+  })
+
+  test('无效正则不抛、不报命中', () => {
+    expect(findInLineSource(lines('abc'), '([', O({ regex: true }))).toEqual([])
+  })
 })
 
 describe('替换', () => {

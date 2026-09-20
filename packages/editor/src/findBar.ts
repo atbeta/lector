@@ -2,7 +2,15 @@ import type { BlockView } from '@lector/core'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 import { applyFindHighlight, clearFindHighlight, focusFindHit } from './findHighlight.ts'
-import { compileFind, DEFAULT_FIND_OPTIONS, type FindOptions, countFind } from './findMatch.ts'
+import {
+  compileFind,
+  DEFAULT_FIND_OPTIONS,
+  type FindMatch,
+  type FindOptions,
+  type LineSource,
+  countFind,
+  findInLineSource,
+} from './findMatch.ts'
 
 export interface FindHost {
   getBlocks: () => BlockView[]
@@ -10,6 +18,15 @@ export interface FindHost {
   replaceInBlock: (id: string, from: string, to: string, all: boolean, opts: FindOptions) => void
   /** 滚动到块。 */
   scrollTo: (id: string) => void
+  /**
+   * 大文件源码查找：整篇是一个 CM，不走按块高亮/替换。
+   * 有这个字段就只提供查找与上一个/下一个，替换入口收起。
+   */
+  sourceFind?: {
+    getDoc: () => LineSource
+    reveal: (hits: FindMatch[], current: number) => void
+    clear: () => void
+  }
 }
 
 export function escapeRegExp(s: string): string {
@@ -67,6 +84,13 @@ export function findBar(host: FindHost) {
 
   let cursor = 0 // 当前匹配序号（0-based）
   const opts: FindOptions = { ...DEFAULT_FIND_OPTIONS }
+  const sourceFind = host.sourceFind
+  // 大文件不做替换：现有替换是按块改 raw + 重解析，源码档没有块。
+  if (sourceFind) {
+    expand.hidden = true
+    replaceRow.hidden = true
+  }
+  let sourceDebounce: number | null = null
 
   function matches(): Array<{ id: string; count: number }> {
     const query = q.value
@@ -125,7 +149,27 @@ export function findBar(host: FindHost) {
     count.textContent = t('matchPosition', { i: cursor + 1, n: total })
   }
 
+  function sourceHits(): FindMatch[] {
+    if (!sourceFind) return []
+    return findInLineSource(sourceFind.getDoc(), q.value, opts)
+  }
+
+  function refreshSource(): void {
+    const list = sourceHits()
+    const total = list.length
+    if (cursor >= total) cursor = 0
+    updateCount(total)
+    prev.disabled = next.disabled = total === 0
+    if (!sourceFind) return
+    if (total === 0) sourceFind.clear()
+    else sourceFind.reveal(list, cursor)
+  }
+
   function refresh(): void {
+    if (sourceFind) {
+      refreshSource()
+      return
+    }
     const ms = matches()
     const total = ms.reduce((a, m) => a + m.count, 0)
     if (cursor >= total) cursor = 0
@@ -139,6 +183,17 @@ export function findBar(host: FindHost) {
   }
 
   function goto(dir: 1 | -1): void {
+    if (sourceFind) {
+      const list = sourceHits()
+      if (list.length === 0) {
+        refreshSource()
+        return
+      }
+      cursor = (cursor + dir + list.length) % list.length
+      updateCount(list.length)
+      sourceFind.reveal(list, cursor)
+      return
+    }
     const list = occurrences()
     if (list.length === 0) {
       refresh()
@@ -165,6 +220,15 @@ export function findBar(host: FindHost) {
 
   q.addEventListener('input', () => {
     cursor = 0
+    // 大文件每次查询都要扫源码：等停键再跑，避免每敲一字复制/扫描整篇。
+    if (sourceFind) {
+      if (sourceDebounce !== null) window.clearTimeout(sourceDebounce)
+      sourceDebounce = window.setTimeout(() => {
+        sourceDebounce = null
+        refreshSource()
+      }, 120)
+      return
+    }
     refresh()
   })
   q.addEventListener('keydown', (e) => {
@@ -193,8 +257,13 @@ export function findBar(host: FindHost) {
   activeClose = closeBar
 
   function closeBar(): void {
+    if (sourceDebounce !== null) {
+      window.clearTimeout(sourceDebounce)
+      sourceDebounce = null
+    }
     // 关掉查找就把标记拆干净：留在正文里的黄色块会让人以为文档里真有高亮
-    clearFindHighlight(contentRoot())
+    if (sourceFind) sourceFind.clear()
+    else clearFindHighlight(contentRoot())
     bar.remove()
     document.removeEventListener('keydown', onKey)
     if (activeClose === closeBar) activeClose = null

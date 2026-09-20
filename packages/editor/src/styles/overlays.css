@@ -296,6 +296,10 @@ html.lightbox-open #content { overflow: hidden; }
 .find-hit--current {
   background: rgb(var(--primary) / 0.5);
 }
+/* 大文件源码查找：命中是 CM 的 mark 装饰。padding 会搅乱 CM 的行度量，只留底色。 */
+.cm-content .find-hit {
+  padding: 0;
+}
 
 /* ───────────── 选区浮条（编辑态） ─────────────
  * 选中文字后浮在选区上方的一小条格式按钮。定位与关闭规则在 selectionBubble.ts，

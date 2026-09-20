@@ -1,4 +1,5 @@
 import { mountEditor, type CmHandle } from './cm.ts'
+import type { FindMatch } from './findMatch.ts'
 import { getSettings } from './settings.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { formatCount } from '@lector/core'
@@ -166,5 +167,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
     isDirty: () => largeDirty,
     getView: () => largeCm?.view ?? null,
     getInfo: () => ({ bytes: largeBytes, totalLines: largeTotalLines }),
+    revealFind: (hits: FindMatch[], current: number) => largeCm?.applyFind(hits, current),
+    clearFind: () => largeCm?.clearFind(),
   }
 }

@@ -113,6 +113,40 @@ export function countFind(text: string, query: string, opts: FindOptions): numbe
   return c.ok ? c.find(text).length : 0
 }
 
+/** 按行寻址的源（CM `Text` 就是这个形状）。 */
+export interface LineSource {
+  lines: number
+  line(n: number): { from: number; text: string }
+}
+
+/**
+ * 在整篇源码里找命中，位置是文档偏移（给 CM 装饰 / 滚动用）。
+ *
+ * 默认字符串查找按行扫：大文件下避开 `doc.toString()` 整篇复制。
+ * 正则或查询本身含换行才拼一次全文——这两种本来就可能跨行。
+ */
+export function findInLineSource(source: LineSource, query: string, opts: FindOptions): FindMatch[] {
+  const c = compileFind(query, opts)
+  if (!c.ok) return []
+  if (opts.regex || query.includes('\n')) {
+    let text = ''
+    for (let i = 1; i <= source.lines; i++) {
+      if (i > 1) text += '\n'
+      text += source.line(i).text
+    }
+    return c.find(text)
+  }
+  const out: FindMatch[] = []
+  for (let i = 1; i <= source.lines; i++) {
+    const line = source.line(i)
+    for (const h of c.find(line.text)) {
+      out.push({ start: line.from + h.start, end: line.from + h.end })
+      if (out.length >= MAX_MATCHES) return out
+    }
+  }
+  return out
+}
+
 /**
  * 替换。`all=false` 时只替换第一处。
  * 替换串里的 `$1` 在正则模式下按捕获组展开（字符串模式下是字面量）。

@@ -8,6 +8,8 @@ import { tags } from '@lezer/highlight'
 import { Prec, type Extension } from '@codemirror/state'
 import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
+import { applyLargeFind, clearLargeFind, largeFindField } from './cmFind.ts'
+import type { FindMatch } from './findMatch.ts'
 
 export interface EditorialConfig {
   autoCharacterPairs: boolean
@@ -57,6 +59,8 @@ export interface EditorialConfig {
 export interface CmHandle {
   view: EditorView
   destroy: () => void
+  applyFind: (hits: FindMatch[], current: number) => void
+  clearFind: () => void
 }
 
 /** 比较时忽略空白：只看「转出来的是不是还是那堆字」。 */
@@ -172,6 +176,7 @@ export function mountEditor(
     EditorView.domEventHandlers({
       paste: (event, view) => pasteAsMarkdown(event, view, config.pasteHtmlAsMarkdown !== false),
     }),
+    ...(config.largeDocument ? [largeFindField] : []),
     EditorView.theme({
       '&': {
         fontSize: 'inherit',
@@ -306,5 +311,11 @@ export function mountEditor(
   return {
     view,
     destroy: () => view.destroy(),
+    applyFind: (hits, current) => {
+      if (config.largeDocument) applyLargeFind(view, hits, current)
+    },
+    clearFind: () => {
+      if (config.largeDocument) clearLargeFind(view)
+    },
   }
 }
