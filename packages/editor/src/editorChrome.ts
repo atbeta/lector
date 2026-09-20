@@ -1,4 +1,7 @@
-import { countText, formatCount, readingMinutes } from '@lector/core'
+import { countBlocks, formatCount, readingMinutes } from '@lector/core'
+
+// 状态行统计的按块缓存（raw → 渲染文本），跨刷新复用；见 core 的 countBlocks。
+const statsMemo = new Map<string, string>()
 import { bindTitlebar, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { iconSvg } from './icons.ts'
@@ -218,8 +221,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       statusRight.replaceChildren()
       return
     }
-    const text = blocks.map((b) => b.raw).join('')
-    const stats = countText(text)
+    const stats = countBlocks(blocks, statsMemo)
     const sections = blocks.filter((b) => b.kind === 'heading').length
     const minutes = readingMinutes(stats)
 

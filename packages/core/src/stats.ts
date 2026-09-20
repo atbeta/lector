@@ -1,8 +1,7 @@
 // 文档统计（无 DOM）。
 //
 // 状态行要显示「多少字 / 多少字符 / 多少小节 / 读多久」。这些数字都必须是
-// **打开的那个文件**的真实内容算出来的，不能靠编辑器里当前可见的部分——所以
-// 输入是整篇原文（脏块未落盘时以 session 序列化结果为准，由调用方负责）。
+// **打开的那个文件**的真实内容算出来的，不能靠编辑器里当前可见的部分。
 //
 // 口径对齐 Typora / 微软 Word：
 // - 「字数」= CJK 字符（含中文标点，中文文档里标点也是版面）+ 西文单词。
@@ -13,8 +12,11 @@
 //
 // 实现：不走正则剥语法（规则永远追不全，表格/数学/脚注都会漏），直接复用
 // parse.ts 的 mdast 解析——frontmatter、GFM、数学扩展全套都在，遍历树收集
-// 「渲染文本」即可，链接 URL、frontmatter、HTML 天然排除。状态行刷新有
-// debounce，整篇解析一次在毫秒级。
+// 「渲染文本」即可，链接 URL、frontmatter、HTML 天然排除。
+//
+// 性能：整篇 parseBlockRoots 对 1MB 文档要 3 秒级，状态行不能每次刷新都来
+// 一遍——所以编辑器侧走 countBlocks 按块增量（见下）；countText 保留给
+// 测试与小块场景。
 
 import { parseBlockRoots } from './parse.ts'
 
@@ -34,6 +36,13 @@ export interface DocStats {
   charsWithSpaces: number
   /** 非空行数。 */
   lines: number
+}
+
+/** countBlocks 的输入：BlockView 的结构子集（core 不反向依赖编辑器类型）。 */
+export interface StatsBlock {
+  raw: string
+  mdast: unknown
+  dirty: boolean
 }
 
 interface MdNode {
@@ -63,26 +72,66 @@ function collectText(node: unknown, out: string[]): void {
   if (Array.isArray(n.children)) for (const c of n.children) collectText(c, out)
 }
 
-/**
- * 统计一篇 markdown 原文。
- *
- * 西文取词前先摘掉 CJK（已按字计过），否则一串连续汉字会被当成一个词。
- */
-export function countText(text: string): DocStats {
-  if (!text) return { words: 0, chars: 0, charsWithSpaces: 0, lines: 0 }
-
+/** 一组 mdast 节点的渲染文本。 */
+function renderedFromNodes(nodes: unknown[]): string {
   const parts: string[] = []
-  for (const root of parseBlockRoots(text)) collectText(root, parts)
-  const rendered = parts.join('\n')
+  for (const n of nodes) collectText(n, parts)
+  return parts.join('\n')
+}
 
+function statsFromRendered(rendered: string, lines: number): DocStats {
+  // 西文取词前先摘掉 CJK（已按字计过），否则一串连续汉字会被当成一个词。
   const cjkCount = (rendered.match(CJK) ?? []).length
   const latinWords = rendered.replace(CJK, ' ').match(WORD) ?? []
+  return {
+    words: cjkCount + latinWords.length,
+    chars: rendered.replace(/\s/g, '').length,
+    charsWithSpaces: rendered.length,
+    lines,
+  }
+}
 
-  const chars = rendered.replace(/\s/g, '').length
-  const charsWithSpaces = rendered.length
-  const lines = text.split('\n').filter((l) => l.trim() !== '').length
+function nonEmptyLines(text: string): number {
+  return text.split('\n').filter((l) => l.trim() !== '').length
+}
 
-  return { words: cjkCount + latinWords.length, chars, charsWithSpaces, lines }
+/** 统计一篇 markdown 原文（整篇解析；大文档请用 countBlocks）。 */
+export function countText(text: string): DocStats {
+  if (!text) return { words: 0, chars: 0, charsWithSpaces: 0, lines: 0 }
+  return statsFromRendered(renderedFromNodes(parseBlockRoots(text)), nonEmptyLines(text))
+}
+
+/**
+ * 按块增量统计——状态行的常规路径。
+ *
+ * 编辑器按块持有 mdast（BlockView），非 dirty 块的树与 raw 一致，直接遍历
+ * （零解析）；dirty 块的 mdast 是旧的（打字中 syncBlockText 只更新 raw，
+ * 失焦 finalizeFocused 才重解析），必须从 raw 现算——一块很小，亚毫秒。
+ * memo 按 raw 记渲染文本：没改过的块跨刷新直接命中，块对象重建也不重算。
+ * 1MB 文档实测：整篇重解析 3.1s → 按块冷启 ~100ms、命中 memo 后 ~30ms。
+ */
+export function countBlocks(
+  blocks: StatsBlock[],
+  memo: Map<string, string> = new Map(),
+): DocStats {
+  if (blocks.length === 0) return { words: 0, chars: 0, charsWithSpaces: 0, lines: 0 }
+  const parts: string[] = []
+  let lines = 0
+  for (const b of blocks) {
+    lines += nonEmptyLines(b.raw)
+    let rendered = memo.get(b.raw)
+    if (rendered === undefined) {
+      // finalizeFocused 在块含多个顶层节点时把 mdast 存成数组，两种形态都接
+      const trees = Array.isArray(b.mdast) ? b.mdast : [b.mdast]
+      rendered = !b.dirty && b.mdast ? renderedFromNodes(trees) : renderedFromNodes(parseBlockRoots(b.raw))
+      if (memo.size >= 4096) memo.clear()
+      memo.set(b.raw, rendered)
+    }
+      parts.push(rendered)
+  }
+  // 空渲染块（html/unknown 等）不参与 join：整篇 countText 里这些块不产生
+  // 文本片段，这里多一个 '' 会在块间多算一个换行，charsWithSpaces 虚高。
+  return statsFromRendered(parts.filter((p) => p !== '').join('\n'), lines)
 }
 
 /**

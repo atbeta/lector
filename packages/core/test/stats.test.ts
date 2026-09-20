@@ -4,7 +4,8 @@
 // 按空格分词会漏掉中文。下面用真实的中英混排样本钉住它。
 
 import { describe, expect, test } from 'bun:test'
-import { countText, formatCount, readingMinutes } from '../src/stats.ts'
+import { countBlocks, countText, formatCount, readingMinutes } from '../src/stats.ts'
+import { parseBlocks } from '../src/parse.ts'
 
 describe('文档统计', () => {
   test('空文档', () => {
@@ -80,5 +81,42 @@ describe('文档统计', () => {
   test('千分位', () => {
     expect(formatCount(1234567)).toBe('1,234,567')
     expect(formatCount(0)).toBe('0')
+  })
+})
+
+describe('按块增量统计', () => {
+  test('countBlocks 与整篇 countText 结果一致', () => {
+    const md =
+      '---\ntitle: 笔记\n---\n\n# 标题\n\n正文一段，含 [链接](https://example.com/a/b)。\n\n```js\nconst x = 1\n```\n\n- 甲\n- 乙\n'
+    const blocks = parseBlocks(md)
+    expect(blocks.length).toBeGreaterThan(1)
+    expect(countBlocks(blocks)).toEqual(countText(md))
+  })
+
+  test('dirty 块不信任旧 mdast，按 raw 现算', () => {
+    // 打字中 syncBlockText 只更新 raw 不重解析 mdast——统计必须跟 raw 走
+    const blocks = parseBlocks('旧的内容文字')
+    const b0 = blocks[0]!
+    b0.raw = '全新的内容 hello'
+    b0.dirty = true
+    expect(countBlocks(blocks)).toEqual(countText('全新的内容 hello'))
+  })
+
+  test('memo 命中：重复统计结果一致且缓存生效', () => {
+    const blocks = parseBlocks('# A\n\n内容甲\n\n## B\n\n内容乙')
+    const memo = new Map<string, string>()
+    const s1 = countBlocks(blocks, memo)
+    const s2 = countBlocks(blocks, memo)
+    expect(s2).toEqual(s1)
+    expect(memo.size).toBeGreaterThan(0)
+  })
+
+  test('mdast 为数组形态（多顶层节点块）也能统计', () => {
+    const blocks = parseBlocks('第一段文字。\n\n第二段文字。')
+    const b = blocks[0]!
+    const roots = parseBlocks(b.raw)
+    // 模拟 finalizeFocused 的多根形态
+    b.mdast = roots.length > 1 ? roots : b.mdast
+    expect(countBlocks(blocks).words).toBeGreaterThan(0)
   })
 })
