@@ -85,7 +85,16 @@ pub fn open_path(app: &AppHandle, path: &str) {
   if let Some(label) = existing {
     if let Some(win) = app.get_webview_window(&label) {
       let _ = win.set_focus();
-      let _ = win.emit("lector:open", serde_json::json!({ "path": path }));
+      // **只发给这一个窗口**。这里原来是 win.emit(...)，而它把事件广播给了所有 webview：
+      // 于是另一个文档窗口也收到"请打开这个文件"，把自己窗口里的文档换成了它，
+      // 顺带在 bind_document 里的 retain 把它原本的注册表键覆盖掉——此后打开那个文件
+      // 必然 miss，于是又开一个新窗口（用户看到的"打开已打开的文件又开一个"）。
+      // 用户双击一个已打开文件的意图是"把那个窗口拿到前面来"，不是"让每个窗口都换成它"。
+      let _ = app.emit_to(
+        EventTarget::webview_window(label.as_str()),
+        "lector:open",
+        serde_json::json!({ "path": path }),
+      );
       return;
     }
     // 登记还在、窗口已关：清掉再新建
