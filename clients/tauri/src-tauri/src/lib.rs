@@ -181,7 +181,7 @@ pub fn run() {
   app.run(|app, event| match event {
     // 只有 macOS 有这一路：Finder 的双击/拖到 Dock 走 Apple Event。
     // Windows 的文件关联走 argv（见 setup 与 single-instance 回调），
-    // 所以在别的平台这个 variant 根本不存在，必须 gate 掉，否则 Windows 编不过。
+    // 所以在别��平台这个 variant 根本不存在，必须 gate 掉，否则 Windows 编不过。
     #[cfg(target_os = "macos")]
     RunEvent::Opened { urls } => {
       for url in urls {
@@ -266,12 +266,19 @@ pub fn run() {
           // 文档在拖入的这个窗口里就地打开：lector:open 链路自带「先读后确认脏
           // 文档」。不走 open_if_markdown——那是新开/聚焦语义，拖放要的是替换当前
           // 窗口内容；多个文档只开第一个，就地打开语义下逐个确认反而混乱。
+          // 但同一文档拖回已显示它的窗口时不发：web 层收到会无条件重读重载，
+          // 脏文档还会弹丢弃确认。注册表（规范化路径）能精确判断"这个窗口已有它"。
           if let Some(path) = docs.first() {
-            let _ = win.emit_to(
-              EventTarget::webview_window(lbl.clone()),
-              "lector:open",
-              serde_json::json!({ "path": path }),
-            );
+            let canon = io::fs::canonical(path).unwrap_or_else(|| PathBuf::from(path));
+            let registry = app.state::<WindowRegistry>();
+            let already_here = lock(&registry.0).get(&canon).map(|l| l == &lbl).unwrap_or(false);
+            if !already_here {
+              let _ = win.emit_to(
+                EventTarget::webview_window(lbl.clone()),
+                "lector:open",
+                serde_json::json!({ "path": path }),
+              );
+            }
           }
         }
       });

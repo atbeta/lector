@@ -220,9 +220,20 @@ pub fn route(app: &AppHandle, id: &str) {
     .into_values()
     .find(|w| w.is_focused().unwrap_or(false));
   if let Some(win) = focused {
-    let _ = win.emit("lector:menu", payload);
+    // 定向发给聚焦窗口：Emitter::emit 是全窗口广播，菜单动作（保存/查找/主题…）
+    // 会在每个窗口各执行一遍。EventTarget 用全限定路径——本文件没有（也不该有）
+    // cfg 门控的导入，直接 import 会在 macOS 构建报 unused。
+    let _ = win.emit_to(
+      tauri::EventTarget::webview_window(win.label().to_string()),
+      "lector:menu",
+      payload,
+    );
   } else if let Some(main) = app.get_webview_window("main") {
-    let _ = main.emit("lector:menu", payload);
+    let _ = main.emit_to(
+      tauri::EventTarget::webview_window(main.label().to_string()),
+      "lector:menu",
+      payload,
+    );
   }
 }
 

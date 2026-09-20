@@ -70,8 +70,14 @@ pub fn open_path(app: &AppHandle, path: &str) {
 
   if let Some(label) = existing {
     if let Some(win) = app.get_webview_window(&label) {
+      // 只聚焦，不发 lector:open。注册表条目存在就意味着该窗口的 web 层已加载
+      // 此文档（bind_document 在加载完成后才写注册表，新窗口的加载由 pending-open
+      // 覆盖）。此前这里 win.emit("lector:open") 有两个害处：
+      //   1. Tauri 2 的 Emitter::emit 是广播给**所有**窗口——显示别的文档的窗口
+      //      也会收到并加载这条路径，bind_document 覆盖它自己的注册表键，之后
+      //      再开那个文档就重复建窗（多文档时打开已打开的文件会又开一个/串窗）。
+      //   2. 即便定向发送，web 层收到也会无条件重读重载，脏文档还会弹丢弃确认。
       let _ = win.set_focus();
-      let _ = win.emit("lector:open", serde_json::json!({ "path": path }));
       return;
     }
     // 登记还在、窗口已关：清掉再新建
@@ -183,7 +189,7 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
       hwnd.0 as isize,
       move || {
         // 这个闭包是在**窗口过程**里被调的（WM_* 处理中），而 Tauri 的窗口 API
-        // 会把调用派回主线程并等待结果——在窗口过程里重入就是死锁。
+        // 会把调用派回主线程并等待结果——在窗口过程里重入就是死��。
         // 实测症状：第一个窗口正常，再开第二个直接卡死、必须强杀。
         // 所以先跳出当前线程再碰 Tauri：窗口过程立刻返回，宿主线程自己去等。
         let w = toggle_win.clone();

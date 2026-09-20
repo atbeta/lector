@@ -6,7 +6,7 @@
 
 pub(crate) mod appinfo;
 pub(crate) mod commands;
-mod fs;
+pub(crate) mod fs;
 pub(crate) mod portable;
 mod watch;
 mod window;
