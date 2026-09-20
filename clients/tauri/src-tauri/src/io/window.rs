@@ -326,7 +326,7 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   if let Some((x, y, sw, sh, maximized)) = saved {
     // 存档是物理像素（window-state 插件按 PhysicalPosition/PhysicalSize 存取），
     // 而 builder 的 position/inner_size 是逻辑像素（tauri 文档原文）。不换算的话
-      .monitor_from_point(x, y)
+    // HiDPI 屏（125%/150% 缩放）上预应用的位置和尺寸都按缩放偏大，插件就绪时
     // 再按物理值恢复一次——窗口「出现在一个位置、随后挪到另一个位置」。
     // 按落点显示器的缩放折算成逻辑值，预应用与插件恢复重合，不再跳动。
     let scale = app
