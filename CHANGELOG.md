@@ -16,6 +16,20 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.35.0 (2026-09-21)
+
+### Added
+
+- feat(editor): enable find and next/prev in large-file source mode
+
+### Fixed
+
+- fix(shell): hide PDF export on macOS where PrintToPdf is missing
+- fix(shell): do not open an extra empty window on macOS file open
+- fix(editor,tools): tokenize one hardcoded shadow ring; make the audit say where
+
+[v0.35.0]: https://github.com/atbeta/lector/compare/v0.34.8...v0.35.0
+
 ## v0.34.8 (2026-09-20)
 
 ### Fixed
