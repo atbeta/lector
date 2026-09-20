@@ -8,15 +8,14 @@ import { countText, formatCount, readingMinutes } from '../src/stats.ts'
 
 describe('文档统计', () => {
   test('空文档', () => {
-    expect(countText('')).toEqual({ words: 0, chars: 0, lines: 0 })
-    expect(countText('   \n\n  ')).toEqual({ words: 0, chars: 0, lines: 0 })
+    expect(countText('')).toEqual({ words: 0, chars: 0, charsWithSpaces: 0, lines: 0 })
+    expect(countText('   \n\n  ')).toEqual({ words: 0, chars: 0, charsWithSpaces: 0, lines: 0 })
     expect(readingMinutes(countText(''))).toBe(0)
   })
 
-  test('纯中文按字计', () => {
-    const s = countText('阅读优先的纯 Markdown 编辑器')
-    // 中文 9 字（阅读优先的纯 编辑器）+ 西文 1 词（Markdown）
-    expect(s.words).toBe(10)
+  test('纯中文按字计，标点计入', () => {
+    expect(countText('阅读优先的纯 Markdown 编辑器').words).toBe(10)
+    expect(countText('你好，世界。').words).toBe(6)
   })
 
   test('纯英文按词计，标点不算词', () => {
@@ -24,11 +23,16 @@ describe('文档统计', () => {
     expect(s.words).toBe(9)
   })
 
+  test('缩写与连字符词各算一个（对齐 Word/Typora）', () => {
+    // 旧实现按标点硬切：don't → 2 词、state-of-the-art → 4 词，虚高一倍
+    expect(countText("I don't think it's state-of-the-art.").words).toBe(5)
+  })
+
   test('中英混排（中文按字、英文按词，相加）', () => {
     const s = countText('在 AI 时代，读 远大于 写。Markdown is the format.')
-    // 中文：在/时/代/读/远/大/于/写/。（标点计入中文，共 9）
-    // 英文词：AI 时代 里的 AI、Markdown is the format
-    expect(s.words).toBe(9 + 1 + 5)
+    // 中文（含全角标点）：在时代，读远大于写。共 10
+    // 英文词：AI、Markdown、is、the、format 共 5
+    expect(s.words).toBe(10 + 5)
   })
 
   test('markdown 语法不计入词数', () => {
@@ -44,8 +48,22 @@ describe('文档统计', () => {
     expect(list.words).toBe(countText('第一项 第二项').words)
   })
 
-  test('字符数不含空白', () => {
-    expect(countText('a b\tc\n\nd').chars).toBe(4)
+  test('frontmatter 是元数据，不计入', () => {
+    const s = countText('---\ntitle: 笔记\ntags: [a, b]\n---\n正文内容。')
+    // 只有正文 5 字（正文内容。），title/tags/a/b 都不算
+    expect(s.words).toBe(5)
+  })
+
+  test('字符数按渲染后文本算，URL 不计入', () => {
+    const s = countText('[看](https://example.com/very/long/path)')
+    expect(s.chars).toBe(1)
+    expect(s.charsWithSpaces).toBe(1)
+  })
+
+  test('字符数两种口径', () => {
+    const s = countText('a b\tc\n\nd')
+    expect(s.chars).toBe(4) // 不计空白
+    expect(s.charsWithSpaces).toBe(7) // a b\tc + \n + d
   })
 
   test('非空行数', () => {

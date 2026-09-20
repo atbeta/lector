@@ -228,6 +228,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       statusRight.append(item(t('statEmpty')))
     } else {
       statusRight.append(item(t('statWords', { n: formatCount(stats.words) })))
+      statusRight.append(item(t('statChars', { n: formatCount(stats.chars) })))
       if (sections > 0) statusRight.append(item(t('statSections', { n: sections })))
       if (minutes > 0) statusRight.append(item(t('statReading', { n: minutes })))
     }
@@ -357,7 +358,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     settingsBtn.dataset.tip = t('settingsAria')
     openBtn.dataset.tip = t('openAria')
     // 「更多文件操作」：低频文件动作（用其他应用打开 / 导出 PDF / 显示位置 /
-    // 复制路径 / 关闭文件）统一收口。文件名旁常驻一个 ⋯，菜单由 documentMenus
+    // 的 fileMenuItems() 提供——右键文件名是加速器，这个按钮才是可发现的入口。
     // 的 fileMenuItems() 提供——右键文件名是加速器，这个按钮才是可发现的入口。
     fileMoreBtn.innerHTML = iconSvg('moreHorizontal', 16)
     fileMoreBtn.setAttribute('aria-label', t('moreActions'))
