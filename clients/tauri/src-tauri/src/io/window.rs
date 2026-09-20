@@ -189,7 +189,7 @@ fn apply_platform_window_tweaks(win: &tauri::WebviewWindow) {
       hwnd.0 as isize,
       move || {
         // 这个闭包是在**窗口过程**里被调的（WM_* 处理中），而 Tauri 的窗口 API
-        // 会把调用派回主线程并等待结果——在窗口过程里重入就是死��。
+        // 会把调用派回主线程并等待结果——在窗口过程里重入就是死锁。
         // 实测症状：第一个窗口正常，再开第二个直接卡死、必须强杀。
         // 所以先跳出当前线程再碰 Tauri：窗口过程立刻返回，宿主线程自己去等。
         let w = toggle_win.clone();
