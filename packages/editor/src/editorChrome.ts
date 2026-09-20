@@ -2,7 +2,7 @@ import { countBlocks, formatCount, readingMinutes } from '@lector/core'
 
 // 状态行统计的按块缓存（raw → 渲染文本），跨刷新复用；见 core 的 countBlocks。
 const statsMemo = new Map<string, string>()
-import { bindTitlebar, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
+import { bindTitlebar, canExportPdf, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
@@ -285,6 +285,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
    * 出口动作，不该常驻。逻辑本身没动。
    */
   async function runExportPdf(): Promise<void> {
+    if (!canExportPdf()) return
     defocus()
     const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
     try {

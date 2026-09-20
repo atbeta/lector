@@ -13,6 +13,21 @@ import { save } from './fs.ts'
 import { applyUiZoom, currentUiZoom } from './window.ts'
 
 /**
+ * 壳里的 PDF 导出只接了 WebView2 PrintToPdf，macOS 没有对等的静默分页 API。
+ * 入口按这个能力显隐：做不出就不要摆一项会失败的菜单。
+ * 浏览器预览仍走 window.print，不在这里挡。
+ */
+export function shellSupportsPdfExport(userAgent: string): boolean {
+  return !/Mac|iPhone|iPad/i.test(userAgent)
+}
+
+export function canExportPdf(): boolean {
+  if (detectEnv() !== 'shell') return true
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  return shellSupportsPdfExport(ua)
+}
+
+/**
  * PDF 存盘对话框。纯原生窗口，不碰页面——调用方先问路径、后做任何视觉变化
  * （翻主题、摊平布局都在用户确认路径之后，0.26.7 教训：翻转在对话框前执行，
  * 用户看到的是「点导出→界面变白」）。浏览器环境返回 null（调用方走 window.print）。
