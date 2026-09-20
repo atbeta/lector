@@ -24,9 +24,13 @@ fn open_if_markdown(app: &AppHandle, path: &str) {
 fn paths_from_argv(argv: &[String]) -> Vec<String> {
   argv
     .iter()
-    .filter(|a| !a.starts_with('-'))
-    .skip(1)
-    .cloned()
+    .skip(1) // 第一项是 exe 自己
+    // 清洗：Windows 双击带空格/中文路径时，命令行里的引号可能作为**字面字符**传进来
+    // （单实例插件是从原始命令行拆参数的）。不清的话这一侧的路径带着引号，
+    // canonicalize 直接失败 → 去重的键退化成原始字符串 → 与另一侧对不上，
+    // 同一个文件就会被开成两个窗口。
+    .map(|a| a.trim().trim_matches('"').to_string())
+    .filter(|a| !a.is_empty() && !a.starts_with('-'))
     .collect()
 }
 

@@ -10,8 +10,24 @@ pub fn file_mtime_ms(path: &std::path::Path) -> io::Result<u64> {
   Ok(t.as_millis() as u64)
 }
 
+/// 去重键用的规范化路径。
+///
+/// 优先 canonicalize（解析符号链接、统一大小写与分隔符）。**失败时不能直接放弃**：
+/// 调用方会退回"原始字符串"，于是同一个文件在两条路径上算出两个键、去重静默失效——
+/// 症状就是"同一个文件被开成两个窗口"，而两个窗口位置尺寸相同、装的还是同一份文档，
+/// 用户分不清也点不明白。失败时退化为"清洗过的绝对路径"（去引号、去空白、补 cwd），
+/// 仍然比原始字符串可靠。
 pub(crate) fn canonical(path: &str) -> Option<PathBuf> {
-  fs::canonicalize(path).ok()
+  let cleaned = path.trim().trim_matches('"');
+  if let Ok(p) = fs::canonicalize(cleaned) {
+    return Some(p);
+  }
+  let p = PathBuf::from(cleaned);
+  if p.is_absolute() {
+    Some(p)
+  } else {
+    std::env::current_dir().ok().map(|cwd| cwd.join(p))
+  }
 }
 
 /// 本应用能打开的文档扩展名表（open_if_markdown 与 open_link 共用一份）。
