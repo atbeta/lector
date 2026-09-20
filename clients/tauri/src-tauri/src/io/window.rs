@@ -77,6 +77,10 @@ pub fn open_path(app: &AppHandle, path: &str) {
       //      也会收到并加载这条路径，bind_document 覆盖它自己的注册表键，之后
       //      再开那个文档就重复建窗（多文档时打开已打开的文件会又开一个/串窗）。
       //   2. 即便定向发送，web 层收到也会无条件重读重载，脏文档还会弹丢弃确认。
+      // 最小化的窗口 set_focus 只给焦点不还原（任务栏图标只闪不弹）——先还原再聚焦。
+      if win.is_minimized().unwrap_or(false) {
+        let _ = win.unminimize();
+      }
       let _ = win.set_focus();
       return;
     }
@@ -322,7 +326,7 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   if let Some((x, y, sw, sh, maximized)) = saved {
     // 存档是物理像素（window-state 插件按 PhysicalPosition/PhysicalSize 存取），
     // 而 builder 的 position/inner_size 是逻辑像素（tauri 文档原文）。不换算的话
-    // HiDPI 屏（125%/150% 缩放）上预应用的位置和尺寸都按缩放偏大，插件就绪时
+      .monitor_from_point(x, y)
     // 再按物理值恢复一次——窗口「出现在一个位置、随后挪到另一个位置」。
     // 按落点显示器的缩放折算成逻辑值，预应用与插件恢复重合，不再跳动。
     let scale = app
