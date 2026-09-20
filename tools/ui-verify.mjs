@@ -705,21 +705,30 @@ const summary = {
         const seam = await page.evaluate(() => {
           const body = document.querySelector('.sidebar-body')
           const g = document.querySelector('.sidebar-grip')
-          if (!body || !g) return null
+          const side = document.getElementById('sidebar')
+          if (!body || !g || !side) return null
           const br = body.getBoundingClientRect()
           const gr = g.getBoundingClientRect()
+          const sr = side.getBoundingClientRect()
           const y = br.top + 80
           return {
-            overlap: br.right - gr.left,
-            trackIsGrip: !!document.elementFromPoint(br.right - 4, y)?.closest('.sidebar-grip'),
+            // 滑块画在 8px 滑轨正中，中心离 body 右沿 4px。这点落到握把上就拖不动滑块。
+            thumbIsGrip: !!document.elementFromPoint(br.right - 4, y)?.closest('.sidebar-grip'),
+            // 握把自己必须还在最右沿，否则宽度就调不了了。
+            gripHit: !!document.elementFromPoint(gr.right - 1, y)?.closest('.sidebar-grip'),
+            // 滑轨离右边线的距离：只该有边框 + 一点点（握把探出死区的部分），大了就是那道丑缝。
+            seam: Math.round(sr.right - br.right),
           }
         })
-        if (seam && (seam.overlap > 1 || seam.trackIsGrip)) {
-          note('error', `宽度把手盖住了大纲滑轨：重叠 ${seam.overlap.toFixed(1)}px，滑轨命中握把=${seam.trackIsGrip}`)
+        if (seam && (seam.thumbIsGrip || !seam.gripHit)) {
+          note('error', `宽度把手与大纲滑轨冲突：滑块命中握把=${seam.thumbIsGrip}，握把可点=${seam.gripHit}`)
         }
-        await page.mouse.move(grip.x + 3, grip.y + 160)
+        if (seam && seam.seam > 4) {
+          note('error', `大纲滑轨离右边线 ${seam.seam}px，缝隙过宽（滚动条该基本贴边）`)
+        }
+        await page.mouse.move(grip.x + grip.width / 2, grip.y + 160)
         await page.mouse.down()
-        await page.mouse.move(grip.x + 3 + 80, grip.y + 160, { steps: 6 })
+        await page.mouse.move(grip.x + grip.width / 2 + 80, grip.y + 160, { steps: 6 })
         await page.mouse.up()
         await page.waitForTimeout(300)
         const w1 = await widthNow()
@@ -729,7 +738,7 @@ const summary = {
         }
         const grip2 = await page.locator('.sidebar-grip').boundingBox()
         if (grip2) {
-          await page.mouse.dblclick(grip2.x + 3, grip2.y + 160)
+          await page.mouse.dblclick(grip2.x + grip2.width / 2, grip2.y + 160)
           await page.waitForTimeout(300)
           const w2 = await widthNow()
           if (Math.abs(w2.css - 288) > 1) note('error', `双击把手没有复位到默认 288：${w2.css}`)

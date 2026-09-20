@@ -754,7 +754,14 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
  * 窄窗口放不下「正文列 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
  * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
 .sidebar {
-  --sidebar-grip-w: 6px;
+  /* 宽度把手的热区。它压在右边缘：绝对定位的锚点是 padding box，右边框那 1px 本就
+     不在握把下，所以握把真正能白占的只有滑块外侧那 2px 透明内缩（见 base.css 的
+     ::-webkit-scrollbar-thumb）。握把宽过 2px 的部分才要把 .sidebar-body 往左推，
+     而推多少滚动条就离边线多远——于是「缝宽 ≈ 握把宽」，越小越贴边。默认滚动条本身
+     的滑块就内缩 2px，所以握把压到 3px 时，侧栏这根和别处看上去一模一样；曾经的
+     6px 握把把整条滚动条推开近 8px，才会像悬在半空。 */
+  --sidebar-grip-w: 3px;
+  --sidebar-grip-deadzone: 2px;
   grid-area: side;
   /* 三件套：定位锚点（宽度把手要绝对定位）、列向布局、不外溢。
      滚动只发生在 .sidebar-body。 */
@@ -775,9 +782,9 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
    文字会逐帧挤压换行（发皱）。body 锁在停靠宽度上（-1px = 右边框），超出
    部分由 aside 的 overflow: hidden 裁掉——动画变成干净的揭示/收起，文字纹丝不动。 */
 .sidebar-body {
-  /* 右边让出握把宽：8px 滑轨在这一列里，6px 热区在它外侧。叠在一起时
-     永远点不到滑轨（光标先变成 col-resize）。-1px = 侧栏右边框。 */
-  width: calc(var(--sidebar-w) - 1px - var(--sidebar-grip-w));
+  /* -1px = 右边框；再让出握把里探出死区的那部分。这样滑轨紧挨握把，
+     滑块也就贴到边线附近——而不是被一道空缝推向左边的半空。 */
+  width: calc(var(--sidebar-w) - 1px - max(0px, var(--sidebar-grip-w) - var(--sidebar-grip-deadzone)));
   /* 本仓库没有全局 box-sizing。不补这行，width 是内容宽、再叠加左右各 8px 的
      padding，body 会比侧栏宽 16px：右侧留白被裁掉，而且 .sidebar-body 变成
      可横向滚动的盒子——点大纲条目时 scrollIntoView 会把它滚 8px，左侧留白当场消失
@@ -799,8 +806,9 @@ html.no-doc .sidebar { display: none; }
 /* 状态行写的是「这份文档现在什么状态」。没有文档时就无话可写，留一条空带
    既没信息又打破空态「整窗一块画布」的扉页感——一起收掉。 */
 html.no-doc #statusbar { display: none; }
-/* 宽度把手：贴在右边缘、在滚动条外侧。不能盖住滑轨，否则悬停永远是
-   col-resize，滚轮可以、拖滑块不行。平时只是发丝线，拖起来才点成主色。 */
+/* 宽度把手：贴在右边缘、在滚动条外侧。不能盖住滑轨上的滑块，否则悬停永远是
+   col-resize，滚轮可以、拖滑块不行。它允许压住滑轨外侧的透明内缩（--sidebar-grip-
+   deadzone），所以热区比让出来的那点宽度大。平时只是发丝线，拖起来才点成主色。 */
 .sidebar-grip {
   position: absolute;
   top: 0;
