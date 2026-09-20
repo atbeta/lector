@@ -161,9 +161,11 @@ const hardColors = [...APP_CODE.matchAll(/#[0-9a-f]{3,8}\b/gi)]
   .map((m) => m[0])
   .filter((c) => !ALLOWED_HARD_COLORS.includes(c.toLowerCase()))
 const hardDurations = [...APP_CODE.matchAll(/(?:transition|animation)[^;]*?\b(\d{2,4})ms/g)].map((m) => m[0])
-const rgbLiterals = [...APP_CODE.matchAll(/rgba?\(\s*\d/g)].map((m) => m[0])
+// 报出来必须能直接定位：只打印匹配到的前几个字符（"rgb(0"）等于没有线索，
+// 定位一次要全仓扫一遍。这里打印完整的 rgb(...) 调用片段，可直接 grep。
+const rgbLiterals = [...APP_CODE.matchAll(/rgba?\(\s*\d[^)]*\)/g)].map((m) => m[0].trim())
 if (hardColors.length) note('warn', `样式表硬编码颜色 ${hardColors.length} 处：${hardColors.slice(0, 6).join(' ')}`)
-if (rgbLiterals.length) note('warn', `样式表裸 rgb() 数值 ${rgbLiterals.length} 处（应走 token）`)
+if (rgbLiterals.length) note('warn', `样式表裸 rgb() 数值 ${rgbLiterals.length} 处（应走 token）：${rgbLiterals.slice(0, 4).join(' | ')}`)
 if (hardDurations.length) note('info', `样式表直接写时长 ${hardDurations.length} 处（应走 --motion-*）`)
 
 // ── 4. 阴影：禁止彩色投影（品牌靛蓝做投影） ──
