@@ -11,10 +11,13 @@ use tauri::{AppHandle, Emitter, EventTarget, Manager, RunEvent};
 use io::{open_path, PendingOpens, WatcherStore, WindowRegistry};
 use protocol::AllowedDirs;
 
-fn open_if_markdown(app: &AppHandle, path: &str) {
+fn open_if_markdown(app: &AppHandle, path: &str) -> bool {
   // 扩展名表与 open_link 共用一份（io::is_text_doc）
   if io::is_text_doc(&PathBuf::from(path)) {
     open_path(app, path);
+    true
+  } else {
+    false
   }
 }
 
@@ -87,7 +90,7 @@ pub fn run() {
     // 在 macOS webview 里必被拒，见 Cargo.toml 注释）。
     .plugin(tauri_plugin_clipboard_manager::init())
     // 窗口状态：退出时记住尺寸/位置/是否最大化，启动时恢复。
-    // 必须在建窗口（setup 里的 ensure_main_window）**之前**注册——
+    // 必须在建窗口（ensure_main_window / open_path）**之前**注册——
     // 插件是靠 on_window_ready 钩子把状态写回刚建好的窗口上的。
     // 主窗口跳过插件的自动恢复：几何由 io/window.rs::build_doc_window 在建窗前预应用
     // （窗口可见前），插件的恢复发生在窗口就绪后——可见窗口被二次挪动就是
@@ -128,15 +131,18 @@ pub fn run() {
       let _ = menu::create(app.handle());
       let argv: Vec<String> = std::env::args().collect();
       let opened = paths_from_argv(&argv);
-      if opened.is_empty() {
-        // 没有带文件启动：建主窗口（空态）。
-        // 窗口由 io::ensure_main_window 统一创建，见该函数上的注释。
-        if let Err(e) = io::ensure_main_window(app.handle()) {
-          log::error!("failed to create main window: {e}");
-        }
-      } else {
+      if !opened.is_empty() {
         for path in &opened {
           open_if_markdown(app.handle(), path);
+        }
+      } else if !cfg!(target_os = "macos") {
+        // Windows 的文件关联走 argv：空 argv 就是真的没文件，建空主窗。
+        // macOS 不能在这里建——Finder 双击的路径走 Apple Event
+        // （`RunEvent::Opened`），argv 几乎总是空的。现在建空窗，随后 Opened
+        // 再开文档窗，用户看到的就是「文档 + 一个新的 Lector」。
+        // 空窗改到 Ready 之后补，见 run 回调。
+        if let Err(e) = io::ensure_main_window(app.handle()) {
+          log::error!("failed to create main window: {e}");
         }
       }
       Ok(())
@@ -184,11 +190,30 @@ pub fn run() {
     // 所以在别的平台这个 variant 根本不存在，必须 gate 掉，否则 Windows 编不过。
     #[cfg(target_os = "macos")]
     RunEvent::Opened { urls } => {
+      let mut opened_any = false;
       for url in urls {
         if let Ok(p) = url.to_file_path() {
-          open_if_markdown(app, &p.to_string_lossy());
+          opened_any |= open_if_markdown(app, &p.to_string_lossy());
         }
       }
+      // Ready 的延迟补窗若抢先建了空的「Lector」，这里收掉。
+      if opened_any {
+        io::close_unused_startup_window(app);
+      }
+    }
+    // macOS：setup 故意不建空窗。Opened 通常在 didFinishLaunching 之前，
+    // 此时文档窗已经在；若还没有窗口，才是从 Dock / 启动台进来的空启动。
+    #[cfg(target_os = "macos")]
+    RunEvent::Ready => {
+      io::schedule_startup_window(app);
+    }
+    // 关掉最后一扇窗后点 Dock 图标：按 macOS 惯例补一扇空窗。
+    #[cfg(target_os = "macos")]
+    RunEvent::Reopen {
+      has_visible_windows: false,
+      ..
+    } => {
+      io::ensure_startup_window_if_idle(app);
     }
     RunEvent::WindowEvent {
       label,

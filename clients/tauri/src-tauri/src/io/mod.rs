@@ -14,4 +14,7 @@ mod window;
 pub use commands::{clear_recent, load_recent, remove_recent};
 pub use fs::{is_image_ext, is_text_doc};
 pub use watch::WatcherStore;
-pub use window::{ensure_main_window, forget_window, open_path, PendingOpens, WindowRegistry};
+pub use window::{
+  close_unused_startup_window, ensure_main_window, ensure_startup_window_if_idle, forget_window,
+  open_path, schedule_startup_window, PendingOpens, WindowRegistry,
+};

@@ -95,6 +95,8 @@ Windows/Linux 无边框自绘），`cargo test` 里有一条断言盯着 config 
   从根目录调用时才对——CI 必须 `bun run tauri:build`，不要 `working-directory: clients/tauri`。
 - **`RunEvent::Opened` 是 macOS 专属 variant**：不 gate 掉，Windows 目标直接编译失败。
   Windows 的文件关联走 argv + `tauri-plugin-single-instance`。
+  macOS 的 argv 几乎总是空的，setup 里不能按「没带文件」建空主窗，否则双击 md
+  会得到「文档窗 + 一个新的 Lector」。空窗延到 Ready 之后、确认没有 Opened 再补。
 
 本机想验 Windows 行为时，只能靠这个流水线；不要声称在 macOS 上验证过 Windows。
 

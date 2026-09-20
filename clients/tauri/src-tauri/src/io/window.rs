@@ -236,6 +236,66 @@ pub fn ensure_main_window(app: &AppHandle) -> tauri::Result<()> {
   Ok(())
 }
 
+/// 启动时要不要建空主窗口。
+///
+/// - 命令行已经带了文件：否（那些文件会各自建窗）
+/// - 已经有窗口：否（macOS 上 `RunEvent::Opened` 可能比 setup 更早建了文档窗）
+/// - 否则：是
+pub fn should_create_startup_window(argv_has_files: bool, already_has_window: bool) -> bool {
+  !argv_has_files && !already_has_window
+}
+
+/// `main` 是不是还停在欢迎空态（没绑定文档、也没有 pending）。
+///
+/// Finder 双击打开时，setup 可能因为 argv 为空先建了一个空的「Lector」窗；
+/// 文档窗起来之后，这个空窗就是多出来的那个实例。
+pub fn is_unused_startup_window(bound: bool, has_pending: bool) -> bool {
+  !bound && !has_pending
+}
+
+/// 没有任何窗口时补一扇空主窗。给 macOS 的 Ready / Reopen 用：
+/// 启动时 argv 空不代表没文件，空窗必须等 Opened 有机会先跑。
+pub fn ensure_startup_window_if_idle(app: &AppHandle) {
+  if !should_create_startup_window(false, !app.webview_windows().is_empty()) {
+    return;
+  }
+  if let Err(e) = ensure_main_window(app) {
+    log::error!("failed to create main window: {e}");
+  }
+}
+
+/// 把空窗创建推迟到 Opened 有机会先到。
+///
+/// Apple 文档说 `application:openURLs:` 在 `didFinishLaunching` 之前，
+/// 但 tao 把两者都转成事件后，偶发会看到 Ready 比 Opened 先到。
+/// 空启动多等几十毫秒感觉不到；过早建空窗就会再多一个 Lector。
+pub fn schedule_startup_window(app: &AppHandle) {
+  let handle = app.clone();
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_millis(80));
+    let _ = handle.run_on_main_thread({
+      let handle = handle.clone();
+      move || ensure_startup_window_if_idle(&handle)
+    });
+  });
+}
+
+/// Finder 打开文件后，关掉 setup 留下的未使用空 `main`。
+pub fn close_unused_startup_window(app: &AppHandle) {
+  let Some(win) = app.get_webview_window("main") else {
+    return;
+  };
+  let registry = app.state::<WindowRegistry>();
+  let bound = crate::lock(&registry.0).values().any(|l| l == "main");
+  let pending = app.state::<PendingOpens>();
+  let has_pending = crate::lock(&pending.0).contains_key("main");
+  if !is_unused_startup_window(bound, has_pending) {
+    return;
+  }
+  log::info!("[win] 关闭未使用的启动空窗");
+  let _ = win.close();
+}
+
 /// 首次启动的默认窗口尺寸：按主屏工作区算，不写死。
 ///
 /// 原来写死 900×720：在 1080p 上只占中间一小块，2K/4K 上更明显（用户反馈过
@@ -446,5 +506,29 @@ mod tests {
     // Windows / Linux 走无边框自绘
     #[cfg(not(target_os = "macos"))]
     assert!(!window_chrome().decorations, "非 macOS 走 decorations:false 自绘");
+  }
+
+  /// macOS 双击 md：Opened 可能已经建了文档窗，argv 却是空的。
+  /// 再补一扇空主窗就是「打开文档的同时还开了一个新 Lector」。
+  #[test]
+  fn file_open_must_not_create_empty_window_if_doc_already_open() {
+    assert!(!should_create_startup_window(false, true));
+  }
+
+  #[test]
+  fn dock_launch_without_file_creates_empty_window() {
+    assert!(should_create_startup_window(false, false));
+  }
+
+  #[test]
+  fn argv_files_skip_empty_window() {
+    assert!(!should_create_startup_window(true, false));
+  }
+
+  #[test]
+  fn unused_main_can_be_closed_after_finder_open() {
+    assert!(is_unused_startup_window(false, false));
+    assert!(!is_unused_startup_window(true, false));
+    assert!(!is_unused_startup_window(false, true));
   }
 }
