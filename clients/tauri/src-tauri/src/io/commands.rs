@@ -375,10 +375,18 @@ pub fn bind_document(window: tauri::Window, app: AppHandle, path: String) -> Res
   {
     let registry = app.state::<WindowRegistry>();
     let mut map = crate::lock(&registry.0);
+    // 覆盖前的旧键一并打出来：bind_document 是"先删该窗口的旧键、再插新键"，
+    // 如果某次 re-bind 传进来的路径拼法与另一侧不同，正确键会被删掉换成错键，
+    // 之后打开同一文件必然 miss——这条日志就是用来抓这个的。
+    let before: Vec<String> = map
+      .iter()
+      .filter(|(_, l)| *l == &label)
+      .map(|(k, _)| k.display().to_string())
+      .collect();
     map.retain(|_, l| l != &label);
     map.insert(canon.clone(), label.clone());
     log::info!(
-      "[win] bind_document label={label} 键={} 登记总数={}",
+      "[win] bind_document label={label} path={path} canon={} 覆盖前该窗口的键={before:?} 表内共 {} 条",
       canon.display(),
       map.len()
     );

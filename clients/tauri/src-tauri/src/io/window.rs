@@ -71,9 +71,15 @@ pub fn open_path(app: &AppHandle, path: &str) {
   // 十有八九是键对不上（大小写 / 8.3 短名 / \\?\ 前缀 / canonicalize 失败回退），
   // 把原始路径和归一化后的键都打出来，一次复现就能判定。
   log::info!(
-    "[win] open_path 原始={path} 键={} 登记命中={:?}",
+    "[win] open_path 原始={path} 键={} 登记命中={:?} 注册表={:?}",
     key.display(),
-    existing
+    existing,
+    // miss 时把整张表打出来：这样能看到"我们算出的键"与"实际登记的键"到底差在哪，
+    // 或者该文件根本不在表里（那就是被某次 re-bind 覆盖掉了，见 bind_document 的日志）。
+    crate::lock(&registry.0)
+      .keys()
+      .map(|k| k.display().to_string())
+      .collect::<Vec<_>>()
   );
 
   if let Some(label) = existing {
