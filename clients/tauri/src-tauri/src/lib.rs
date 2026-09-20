@@ -4,8 +4,6 @@ mod pdf;
 mod protocol;
 #[cfg(target_os = "windows")]
 mod snap;
-#[cfg(target_os = "windows")]
-mod win_diag;
 
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, EventTarget, Manager, RunEvent};
