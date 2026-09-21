@@ -41,3 +41,7 @@ perf-fixtures/
 # 本机真机渲染探针（WKWebView 截图、一次性 swift 脚本）。macOS 原生渲染差异只能在
 # 真 WKWebView 里量，但那是一次性证据，不进仓库。
 .probe/
+
+# 立项包:开发过程中的 brief / research / bootstrap / handoff / acceptance 等本地笔记,
+# 正式发布不进仓库——AGENTS.md / README.md / CHANGELOG.md 才是对外的产品文档。
+.ai/

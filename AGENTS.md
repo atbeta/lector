@@ -64,7 +64,6 @@ Lector —— 阅读优先的 Markdown 编辑器。AI 编码 Agent 与人类协�
 
 ```
 lector/
-├── .ai/                # 立项包（brief / research / architecture / bootstrap）
 ├── packages/core       # SourceDocument、parse、serialize、BlockView —— 无 DOM
 ├── packages/editor     # IR 视图 + 聚焦块 CM，可 vite 单独打开
 ├── packages/shell-web  # 菜单绑定、打开保存、最近列表、窗口协调
@@ -72,7 +71,7 @@ lector/
 └── testdata/           # 真实 md 夹具（中文、CRLF、GFM、frontmatter）
 ```
 
-## 成功标准（v1，节选自 .ai/01-brief.md）
+## 成功标准（v1）
 
 1. 应用已在跑时双击普通 md，看见正文 < 300ms；冷启动 < 1.5s（做不到就先纯文本降级再切 IR）。
 2. ⌘S / Ctrl+S 写回同一路径，未改段落字节级一致。
