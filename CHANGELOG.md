@@ -54,6 +54,25 @@ and the `chore(release):` commits themselves.
 
 [v0.34.7]: https://github.com/atbeta/lector/compare/v0.34.6...v0.34.7
 
+## v0.34.6 (2026-09-20)
+
+### Fixed
+
+- repair two mojibake comment lines introduced in c598074
+- stop broadcasting window events - dedup focus only, targeted menu emit, skip same-doc drop reload
+
+[v0.34.6]: https://github.com/atbeta/lector/compare/v0.34.1...v0.34.6
+## v0.34.1 (2026-09-20)
+
+### Fixed
+
+- stop listing the unreliable zoom/font shortcuts
+- stop the macOS menu claiming the font-size shortcuts
+
+### Improved
+
+- tuck the outline scrollbar against the divider
+[v0.34.1]: https://github.com/atbeta/lector/compare/v0.34.0...v0.34.1
 ## v0.34.0 (2026-09-20)
 
 ### Added
@@ -171,6 +190,42 @@ and the `chore(release):` commits themselves.
 
 [v0.29.0]: https://github.com/atbeta/lector/compare/v0.28.1...v0.29.0
 
+## v0.29.1 (2026-09-18)
+
+### Fixed
+
+- outline follows the reading position;
+
+### Improved
+
+- add commit-msg hook that rejects non-English subjects
+
+### Internal
+
+- require English commit messages in AGENTS.md
+- rewrite README as a proper English-language project description
+- switch section headers to English and drop install boilerplate from per-version…
+- backfill 66 GitHub releases with proper per-version notes
+- add formal CHANGELOG.md and clean up the release notes flow
+[v0.29.1]: https://github.com/atbeta/lector/compare/v0.29.0...v0.29.1
+## v0.30.0 (2026-09-18)
+
+### Added
+
+- remember a manually typed external app, and promote the one actually used
+- browse for and remember the external app
+- open with a configured external app
+
+### Fixed
+
+- tighten the app-path judgement and align its tests
+[v0.30.0]: https://github.com/atbeta/lector/compare/v0.29.1...v0.30.0
+## v0.30.1 (2026-09-18)
+
+### Fixed
+
+- restore mut on the external-app command (E0596 broke the release)
+[v0.30.1]: https://github.com/atbeta/lector/compare/v0.30.0...v0.30.1
 ## v0.28.1 (2026-09-18)
 
 ### Fixed
