@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 46px;
+  height: 48px;
   padding: 0 10px 0 14px;
   background: rgb(var(--shell));
   /* 拖动靠 -webkit-app-region: drag（整个元素），不用在按钮上挂 JS 拖拽 */
@@ -164,6 +164,7 @@ html[data-shell='windows'] #titlebar {
   height: 32px;
   padding: 0 0 0 12px;
   gap: 6px;
+  border-bottom: 0;
 }
 /* 32px 的栏里 28px 按钮顶天立地：悬停/按下的色块直接顶到栏边，读成「挤」。
    收成 26px（图标不变），栏就有了呼吸；命中区仍远大于触达下限。 */
@@ -463,8 +464,10 @@ html[data-shell='windows'] .window-controls { display: flex; }
 html[data-mode='read'] .block:not(.gap) { cursor: default; }
 /* 只读模式下悬停去掉背景：不像「可点的控件」 */
 html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
-/* 悬停提示「这块可点」；聚焦块给极淡靛蓝衬底，替代以前的重边框 */
-.block:not(.gap):hover { background: var(--block-hover-bg); }
+/* 悬停提示「这块可点」；聚焦块给极淡靛蓝衬底，替代以前的重边框。
+   hover 要排除 .focused：否则 .block:not(.gap):hover（0,3,0）压过 .block.focused（0,2,0），
+   鼠标悬在聚焦块上时衬底被换成中性灰，「这块在编辑」的信号就消失了。 */
+.block:not(.gap):not(.focused):hover { background: var(--block-hover-bg); }
 /* 聚焦块：衬底 + 一圈同样克制的描边。
    衬底只有 3.5% 靛蓝，能说出「这块在编辑」，说不出边界在哪；描边补上那半句。
    用 box-shadow 而不是 border：不参与布局，预览↔编辑切换（.cm-host 带负边距）时
@@ -619,8 +622,12 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
 .cm-host[data-kind='heading'][data-depth='6'] { font-size: var(--text-h6); font-weight: 600; }
 .cm-host[data-kind='blockquote'] {
   color: rgb(var(--muted-foreground));
-  padding-left: 1em;
-  border-left: 2px solid rgb(var(--border-strong));
+  /* 几何与预览态（reader.css .reading-prose blockquote：3px 竖线 + padding-left 1.05em）对齐：
+     取消 cm-host 的 -8px 左边距，让竖线落在块左缘同一位置、文字距竖线同为 1.05em，
+     聚焦/失焦切换时文字不横移。颜色两边有意不同（预览用 --quote-foreground），不动。 */
+  margin-left: 0;
+  padding-left: 1.05em;
+  border-left: 3px solid rgb(var(--border-strong));
 }
 .cm-host[data-kind='code'],
 .cm-host[data-kind='html'],
@@ -645,6 +652,7 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
  * 三组：查询+开关、计数+翻页、替换；替换默认收起，点最左的三角展开。 */
 .find-bar {
   position: fixed;
+  /* 固定偏移，不与顶栏高度联动：顶栏 48px，查找栏落在其下 8px 处 */
   top: calc(46px + 10px);
   right: 14px;
   z-index: 90;
@@ -751,8 +759,8 @@ html:not([data-mode='read']) .block:not(.gap) > .block-handle { display: flex; }
 /* ───────────── 侧栏：当前文档的目录 ─────────────
  * 停靠而非浮层：大纲属于文档本身，不是临时工具。
  * 停靠时正文所在的网格轨道变小并重新居中（grid-template-columns 带过渡）。
- * 窄窗口放不下「正文列 + 侧栏」时，sidebar.ts 会切到 sidebar-overlay：
- * 那时它浮在正文上——盖住一点，好过把正文挤到 400px 宽。 */
+ * 窄窗口放不下「正文列 + 侧栏」也不退化成浮层——浮层会盖住正文；
+ * 正文列有 max-width，挤一挤仍可读（取舍见 sidebar.ts 的 mode()）。 */
 .sidebar {
   /* 宽度把手的热区。它压在右边缘：绝对定位的锚点是 padding box，右边框那 1px 本就
      不在握把下，所以握把真正能白占的只有滑块外侧那 2px 透明内缩（见 base.css 的
@@ -839,22 +847,6 @@ html.sidebar-resizing .sidebar-grip::after { background: rgb(var(--primary)); }
 /* 拖拽中：光标与选区全局锁住，否则会选中侧栏文字 */
 html.sidebar-resizing { cursor: col-resize; user-select: none; }
 
-/* 浮层模式：窄窗口下的退化形态 */
-html.sidebar-overlay .sidebar {
-  position: fixed;
-  top: 46px;
-  left: 0;
-  bottom: 34px;
-  width: var(--sidebar-w);
-  z-index: 40;
-  border-right: 1px solid rgb(var(--border));
-  background: rgb(var(--popover));
-  box-shadow: var(--shadow-floating);
-  animation: sidebar-in var(--motion-slow) var(--ease-emphasized) both;
-}
-html.sidebar-overlay[data-shell='windows'] .sidebar { top: 32px; }
-html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
-
 /* ── 树形大纲 ──
  * 层级用**结构**表达（子节点容器缩进 12px），不再给每一级写一条 padding 规则。
  * 这样层级再深也不用改 CSS，而扁平列表的做法（depth=1..6 各一条）在
@@ -919,18 +911,21 @@ html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
   white-space: nowrap;
 }
 
-/* 当前小节：文字变实加粗，无指示条、无填色。
-   试过行首指示条（2px 色条）：侧栏多了一条与缩进无关的竖线，像排版瑕疵；
-   整行填色又会把侧栏压重、和 hover 打架。文字本身的重量变化已经足够。 */
-.outline-row { position: relative; }
-.outline-row.active { color: rgb(var(--foreground)); font-weight: 550; }
-/* 当前小节的上级：只把文字变深。
-   「你在这里」与「你在这条线上」用同一档文字变化表达，靠粗细区分主次。 */
-.outline-row.ancestor { color: rgb(var(--foreground)); }
 /* 大纲每一级**同字号**。曾经给 3 级及以下写过一条 --text-2xs（12px）的规则，
    结果三级小节比一级还小——层级由缩进和字重表达就够了，字号一变小，
    深处的标题反而更看不清，和「大纲是给人快速定位的」正好相反。 */
+.outline-row { position: relative; }
 .outline-row[data-depth='1'] { font-weight: 600; color: rgb(var(--foreground)); }
+/* ancestor / active 必须写在 depth 规则**之后**：三者特异度相同（0,2,0），
+   谁靠后谁赢。曾经 active 在前，一级当前行被 depth='1' 的 600 压平，
+   当前行与非当前行视觉完全一致。字重阶梯：普通行 < ancestor(550) < 一级(600) < active(650)。 */
+/* 当前小节的上级：文字变深并略加粗。
+   「你在这里」与「你在这条线上」用同一档文字变化表达，靠粗细区分主次。 */
+.outline-row.ancestor { color: rgb(var(--foreground)); font-weight: 550; }
+/* 当前小节：文字变实、比一级行再重半档，无指示条、无填色。
+   试过行首指示条（2px 色条）：侧栏多了一条与缩进无关的竖线，像排版瑕疵；
+   整行填色又会把侧栏压重、和 hover 打架。文字本身的重量变化已经足够。 */
+.outline-row.active { color: rgb(var(--foreground)); font-weight: 650; }
 .outline-empty {
   padding: 6px 8px;
   color: rgb(var(--subtle-foreground));
@@ -946,7 +941,7 @@ html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 34px;
+  height: 32px;
   /* 贴窗口右下角，不与正文列对齐。
      状态行是**窗口**的元信息（字数、状态），不是文档排版的一部分；
      跟着正文列走会让同一屏出现三条互相较劲的竖线，而正文列居中时左边那条
@@ -971,11 +966,6 @@ html.sidebar-overlay[data-shell='macos'] .sidebar { top: 36px; }
   color: rgb(var(--border-strong));
 }
 .status-item[data-strong='true'] { color: rgb(var(--muted-foreground)); }
-
-@keyframes sidebar-in {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
-}
 
 /* ───────────── 首屏空态 ─────────────
  * 扉页构图：品牌 logo + 衬线字标 + 定位语 + 墨色主按钮。

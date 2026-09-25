@@ -15,6 +15,22 @@
  * 纯蓝灰在大面积留白上显「冷」、显廉价；暖灰在阅读器上更接近纸。
  *
  * 阅读器特有：正文是主角，所以 --reading-* 独立成组，由设置面板覆写。
+ *
+ * ───────────── z 尺度（集中索引，只作文档；数值以各处规则为准） ─────────────
+ * 全局浮层从低到高（新浮层挑空档插，别就地发明新量级）：
+ *    40  #statusbar 状态行（chrome.css）
+ *    60  #titlebar 顶栏（chrome.css）
+ *    80  .drop-overlay 拖放反馈框（panels.css）
+ *    90  .find-bar 查找栏（chrome.css）、.selection-bubble 选区浮条、
+ *        .appearance-pop 外观浮层（overlays.css）
+ *   100  .tip 悬浮提示（chrome.css）、.lector-toast、.modal-backdrop 设置弹层
+ *        （overlays.css）、.shortcuts-pop 键盘面板（panels.css）
+ *   120  .recover-bar 草稿恢复条（panels.css）
+ *   200  .lightbox 图片灯箱（overlays.css）
+ *   210  .context-menu 右键菜单（overlays.css）——要压过灯箱里的图
+ *  9999  .pdf-exporting 导出遮罩（panels.css）——兜底盖一切，只此一家
+ * 1–2 是堆叠上下文内部的局部值（titlebar 分组、sidebar-grip、lightbox 内部），
+ * 不参与上面的全局比较。
  */
 
 :root {
