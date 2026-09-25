@@ -2,8 +2,8 @@
 //
 // 为什么是停靠而不是浮层：大纲是「这篇文档的目录」，属于文档本身。
 // 停靠时正文让位并重新居中；浮层语义是「临时工具」，与目录的地位不符。
-// 只有窗口放不下「正文 640 + 侧栏 + 留白」时才退化成浮层——那时候盖住一点，
-// 好过把正文挤到 400px 宽。
+// 窗口放不下时也不退化成浮层——浮层会盖住正文，而阅读器里正文是主角；
+// 放不下就一起挤（正文列有 max-width，变窄仍可读），或关掉侧栏、拖宽窗口。
 //
 // 正文在「扣掉侧栏之后的轨道」里 margin:auto 居中。没有额外做屏幕级补偿：
 // 主流阅读器（Notion / Obsidian / Bear）都是这样，正文落在视觉重心略偏右的位置，
@@ -21,7 +21,7 @@ const W_MIN = 200
 const W_MAX = 420
 const W_KEY = 'lector-sidebar-w'
 
-export type SidebarMode = 'docked' | 'overlay' | 'hidden'
+export type SidebarMode = 'docked' | 'hidden'
 
 export interface Sidebar {
   readonly el: HTMLElement
@@ -84,7 +84,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   root.classList.add('sidebar-boot')
 
   // 初始形态：用户明确选过就听用户的；否则宽窗口默认展开（阅读器里目录默认可见更实用），
-  // 窄窗口默认收起——窄窗口下它是要盖住正文的浮层，不该自己弹出来。
+  // 窄窗口默认收起——窄窗口里正文与侧栏互相挤，不该自己弹出来抢宽度。
   // 宽度先于下边的把手初始化：把手一建出来就要把当前值写进 aria-valuenow。
   const pref = readPref()
   let width = readWidthPref()
@@ -158,7 +158,7 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
   const onGripMove = (e: PointerEvent) => {
     if (!grip.hasPointerCapture(e.pointerId)) return
     applyWidth(dragStartW + (e.clientX - dragStartX))
-    // 拖宽之后「放不下」的判定会变，形态可能要跟着在停靠/浮层之间切换
+    // 宽度变了，类名与 aria 值跟着同步
     apply()
   }
   const onGripUp = (e: PointerEvent) => {
@@ -196,40 +196,13 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
 
   // 初始形态见文件上方（width / open / dockMin 都在 el 建好之后紧跟着算）
 
-  /** 浮层模式的「点外关闭 / Esc 关闭」解绑句柄 */
-  let detachOverlay: (() => void) | null = null
   // 关闭时的延迟隐藏定时器：轨道过渡走完才真正 hidden（见 apply）
   let hideTimer: ReturnType<typeof setTimeout> | undefined
-
-  function applyOverlayClose(active: boolean): void {
-    if (active === (detachOverlay !== null)) return
-    if (!active) {
-      detachOverlay?.()
-      detachOverlay = null
-      return
-    }
-    // 浮层必须能被随手关掉，否则用户会以为它是常驻侧栏又找不到关闭入口
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null
-      if (t?.closest('.sidebar, #outline-btn')) return
-      setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown, true)
-    document.addEventListener('keydown', onKey)
-    detachOverlay = () => {
-      document.removeEventListener('mousedown', onDown, true)
-      document.removeEventListener('keydown', onKey)
-    }
-  }
 
   function apply(): void {
     const m = mode()
     const root = document.documentElement
     root.classList.toggle('sidebar-docked', m === 'docked')
-    root.classList.toggle('sidebar-overlay', m === 'overlay')
     if (open) {
       // 开：立刻显示，内容由变宽的轨道逐步揭示（body 锁宽不重排，见 chrome.css）
       clearTimeout(hideTimer)
@@ -244,7 +217,6 @@ export function createSidebar(opts: { onToggle?: (open: boolean) => void } = {})
         if (!open) el.setAttribute('hidden', '')
       }, 240)
     }
-    applyOverlayClose(m === 'overlay')
     grip.setAttribute('aria-valuenow', String(width))
   }
 
