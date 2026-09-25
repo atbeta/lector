@@ -16,6 +16,24 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.36.0 (2026-09-25)
+
+### Added
+
+- feat(editor): move save feedback to status bar, fix toast
+- feat(editor): add image placeholders and drop overlay labels
+- feat(shell): localize menus, sync native title, add menu items
+
+### Fixed
+
+- fix(editor): keep editing session across save, guard IME keys
+
+### Improved
+
+- style(editor): fix outline highlight, focus hover, quote geometry
+
+[v0.36.0]: https://github.com/atbeta/lector/compare/v0.35.0...v0.36.0
+
 ## v0.35.0 (2026-09-21)
 
 ### Added
