@@ -319,6 +319,8 @@ export function createBlockOperations({
 
   /** 聚焦段末回车 → 分裂成两段（前段 + 空段）。返回 true 表示已处理。 */
   function splitBlock(block: BlockView, view: EditorView): boolean {
+    // IME 组合期间的 Enter 是确认候选，不是拆块（同 caretNavigation 的 composition 守卫）
+    if (view.composing) return false
     const doc = view.state.doc.toString()
     const pos = view.state.selection.main.head
     if (block.kind !== 'paragraph' && block.kind !== 'heading') return false
@@ -357,6 +359,8 @@ export function createBlockOperations({
 
   /** 空段块首 Backspace → 删除该空段并上移，与上方内容块合并。 */
   function mergeBlock(block: BlockView, view: EditorView): boolean {
+    // IME 组合期间的 Backspace 是删候选拼音，不是合块（同 caretNavigation 的 composition 守卫）
+    if (view.composing) return false
     const doc = view.state.doc.toString()
     if (doc.trim() !== '') return false
     if (view.state.selection.main.head !== 0) return false

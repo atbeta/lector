@@ -68,11 +68,13 @@ export interface DocumentEditor {
   getNormalizedText(): string
   retargetSource(path: string): void
   markSaved(normalized: string, mtimeMs: number | undefined): void
+  setSaving(on: boolean): void
   resetDocument(): void
   clearBlocks(): void
   clearBlockElements(): void
   acceptDiskMtime(mtimeMs: number): void
   insertImageMarkdownAtCaret(md: string): void
+  replaceInDocument(find: string, replacement: string): boolean
   openFind(): void
   operations: BlockOperations
 }
@@ -200,6 +202,9 @@ export function createDocumentEditor({
     contentEl.classList.remove('large-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
     session.source = createSourceDocument(path, raw, mtimeMs)
+    // 换文档 = 另一次保存生命周期：「保存中 / 已保存时间」都属于上一篇
+    session.saving = false
+    session.savedAt = null
     setCurrentMdPath(session.source.path)
     // 大文件逃生舱：超阈值就不解析、不建块，整篇交给一个裸 CM（见上方注释）。
     // 字节数由壳给出（read_file 的 byte_len）；浏览器预览退回 Blob 大小。
@@ -655,6 +660,34 @@ export function createDocumentEditor({
     operations.appendImageParagraph(md)
   }
 
+  /**
+   * 正文里做一次纯文本替换（图片占位的 token → 最终 src 用）。
+   * 这段文本可能住在三处：大文件的整篇 CM、聚焦块的 CM、普通块的 raw——按序找，
+   * 命中才改并返回 true。用户趁异步把占位删了会返回 false，调用方放弃回写即可。
+   * CM 路径走 dispatch（光标、撤销链、脏标记都走既有监听）；块路径复用 setBlockRaw。
+   */
+  function replaceInDocument(find: string, replacement: string): boolean {
+    const largeView = large.getView()
+    if (large.isActive() && largeView) {
+      const at = largeView.state.doc.toString().indexOf(find)
+      if (at < 0) return false
+      largeView.dispatch({ changes: { from: at, to: at + find.length, insert: replacement } })
+      return true
+    }
+    if (cm && session.focusedId) {
+      const at = cm.view.state.doc.toString().indexOf(find)
+      if (at >= 0) {
+        cm.view.dispatch({ changes: { from: at, to: at + find.length, insert: replacement } })
+        return true
+      }
+    }
+    const block = session.blocks.find((b) => b.raw.includes(find))
+    if (!block) return false
+    operations.setBlockRaw(block, block.raw.replace(find, replacement))
+    void render()
+    return true
+  }
+
   function openFind() {
     if (document.querySelector('.find-bar')) {
       document.querySelector<HTMLInputElement>('.find-input')?.focus()
@@ -721,9 +754,13 @@ export function createDocumentEditor({
 
   function retargetSource(path: string): void {
     session.source = createSourceDocument(path, session.source!.text, 0)
+    // 未命名文档第一次落盘：顶栏 / document.title / 原生标题一起换到真实文件名
+    setDocumentTitle(path)
   }
 
   function markSaved(normalized: string, mtimeMs: number | undefined): void {
+    session.saving = false
+    session.savedAt = Date.now()
     if (large.isActive()) {
       // 保存成功：把 CM 的当前全文记为新的基线（含换行归一，因为 applyEncoding 另存了磁盘形态）——
       // 这条基线就是 session.source.text，未编辑保存写回原文靠它。
@@ -740,13 +777,33 @@ export function createDocumentEditor({
       session.source!.mtimeMs = mtimeMs
     }
     if (!large.isActive()) {
-      if (cm) {
-        cm.destroy()
-        cm = null
+      if (cm && session.focusedId) {
+        // ⌘S 不拆正在编辑的块：打字时 raw 已实时同步（syncBlockText），模型即最新。
+        // 把 lastPaint 对齐到当前形态，下面 render() 就会跳过这块的重画——
+        // CM 会话、光标/选区、IME 组合原样保留，其余块的预览刷新照常。
+        const focused = session.blocks.find((b) => b.id === session.focusedId)
+        if (focused) {
+          lastPaint.set(focused.id, {
+            raw: focused.raw,
+            kind: focused.kind,
+            surface: blockPaintSurface(getViewMode(), true),
+          })
+        }
+      } else {
+        if (cm) {
+          cm.destroy()
+          cm = null
+        }
+        session.focusedId = null
       }
-      session.focusedId = null
       render()
     }
+    markDirty()
+  }
+
+  function setSaving(on: boolean): void {
+    session.saving = on
+    // 借 markDirty 的通知链刷新保存按钮与状态行（dirty 本身不变）
     markDirty()
   }
 
@@ -764,6 +821,8 @@ export function createDocumentEditor({
     session.focusedId = null
     session.dirty = false
     session.structuralDirty = false
+    session.saving = false
+    session.savedAt = null
     session.originals = new Map()
     setCurrentMdPath(null)
     large.clearLargeFileBar()
@@ -824,11 +883,13 @@ export function createDocumentEditor({
     getNormalizedText,
     retargetSource,
     markSaved,
+    setSaving,
     resetDocument,
     clearBlocks,
     clearBlockElements,
     acceptDiskMtime,
     insertImageMarkdownAtCaret,
+    replaceInDocument,
     openFind,
     operations,
   }

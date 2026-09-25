@@ -470,7 +470,7 @@ const mountPreferenceOutline = async () => {
       })
       const files = createFileController({
         editor,
-        chrome: { elements: { contentEl, fileNameEl }, setDocPresent: () => {} },
+        chrome: { elements: { contentEl, fileNameEl }, setDocPresent: () => {}, renderStatus: () => {} },
         recovery,
         io,
       })
@@ -481,12 +481,18 @@ const mountPreferenceOutline = async () => {
       const it = window.__it
       const fixture = '﻿# 标题\r\n\r\n甲段\r\n\r\n乙段\r\n'
       it.files.loadSession('/tmp/it-a.md', fixture, 1000)
-      const ok = await it.files.persistToDisk()
-      return { ok, call: it.saveCalls[0], dirty: it.editor.getSession().dirty, fixture }
+      // 干净文档的 ⌘S：短路，不写盘
+      const cleanOk = await it.files.persistToDisk()
+      const cleanCalls = it.saveCalls.length
+      // 强制路径仍要写字节级原文（BOM+CRLF）
+      const ok = await it.files.persistToDisk(true)
+      return { cleanOk, cleanCalls, ok, call: it.saveCalls[0], dirty: it.editor.getSession().dirty, fixture }
     })
+    assert.equal(r1.cleanOk, true, 'clean save short-circuits as success')
+    assert.equal(r1.cleanCalls, 0, 'clean save must not write to disk')
     assert.equal(r1.ok, true)
     assert.equal(r1.call.path, '/tmp/it-a.md')
-    assert.equal(r1.call.text, r1.fixture, 'unedited save must be byte-exact (BOM+CRLF)')
+    assert.equal(r1.call.text, r1.fixture, 'forced unedited save must be byte-exact (BOM+CRLF)')
     assert.equal(r1.dirty, false, 'clean after successful save')
 
     const r2 = await page.evaluate(async () => {
@@ -502,6 +508,42 @@ const mountPreferenceOutline = async () => {
     assert.equal(r2.ok, true)
     assert.equal(r2.call.text, '﻿# 标题\r\n\r\n改写\r\n\r\n乙段\r\n', 'edited save must carry encoded serialization')
     assert.equal(r2.dirty, false)
+
+    const rSaveFocus = await page.evaluate(async () => {
+      const it = window.__it
+      const fixture = '﻿# 标题\r\n\r\n甲段\r\n\r\n乙段\r\n'
+      it.files.loadSession('/tmp/it-save-focus.md', fixture, 1000)
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const session = it.editor.getSession()
+      const para = session.blocks.find((b) => b.kind === 'paragraph' && b.raw === '甲段')
+      it.editor.focusBlock(para.id, { mode: 'end' })
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const view = it.editor.getCmView()
+      const focusedBefore = session.focusedId
+      // 模拟打字中途：块末插入文本，光标跟到末尾
+      const end = view.state.doc.length
+      view.dispatch({ changes: { from: end, insert: '加字' }, selection: { anchor: end + 2 } })
+      const selBefore = view.state.selection.main.head
+      const ok = await it.files.persistToDisk()
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const viewAfter = it.editor.getCmView()
+      return {
+        ok,
+        focusedBefore,
+        focusedAfter: it.editor.getSession().focusedId,
+        sameCm: viewAfter === view,
+        selBefore,
+        selAfter: viewAfter ? viewAfter.state.selection.main.head : -1,
+        text: it.saveCalls[it.saveCalls.length - 1].text,
+        dirty: it.editor.getSession().dirty,
+      }
+    })
+    assert.equal(rSaveFocus.ok, true)
+    assert.equal(rSaveFocus.focusedAfter, rSaveFocus.focusedBefore, 'save must keep the focused block in editing')
+    assert.equal(rSaveFocus.sameCm, true, 'save must not rebuild the CodeMirror session')
+    assert.equal(rSaveFocus.selAfter, rSaveFocus.selBefore, 'save must preserve caret/selection')
+    assert.equal(rSaveFocus.text, '﻿# 标题\r\n\r\n甲段加字\r\n\r\n乙段\r\n', 'save must include the in-progress typing')
+    assert.equal(rSaveFocus.dirty, false)
 
     const r3 = await page.evaluate(async () => {
       const it = window.__it
@@ -626,14 +668,14 @@ const mountPreferenceOutline = async () => {
       it.files.loadSession('/tmp/it-big.md', fixture, 5, 4 * 1024 * 1024)
       const modeLocked = it.getViewMode() === 'source'
       const isLarge = it.editor.isLarge()
-      const ok = await it.files.persistToDisk()
+      const ok = await it.files.persistToDisk(true)
       const call = it.saveCalls[it.saveCalls.length - 1]
       return { modeLocked, isLarge, ok, call, fixture }
     })
     assert.equal(r5.isLarge, true)
     assert.equal(r5.modeLocked, true, 'large doc must lock source mode')
     assert.equal(r5.ok, true)
-    assert.equal(r5.call.text, r5.fixture, 'unedited large save must be byte-exact')
+    assert.equal(r5.call.text, r5.fixture, 'forced unedited large save must be byte-exact')
 
     await page.click('.large-doc-host .cm-content')
     await page.keyboard.press('Home')
