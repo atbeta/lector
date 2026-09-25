@@ -122,6 +122,13 @@ export function splitUploadCommand(input: string): { command: string; preArgs: s
   return { command: parts[0] as string, preArgs: parts.slice(1) }
 }
 
+/**
+ * 上传中占位的伪协议：粘贴/拖入后 imageController 先落 `![](lector-upload://<token>)`，
+ * 异步管线（落盘 + 可能上传）跑完再把 token 文本替换成最终 src。
+ * 渲染层（mdastHtml）认这个前缀画占位框；它永远不会成为真实的图片地址。
+ */
+export const IMAGE_PENDING_SCHEME = 'lector-upload://'
+
 export function imageMarkdown(relPath: string, alt = ''): string {
   // 目录模板可能含空格（`My Notes.assets`），CommonMark 的 []() 目标遇空格会错位，
   // 这里统一把空格百分号编码（协议侧会解码回去），中文/其他字符原样保留。

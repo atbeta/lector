@@ -5,6 +5,16 @@ export const mediaSample = `# 媒体预览
 
 ![示例图片](./images/sample.png)
 
+## 图片状态
+
+上传中占位（粘贴/拖入后、管线完成前的临时形态）：
+
+![](lector-upload://pending-demo)
+
+加载失败的图片（不存在的相对路径 → 弱化虚线框，悬浮可见原始地址）：
+
+![不存在的图片](./images/no-such-file.png)
+
 ## 代码块
 
 代码块右上角悬停出现语言标签与复制按钮：

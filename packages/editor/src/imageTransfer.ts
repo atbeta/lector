@@ -1,6 +1,7 @@
 import type { BlockView } from '@lector/core'
 import { isImageMime, pastedFileName, safeDropName } from './imageInsert.ts'
 import { detectEnv, listenShell, readBytes } from '@lector/shell-web'
+import { t } from './i18n.ts'
 import type { ImageInsertRef } from './imageController.ts'
 
 /** 拖放提示图标：落进托盘的箭头，通用「放到这里」隐喻。 */
@@ -46,13 +47,30 @@ export function bindImageTransfer({
   )
 
   // 拖放反馈：没给一个「松手就落这」的提示，用户会以为没拖中。
-  // 全窗 overlay，按拖的东西给不同文案（图片=插入，文档=打开）。
+  // 全窗 overlay：图标 + 一行文案，按拖的东西区分（图片=插入，文档=打开）；
+  // 空态拖图片时文案与松手后的结果一致（请先打开文件），不亮一个会失败的承诺。
   let dropOverlayEl: HTMLElement | null = null
-  function showDropOverlay(): void {
-    if (dropOverlayEl) return
+
+  /** overlay 的文案：每次悬停事件都重算——空态/文档切换就发生在两次拖放之间。 */
+  function dropOverlayText(kind: 'image' | 'doc'): string {
+    if (kind === 'doc') return t('dropOpenDoc')
+    if (document.documentElement.classList.contains('is-empty')) return t('dropImageNeedFile')
+    return t('dropInsertImage')
+  }
+
+  function showDropOverlay(text: string): void {
+    if (dropOverlayEl) {
+      const label = dropOverlayEl.querySelector('.drop-overlay-text')
+      if (label && label.textContent !== text) label.textContent = text
+      return
+    }
     const el = document.createElement('div')
     el.className = 'drop-overlay'
     el.innerHTML = DROP_ICON
+    const label = document.createElement('span')
+    label.className = 'drop-overlay-text'
+    label.textContent = text
+    el.appendChild(label)
     document.body.appendChild(el)
     dropOverlayEl = el
   }
@@ -87,7 +105,7 @@ export function bindImageTransfer({
     // 图片带逻辑坐标 emit 过来；悬停时按内容类型亮不同提示。
     void (async () => {
       await listenShell<'image' | 'doc' | 'other' | 'none'>('lector:drag-hover', (kind) => {
-        if (kind === 'image' || kind === 'doc') showDropOverlay()
+        if (kind === 'image' || kind === 'doc') showDropOverlay(dropOverlayText(kind))
         else hideDropOverlay()
       })
       await listenShell<{ paths: string[]; x: number; y: number }>('lector:drop-files', ({ paths, x, y }) => {
@@ -116,7 +134,7 @@ export function bindImageTransfer({
     const hasImage = imageFilesFromList(e.dataTransfer?.files).length > 0
     if (hasImage) {
       e.preventDefault()
-      showDropOverlay()
+      showDropOverlay(dropOverlayText('image'))
     }
   })
 

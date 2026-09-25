@@ -235,10 +235,48 @@
 }
 .table-wrap table { margin: 0; }
 .reading-prose img {
+  display: block;
   max-width: 100%;
+  height: auto;
+  margin-inline: auto;
   border-radius: var(--radius-media);
   border: 1px solid rgb(var(--border));
-  display: block;
+  box-shadow: var(--shadow-card);
+}
+
+/* 上传中占位：粘贴/拖入后立刻落的 ![](lector-upload://…) 由 mdastHtml 渲成它，
+   管线完成、token 被替换成最终 src 后自然消失。弱化虚线框 + 呼吸动画，不抢正文。 */
+.reading-prose .img-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px dashed rgb(var(--border));
+  border-radius: var(--radius-media);
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-sm);
+  animation: img-pending-pulse 1.2s ease-in-out infinite;
+}
+@keyframes img-pending-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 加载失败的图片：不换 DOM（点击 / 灯箱 / 动作菜单行为与正常图一致），
+   只画成弱化虚线框——alt 文本由浏览器渲染在框内，原始地址经 data-tip 悬浮给出。 */
+.reading-prose img.img-broken {
+  min-width: 120px;
+  min-height: 72px;
+  border-style: dashed;
+  background: rgb(var(--border-subtle) / 0.3);
+  color: rgb(var(--subtle-foreground));
+  font-size: var(--text-sm);
+  box-shadow: none;
 }
 
 /* 任务复选框 — 对齐 NoteFast 自绘 checkbox。

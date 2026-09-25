@@ -295,6 +295,10 @@
   box-shadow: var(--shadow-floating);
   animation: fade-in var(--motion-fast) var(--ease-enter) both;
 }
+/* 多条提示条同时在场（草稿恢复 / 外部变更 / 大文件）时纵向堆叠：
+ * 兄弟选择器按 DOM 顺序把后出现的条下移，样式上不用知道具体是哪两条。 */
+.recover-bar ~ .recover-bar { top: 106px; }
+.recover-bar ~ .recover-bar ~ .recover-bar { top: 154px; }
 /* ───────────── 键盘面板 ─────────────
  * 悬浮卡（非模态）：贴按钮下沿，悬停即出、移走即收。
  * 宽度跟内容走——键位行的内容天然短，定宽卡片会让右半边全空。
@@ -485,7 +489,10 @@
 
 /* ───────────── 视觉精修层 ─────────────
  * 保持阅读器安静，只强化表面层次、呼吸感和交互反馈，不改变文档模型。
- * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。 */
+ * 纸面是唯一主角；壳、浮层与控件通过材质差异建立秩序。
+ * 这里只放「正主规则里没有」的属性：与 chrome.css / reader.css 重复的定义
+ * （titlebar/statusbar 高度、reading-prose 的 img 与 text-wrap）已合并回正主，
+ * 别再在这里写第二份——同一属性两处真相迟早打架。 */
 #content {
   background: rgb(var(--paper));
   /* 分区线只有侧栏那条右框：阅读区自己不再画左右两条竖线（那会和侧栏框
@@ -494,11 +501,9 @@
   box-shadow: none;
 }
 #titlebar {
-  height: 48px;
   border-bottom: 1px solid transparent;
 }
 #titlebar.scrolled { border-bottom-color: rgb(var(--border-subtle) / 0.56); }
-html[data-shell='windows'] #titlebar { height: 32px; border-bottom: 0; }
 html[data-shell='windows'] .find-bar { top: 42px; }
 html[data-shell='macos'] .find-bar { top: calc(36px + 10px); }
 .titlebar-title { font-weight: 550; }
@@ -506,13 +511,10 @@ html[data-shell='macos'] .find-bar { top: calc(36px + 10px); }
 .sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
 html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 #statusbar {
-  height: 32px;
   border-top: 1px solid rgb(var(--border-subtle) / 0.56);
   box-shadow: none;
 }
-.reading-prose p { text-wrap: pretty; }
 .reading-prose h1 { margin-bottom: 0.18em; }
-  .reading-prose img { display: block; max-width: 100%; height: auto; margin-inline: auto; border-radius: var(--radius-media); box-shadow: var(--shadow-card); }
 .empty-tagline { max-width: 30ch; line-height: 1.7; }
 
 /* ───────────── 空态画布 ─────────────
@@ -553,15 +555,18 @@ html.is-loading #content {
 /* 最近打开跟随空态版心，不再是窄栏里的一小条 */
 html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 
-/* 拖放反馈：拖中时全窗一道浅框 + 中央文字，松手或离开就撤。
-   只拖「图片」才挂，不拦 md/zip（TODO: 后续加 markdown 文件 drop）。 */
+/* 拖放反馈：拖中时全窗一道浅框 + 中央图标与一行文案，松手或离开就撤。
+   文案按拖的东西区分（图片=插入 / 文档=打开；壳内 md 由原生通道直接开窗）。
+   浏览器 dev 通道只挂图片；空态拖图片文案变「请先打开文件」，与结果一致。 */
 .drop-overlay {
   position: fixed;
   inset: 0;
   z-index: 80; /* 在 #statusbar(默认) 之上、modal(90) 之下 */
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   background: rgb(var(--primary) / 0.07);
   pointer-events: none; /* 不能挡 drop 事件本身 */
   color: rgb(var(--primary));
@@ -571,6 +576,9 @@ html.is-empty .recent-block { max-width: none; margin-inline: 0; }
 .drop-overlay svg {
   width: 48px;
   height: 48px;
+}
+.drop-overlay-text {
+  font-size: var(--text-sm);
 }
 
 /* ───────────── 大文件：整篇裸 CM6 ─────────────

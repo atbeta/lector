@@ -35,12 +35,13 @@ import {
   findDedupImage,
   rememberImage,
   runImageIngest,
+  IMAGE_PENDING_SCHEME,
 } from './imageInsert.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 
 export type ImageInsertRef = { type: 'caret' } | { type: 'afterBlock'; blockId: string }
 
-export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret'> }) {
+export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret' | 'replaceInDocument'> }) {
   /** 图片上的菜单。 */
   /**
    * 图片在正文里的归属：哪个块、块内第几张 Markdown 图。
@@ -234,12 +235,32 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
   }
 
   /**
+   * 正文图片加载失败的弱化提示：不换 DOM（点击、灯箱、动作菜单全部保持现状），
+   * 只给 img 加态 + 用 data-tip 悬浮给出原始地址。不弹 toast——破图在阅读时是常态
+   * （相对路径随文档移动失效），不该打断。
+   */
+  function mountImageErrorState(): void {
+    document.addEventListener(
+      'error',
+      (e) => {
+        const el = e.target as HTMLImageElement | null
+        if (!el || el.tagName !== 'IMG' || !el.closest('.reading-prose')) return
+        if (el.classList.contains('img-broken')) return
+        el.classList.add('img-broken')
+        el.dataset.tip = `${t('imageLoadFailed')}：${el.getAttribute('src') ?? ''}`
+      },
+      true, // error 事件不冒泡，委托必须挂在 capture 阶段
+    )
+  }
+
+  /**
    * 点击正文图片 → 弹图片动作菜单（锚在图片下沿，放不下会自动收进视口）。
    *
    * 用左键不是因为惯常，而是这里没有「选中图片」这个态：点图片最想要的是
    * 拿到针对它的几个动作。查看原图降为菜单第一项。
    */
   function mountImageActions(): void {
+    mountImageErrorState()
     document.addEventListener(
       'click',
       (e) => {
@@ -309,12 +330,46 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     return res.src
   }
 
+  /** 上传中占位的 token：正文里唯一即可，无需可解码。 */
+  let uploadTokenSeq = 0
+  function nextUploadToken(): string {
+    uploadTokenSeq += 1
+    return `${IMAGE_PENDING_SCHEME}pending-${Date.now().toString(36)}-${uploadTokenSeq}`
+  }
+
+  /**
+   * 粘贴/拖入/选文件的统一入口。先落一个占位图语法（`![](lector-upload://…)`），
+   * 异步管线（落盘 + 可能的图床上传，慢网络下要数秒）跑完再把 token 换成最终 src——
+   * 期间正文立刻有「粘上了」的反馈。
+   *
+   * 占位本身就是合法 markdown，期间保存进文件也无碍：管线完成后会被替换，再存一次
+   * 即是最终内容；用户中途关掉，落盘的副本也仍在磁盘上（管线语义不丢图）。
+   */
   async function ingestImageFile(file: File, name: string | null, insertRef?: ImageInsertRef | null) {
     if (!name) return
+    // 同步可判的失败在占位之前挡掉（与 persistImageBytes 的前置检查同一组），
+    // 别让占位闪一下又消失
+    if (file.size > MAX_IMAGE_BYTES) {
+      showToast(t('imageTooLarge'))
+      return
+    }
+    if (detectEnv() !== 'shell' || !editor.getSession().source) {
+      showToast(t('imageNeedFile'))
+      return
+    }
+    const token = nextUploadToken()
+    insertImage(insertRef, imageMarkdown(token))
     try {
       const src = await persistImageBytes(name, file)
-      if (src != null) insertImage(insertRef, imageMarkdown(src))
+      if (src == null) {
+        // 前置检查过了还拿到 null：环境中途变了（如文件被关掉），撤掉占位
+        editor.replaceInDocument(imageMarkdown(token), '')
+        return
+      }
+      // 空格编码与 imageMarkdown 同款；token 没命中（用户趁异步删了占位）就放弃回写
+      editor.replaceInDocument(token, src.replace(/ /g, '%20'))
     } catch (err) {
+      editor.replaceInDocument(imageMarkdown(token), '')
       showToast(`${t('imageFailed')}：${String(err)}`)
     }
   }

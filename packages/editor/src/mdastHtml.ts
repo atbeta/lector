@@ -2,6 +2,7 @@
 // 只发已知标签；白名单外的 html / yaml / unknown 降级为等宽源码，绝不 dangerouslySetInnerHTML 任意值。
 
 import { resolveImageSrc } from './asset.ts'
+import { IMAGE_PENDING_SCHEME } from './imageInsert.ts'
 import { highlightCode } from './highlight.ts'
 import { renderMathToHtml, _resetCacheForTests as _resetMathCache } from './katex.ts'
 import { t } from './i18n.ts'
@@ -314,8 +315,16 @@ function inlineNode(n: Node): string {
       if (!href) return `<span>${inline(n.children)}</span>`
       return `<a href="${esc(href)}"${n.title ? ` data-tip="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
     }
-    case 'image':
-      return `<img src="${esc(resolveImageSrc(n.url ?? ''))}" alt="${esc(n.alt ?? '')}" />`
+    case 'image': {
+      const rawUrl = n.url ?? ''
+      // 上传中占位（imageController 先落的临时语法）：画成弱化占位框，
+      // 不能进 resolveImageSrc——伪协议会被当成相对路径拼出一个必然 404 的地址。
+      if (rawUrl.startsWith(IMAGE_PENDING_SCHEME)) {
+        const label = t('imageUploading')
+        return `<span class="img-pending" data-tip="${esc(label)}">${iconSvg('image', 15)}<span>${esc(label)}</span></span>`
+      }
+      return `<img src="${esc(resolveImageSrc(rawUrl))}" alt="${esc(n.alt ?? '')}" />`
+    }
     case 'inlineMath': {
       const tex = n.value ?? ''
       // 关掉「Markdown 扩展语法 → 内联公式」：原样吐回 `$…$`，让用户看见源文。
