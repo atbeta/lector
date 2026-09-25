@@ -49,8 +49,8 @@ const defaultFileIO = {
 export type FileIO = typeof defaultFileIO
 
 interface FileControllerDeps {
-  editor: Pick<DocumentEditor, 'getSession' | 'getNormalizedText' | 'retargetSource' | 'markSaved' | 'resetDocument' | 'clearBlocks' | 'clearBlockElements' | 'markDirty' | 'loadSession' | 'acceptDiskMtime'>
-  chrome: Pick<EditorChrome, 'elements' | 'setDocPresent'>
+  editor: Pick<DocumentEditor, 'getSession' | 'getNormalizedText' | 'retargetSource' | 'markSaved' | 'setSaving' | 'resetDocument' | 'clearBlocks' | 'clearBlockElements' | 'markDirty' | 'loadSession' | 'acceptDiskMtime'>
+  chrome: Pick<EditorChrome, 'elements' | 'setDocPresent' | 'renderStatus'>
   recovery: Pick<RecoveryController, 'inspect' | 'hideRecoveryBar'>
   io?: FileIO
 }
@@ -66,6 +66,8 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
    * 而那时用户已经想不起自己改了什么。
    */
   let externalBar: HTMLElement | null = null
+  /** 提示条当前代表的磁盘 mtime：条已显示期间磁盘再变要跟着更新（见 showExternalChangeBar）。 */
+  let externalMtimeMs = 0
 
   /**
    * 保存进行中：这段时间里 watcher 报的变更一律是我们自己写的，必须忽略。
@@ -83,6 +85,9 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
   }
 
   function showExternalChangeBar(mtimeMs: number): void {
+    // 条已显示也更新基准：磁盘可能连变多次，「保留我的改动」采纳的必须是最新那次
+    // 的 mtime，否则保存时会拿过期基准再撞一次冲突对话框。
+    externalMtimeMs = mtimeMs
     if (externalBar) return
     const bar = document.createElement('div')
     bar.className = 'recover-bar'
@@ -96,8 +101,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     reload.textContent = t('externalReload')
     reload.addEventListener('click', async () => {
       hideExternalBar()
-      await reloadFromDisk()
-      showToast(t('externalReloaded'))
+      await reloadFromDisk(t('externalReloaded'))
     })
     const keep = document.createElement('button')
     keep.type = 'button'
@@ -106,7 +110,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     keep.addEventListener('click', () => {
       // 采纳磁盘的 mtime 作为新基准：等于告诉保存流程「这个磁盘版本我知道」，
       // 于是保存会覆盖它而不是再弹一次冲突确认——用户刚做过这个选择。
-      editor.acceptDiskMtime(mtimeMs)
+      editor.acceptDiskMtime(externalMtimeMs)
       hideExternalBar()
     })
     bar.append(text, reload, keep)
@@ -169,7 +173,12 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
   }
 
     async function persistToDisk(force = false): Promise<boolean> {
-      if (!editor.getSession().source) return false
+      const session = editor.getSession()
+      if (!session.source) return false
+    // 无改动且有磁盘身份：⌘S 是肌肉记忆，不该整篇重写一遍，也不该弹「已保存」。
+    // 算保存成功（true）：新建/关窗前「先保存再继续」的调用方可以照常往下走。
+    // 未命名文档（非绝对路径）不在此列——它还没有磁盘身份，得落进下面的另存为分支。
+    if (!force && !session.dirty && isAbsolutePath(session.source.path)) return true
     // 新建文档还没有磁盘身份（路径不是绝对路径，见 newDocument）→ 先另存为。
     // 不能在这里调 saveAsFlow()：它在预览环境会回头调 persistToDisk，直接成环。
     // 用"路径是否绝对"作判据：打开过的文件一定是绝对路径，新建文档用显示名占位。
@@ -193,6 +202,10 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     const finalText = applyEncoding(editor.getSession().source!, normalized)
     let res: SaveResult
     saveInFlight = true
+    // 保存期间状态行挂「保存中…」：慢盘/网络卷上 ⌘S 不能看起来没反应。
+    // 成功的「已保存 HH:MM」也由状态行接走（markSaved → savedAt），不再弹 toast。
+    editor.setSaving(true)
+    chrome.renderStatus()
     try {
       res = await io.save(editor.getSession().source!.path, finalText, editor.getSession().source!.mtimeMs, force)
     } catch (err) {
@@ -204,6 +217,8 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
       return false
     } finally {
       saveInFlight = false
+      editor.setSaving(false)
+      chrome.renderStatus()
     }
     if (res.conflict) {
       const choice = await chooseConflict()
@@ -221,7 +236,8 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     // 写盘成功：把自己刚触发的「外部修改」提示条收掉（若是误报，它本就不该在）
     hideExternalBar()
     editor.markSaved(normalized, res.current_mtime_ms)
-    showToast(t('saved'))
+    // 状态行立刻翻成「已保存 HH:MM」（markSaved 走的是 160ms 去抖的刷新）
+    chrome.renderStatus()
     return true
     }
 
@@ -376,7 +392,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
     }
   }
 
-  async function reloadFromDisk() {
+  async function reloadFromDisk(feedback = t('reloadedFromDisk')) {
   const src = editor.getSession().source
   if (!src) return
   // 有未保存改动先确认：手动重载的语义是「以磁盘为准」，但静默丢改动
@@ -396,7 +412,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
   const res = await io.read(src.path)
   loadSession(res.path, res.content, res.mtime_ms)
   // 成功也要说一声：磁盘没变化时重载后内容一模一样，没有反馈就像没响应。
-  showToast(t('reloadedFromDisk'))
+  showToast(feedback)
   } catch {
   showToast(t('reloadFailed'))
   }
@@ -435,8 +451,7 @@ export function createFileController({ editor, chrome, recovery, io = defaultFil
       if (saveInFlight) return
       if (e.mtime_ms <= (src.mtimeMs ?? 0)) return
       if (!editor.getSession().dirty) {
-        await reloadFromDisk()
-        showToast(t('externalReloaded'))
+        await reloadFromDisk(t('externalReloaded'))
         return
       }
       showExternalChangeBar(e.mtime_ms)

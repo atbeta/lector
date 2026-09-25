@@ -15,6 +15,8 @@ function makeSession(text: string): DocumentSession {
     focusedId: null,
     dirty: false,
     structuralDirty: false,
+    saving: false,
+    savedAt: null,
     originals: new Map(),
   }
   session.originals = new Map(session.blocks.map((b) => [b.id, b.raw] as const))

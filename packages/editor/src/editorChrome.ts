@@ -2,13 +2,14 @@ import { countBlocks, formatCount, readingMinutes } from '@lector/core'
 
 // 状态行统计的按块缓存（raw → 渲染文本），跨刷新复用；见 core 的 countBlocks。
 const statsMemo = new Map<string, string>()
-import { bindTitlebar, canExportPdf, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
+import { bindTitlebar, shellSupportsPdfExport, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { iconSvg } from './icons.ts'
-import { t } from './i18n.ts'
+import { t, getLocale } from './i18n.ts'
 import { showDialog } from './dialog.ts'
 import { getSettings, setThemeMode } from './settings.ts'
 import { showToast } from './feedback.ts'
+import { setWindowDocName } from './windowTitle.ts'
 import type { DocumentSession } from './documentSession.ts'
 
 // ───────────── 三视图模式 read / edit / source ─────────────
@@ -187,6 +188,21 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     renderStatusNow()
   }
 
+  /**
+   * 状态行的存盘项：保存中 > 未保存 > 已保存（带时间） > 已保存（静态，本篇还没存过）。
+   * 时间只到分钟、格式随界面语言——状态行不是日志，精度够回答「我存了没有」即可。
+   */
+  function saveStateText(): string {
+    const s = getSession()
+    if (s.saving) return t('statSaving')
+    if (s.dirty) return t('statUnsaved')
+    if (s.savedAt !== null && s.savedAt !== undefined) {
+      const time = new Date(s.savedAt).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })
+      return t('statSavedTime', { time })
+    }
+    return t('statSavedAt')
+  }
+
   function renderStatusNow() {
     // 项目之间补一个空格字符：视觉间隔由 CSS gap 负责，
     // 但读屏与「选中状态行复制」拿到的是 textContent，不能连成一串。
@@ -212,7 +228,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
           }),
         ),
       )
-      statusRight.append(item(getSession().dirty ? t('statUnsaved') : t('statSavedAt'), getSession().dirty))
+      statusRight.append(item(saveStateText(), getSession().dirty))
       return
     }
     const blocks = getSession().blocks
@@ -244,7 +260,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     // 3. 阅读档不写档位标签：阅读是默认态，给默认态挂标签等于常驻一个「你在阅读」的噪音。
 
     if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
-    statusRight.append(item(getSession().dirty ? t('statUnsaved') : t('statSavedAt'), getSession().dirty))
+    statusRight.append(item(saveStateText(), getSession().dirty))
   }
 
   /**
@@ -267,7 +283,8 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     // 放了一段零信息量的字符——它该在，但不该抢眼（同 VS Code / 各编辑器的做法）。
     setTitleName(baseName(path))
     fileNameEl.dataset.untitled = 'false'
-    document.title = `${baseName(path)} — Lector`
+    // document.title 与原生窗口标题由 windowTitle.ts 统一写（连同脏指示）
+    setWindowDocName(baseName(path))
   }
 
   function forceSourceMode(): void {
@@ -278,14 +295,16 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   }
 
   /**
-   * 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去），
-   * 再走壳层 PrintToPdf；浏览器预览退化为系统打印（打印 CSS 两边共用）。
+   * 导出 PDF：先退出编辑态（聚焦块显示的是 CM 源码，直接印会把源码印进去）。
+   *
+   * 三条路径：Windows 壳走静默 PrintToPdf（后台出文件）；macOS 壳没有对等的
+   * 静默分页 API，与浏览器预览一起退化到**系统打印对话框**（对话框里自带
+   * 「存为 PDF」）——没有静默能力不是没有入口，系统对话框就是 macOS 的导出。
    *
    * 入口从顶栏按钮换成「更多文件操作」菜单——它和「用其他应用打开」一样是低频
    * 出口动作，不该常驻。逻辑本身没动。
    */
   async function runExportPdf(): Promise<void> {
-    if (!canExportPdf()) return
     defocus()
     const name = (fileNameEl.textContent || 'document').replace(/\.md$/i, '')
     try {
@@ -305,8 +324,9 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
         })
         if (go !== 'go') return
       }
-      // 浏览器预览：系统打印对话框，到此为止。
-      if (detectEnv() !== 'shell') {
+      // 非 Windows 壳（macOS 壳 / 浏览器预览）：系统打印对话框，到此为止。
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      if (detectEnv() !== 'shell' || !shellSupportsPdfExport(ua)) {
         await exportPdf(`${name}.pdf`)
         return
       }
@@ -339,7 +359,13 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     }
   }
 
-  function init(): void {
+  /**
+   * 文案与图标初始化，与「运行中切换语言」共用同一出口：
+   * init 时跑一次，切语言后再跑一次（同值覆盖，不闪）。
+   * bindTitlebar 只挂事件、与文案无关，留在 init 里——重复绑定会让
+   * 拖拽/双击处理器叠两份。
+   */
+  function relabel(): void {
     openBtn.innerHTML = iconSvg('folder', 16)
     openBtn.setAttribute('aria-label', t('openAria'))
     openBtn.dataset.tip = t('openAria')
@@ -367,12 +393,16 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     fileMoreBtn.setAttribute('aria-label', t('moreActions'))
     fileMoreBtn.dataset.tip = t('moreActions')
     dirtyDot.dataset.tip = t('dirtyTitle')
-    // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
-    // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
-    if (titlebarEl) bindTitlebar(titlebarEl)
     buildModeSwitch()
     // 初始状态：默认只读。applyModeUI 设好 data-mode / 分段选中态 / 保存按钮。
     applyModeUI()
+  }
+
+  function init(): void {
+    relabel()
+    // 无标题栏：整条顶栏是拖拽区。绑定与双击语义都在 bindTitlebar / chrome.ts，
+    // 这里只负责把元素交出去（旧版是一个 .titlebar-drag 覆盖层，已并入顶栏本身）。
+    if (titlebarEl) bindTitlebar(titlebarEl)
   }
 
   return {
@@ -387,6 +417,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       outlineBtn,
     },
     init,
+    relabel,
     runExportPdf,
     getViewMode: () => viewMode,
     setViewMode,
