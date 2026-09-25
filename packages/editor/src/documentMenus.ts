@@ -1,6 +1,6 @@
 import type { BlockView } from '@lector/core'
 import { undo, redo } from '@codemirror/commands'
-import { canExportPdf, openExternal, readClipboard } from '@lector/shell-web'
+import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
 import { showContextMenu, hideContextMenu, isContextMenuOpenFor, type ContextMenuItem } from './contextMenu.ts'
@@ -318,10 +318,9 @@ export function createDocumentMenus({
       // 标签与实际行为不一致，比没有这个入口更糟——用户会按标签预期。
       { label: files.openWithLabel(), run: () => void files.openDefaultApp() },
     )
-    // macOS 壳没有 PrintToPdf：入口藏掉，避免点进去只看到失败 toast。
-    if (canExportPdf()) {
-      items.push({ label: t('exportPdfTip'), run: () => void exportPdf() })
-    }
+    // 导出全平台有入口：Windows 壳静默 PrintToPdf，macOS 壳 / 浏览器退系统打印
+    // 对话框（自带「存为 PDF」），分发在 editorChrome 的 runExportPdf。
+    items.push({ label: t('exportPdfTip'), run: () => void exportPdf() })
     items.push(
       { separatorBefore: true, label: t('menuReveal'), run: () => void files.revealCurrent() },
       { label: t('menuCopyPath'), run: () => void copyText(path, t('menuCopied')) },

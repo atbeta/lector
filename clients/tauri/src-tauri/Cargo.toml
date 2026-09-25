@@ -32,6 +32,9 @@ tauri-plugin-clipboard-manager = "2"
 # 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。
 tauri-plugin-window-state = "2"
 notify = "8.0.0"
+# 原生菜单按系统语言选 zh/en 文案（menu.rs）。Web 层自己探测 navigator.language，
+# 壳侧没有那条路，只能问操作系统。
+sys-locale = "0.3"
 # 只为解析文档里的 file:// 链接（百分号转义、Windows 盘符、UNC 都比手写稳）。
 # tauri 自己已经把它拉进依赖图了，这里只是正式声明。
 url = "2"

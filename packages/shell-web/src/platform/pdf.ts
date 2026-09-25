@@ -13,18 +13,12 @@ import { save } from './fs.ts'
 import { applyUiZoom, currentUiZoom } from './window.ts'
 
 /**
- * 壳里的 PDF 导出只接了 WebView2 PrintToPdf，macOS 没有对等的静默分页 API。
- * 入口按这个能力显隐：做不出就不要摆一项会失败的菜单。
- * 浏览器预览仍走 window.print，不在这里挡。
+ * 壳里的静默 PDF 导出（PrintToPdf）只接了 WebView2，macOS 没有对等的静默分页 API。
+ * 这只决定**走哪条导出路径**：Windows 壳静默出文件，其余（macOS 壳 / 浏览器预览）
+ * 退化到系统打印对话框（自带「存为 PDF」）。入口的显隐不再用它——所有平台都有入口。
  */
 export function shellSupportsPdfExport(userAgent: string): boolean {
   return !/Mac|iPhone|iPad/i.test(userAgent)
-}
-
-export function canExportPdf(): boolean {
-  if (detectEnv() !== 'shell') return true
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-  return shellSupportsPdfExport(ua)
 }
 
 /**

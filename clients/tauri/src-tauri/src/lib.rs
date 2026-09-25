@@ -180,6 +180,7 @@ pub fn run() {
       io::commands::webview_ready,
       io::commands::set_zoom,
       io::commands::macos_traffic_light_center,
+      io::commands::set_window_state,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application");

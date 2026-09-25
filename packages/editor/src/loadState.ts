@@ -9,6 +9,7 @@
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
 import { baseName, dirName } from './paths.ts'
+import { setWindowDocName } from './windowTitle.ts'
 
 interface LoadStateDeps {
   contentEl: HTMLElement
@@ -31,7 +32,8 @@ function resetTitle(fileNameEl: HTMLElement): void {
   const boot = (window as { __lectorTitle?: string }).__lectorTitle
   fileNameEl.textContent = boot ?? 'Lector'
   fileNameEl.dataset.untitled = boot ? 'false' : 'true'
-  document.title = boot ?? 'Lector'
+  // document.title 与原生窗口标题由 windowTitle.ts 统一写（连同脏指示）
+  setWindowDocName(boot ?? null)
 }
 
 /**
@@ -42,7 +44,8 @@ function resetTitle(fileNameEl: HTMLElement): void {
  * 之前这份数据只有 macOS 的原生菜单够得着（Windows/Linux 不建原生菜单），
  * 等于壳在维护一份谁也看不到的清单；现在 Windows 也能在这里读，也要能在这里清。
  *
- * 只列 5 条：多了就变成"又一个要滚动的列表"，而它只是空态的一个旁支。
+ * 只列 3 条（与 fileController 喂数据时的 slice(0, 3) 一致）：多了就变成
+ * "又一个要滚动的列表"，而它只是空态的一个旁支。
  *
  * 一条都没有时不留空：放一句轻引导。空态本就是极简扉页，但"空得没有任何信息"
  * 会被读成没做完；这句话把空白变成有意义的留白，也顺带告诉用户这里会长出什么。
@@ -77,7 +80,7 @@ function recentBlock(deps: LoadStateDeps): HTMLElement | null {
   }
   const list = document.createElement('div')
   list.className = 'recent-list'
-  for (const path of files.slice(0, 5)) {
+  for (const path of files.slice(0, 3)) {
     const item = document.createElement('button')
     item.type = 'button'
     item.className = 'recent-item'

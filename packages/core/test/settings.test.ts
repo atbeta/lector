@@ -50,6 +50,14 @@ describe('settings schema', () => {
     expect(normalizeSettings({ theme: 'dark' }).theme).toBe('dark')
   })
 
+  test('language：三种合法值透传，非法值回退跟随系统', () => {
+    expect(DEFAULT_SETTINGS.language).toBe('system')
+    expect(normalizeSettings({}).language).toBe('system')
+    expect(normalizeSettings({ language: 'zh-CN' }).language).toBe('zh-CN')
+    expect(normalizeSettings({ language: 'en' }).language).toBe('en')
+    expect(normalizeSettings({ language: 'fr' }).language).toBe('system')
+  })
+
   test('==高亮== 开关：默认开，非法类型回退', () => {
     expect(DEFAULT_SETTINGS.markHighlight).toBe(true)
     expect(normalizeSettings({}).markHighlight).toBe(true)

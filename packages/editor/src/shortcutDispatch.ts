@@ -34,6 +34,7 @@ export type ShortcutAction =
   | { kind: 'leave-edit' }
   | { kind: 'save-as' }
   | { kind: 'save' }
+  | { kind: 'new-document' }
   | { kind: 'open' }
   | { kind: 'reload' }
   | { kind: 'close-file' }
@@ -70,6 +71,8 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
   if (h.defaultPrevented) return null
   if (!h.mod) return null
 
+  // ⌘N 新建（自带脏确认）
+  if (!h.shift && key === 'n') return { kind: 'new-document' }
   // ⌘O 打开
   if (!h.shift && key === 'o') return { kind: 'open' }
   // ⌘R 从磁盘重载

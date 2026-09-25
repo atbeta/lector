@@ -635,6 +635,29 @@ const summary = {
       summary.outlineSpy = { ...spy, ...jump, ancestry }
       await page.evaluate(() => { document.getElementById('content').scrollTop = 0 })
       await page.waitForTimeout(200)
+
+      // 当前行要与同级的非当前行「看得出」：computed 字重或颜色至少一项不同。
+      // 防回归：active / [data-depth] 同特异度（0,2,0）时谁靠后谁赢，
+      // 曾经 depth='1' 规则靠后，把一级当前行压成与普通行完全一致。
+      const activeContrast = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.outline-row')]
+        const active = rows.find((r) => r.classList.contains('active'))
+        if (!active) return null
+        const a = getComputedStyle(active)
+        const peers = rows.filter((r) => r !== active && r.dataset.depth === active.dataset.depth)
+        return {
+          depth: active.dataset.depth,
+          weight: a.fontWeight,
+          identical: peers.filter((r) => {
+            const s = getComputedStyle(r)
+            return s.fontWeight === a.fontWeight && s.color === a.color
+          }).length,
+          peers: peers.length,
+        }
+      })
+      if (activeContrast && activeContrast.peers > 0 && activeContrast.identical === activeContrast.peers) {
+        note('error', `当前大纲行（${activeContrast.depth} 级，字重 ${activeContrast.weight}）与同级其他行 computed style 完全一致，「读到哪了」看不出来`)
+      }
     }
   }
 
@@ -2435,11 +2458,11 @@ const summary = {
       }
     })
     if (settingsPanel.cards !== 3) note('error', `设置里的快捷键分组应为 3 张卡片，实为 ${settingsPanel.cards}`)
-    if (settingsPanel.rows !== 16) note('error', `设置里的快捷键应为 16 条，实为 ${settingsPanel.rows}`)
+    if (settingsPanel.rows !== 17) note('error', `设置里的快捷键应为 17 条，实为 ${settingsPanel.rows}`)
     if (settingsPanel.columns < 2) note('error', `设置里的快捷键仍是单列长清单：${settingsPanel.columns} 列`)
     if (settingsPanel.misplaced > 0) note('error', `设置里的键帽没有排在功能名右侧：${settingsPanel.misplaced} 行`)
     if (settingsPanel.clipped > 0) note('error', `设置里的快捷键名称被截断：${settingsPanel.clipped} 行`)
-    if (settingsPanel.cards === 3 && settingsPanel.rows === 16 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
+    if (settingsPanel.cards === 3 && settingsPanel.rows === 17 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
       note('info', `快捷键设置：${settingsPanel.cards} 组 / ${settingsPanel.columns} 列 / ${settingsPanel.rows} 条，键帽右对齐且无截断`)
     }
     await page.keyboard.press('Escape')

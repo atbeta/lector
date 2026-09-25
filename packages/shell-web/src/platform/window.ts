@@ -93,6 +93,23 @@ export async function notifyWebviewReady(): Promise<void> {
 
 
 /**
+ * 同步原生窗口标题与脏状态到壳（标题 + 脏一次更新，避免两次 IPC 之间闪旧值）。
+ *
+ * - macOS：壳把脏状态画在关闭按钮的原生红点上（NSWindow documentEdited），标题保持干净；
+ * - Windows / Linux：没有 document-edited 概念，壳在原生标题前加 "● "（任务栏 / Alt-Tab 可见）。
+ * document.title 不在这里写——它由 editor 侧（windowTitle.ts）连同 "— Lector" 后缀一起算。
+ * 浏览器 dev 没有原生窗口，整体 no-op（document.title 那半在调用方已经写了）。
+ */
+export async function syncNativeWindowState(title: string, dirty: boolean): Promise<void> {
+  if (detectEnv() !== 'shell') return
+  const { invoke } = await tauriApi()
+  await invoke('set_window_state', { title, dirty }).catch((err) =>
+    console.error('[lector] set_window_state', err),
+  )
+}
+
+
+/**
  * 无标题栏：在 titlebar 空白处按下即拖动窗口。
  *
  * 双击缩放不在这里做——窗口控件的接管方（editor/chrome.ts）统一处理，

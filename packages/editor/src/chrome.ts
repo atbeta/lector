@@ -12,6 +12,7 @@
 
 import { bindWindowControls, detectEnv, onMaximizeHover } from '@lector/shell-web'
 import { windowGlyph } from './icons.ts'
+import { t } from './i18n.ts'
 
 export type ShellPlatform = 'macos' | 'windows' | 'web'
 
@@ -66,12 +67,12 @@ export function mountWindowControls(): () => void {
     onToggleMaximize: () => {},
     onClose: () => {},
     onMaximizedChange: (maximized: boolean) =>
-      maxBtn.setGlyph(maximized ? 'restore' : 'maximize', maximized ? '向下还原' : '最大化'),
+      maxBtn.setGlyph(maximized ? 'restore' : 'maximize', maximized ? t('winRestore') : t('winMaximize')),
   }
 
-  const minBtn = makeWinButton('最小化', 'minimize', () => handlers.onMinimize())
-  const maxBtn = makeWinButton('最大化', 'maximize', () => handlers.onToggleMaximize())
-  const closeBtn = makeWinButton('关闭', 'close', () => handlers.onClose())
+  const minBtn = makeWinButton(t('winMinimize'), 'minimize', () => handlers.onMinimize())
+  const maxBtn = makeWinButton(t('winMaximize'), 'maximize', () => handlers.onToggleMaximize())
+  const closeBtn = makeWinButton(t('winClose'), 'close', () => handlers.onClose())
   host.replaceChildren(minBtn.el, maxBtn.el, closeBtn.el)
 
   // 浏览器预览：按钮在位但不可用，只用于看版式
@@ -79,7 +80,7 @@ export function mountWindowControls(): () => void {
     for (const b of [minBtn.el, maxBtn.el, closeBtn.el]) {
       b.disabled = true
       b.tabIndex = -1
-      b.title = `${b.title}（浏览器预览不可用）`
+      b.title = t('winPreviewUnavailable', { label: b.title })
     }
     return () => host.replaceChildren()
   }

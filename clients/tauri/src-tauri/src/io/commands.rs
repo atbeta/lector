@@ -516,6 +516,30 @@ pub async fn macos_traffic_light_center(window: tauri::WebviewWindow) -> Result<
   }
 }
 
+/// 同步窗口标题与脏状态（一次调用，避免「标题先到、脏点后到」的中间帧）。
+///
+/// 原生标题此前只在建窗时设一次：另存为换路径、新建未命名文档之后，
+/// 任务栏 / Alt-Tab / Mission Control 都停在建窗时的旧名——Web 层在
+/// 文档名或脏状态变化时调它（windowTitle.ts，有去重，不是每键一次 IPC）。
+///
+/// 脏指示按平台给：macOS 画在关闭按钮的原生红点上（NSWindow documentEdited，
+/// mac 用户的肌肉记忆），标题保持干净；Windows / Linux 没有 document-edited
+/// 概念，退化为原生标题加 "● " 前缀。
+#[tauri::command]
+pub fn set_window_state(window: tauri::WebviewWindow, title: String, dirty: bool) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    window.set_title(&title).map_err(|e| e.to_string())?;
+    super::window::set_document_edited(&window, dirty)
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    window
+      .set_title(&super::window::title_with_dirty(&title, dirty))
+      .map_err(|e| e.to_string())
+  }
+}
+
 // ───────────────────── 图片上传命令（用户配置，命令模式专用） ─────────────────────
 // 契约：`executable [args…] <图片绝对路径>` → stdout 每行一个 http(s) URL。
 // 注意：这是「用户显式配置要执行什么」的退路，不是 Web 层可随手调用的任意 shell。

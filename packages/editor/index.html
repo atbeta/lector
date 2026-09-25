@@ -11,6 +11,29 @@
       // 浏览器预览里没有这个变量，退回占位（那时标题由应用自己维护）。
       if (window.__lectorTitle) document.title = window.__lectorTitle
     </script>
+    <script>
+      // html lang 也必须在首帧前定好：字体回退、读屏、连字符规则都看它，
+      // 等 i18n 模块加载再写，英文用户的第一帧已经按 zh-CN 排版了。
+      // 取值链与 i18n.ts 的 detectLocale() 同序：壳注入 __lectorLocale →
+      // localStorage 设置（浏览器预览）→ navigator。解析结果存
+      // __lectorLocaleResolved，给 body 末尾的静态文案改写用。
+      ;(function () {
+        try {
+          var l = window.__lectorLocale
+          if (l !== 'zh-CN' && l !== 'en') {
+            l = null
+            var raw = localStorage.getItem('lector-settings')
+            if (raw) {
+              var parsed = JSON.parse(raw)
+              if (parsed && (parsed.language === 'zh-CN' || parsed.language === 'en')) l = parsed.language
+            }
+          }
+          if (!l) l = (navigator.language || 'zh-CN').toLowerCase().indexOf('zh') === 0 ? 'zh-CN' : 'en'
+          window.__lectorLocaleResolved = l
+          document.documentElement.lang = l
+        } catch (e) {}
+      })()
+    </script>
     <link rel="icon" href="/lector-mark.svg" type="image/svg+xml" />
     <script>
       // 防闪烁：在样式与模块加载之前定好主题。
@@ -97,6 +120,31 @@
       <span class="status-group" id="status-left"></span>
       <span class="status-group status-right" id="status-right"></span>
     </footer>
+    <script>
+      // 静态骨架里的 aria-label / data-tip 是中文，应用脚本 init 后才覆盖成当前语言。
+      // 这段脚本在 body 解析到末尾时同步执行（早于 type=module 的应用脚本），
+      // 英文用户不会先看到一帧中文提示。取值与 editorChrome.init() 的最终文案一致——
+      // init 再写一遍是同值覆盖，不会闪。
+      ;(function () {
+        if (window.__lectorLocaleResolved !== 'en') return
+        var labels = {
+          'outline-btn': 'Outline',
+          'open-btn': 'Open',
+          'save-btn': 'Save',
+          'appearance-btn': 'Appearance',
+          'settings-btn': 'Settings',
+          'file-more-btn': 'More file actions',
+          'dirty-dot': 'Unsaved changes',
+        }
+        for (var id in labels) {
+          var el = document.getElementById(id)
+          if (!el) continue
+          // aria-label 只覆盖已有的（dirty-dot 静态只有 data-tip，init 也不给它设 aria）
+          if (el.hasAttribute('aria-label')) el.setAttribute('aria-label', labels[id])
+          if (el.hasAttribute('data-tip')) el.setAttribute('data-tip', labels[id])
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -52,6 +52,12 @@ describe('快捷键分派', () => {
     expect(kind({ mod: true, key: 'O', shift: true })).toBe('toggle-outline')
   })
 
+  test('⌘N 新建（与 ⌘O 同组，检查 defaultPrevented）', () => {
+    expect(kind({ mod: true, key: 'n' })).toBe('new-document')
+    expect(kind({ mod: true, key: 'n', defaultPrevented: true })).toBe(null)
+    expect(kind({ key: 'n' })).toBe(null)
+  })
+
   test('⌘R 重载 / ⌘, 设置', () => {
     expect(kind({ mod: true, key: 'r' })).toBe('reload')
     expect(kind({ mod: true, key: ',' })).toBe('open-settings')

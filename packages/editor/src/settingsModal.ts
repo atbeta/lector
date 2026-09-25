@@ -41,6 +41,9 @@ import {
 
 let root: HTMLElement | null = null
 
+/** 当前面板的完整关闭器（含 notify 退订与 Esc 监听拆除），供「就地重建」用。 */
+let activeClose: (() => void) | null = null
+
 /** number[]（IPC 序列化的 PNG 字节）→ data URL，直接喂 <img>。 */
 function pngDataUrl(bytes: number[]): string {
   let bin = ''
@@ -112,6 +115,18 @@ function groupLabel(label: string): HTMLElement {
 export function closeSettingsModal() {
   root?.remove()
   root = null
+}
+
+/**
+ * 就地重建设置面板：界面语言切换后面板里的每一行都是旧语言烘的，
+ * 逐行重标不如整个重建（lastSection 记着分区，重开落回原处）。
+ * 必须走面板自己的 close()——它退订 notify、拆 Esc 监听；
+ * 只摘 DOM 会留下两套幽灵监听。
+ */
+export function reopenSettingsModal(): void {
+  if (!root) return
+  activeClose?.()
+  openSettingsModal()
 }
 
 export function openSettingsModal(onClose?: () => void) {
@@ -205,6 +220,20 @@ export function openSettingsModal(onClose?: () => void) {
     (v) => setThemeMode(v),
   )
   appearance.appendChild(row(t('theme'), themeSeg.root))
+
+  // 界面语言。语言名用各自语言书写（中文 / English），不随界面语言翻译——
+  // 用户要在「看不懂的语言」里也能认出自己的语言。即时生效由 main.ts 的
+  // 设置通知完成；原生菜单只在启动时建，所以提示里说明要重启。
+  const languageSeg = Segmented(
+    getSettings().language,
+    [
+      { v: 'system', label: t('languageSystem') },
+      { v: 'zh-CN', label: '中文' },
+      { v: 'en', label: 'English' },
+    ],
+    (v) => apply((s) => ({ ...s, language: v })),
+  )
+  appearance.appendChild(row(t('language'), languageSeg.root, t('languageHint')))
 
   const galleryHost = h('div', 'settings-gallery')
   // 画廊自带六张主题卡。设置一变就重画「选中态 / 已微调标记」——
@@ -837,6 +866,7 @@ export function openSettingsModal(onClose?: () => void) {
   let galleryTick = false
   const off = notify((s) => {
     themeSeg.set(s.theme)
+    languageSeg.set(s.language)
     font.set(s.fontFamily)
     fontSlider.set(s.fontSize)
     lhSlider.set(s.lineHeight)
@@ -876,6 +906,7 @@ export function openSettingsModal(onClose?: () => void) {
     closeSettingsModal()
     onClose?.()
   }
+  activeClose = close
 
   document.addEventListener('keydown', onKey)
   function onKey(e: KeyboardEvent) {

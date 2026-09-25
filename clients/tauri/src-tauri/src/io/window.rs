@@ -135,6 +135,33 @@ pub const fn window_chrome() -> WindowChrome {
   WindowChrome { decorations: true, transparent: false }
 }
 
+/// 非 macOS 的原生标题：平台没有 document-edited 概念，脏 = 标题加 "● " 前缀。
+/// （document.title 的同款前缀由 Web 层自己写，见 editor 的 windowTitle.ts。）
+// macOS 的 lib 构建用不到它（只有非 macOS 分支与测试引用），压掉死代码警告。
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub fn title_with_dirty(title: &str, dirty: bool) -> String {
+  if dirty {
+    format!("● {title}")
+  } else {
+    title.to_string()
+  }
+}
+
+/// NSWindow documentEdited：macOS 原生的脏指示（关闭按钮上的红点）。
+///
+/// Tauri 2.11 没把它暴露成窗口 API（tao 的 WindowExtMacOS 有，但 tauri 没透传），
+/// 走与 traffic_light_center_from_top 同一条路：with_webview 拿 NSWindow 直接调。
+#[cfg(target_os = "macos")]
+pub fn set_document_edited(window: &tauri::WebviewWindow, edited: bool) -> Result<(), String> {
+  use objc2_app_kit::NSWindow;
+  window
+    .with_webview(move |webview| unsafe {
+      let ns_window: &NSWindow = &*webview.ns_window().cast();
+      ns_window.setDocumentEdited(edited);
+    })
+    .map_err(|e| e.to_string())
+}
+
 /// 关闭按钮中心距窗口顶的逻辑点。只量、不 setFrame，给 Web 顶栏 padding 对齐用。
 #[cfg(target_os = "macos")]
 pub fn traffic_light_center_from_top(window: &tauri::WebviewWindow) -> Result<f64, String> {
@@ -354,11 +381,20 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
   // 主题早应用：把设置里的明暗模式在首帧前交给页面（index.html 的内联脚本消费）。
   // 前端 load_settings 要等模块加载完才到——深色用户会先看到一帧浅色再变深，
   // 系统浅色 + 应用深色时最刺眼。这里同步读一次设置文件，成本可忽略。
-  let theme_mode = super::portable::resolve_config_dir(app)
+  let settings_json = super::portable::resolve_config_dir(app)
     .ok()
     .and_then(|dir| fs::read_to_string(dir.join("lector-settings.json")).ok())
-    .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+    .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+  let theme_mode = settings_json
+    .as_ref()
     .and_then(|v| v.get("theme").and_then(|t| t.as_str()).map(str::to_string))
+    .unwrap_or_default();
+  // 界面语言同理：i18n 模块先于设置加载执行，手动选过语言的用户不该先看到一帧
+  // 系统语言。只透传显式取值（zh-CN / en）；「跟随系统」留空串，由 Web 层探测。
+  let locale = settings_json
+    .as_ref()
+    .and_then(|v| v.get("language").and_then(|l| l.as_str()).map(str::to_string))
+    .filter(|l| l == "zh-CN" || l == "en")
     .unwrap_or_default();
   let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::default())
     .title(title)
@@ -366,11 +402,12 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
     // 只设窗口标题不够——页面加载后会按自己的逻辑写标题（见 resetTitle），
     // 那一下就会把 "Lector" 闪出来。
     .initialization_script(&format!(
-      "window.__lectorTitle = {}; window.__lectorTheme = {};",
+      "window.__lectorTitle = {}; window.__lectorTheme = {}; window.__lectorLocale = {};",
       // serde_json 的字符串序列化就是合法的 JS 字面量（JSON ⊂ JS），
       // 文档名里的引号、反斜杠天然安全——不要手写转义。
       serde_json::to_string(&title).unwrap_or_else(|_| "\"\"".into()),
-      serde_json::to_string(&theme_mode).unwrap_or_else(|_| "\"\"".into())
+      serde_json::to_string(&theme_mode).unwrap_or_else(|_| "\"\"".into()),
+      serde_json::to_string(&locale).unwrap_or_else(|_| "\"\"".into())
     ))
     .min_inner_size(480.0, 360.0)
     // 拖放通道归壳（原生 DragDropEvent）：md/txt 直接走 open_path（同文件聚焦
@@ -523,6 +560,12 @@ mod tests {
   #[test]
   fn argv_files_skip_empty_window() {
     assert!(!should_create_startup_window(true, false));
+  }
+
+  #[test]
+  fn dirty_title_prefix_only_when_dirty() {
+    assert_eq!(title_with_dirty("a.md", true), "● a.md");
+    assert_eq!(title_with_dirty("a.md", false), "a.md");
   }
 
   #[test]

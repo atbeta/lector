@@ -11,6 +11,8 @@ import {
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 export type FontFamily = 'system' | 'serif'
+/** 界面语言：跟随系统 / 中文 / English。 */
+export type LanguageMode = 'system' | 'zh-CN' | 'en'
 
 /**
  * 图片设置是两根互不相干的轴，而不是三档单选：
@@ -34,6 +36,11 @@ const IMAGE_TIMEOUT_MAX = 300_000
 export interface EditorSettings {
   /** 主题：跟随系统 / 浅色 / 深色。 */
   theme: ThemeMode
+  /**
+   * 界面语言：跟随系统（navigator/系统 locale）/ 中文 / English。
+   * 壳建窗时把解析结果注入页面（__lectorLocale），原生菜单启动时读同一设置。
+   */
+  language: LanguageMode
   /**
    * 阅读主题：纸墨 + 排版性格 + 标定排版参数（见 readingThemes.ts）。
    * 与 theme 正交——theme 决定明暗，readingTheme 决定「读起来像什么」。
@@ -135,6 +142,7 @@ export interface EditorSettings {
  */
 export const DEFAULT_SETTINGS: EditorSettings = {
   theme: 'system',
+  language: 'system',
   readingTheme: DEFAULT_READING_THEME,
   fontFamily: 'system',
   fontSize: 17,
@@ -189,6 +197,10 @@ function isTheme(v: unknown): v is ThemeMode {
 
 function isFontFamily(v: unknown): v is FontFamily {
   return v === 'system' || v === 'serif'
+}
+
+function isLanguage(v: unknown): v is LanguageMode {
+  return v === 'system' || v === 'zh-CN' || v === 'en'
 }
 
 /** 老键：三档 imageMode。只用于把旧设置迁移到「复制 / 上传」两根轴上。 */
@@ -273,6 +285,7 @@ export function normalizeSettings(raw: unknown, base: EditorSettings = DEFAULT_S
   const src = (raw ?? {}) as Record<string, unknown>
   return {
     theme: isTheme(src.theme) ? src.theme : base.theme,
+    language: isLanguage(src.language) ? src.language : base.language,
     readingTheme: isReadingThemeId(src.readingTheme) ? src.readingTheme : base.readingTheme,
     fontFamily: isFontFamily(src.fontFamily) ? src.fontFamily : base.fontFamily,
     fontSize: clampInt(src.fontSize, CLAMP.fontSize.min, CLAMP.fontSize.max, base.fontSize),

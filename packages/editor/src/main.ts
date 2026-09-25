@@ -23,6 +23,9 @@ import { setEmojiShortcodes } from './emojiShortcode.ts'
 import { appInfoFor } from './appInfo.ts'
 import { installGlobalErrorReporting } from './errorReporting.ts'
 import { mountWindowControls, mountHeaderScrollState } from './chrome.ts'
+import { applyLanguage, t } from './i18n.ts'
+import { setWindowDirty } from './windowTitle.ts'
+import { reopenSettingsModal } from './settingsModal.ts'
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import '@fontsource-variable/source-serif-4'
@@ -97,6 +100,8 @@ const editor: DocumentEditor = createDocumentEditor({
     // 保存按钮跟着脏状态亮/灭（见 refreshSaveButton）
     chrome.refreshSaveButton()
     chrome.scheduleRenderStatus()
+    // 脏指示同步到 document.title 与原生标题（macOS 红点 / Windows 前缀；内部有去重）
+    setWindowDirty(editor.getSession().dirty)
   },
   resetOutline: () => outline.reset(),
   renderOutline: () => {
@@ -124,6 +129,34 @@ const menus = createDocumentMenus({
 chrome.elements.fileMoreBtn.addEventListener('click', () =>
   menus.openFileMenu(chrome.elements.fileMoreBtn),
 )
+
+// ── 运行中切换界面语言 ──
+// 设置面板改「语言」后即时生效：重标所有把文案烘进 DOM 的地方。
+// 不在其列的都是「每次打开重建」的（右键菜单、查找栏、快捷键面板、设置面板、
+// 选中气泡、外观浮层）——下次打开自然拿到新语言，不用重画。
+// 原生菜单在壳启动时建，跟不上这次切换，设置项的 hint 里已说明要重启。
+let disposeWindowControls: (() => void) | null = null
+let disposeLightbox: (() => void) | null = null
+
+function applyLocaleToUi(): void {
+  applyLanguage(getSettings().language)
+  // 设置面板若正开着（语言就是在这里改的），关掉重开——它的所有行都是构建期
+  // 烘的文案，逐行重标不如重建；lastSection 记住了当前分区，重开落回原处。
+  const settingsWasOpen = Boolean(document.querySelector('.settings-card'))
+  if (settingsWasOpen) reopenSettingsModal()
+  // 顶栏：按钮 aria/tip + 模式分段 + 状态行（relabel 内部的 applyModeUI 会刷状态行）
+  chrome.relabel()
+  // 侧栏的 aria-label 在建栏时烘入（sidebar.ts）
+  document.getElementById('sidebar')?.setAttribute('aria-label', t('outlineTitle'))
+  // 空态文案（tagline / 最近打开）整屏都是字，必须重画；有文档时刷大纲（「暂无标题」）
+  if (document.documentElement.classList.contains('no-doc')) files.renderEmptyState()
+  else if (sidebar.isOpen()) outline.renderOutline()
+  // 灯箱与 Windows 窗口控件是构建期烘文案的常驻 DOM：拆掉重建
+  disposeLightbox?.()
+  disposeLightbox = mountLightbox()
+  disposeWindowControls?.()
+  disposeWindowControls = mountWindowControls()
+}
 
 // 初始化：壳环境注入资源解析器 + 绑定事件
 chrome.init()
@@ -204,13 +237,21 @@ void (async () => {
   // 放在最前、且不依赖设置：壳的这三个键是"应用还能用"的最低保证，
   // 排在 await initSettings()（一次 IPC）之后，一旦那次 IPC 不落地，控件就永远挂不上。
   // 浏览器预览也会走这里，按 UA 预演对应平台的版式。
-  mountWindowControls()
+  disposeWindowControls = mountWindowControls()
   mountHeaderScrollState()
   await initSettings()
+  // 语言切换即时生效：基线是启动语言（壳注入/系统探测已在 i18n 模块顶定好），
+  // 只在设置值变化时重标，避免 initSettings 的首次通知白跑一次。
+  let appliedLanguage = getSettings().language
+  notifySettings((s) => {
+    if (s.language === appliedLanguage) return
+    appliedLanguage = s.language
+    applyLocaleToUi()
+  })
   // 大纲的折叠偏好（localStorage）要在第一次 renderOutline 之前读进来
   outline.readCollapsedPref()
   mountSelectionBubble()
-  mountLightbox()
+  disposeLightbox = mountLightbox()
   // 正文图片：点击弹动作菜单（查看原图 / 编辑源码 / 复制路径 / 图床…）
   images.mountImageActions()
   mountTip()

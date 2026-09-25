@@ -25,6 +25,7 @@ export function shortcutGroups(): ShortcutGroup[] {
     {
       title: t('shortcutGroupDoc'),
       rows: [
+        { keys: mod('N'), label: t('newFile') },
         { keys: mod('O'), label: t('openAria') },
         { keys: mod('S'), label: t('saveAria') },
         { keys: mod('W'), label: t('menuCloseFile') },

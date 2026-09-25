@@ -19,8 +19,8 @@ import type { createReadingPositionController } from './readingPositionControlle
 
 interface AppBindingsDeps {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'>
-  files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
-  chrome: Pick<EditorChrome, 'elements' | 'getViewMode' | 'setViewMode' | 'toggleMode'>
+  files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
+  chrome: Pick<EditorChrome, 'elements' | 'getViewMode' | 'setViewMode' | 'toggleMode' | 'runExportPdf'>
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
   menus: Pick<DocumentMenus, 'openBlockMenu'>
@@ -150,6 +150,9 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
         // 存盘是文档级动作，不该受控件状态影响。
         void files.persistToDisk()
         break
+      case 'new-document':
+        void files.newDocument()
+        break
       case 'open':
         chrome.elements.openBtn.click()
         break
@@ -226,6 +229,9 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
   if (detectEnv() !== 'shell') return
   void onMenu((action) => {
     switch (action) {
+      case 'new':
+        void files.newDocument()
+        break
       case 'open':
         void files.openFromShellOrDialog()
         break
@@ -247,6 +253,10 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
         break
       case 'reload':
         void files.reloadFromDisk()
+        break
+      case 'export-pdf':
+        // 与文件名旁 ⋯ 菜单同一个导出动作（Windows 静默 PrintToPdf / macOS 系统打印对话框）
+        void chrome.runExportPdf()
         break
       case 'open-default':
         void files.openDefaultApp()

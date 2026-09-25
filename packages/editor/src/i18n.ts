@@ -115,6 +115,11 @@ export const zh = {
   noResults: '无结果',
   matchPosition: '{i}/{n}',
   imageNeedFile: '请先打开一个磁盘上的 Markdown 文件，再粘贴、拖入或插入图片。',
+  imageUploading: '上传中…',
+  imageLoadFailed: '图片加载失败',
+  dropInsertImage: '松开插入图片',
+  dropOpenDoc: '松开打开文档',
+  dropImageNeedFile: '请先打开文件，再拖入图片',
   imageFailed: '图片保存失败',
   imageTooLarge: '图片超过 15MB，未写入。',
   imageUploadFailed: '上传失败：{error}',
@@ -147,6 +152,8 @@ export const zh = {
   statReading: '约 {n} 分钟',
   statUnsaved: '未保存',
   statSavedAt: '已保存',
+  statSavedTime: '已保存 {time}',
+  statSaving: '保存中…',
   saveNothing: '没有未保存的改动',
   externalReloaded: '已加载磁盘上的版本',
   externalChangedDirty: '磁盘上的文件已被其他程序修改，你这里有未保存的改动',
@@ -288,6 +295,17 @@ export const zh = {
   tableDelCol: '删除此列',
   tableHeaderCell: '表头第 {n} 列',
   tableBodyCell: '第 {row} 行第 {col} 列',
+  // 灯箱与窗口控件
+  lightboxZoomHint: '{mod} + 滚轮缩放 · 拖动平移',
+  winMinimize: '最小化',
+  winMaximize: '最大化',
+  winRestore: '向下还原',
+  winClose: '关闭',
+  winPreviewUnavailable: '{label}（浏览器预览不可用）',
+  // 界面语言
+  language: '语言',
+  languageSystem: '跟随系统',
+  languageHint: '界面立即生效；原生菜单在下次启动后生效。',
 } as const
 
 const en: Record<keyof typeof zh, string> = {
@@ -403,6 +421,11 @@ const en: Record<keyof typeof zh, string> = {
   noResults: 'No results',
   matchPosition: '{i}/{n}',
   imageNeedFile: 'Open a Markdown file on disk before pasting, dropping, or inserting images.',
+  imageUploading: 'Uploading…',
+  imageLoadFailed: 'Image failed to load',
+  dropInsertImage: 'Drop to insert image',
+  dropOpenDoc: 'Drop to open document',
+  dropImageNeedFile: 'Open a file before dropping images',
   imageFailed: 'Could not save image',
   imageTooLarge: 'Image is larger than 15MB and was not saved.',
   imageUploadFailed: 'Upload failed: {error}',
@@ -435,6 +458,8 @@ const en: Record<keyof typeof zh, string> = {
   statReading: '{n} min read',
   statUnsaved: 'Unsaved',
   statSavedAt: 'Saved',
+  statSavedTime: 'Saved {time}',
+  statSaving: 'Saving…',
   saveNothing: 'No unsaved changes',
   externalReloaded: 'Loaded the version on disk',
   externalChangedDirty: 'This file changed on disk and you have unsaved edits',
@@ -575,21 +600,70 @@ const en: Record<keyof typeof zh, string> = {
   tableDelCol: 'Delete column',
   tableHeaderCell: 'Header column {n}',
   tableBodyCell: 'Row {row}, column {col}',
+  // Lightbox and window controls
+  lightboxZoomHint: '{mod} + scroll to zoom · drag to pan',
+  winMinimize: 'Minimize',
+  winMaximize: 'Maximize',
+  winRestore: 'Restore',
+  winClose: 'Close',
+  winPreviewUnavailable: '{label} (unavailable in browser preview)',
+  // Interface language
+  language: 'Language',
+  languageSystem: 'System',
+  languageHint: 'Applies to the interface right away; native menus after restart.',
 }
 
 export type MessageKey = keyof typeof zh
 
-function detectLocale(): Locale {
+/** 跟随系统时的探测。 */
+function systemLocale(): Locale {
   // bun/部分预览环境里 navigator 存在但没有 language——按"取不到就当 zh-CN"处理，
   // 否则模块顶层就会抛（连单元测试都导入不了）。
   const lang = typeof navigator !== 'undefined' && typeof navigator.language === 'string' ? navigator.language : 'zh-CN'
   return lang.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
+/**
+ * 初始 locale。本模块在设置加载（一次异步 IPC）之前就执行，所以只能读同步来源：
+ *   壳建窗注入的 __lectorLocale（已按 settings.language 解析，见 io/window.rs）→
+ *   localStorage 里的设置（浏览器预览没有壳注入）→ 跟随系统。
+ * 运行中改语言不走这里——走 applyLanguage()，由设置通知驱动。
+ */
+function detectLocale(): Locale {
+  const injected =
+    typeof window !== 'undefined'
+      ? (window as { __lectorLocale?: unknown }).__lectorLocale
+      : undefined
+  if (injected === 'zh-CN' || injected === 'en') return injected
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('lector-settings') : null
+    const lang = raw ? (JSON.parse(raw) as { language?: unknown } | null)?.language : undefined
+    if (lang === 'zh-CN' || lang === 'en') return lang
+  } catch {
+    /* 设置损坏就跟随系统 */
+  }
+  return systemLocale()
+}
+
 let locale: Locale = detectLocale()
+
+/** html lang 跟着界面语言走：字体回退、读屏软件、连字符规则都看它。 */
+function writeDocumentLang(): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = locale
+}
+writeDocumentLang()
 
 export function getLocale(): Locale {
   return locale
+}
+
+/**
+ * 应用语言设置：'system' 解析成系统语言，其余直接用。
+ * 只换文案表与 html lang——已经渲染出来的界面文本由调用方负责重画（main.ts）。
+ */
+export function applyLanguage(mode: 'system' | 'zh-CN' | 'en'): void {
+  locale = mode === 'system' ? systemLocale() : mode
+  writeDocumentLang()
 }
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

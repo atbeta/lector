@@ -17,7 +17,7 @@
 
 import { createZoomView, type ZoomView } from './zoomView.ts'
 import { t } from './i18n.ts'
-import { mod } from './keys.ts'
+import { isMacLike } from './keys.ts'
 
 let overlay: HTMLElement | null = null
 let zoom: ZoomView | null = null
@@ -38,7 +38,7 @@ function build(): void {
     // 点空白（不是图本身、也没拖动过）关闭
     onBackgroundClick: () => hideLightbox(),
     labels: {
-      hint: `${mod('')}滚轮缩放 · 拖动平移`,
+      hint: t('lightboxZoomHint', { mod: isMacLike() ? '⌘' : 'Ctrl' }),
       fit: t('zoomFit'),
       zoomIn: t('zoomIn'),
       zoomOut: t('zoomOut'),
