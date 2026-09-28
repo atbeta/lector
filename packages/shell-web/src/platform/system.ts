@@ -94,13 +94,50 @@ export async function openLink(docPath: string, href: string): Promise<void> {
  * 这个调用一律被拒——菜单里那一项以前永远失败，只能弹「请用 ⌘V」。
  * 浏览器预览（vite dev）里没有壳，退回 navigator.clipboard，那条路本来就是通的。
  *
- * 注意它**只读**：复制/剪切仍走 navigator.clipboard.writeText / execCommand，
- * 那两条路在 webview 里一直好用，不需要多开一条能力。
+ * 文本的复制/剪切仍走 navigator.clipboard.writeText / execCommand，那两条路在 webview 里一直好用。
+ * 图片像素是另一条（writeClipboardImage）：跨源图读不回像素，壳里走 copy_image。
  */
 export async function readClipboard(): Promise<string> {
   if (detectEnv() !== 'shell') return navigator.clipboard.readText()
   const { invoke } = await tauriApi()
   return invoke<string>('read_clipboard')
+}
+
+/**
+ * 把一张图片的像素写入系统剪贴板。
+ *
+ * source 与壳的 copy_image 约定一致：绝对路径、http(s)、或 data:image base64。
+ * 浏览器预览没有壳，改走 fetch + ClipboardItem（开发时图片和页面同源，这条路是通的）。
+ */
+export async function writeClipboardImage(source: string): Promise<void> {
+  if (detectEnv() !== 'shell') {
+    const res = await fetch(source)
+    if (!res.ok) throw new Error(String(res.status))
+    let blob = await res.blob()
+    if (blob.type !== 'image/png') blob = await transcodeToPng(blob)
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return
+  }
+  const { invoke } = await tauriApi()
+  await invoke('copy_image', { source })
+}
+
+/** 剪贴板对 image/png 最稳。jpeg / webp 先画到画布再导出。 */
+async function transcodeToPng(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob)
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('no canvas')
+    ctx.drawImage(bitmap, 0, 0)
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!png) throw new Error('png encode failed')
+    return png
+  } finally {
+    bitmap.close()
+  }
 }
 
 

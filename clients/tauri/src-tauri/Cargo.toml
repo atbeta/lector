@@ -24,9 +24,14 @@ tauri-plugin-single-instance = "2"
 # 剪贴板**读**：webview 的 navigator.clipboard.readText() 在 macOS 的 WKWebView 里
 # 一律被拒（Tauri v2 把剪贴板从 core 挪到了独立插件，不装就没有这条能力），
 # 于是右键菜单里的「粘贴」永远失败。Windows/WebView2 上本来就通，
-# 装它是为了让两个平台行为一致。只开 allow-read-text——写（复制）走 navigator 一直好用，
-# 不给多余的能力。
+# 装它是为了让两个平台行为一致。文本复制走 navigator.clipboard.writeText，一直好用。
+# 图片复制不行：正文里的图是 lector-file / 图床，和页面不同源，canvas 读不回像素。
+# 所以图片写入走自定义命令 copy_image，仍不给 webview 开插件通配。
 tauri-plugin-clipboard-manager = "2"
+# 把图片解码成剪贴板要的 RGBA。只开常见位图，不带 svg / avif。
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+# 图床地址要由壳去取：webview 的 connect-src 不放行任意 https，否则跨源图复制不了。
+reqwest = { version = "0.13", default-features = false, features = ["default-tls", "charset", "http2", "system-proxy"] }
 # 记住窗口尺寸/位置/最大化状态，下次启动恢复。
 # 官方插件（crates.io 上的 tauri-plugin-window-state），只在 Rust 侧使用，
 # 不开放它的 JS 命令，所以 capabilities 不需要加 window-state:default。

@@ -5,6 +5,7 @@
 //! 不能走下面的重导出。
 
 pub(crate) mod appinfo;
+pub(crate) mod clipboard_image;
 pub(crate) mod commands;
 pub(crate) mod fs;
 pub(crate) mod portable;

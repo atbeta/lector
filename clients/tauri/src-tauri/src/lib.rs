@@ -163,6 +163,7 @@ pub fn run() {
       io::commands::watch,
       io::commands::take_pending_open,
       io::commands::read_clipboard,
+      io::commands::copy_image,
       io::commands::open_link,
       io::commands::load_settings,
       io::commands::save_settings,

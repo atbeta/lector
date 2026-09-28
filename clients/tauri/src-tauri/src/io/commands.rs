@@ -231,6 +231,15 @@ pub async fn read_clipboard(app: AppHandle) -> Result<String, String> {
   app.clipboard().read_text().map_err(|e| e.to_string())
 }
 
+/// 把图片像素写入系统剪贴板（图片菜单的「复制图片」）。
+///
+/// `source` 是三类之一：已打开文档目录内的绝对路径、http(s) 图床地址、
+/// `data:image/…;base64,…`。和 read_clipboard 一样必须是 async，剪贴板不能占主线程。
+#[tauri::command]
+pub async fn copy_image(app: AppHandle, source: String) -> Result<(), String> {
+  super::clipboard_image::copy_image(&app, &source).await
+}
+
 #[tauri::command]
 pub fn take_pending_open(window: tauri::Window, app: AppHandle) -> Option<String> {
   let pending = app.state::<PendingOpens>();

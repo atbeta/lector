@@ -18,6 +18,10 @@ and the `chore(release):` commits themselves.
 
 ## Unreleased
 
+### Added
+
+- feat(editor): copy the image from the image menu, not only its path
+
 ### Improved
 
 - perf(core): parse large documents in chunks so opening stays responsive

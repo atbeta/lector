@@ -12,6 +12,7 @@ import {
   pickImageFiles,
   revealInFolder,
   runImageCommand,
+  writeClipboardImage,
   saveImage,
   stageImage,
 } from '@lector/shell-web'
@@ -19,6 +20,7 @@ import { getSettings } from './settings.ts'
 import { showPrompt } from './dialog.ts'
 import { showInLightbox } from './lightbox.ts'
 import { assetLocalPath } from './asset.ts'
+import { clipboardImageSource } from './imageClipboard.ts'
 import { docStem } from './paths.ts'
 import { showToast, copyText } from './feedback.ts'
 import { showContextMenu, type ContextMenuItem } from './contextMenu.ts'
@@ -168,7 +170,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
    *
    * 点击图片的意图是「看一眼 / 换个地址 / 拿到它」，不是编辑源码——
    * 所以「查看原图」排第一，其余按可用性出现：外链图没有本地路径，就不给
-   * 「在文件夹中显示 / 复制路径」；没配上传命令，就不给「上传到图床」。
+   * 「在文件夹中显示」；像素能拿到时给「复制图片」；没配上传命令，就不给「上传到图床」。
    */
   function imageMenuItems(img: HTMLImageElement): ContextMenuItem[] {
     const target = imageTarget(img)
@@ -207,6 +209,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       })
     }
     const local = assetLocalPath(img.src)
+    const copySource = clipboardImageSource(img.src)
     if (local) {
       items.push({
         separatorBefore: true,
@@ -214,7 +217,15 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
         run: () => void revealInFolder(local).catch(() => showToast(t('openFailed'))),
       })
     }
+    if (copySource) {
+      items.push({
+        separatorBefore: !local,
+        label: t('menuCopyImage'),
+        run: () => void copyDisplayedImage(copySource),
+      })
+    }
     items.push({
+      separatorBefore: !local && !copySource,
       label: t('menuCopyImagePath'),
       run: () => void copyText(local ?? img.getAttribute('src') ?? '', t('menuCopied')),
     })
@@ -232,6 +243,16 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       })
     }
     return items
+  }
+
+  async function copyDisplayedImage(source: string): Promise<void> {
+    try {
+      await writeClipboardImage(source)
+      showToast(t('menuCopied'))
+    } catch (err) {
+      console.error('[lector] copy image', err)
+      showToast(t('codeCopyFailed'))
+    }
   }
 
   /**
