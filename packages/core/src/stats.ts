@@ -20,8 +20,8 @@
 // 不需要解析。
 //
 // 性能：整篇 parseBlockRoots 对 1MB 文档要 3 秒级，状态行不能每次刷新都来
-// 一遍——所以编辑器侧走 countBlocks 按块增量（见下）；countText 保留给
-// 测试与小块场景。
+// 一遍——所以编辑器侧走 countBlocks 按块增量（blockStats 以块对象为缓存，
+// raw 不变就不重算）；countText 保留给测试与小块场景。
 
 import { parseBlockRoots } from './parse.ts'
 
@@ -48,6 +48,34 @@ export interface StatsBlock {
   raw: string
   mdast: unknown
   dirty: boolean
+}
+
+/**
+ * 一块的可加统计。词数按块算好，累计时直接相加——渲染文本的拼接处是换行，
+ * 而词的计数（CJK 逐字、西文按词）都不跨过换行，所以逐块相加 === 整篇。
+ * chars / newlines 走源码，行数只在全文末尾 +1。
+ */
+export interface BlockStats {
+  words: number
+  chars: number
+  newlines: number
+}
+
+const blockStatsCache = new WeakMap<object, { raw: string; stats: BlockStats }>()
+
+/** 一块的统计。同一块对象 raw 没变就直接命中缓存，不重新解析。 */
+export function blockStats(block: StatsBlock): BlockStats {
+  const cached = blockStatsCache.get(block)
+  if (cached && cached.raw === block.raw) return cached.stats
+  const trees = Array.isArray(block.mdast) ? block.mdast : [block.mdast]
+  const rendered = !block.dirty && block.mdast ? renderedFromNodes(trees) : renderedFromNodes(parseBlockRoots(block.raw))
+  const stats: BlockStats = {
+    words: rendered === '' ? 0 : statsFrom(rendered, 0, 0).words,
+    chars: countCodePoints(block.raw),
+    newlines: countNewlines(block.raw),
+  }
+  blockStatsCache.set(block, { raw: block.raw, stats })
+  return stats
 }
 
 interface MdNode {
@@ -133,36 +161,24 @@ export function countText(text: string): DocStats {
  * 编辑器按块持有 mdast（BlockView），非 dirty 块的树与 raw 一致，直接遍历
  * （零解析）；dirty 块的 mdast 是旧的（打字中 syncBlockText 只更新 raw，
  * 失焦 finalizeFocused 才重解析），必须从 raw 现算——一块很小，亚毫秒。
- * memo 按 raw 记渲染文本：没改过的块跨刷新直接命中，块对象重建也不重算。
- * 1MB 文档实测：整篇重解析 3.1s → 按块冷启 ~100ms、命中 memo 后 ~30ms。
+ * 缓存挂在块对象上（blockStats）：raw 没变直接命中。块对象重建（换文档、重解析）
+ * 时缓存自然失效，不需要容量上限。
  */
-export function countBlocks(
-  blocks: StatsBlock[],
-  memo: Map<string, string> = new Map(),
-): DocStats {
+export function countBlocks(blocks: StatsBlock[]): DocStats {
   if (blocks.length === 0) return { words: 0, chars: 0, lines: 0 }
-  const parts: string[] = []
-  let newlines = 0
+  // 块切片无缝覆盖全文（blocks.raw.join('') === text），逐块相加即全文。
+  // 词数按块可加：计数不跨换行，而块间拼接处恰好是换行（空渲染块贡献 0，
+  // 不参与 join，与旧实现一致）。行数只在最后 +1，不能每块 +1。
+  let words = 0
   let chars = 0
+  let newlines = 0
   for (const b of blocks) {
-    // 块切片无缝覆盖全文（blocks.raw.join('') === text），逐块相加即全文源码的
-    // 码点数与换行数；行数只在最后 +1，不能每块 +1。
-    newlines += countNewlines(b.raw)
-    chars += countCodePoints(b.raw)
-    let rendered = memo.get(b.raw)
-    if (rendered === undefined) {
-      // finalizeFocused 在块含多个顶层节点时把 mdast 存成数组，两种形态都接
-      const trees = Array.isArray(b.mdast) ? b.mdast : [b.mdast]
-      rendered = !b.dirty && b.mdast ? renderedFromNodes(trees) : renderedFromNodes(parseBlockRoots(b.raw))
-      if (memo.size >= 4096) memo.clear()
-      memo.set(b.raw, rendered)
-    }
-      parts.push(rendered)
+    const s = blockStats(b)
+    words += s.words
+    chars += s.chars
+    newlines += s.newlines
   }
-  // 空渲染块（html/unknown 等）不参与 join：整篇 countText 里这些块不产生
-  // 文本片段，这里多一个 '' 会在块间多算一个换行，影响词数。字符/行数另算，
-  // 走源码，不受影响。
-  return statsFrom(parts.filter((p) => p !== '').join('\n'), chars, newlines + 1)
+  return { words, chars, lines: newlines + 1 }
 }
 
 /**

@@ -104,6 +104,22 @@ function collectDefinitions(
   if (n.children && !NO_DEFINITIONS_INSIDE.has(n.type)) collectDefinitions(n.children, into)
 }
 
+/**
+ * 只把一批新块的定义追加进表（保持文档序、同一 label 首个生效）。
+ * 渐进加载每来一批只传新块，避免每批都重扫全篇。
+ * 返回定义是否有变。
+ */
+export function addLinkDefinitions(blocks: ReadonlyArray<{ mdast: unknown }>): boolean {
+  let changed = false
+  for (const b of blocks) {
+    const before = linkDefinitions.size
+    collectDefinitions(b.mdast, linkDefinitions)
+    if (linkDefinitions.size !== before) changed = true
+  }
+  if (changed) linkDefinitionsKey = ''
+  return changed
+}
+
 /** 由整篇块重建定义表；返回定义是否有变（有变时调用方要让引用块重画）。 */
 export function setLinkDefinitions(blocks: ReadonlyArray<{ mdast: unknown }>): boolean {
   const next = new Map<string, { url: string; title: string | null }>()

@@ -47,11 +47,30 @@ export function createReadingPositionController({ getPath, getScroller, onRestor
     if (!scroller) return
     const top = getPosition(positions, path, scroller.scrollHeight)
     if (top === null) return
-    // 等一帧：render() 刚改完 DOM，同一帧里设 scrollTop 会被随后的布局吃掉
-    requestAnimationFrame(() => {
+    // 长文档是分批补画的：目标位置可能还没进 DOM。等内容高度够了再跳，
+    // 期间用户滚动或点击过就不再打扰。最多等 4 秒，超时按当时高度跳。
+    const startedAt = performance.now()
+    let scrolled = false
+    const onUserScroll = () => {
+      scrolled = true
+    }
+    scroller.addEventListener('wheel', onUserScroll, { passive: true })
+    scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
+    const tryRestore = () => {
+      scroller.removeEventListener('wheel', onUserScroll)
+      scroller.removeEventListener('pointerdown', onUserScroll)
+      if (scrolled || getPath() !== path) return
+      if (scroller.scrollHeight < top + scroller.clientHeight && performance.now() - startedAt < 4000) {
+        scroller.addEventListener('wheel', onUserScroll, { passive: true })
+        scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
+        window.setTimeout(tryRestore, 50)
+        return
+      }
       scroller.scrollTop = top
       onRestore()
-    })
+    }
+    // 等一帧：render() 刚改完 DOM，同一帧里设 scrollTop 会被随后的布局吃掉
+    requestAnimationFrame(tryRestore)
   }
 
   /**

@@ -98,14 +98,17 @@ export function createRecoveryController({ getSession, isLarge, loadSession, mar
     pendingRecovery = null
     hideRecoveryBar()
     if (getSettings().recoverUnsaved && isRecoverable(path)) {
-      const rec = readRecovery(path)
-      if (rec && rec.content !== raw) {
-        pendingRecovery = rec
-        showRecoveryBar()
-      } else if (rec) {
-        // 草稿与磁盘一致（用户已经存过了）：留着没有意义
-        forgetRecovery(path)
-      }
+      void readRecovery(path).then((rec) => {
+        // 读完时可能已经换了文档：别把上一篇的恢复条贴到当前文档上
+        if (getSession().source?.path !== path) return
+        if (rec && rec.content !== raw) {
+          pendingRecovery = rec
+          showRecoveryBar()
+        } else if (rec) {
+          // 草稿与磁盘一致（用户已经存过了）：留着没有意义
+          void forgetRecovery(path)
+        }
+      })
     }
   }
 

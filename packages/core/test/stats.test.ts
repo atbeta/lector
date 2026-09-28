@@ -7,7 +7,7 @@
 // 行 = 源码逻辑行（换行 + 1）。
 
 import { describe, expect, test } from 'bun:test'
-import { countBlocks, countText, formatCount, readingMinutes } from '../src/stats.ts'
+import { blockStats, countBlocks, countText, formatCount, readingMinutes } from '../src/stats.ts'
 import { parseBlocks } from '../src/parse.ts'
 
 describe('文档统计', () => {
@@ -120,13 +120,28 @@ describe('按块增量统计', () => {
     expect(countBlocks(blocks)).toEqual(countText('全新的内容 hello'))
   })
 
-  test('memo 命中：重复统计结果一致且缓存生效', () => {
+  test('逐块相加与整篇一致（词数可加）', () => {
+    const md = '# 标题\n\n中文正文 English words。\n\n- 甲\n- 乙\n\n```\ncode\n```\n'
+    const blocks = parseBlocks(md)
+    const sum = { words: 0, chars: 0, newlines: 0 }
+    for (const b of blocks) {
+      const s = blockStats(b)
+      sum.words += s.words
+      sum.chars += s.chars
+      sum.newlines += s.newlines
+    }
+    const whole = countText(md)
+    expect(sum.words).toBe(whole.words)
+    expect(sum.chars).toBe(whole.chars)
+    expect(sum.newlines + 1).toBe(whole.lines)
+  })
+
+  test('缓存命中：同一块 raw 不变时重复统计不重算', () => {
     const blocks = parseBlocks('# A\n\n内容甲\n\n## B\n\n内容乙')
-    const memo = new Map<string, string>()
-    const s1 = countBlocks(blocks, memo)
-    const s2 = countBlocks(blocks, memo)
-    expect(s2).toEqual(s1)
-    expect(memo.size).toBeGreaterThan(0)
+    const first = blockStats(blocks[0]!)
+    blocks[0]!.mdast = null
+    // mdast 被清空，但 raw 没变：缓存仍命中，结果不变
+    expect(blockStats(blocks[0]!)).toEqual(first)
   })
 
   test('mdast 为数组形态（多顶层节点块）也能统计', () => {

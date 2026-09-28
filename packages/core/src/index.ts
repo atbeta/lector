@@ -11,10 +11,12 @@ export {
 } from './parse.ts'
 export { normalizeBlockRaw, serialize } from './serialize.ts'
 export {
+  blockStats,
   countBlocks,
   countText,
   formatCount,
   readingMinutes,
+  type BlockStats,
   type DocStats,
   type StatsBlock,
 } from './stats.ts'

@@ -14,6 +14,7 @@ import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { mathFromMarkdown } from 'mdast-util-math'
 import { pandocMark } from 'micromark-extension-mark'
 import { splitTableRow } from './tableRow.ts'
+import { parseBlocksChunked as chunkParse, stubForSlice } from './chunk.ts'
 import type { BlockKind, BlockView } from './types.ts'
 
 /** mdast node.type → BlockKind；未识别归 unknown（整段当一块 raw 预览降级）。 */
@@ -165,7 +166,7 @@ function repairTableMdast(raw: string, node: unknown): unknown {
  * 只是重新分块，拼接字节不变。单列表格的无管道正文行会被误切，
  * 但那种写法罕见且有歧义，阅读优先。
  */
-function carveTableTail(raw: string): { table: string; tail: string } | null {
+export function carveTableTail(raw: string): { table: string; tail: string } | null {
   const lines = raw.split('\n')
   let i = lines.length
   while (i > 0 && !lines[i - 1]!.includes('|')) i--
@@ -195,7 +196,11 @@ export function kindFromMdast(node: unknown): BlockKind {
  * （见 carveTableTail），拼接仍恒等。
  * 空文档给一块可聚焦空段落，否则无法开始输入。
  */
-export function parseBlocks(text: string): BlockView[] {
+/**
+ * 整篇解析。分块实现（chunk.ts）的结果必须与它严格一致，测试用它做 oracle。
+ * 生产路径走 parseBlocks（分块），它不导出到 index。
+ */
+export function parseBlocksOriginal(text: string): BlockView[] {
   if (text.length === 0) {
     return [
       {
@@ -267,6 +272,11 @@ export function parseBlocks(text: string): BlockView[] {
   return mergeDetailsBlocks(blocks, text)
 }
 
+/** 分块解析（chunk.ts）。签名保持不变，调用方无感。opts 只供测试把片切小。 */
+export function parseBlocks(text: string, opts?: import('./chunk.ts').ChunkOptions): BlockView[] {
+  return chunkParse(text, opts)
+}
+
 /**
  * details 折叠块合并：CommonMark 的 html 块在空行处截断，`<details>`、
  * 中间的 markdown 内容、`</details>` 会被切成多个块——阅读时整段降级成
@@ -274,7 +284,7 @@ export function parseBlocks(text: string): BlockView[] {
  * 覆盖原文，拼接恒等不破），渲染层（mdastHtml 的 details 白名单）拿到完整
  * 值后重解析内部 markdown。找不到配对闭标签就不合并，维持逐块降级。
  */
-function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView[] {
+export function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView[] {
   const out: BlockView[] = []
   let i = 0
   while (i < blocks.length) {
@@ -352,14 +362,31 @@ function parseBlockRootsUnrepaired(raw: string): unknown[] {
 /**
  * 解析一块 raw，返回全部块级根节点（一段改成两段时预览不能只画第一个）。
  */
-export function parseBlockRoots(raw: string): unknown[] {
-  return parseBlockRootsUnrepaired(raw).map((node) => {
+export function parseBlockRoots(raw: string, defs?: import('./chunk.ts').DefinitionSet): unknown[] {
+  const parsed = defs ? reparseWithDefs(raw, defs) : raw
+  return parseBlockRootsUnrepaired(parsed).map((node) => {
     const n = node as { type?: string; position?: { start?: { offset?: number }; end?: { offset?: number } } }
     if (n.type !== 'table') return node
     const s = n.position?.start?.offset ?? 0
     const e = n.position?.end?.offset ?? raw.length
-    return repairTableMdast(raw.slice(s, e), node)
-  })
+    if (s >= raw.length) return null
+    return repairTableMdast(raw.slice(s, Math.min(e, raw.length)), node)
+  }).filter((n) => n !== null)
+}
+
+/**
+ * 单块重解析时补上文档里其他块的定义（桩追加在末尾，结果里越过 raw 的节点会被丢弃）。
+ * 块尾还开着围栏 / 数学块时不补：桩会被吞进去，露在预览里。
+ */
+function reparseWithDefs(raw: string, defs: import('./chunk.ts').DefinitionSet): string {
+  const stub = stubForSlice(raw, defs)
+  if (!stub) return raw
+  const fence = raw.match(/^ {0,3}(`{3,}|~{3,})/)
+  if (fence) {
+    const close = new RegExp(`\\n {0,3}${fence[1]![0] === '`' ? '`' : '~'}{${fence[1]!.length},}[ \\t]*$`)
+    if (!close.test(raw)) return raw
+  }
+  return raw + '\n\n' + stub + '\n'
 }
 
 /**

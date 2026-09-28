@@ -194,6 +194,7 @@ export function createDocumentEditor({
       cm = null
     }
     large.destroy()
+    paintGeneration++
     blocksEl.clear()
     lastPaint.clear()
     liveText.clear()
@@ -281,6 +282,16 @@ export function createDocumentEditor({
     setDocPresent(true)
   }
 
+  /**
+   * 首屏先画这么多块，其余用时间片分批补。块数少的文档一次画完，行为与原来一致。
+   * 取值：首屏约 64KB 正文，mixed 夹具里约 1500 块。
+   */
+  const FIRST_PAINT_BLOCKS = 1500
+  /** 每批补这么多块。一批的 DOM 构建要落在一帧里（16ms 内）。 */
+  const PAINT_BATCH = 400
+  /** 正在分批补画的文档版本。换文档时递增，旧批次由此失效。 */
+  let paintGeneration = 0
+
   async function render() {
     // 大文件没有块：正文区由 mountLargeDocument 挂的整篇 CM 占据，
     // 任何走块渲染的路径（切档、markDirty 之后等）都必须绕开，否则会把 CM 清掉。
@@ -316,7 +327,9 @@ export function createDocumentEditor({
         containStale = true // 少了一块，下面的东西整体上移，也要重量
       }
     }
-    applyKeyedChildren(contentEl, desired)
+    // 块很多时只先画首屏，其余分批补（见 paintRestInBatches）
+    const batching = desired.length > FIRST_PAINT_BLOCKS
+    applyKeyedChildren(contentEl, batching ? desired.slice(0, FIRST_PAINT_BLOCKS) : desired)
     const mode = getViewMode()
     // content-visibility 只在阅读档生效（见 chrome.css）：档位一变，「contain 态现在
     // 长什么样」就换了一套，得重新量一遍——否则切回阅读档时屏幕外的块还在用估高。
@@ -324,11 +337,32 @@ export function createDocumentEditor({
       containMode = mode
       containStale = true
     }
-    for (const block of session.blocks) {
-      paintBlock(block, mode)
-    }
+    const firstCount = batching ? FIRST_PAINT_BLOCKS : session.blocks.length
+    for (let i = 0; i < firstCount; i++) paintBlock(session.blocks[i]!, mode)
     caretIntent = null
     scheduleBlockContainment()
+    if (batching) paintRestInBatches(desired, firstCount, ++paintGeneration)
+  }
+
+  /** 首屏之后的块分批补进 DOM。每批让出一次主线程，滚动与输入不受挡。 */
+  function paintRestInBatches(desired: HTMLElement[], from: number, generation: number): void {
+    let cursor = from
+    const step = () => {
+      if (generation !== paintGeneration) return
+      const end = Math.min(cursor + PAINT_BATCH, desired.length)
+      const mode = getViewMode()
+      for (let i = cursor; i < end; i++) {
+        contentEl.appendChild(desired[i]!)
+        paintBlock(session.blocks[i]!, mode)
+      }
+      cursor = end
+      if (cursor < desired.length) {
+        window.setTimeout(step, 0)
+      } else {
+        renderOutline()
+      }
+    }
+    window.setTimeout(step, 0)
   }
 
   /** 只重画一块。聚焦/失焦走这条，避免整篇 render() 先 await 公式再按文档序重画上一块。 */

@@ -16,6 +16,16 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## Unreleased
+
+### Improved
+
+- perf(core): parse large documents in chunks so opening stays responsive
+
+### Fixed
+
+- fix(editor): keep unsaved drafts for documents up to 3MB
+
 ## v0.36.0 (2026-09-25)
 
 ### Added

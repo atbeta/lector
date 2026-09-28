@@ -2,7 +2,7 @@
 // 只测判据本身（渲染层的行为由 ui-verify 的表格断言兜住），
 // 重点是别把"日期/编号/带文字的格子"误判成数字。
 import { expect, test } from 'bun:test'
-import { isNumericCell, looksLikeMath, renderBlockHtml, setLinkDefinitions, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
+import { addLinkDefinitions, isNumericCell, looksLikeMath, renderBlockHtml, setLinkDefinitions, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
 import { setEmojiShortcodes } from '../src/emojiShortcode.ts'
 import { parseBlocks } from '@lector/core'
 import { setAssetResolver } from '../src/asset.ts'
@@ -210,6 +210,18 @@ test('重复定义首个生效；危险协议仍降级为纯文本', () => {
   expect(html).toContain('<a href="https://first.com">a</a>')
   expect(html).not.toContain('second.com')
   expect(html).toContain('<span>b</span>')
+})
+
+test('分批追加定义与一次重建结果相同，重复 label 首个生效', () => {
+  const blocks = parseBlocks('[a][k]\n\n[k]: https://first.com\n\n[k]: https://second.com\n')
+  setLinkDefinitions([])
+  expect(addLinkDefinitions([blocks[0]!])).toBe(false)
+  expect(addLinkDefinitions(blocks.slice(1, 3))).toBe(true)
+  expect(addLinkDefinitions(blocks.slice(3))).toBe(false)
+  const incremental = renderBlockHtml(blocks[0]!.mdast, blocks[0]!.raw)
+  setLinkDefinitions(blocks)
+  expect(renderBlockHtml(blocks[0]!.mdast, blocks[0]!.raw)).toBe(incremental)
+  expect(incremental).toContain('https://first.com')
 })
 
 test('定义表缺条目时引用还原成源码', () => {
