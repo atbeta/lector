@@ -153,6 +153,42 @@ export async function save(
   return { ok: true, current_mtime_ms: Date.now() }
 }
 
+/**
+ * 另存为二进制（Mermaid 的 SVG / PNG / JPEG）。
+ * 壳里弹保存对话框再写盘；浏览器预览没有对话框，直接下载。取消返回 false。
+ */
+export async function saveBinaryFile(
+  defaultName: string,
+  bytes: Uint8Array,
+  filters: { name: string; extensions: string[] }[],
+): Promise<boolean> {
+  if (detectEnv() !== 'shell') {
+    const blob = new Blob([Uint8Array.from(bytes)])
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = defaultName
+    a.click()
+    URL.revokeObjectURL(url)
+    return true
+  }
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const target = await save({ defaultPath: defaultName, filters })
+  if (!target) return false
+  const { invoke } = await tauriApi()
+  await invoke('write_bytes', { path: target, bytesBase64: bytesToBase64(bytes) })
+  return true
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
 
 export async function watch(path: string): Promise<void> {
   const { invoke } = await tauriApi()

@@ -109,6 +109,25 @@ pub fn write_file(
   })
 }
 
+/// 把「另存为」选定的路径写成二进制。Mermaid 导出的 SVG / PNG / JPEG 走这里。
+///
+/// 不走 write_file：那条有文档的 mtime 冲突，而且内容是字符串。路径由保存对话框给出。
+#[tauri::command]
+pub fn write_bytes(path: String, bytes_base64: String) -> Result<(), String> {
+  let p = std::path::Path::new(&path);
+  if !p.is_absolute() {
+    return Err("path must be absolute".into());
+  }
+  let bytes = decode_base64(&bytes_base64)?;
+  if bytes.is_empty() {
+    return Err("empty file".into());
+  }
+  if bytes.len() > 40 * 1024 * 1024 {
+    return Err("file too large".into());
+  }
+  atomic_write(p, &bytes).map_err(|e| e.to_string())
+}
+
 /// 正文里的链接交给系统浏览器打开。
 ///
 /// 安全：只放行 http/https/mailto。这条命令由 Web 层用文档内容里的 href 调用，

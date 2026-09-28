@@ -411,7 +411,8 @@
   letter-spacing: 0.02em;
   text-transform: lowercase;
 }
-.code-copy {
+.code-copy,
+.mermaid-export {
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -425,9 +426,18 @@
   transition: color var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard);
 }
-.code-copy:hover {
+.code-copy:hover,
+.mermaid-export:hover {
   color: rgb(var(--foreground));
   background: rgb(var(--accent));
+}
+/* 图卡没有折行键，由导出键把右侧按钮组推到条尾。实时预览的标题行同样靠它右对齐。 */
+.mermaid-export {
+  margin-left: auto;
+}
+.mermaid-export:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 /* 折行开关：与复制键同款 24px 方键。推到条右端的是它（带着复制键组成
    右侧按钮组）——推力原来在复制键上，折行键插进去后会被留在语言标旁边。 */

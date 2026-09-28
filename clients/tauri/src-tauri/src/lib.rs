@@ -155,6 +155,7 @@ pub fn run() {
       io::commands::read_file,
       io::commands::read_file_bytes,
       io::commands::write_file,
+      io::commands::write_bytes,
       io::commands::open_url,
       io::commands::open_with_default,
       io::commands::open_with_app,

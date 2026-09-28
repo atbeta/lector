@@ -1,4 +1,5 @@
 import { renderMermaidSvg } from './mermaid.ts'
+import { mountMermaidExportButton } from './mermaidExport.ts'
 import { showSvgInLightbox } from './lightbox.ts'
 import { iconSvg } from './icons.ts'
 import { t } from './i18n.ts'
@@ -121,8 +122,11 @@ function decorateCopyButton(btn: HTMLElement): void {
   })
 }
 
-/** 代码卡头部条：语言标在左、折行与复制键在右，收在代码区域内部（notefast 同款结构）。 */
-function makeCodeBar(lang: string, getText: () => string): HTMLElement {
+/**
+ * 代码卡头部条：语言标在左、折行与复制键在右，收在代码区域内部（notefast 同款结构）。
+ * mermaid 没有源码折行这回事，不放折行键。
+ */
+function makeCodeBar(lang: string, getText: () => string, opts?: { wrap?: boolean }): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'code-bar'
   if (lang) {
@@ -131,16 +135,18 @@ function makeCodeBar(lang: string, getText: () => string): HTMLElement {
     label.textContent = lang
     bar.appendChild(label)
   }
-  ensureWrapSync()
-  const wrapBtn = document.createElement('button')
-  wrapBtn.type = 'button'
-  wrapBtn.className = 'code-wrap-toggle'
-  syncWrapButton(wrapBtn)
-  wrapBtn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    writeCodeWrap(!readCodeWrap())
-  })
-  bar.appendChild(wrapBtn)
+  if (opts?.wrap !== false) {
+    ensureWrapSync()
+    const wrapBtn = document.createElement('button')
+    wrapBtn.type = 'button'
+    wrapBtn.className = 'code-wrap-toggle'
+    syncWrapButton(wrapBtn)
+    wrapBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      writeCodeWrap(!readCodeWrap())
+    })
+    bar.appendChild(wrapBtn)
+  }
   const copy = document.createElement('button')
   copy.type = 'button'
   copy.className = 'code-copy'
@@ -158,18 +164,25 @@ export function decorateCodeBlock(preview: HTMLElement): void {
   if (!code) return
   const lang = (code.className.match(/language-([\w+#-]+)/)?.[1] ?? '').toLowerCase()
 
-  // mermaid 走另一条路径：拆 <pre><code>，改挂 mermaid-diagram 容器；
-  // 拷贝按钮复用，复制的是源码。
+  // mermaid 走另一条路径：拆 <pre><code>，改挂 mermaid-diagram 容器。
+  // 复制键仍复制源码；旁边的导出键负责「复制为图片 / 另存为」。没有折行键。
   if (lang === 'mermaid') {
     const source = code.textContent ?? ''
     const pre = code.parentElement
     const host = pre?.parentElement
     if (!host) return
 
-    const bar = makeCodeBar('mermaid', () => source)
+    const bar = makeCodeBar('mermaid', () => source, { wrap: false })
 
     const diagram = document.createElement('div')
     diagram.className = 'mermaid-diagram'
+    const exportBtn = mountMermaidExportButton(
+      () => source,
+      () => Math.round(diagram.clientWidth) || undefined,
+    )
+    const copyBtn = bar.querySelector('.code-copy')
+    if (copyBtn) bar.insertBefore(exportBtn, copyBtn)
+    else bar.appendChild(exportBtn)
     const status = document.createElement('div')
     status.className = 'mermaid-status'
     status.textContent = t('mermaidLoading')

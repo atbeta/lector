@@ -172,7 +172,27 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
   }
 }
 
-function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
+/** 导出图用的字体：Inter 后面跟上系统里的中文字体，SVG 当图片画进画布时中文才不会丢。 */
+const EXPORT_FONT_FALLBACK = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif'
+
+export function mermaidExportFontStack(base: string): string {
+  const trimmed = base.trim().replace(/,+\s*$/, '')
+  if (!trimmed) return EXPORT_FONT_FALLBACK
+  if (trimmed.includes('PingFang SC')) return trimmed
+  return `${trimmed}, ${EXPORT_FONT_FALLBACK}`
+}
+
+/** 导出必须是 SVG 文字，不能是 foreignObject 里的 HTML，否则画成 PNG 会丢字。根上的 htmlLabels 压过图类型自己的开关。 */
+export function forceTextLabels(config: Record<string, unknown>): Record<string, unknown> {
+  return { ...config, htmlLabels: false }
+}
+
+function themeParts(theme: 'light' | 'dark'): {
+  next: 'dark' | 'default'
+  baseVars: Record<string, string>
+  user: { config: Record<string, unknown>; signature: string }
+  key: string
+} {
   const next = theme === 'dark' ? 'dark' : 'default'
   const vars = themeVariablesFor(theme)
   const user = effectiveUserConfig()
@@ -191,6 +211,11 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   // 只按 light/dark 判重的话，换成米黄纸面之后图还是旧的白底。
   // 也要带上用户配置：配置一变就得重新 initialize，否则新配置要等下次切主题才生效。
   const key = `${next}::${baseVars.background ?? ''}::${baseVars.primaryColor ?? ''}::${baseVars.primaryBorderColor ?? ''}::${baseVars.textColor ?? ''}::${baseVars.lineColor ?? ''}::${baseVars.fontFamily}::${user.signature}`
+  return { next, baseVars, user, key }
+}
+
+function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
+  const { next, baseVars, user, key } = themeParts(theme)
   if (lastThemeKey === key) return
   mermaid.initialize(
     mergeMermaidConfig(
@@ -206,6 +231,25 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
     ),
   )
   lastThemeKey = key
+}
+
+function initializeForExport(mermaid: Mermaid, theme: 'light' | 'dark'): void {
+  const { next, baseVars, user } = themeParts(theme)
+  const vars = { ...baseVars, fontFamily: mermaidExportFontStack(baseVars.fontFamily ?? '') }
+  mermaid.initialize(
+    forceTextLabels(
+      mergeMermaidConfig(
+        {
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: next,
+          themeVariables: vars,
+          suppressErrorRendering: true,
+        },
+        user.config,
+      ),
+    ),
+  )
 }
 
 /**
@@ -329,6 +373,47 @@ export function nextMermaidId(): string {
 }
 
 /**
+ * initialize 和 render 必须串行。
+ * 导出要临时把 htmlLabels 关掉，库的配置又是全局的；和屏上的渲染叠在一起，
+ * 下一张图会沿用导出配置，或者导出画到一半被屏上的 initialize 盖掉。
+ */
+let renderQueue: Promise<unknown> = Promise.resolve()
+
+function enqueueRender<T>(job: () => Promise<T>): Promise<T> {
+  const run = renderQueue.then(job, job)
+  renderQueue = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
+function measuredColumn(columnWidth?: number): number {
+  return columnWidth || document.querySelector('.reading-prose')?.clientWidth || 800
+}
+
+async function renderIntoHost(mermaid: Mermaid, code: string, measured: number, id: string): Promise<string> {
+  // 甘特等「按容器宽度定画」的图：mermaid 读临时节点父级的 offsetWidth 当画布
+  // （ganttDiagram：elem.parentElement.offsetWidth）。不传容器时挂在 body 下，
+  // 量到的宽度不可控（实测 288px，整张甘特缩在左边）。临时容器设成栏宽，
+  // 图跟栏走、该压就压；栏变宽由调用方重渲。短任务名装不下时 mermaid 自己
+  // 把标签放到条外——不锁最小宽度。visibility:hidden 保留布局，offsetWidth 可量。
+  const tmp = document.createElement('div')
+  // 这个类名是给 base.css 的 reduced-motion 守卫看的：那条守卫会把全局的
+  // transition-duration 压成 0.01ms，而 mermaid 正是在这里量尺寸的——
+  // 被压过的时长会让它的包围盒算飞（详见 base.css 里的注释）。
+  tmp.className = 'mermaid-render-host'
+  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${measured}px`
+  document.body.appendChild(tmp)
+  try {
+    const { svg } = await mermaid.render(id, code.trim(), tmp)
+    return svg
+  } finally {
+    tmp.remove()
+  }
+}
+
+/**
  * 将 mermaid 源码渲染为 SVG 字符串。
  * 语法错误时抛出 Error（message 可供 UI 展示）。
  */
@@ -344,32 +429,41 @@ export async function renderMermaidSvg(
   //   - 画布自然宽按测量时的栏宽定（甘特尤甚），栏宽变了必须绕开缓存重画。
   //   栏宽由调用方传入（图所在容器的实际宽度）——全局 querySelector 会抓到
   //   文档里第一个 .reading-prose，多栏/测试环境下量错对象。
-  const measured = columnWidth || document.querySelector('.reading-prose')?.clientWidth || 800
+  const measured = measuredColumn(columnWidth)
   const key = `${theme}::${measured}::${cssRgbToken('--card', '')}::${cssRgbToken('--content-accent', '')}::${effectiveUserConfig().signature}::${code}`
   const hit = cacheGet(key)
   if (hit !== undefined) return hit
 
-  const mermaid = await getMermaid()
-  applyTheme(mermaid, theme)
-  // 甘特等「按容器宽度定画」的图：mermaid 读临时节点父级的 offsetWidth 当画布
-  // （ganttDiagram：elem.parentElement.offsetWidth）。不传容器时挂在 body 下，
-  // 量到的宽度不可控（实测 288px，整张甘特缩在左边）。临时容器设成栏宽，
-  // 图跟栏走、该压就压；栏变宽由调用方重渲。短任务名装不下时 mermaid 自己
-  // 把标签放到条外——不锁最小宽度。visibility:hidden 保留布局，offsetWidth 可量。
-  const tmp = document.createElement('div')
-  // 这个类名是给 base.css 的 reduced-motion 守卫看的：那条守卫会把全局的
-  // transition-duration 压成 0.01ms，而 mermaid 正是在这里量尺寸的——
-  // 被压过的时长会让它的包围盒算飞（详见 base.css 里的注释）。
-  tmp.className = 'mermaid-render-host'
-  tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${measured}px`
-  document.body.appendChild(tmp)
-  try {
-    const { svg } = await mermaid.render(id, code.trim(), tmp)
+  return enqueueRender(async () => {
+    const again = cacheGet(key)
+    if (again !== undefined) return again
+    const mermaid = await getMermaid()
+    applyTheme(mermaid, theme)
+    const svg = await renderIntoHost(mermaid, code, measured, id)
     cachePut(key, svg)
     return svg
-  } finally {
-    tmp.remove()
-  }
+  })
+}
+
+/**
+ * 给「复制为图片 / 另存为」用的 SVG。
+ * 文字走 SVG 的 text，并带上中文字体。渲完把主题键清掉，下一张屏上的图会按原配置重初始化。
+ */
+export async function renderMermaidExportSvg(
+  code: string,
+  theme: 'light' | 'dark',
+  columnWidth?: number,
+): Promise<string> {
+  const measured = measuredColumn(columnWidth)
+  return enqueueRender(async () => {
+    const mermaid = await getMermaid()
+    try {
+      initializeForExport(mermaid, theme)
+      return await renderIntoHost(mermaid, code, measured, nextMermaidId())
+    } finally {
+      lastThemeKey = null
+    }
+  })
 }
 
 /** 测试钩子：清空缓存。生产代码不要调。 */

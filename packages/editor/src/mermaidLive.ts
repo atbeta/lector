@@ -6,6 +6,7 @@
 // 面板活在块的预览容器里，不用任何 Decoration widget。
 
 import { renderMermaidSvg } from './mermaid.ts'
+import { mountMermaidExportButton } from './mermaidExport.ts'
 import { t } from './i18n.ts'
 
 /** 从块 raw（含围栏）里剥出 mermaid 源码。编辑中间态缺收尾围栏也能剥。 */
@@ -34,7 +35,9 @@ export function createMermaidLivePanel(
 
   const head = document.createElement('div')
   head.className = 'mermaid-live-head'
-  head.textContent = t('mermaidLiveLabel')
+  const headLabel = document.createElement('span')
+  headLabel.textContent = t('mermaidLiveLabel')
+  head.append(headLabel)
 
   const body = document.createElement('div')
   body.className = 'mermaid-live-body'
@@ -48,6 +51,12 @@ export function createMermaidLivePanel(
   let seq = 0
   let lastSource = extractMermaidSource(initialRaw)
   let lastGoodSvg: string | null = null
+  head.append(
+    mountMermaidExportButton(
+      () => lastSource,
+      () => Math.round(body.clientWidth) || undefined,
+    ),
+  )
 
   function currentTheme(): 'light' | 'dark' {
     return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'

@@ -16,21 +16,26 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
-## Unreleased
+## v0.37.0 (2026-09-29)
 
 ### Added
 
+- feat(editor): copy or save Mermaid diagrams as SVG, PNG, or JPEG
 - feat(editor): copy the image from the image menu, not only its path
-
-### Improved
-
-- perf(core): parse large documents in chunks so opening stays responsive
-- perf(editor): show the first screen before the rest of a long document finishes parsing
+- feat(stats): align word/char/line counts with industry norms
 
 ### Fixed
 
-- fix(editor): keep unsaved drafts for documents up to 3MB
-- fix(editor): don't drop edits or duplicate text while a long document is still parsing
+- fix(editor): keep edits intact while a long document is still parsing
+- fix(editor): render reference-style links and images
+- fix(tools): make verify:ui's readiness probe actually reach the dev port
+
+### Improved
+
+- perf(editor): show the first screen before the rest finishes parsing
+- perf(core): chunk parse so documents up to 3MB open faster
+
+[v0.37.0]: https://github.com/atbeta/lector/compare/v0.36.0...v0.37.0
 
 ## v0.36.0 (2026-09-25)
 
