@@ -33,16 +33,16 @@ const SCRIPTS = [
 /** 只探测一个 host 是不够的：vite 8 默认只绑 IPv6（::1），而 Node 的 fetch 可能
  *  把 localhost 解析到 IPv4（127.0.0.1）。两种 loopback 都试，任一响应即算就绪。
  *
- *  注意（本人实测）：本机上**两个都试过仍然探不到**，而同一时刻 vite 已打印
- *  "ready"、curl/playwright 都能连——所以这里的成因还没查明（无代理变量）。
- *  当前绕过办法：自己起 server，然后直接跑 tools/*-verify.mjs（见 README 的
- *  "渲染层检查"），不要用 verify:ui 的自动起服务。*/
+ *  成因（实测锤了）：这个环境里 vite 只绑 IPv6（::1），而 Node 的 fetch 对
+ *  localhost 走 Happy Eyeballs、先试 IPv4 → ECONNREFUSED 且不回退，于是 server
+ *  早起来了、这里却白等满 60 秒。三种写法都试，任一响应即算就绪。
+ *  （候选地址必须**手工拼字符串**：URL API 会静默忽略裸的 '::1'，
+ *   用 hostname setter 造出来的候选与原地址一模一样，等于没试。）*/
 async function isUp(url) {
   const candidates = [url]
   try {
-    const alt = new URL(url)
-    alt.hostname = alt.hostname === 'localhost' || alt.hostname === '127.0.0.1' ? '::1' : '127.0.0.1'
-    candidates.push(alt.toString())
+    const { port } = new URL(url)
+    candidates.push(`http://[::1]:${port}/`, `http://127.0.0.1:${port}/`)
   } catch {
     // url 不合法就只试原样
   }
