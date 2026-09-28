@@ -20,7 +20,7 @@ const INLINE_HTML_SIMPLE = new RegExp(`^<(${INLINE_HTML_TAGS})>([^<]*)<\\/\\1>$`
 const HTML_IMG_ATTRS = new Set(['src', 'alt', 'width', 'height'])
 
 type Node =
-  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string; alt?: string; checked?: boolean | null; identifier?: string; label?: string; align?: Array<'left' | 'right' | 'center' | null> | null; children?: Node[]; position?: unknown }
+  | { type: string; value?: string; depth?: number; ordered?: boolean; start?: number; lang?: string; url?: string; title?: string | null; alt?: string | null; checked?: boolean | null; identifier?: string; label?: string | null; referenceType?: string; align?: Array<'left' | 'right' | 'center' | null> | null; children?: Node[]; position?: unknown }
 
 /**
  * 判断一段行内 $…$ 内容是不是「真的数学公式」。
@@ -70,6 +70,57 @@ let mathEnabled = true
 
 export function setMathEnabled(on: boolean): void {
   mathEnabled = on
+}
+
+/**
+ * 引用式链接 / 图片的定义表（`[label]: url "title"`），key 是 mdast 归一后的 identifier。
+ *
+ * 块是逐块渲染的，而 mdast 的 linkReference / imageReference 只带 identifier、
+ * 不带 url——定义常在另一块（多在文末），只能在这里按整篇查。
+ * 同一 label 多次定义时首个生效（CommonMark 规则）。
+ * 放模块级的理由同 setMarkHighlight；render() 每轮画块前先调 setLinkDefinitions。
+ */
+let linkDefinitions = new Map<string, { url: string; title: string | null }>()
+let linkDefinitionsKey = ''
+
+/** 定义节点只在块级容器里；段落/标题/表格内部是行内内容，不必下探。 */
+const NO_DEFINITIONS_INSIDE = new Set(['paragraph', 'heading', 'table', 'code', 'math', 'html', 'yaml'])
+
+function collectDefinitions(
+  mdast: unknown,
+  into: Map<string, { url: string; title: string | null }>,
+): void {
+  const n = mdast as Node | Node[] | null | undefined
+  if (!n) return
+  if (Array.isArray(n)) {
+    for (const c of n) collectDefinitions(c, into)
+    return
+  }
+  if (n.type === 'definition') {
+    const id = n.identifier ?? ''
+    if (id && !into.has(id)) into.set(id, { url: n.url ?? '', title: n.title ?? null })
+    return
+  }
+  if (n.children && !NO_DEFINITIONS_INSIDE.has(n.type)) collectDefinitions(n.children, into)
+}
+
+/** 由整篇块重建定义表；返回定义是否有变（有变时调用方要让引用块重画）。 */
+export function setLinkDefinitions(blocks: ReadonlyArray<{ mdast: unknown }>): boolean {
+  const next = new Map<string, { url: string; title: string | null }>()
+  for (const b of blocks) collectDefinitions(b.mdast, next)
+  let key = ''
+  for (const [id, d] of next) key += `${id}\u0000${d.url}\u0000${d.title ?? ''}\u0001`
+  linkDefinitions = next
+  if (key === linkDefinitionsKey) return false
+  linkDefinitionsKey = key
+  return true
+}
+
+/** 引用在源码里的尾巴：`[text][label]` / `[text][]` / `[text]`。 */
+function referenceSuffix(n: Node): string {
+  if (n.referenceType === 'full') return `[${esc(n.label ?? n.identifier ?? '')}]`
+  if (n.referenceType === 'collapsed') return '[]'
+  return ''
 }
 
 /** 走一块 mdast,找出所有 math / inlineMath,调 katex 渲完后填表。
@@ -324,6 +375,17 @@ function inlineNode(n: Node): string {
         return `<span class="img-pending" data-tip="${esc(label)}">${iconSvg('image', 15)}<span>${esc(label)}</span></span>`
       }
       return `<img src="${esc(resolveImageSrc(rawUrl))}" alt="${esc(n.alt ?? '')}" />`
+    }
+    case 'linkReference': {
+      // 找不到定义（定义块被删/改名后尚未重解析）时还原成源码，不能把正文吞掉
+      const def = linkDefinitions.get(n.identifier ?? '')
+      if (!def) return `[${inline(n.children)}]${referenceSuffix(n)}`
+      return inlineNode({ type: 'link', url: def.url, title: def.title, children: n.children ?? [] })
+    }
+    case 'imageReference': {
+      const def = linkDefinitions.get(n.identifier ?? '')
+      if (!def) return `![${esc(n.alt ?? '')}]${referenceSuffix(n)}`
+      return inlineNode({ type: 'image', url: def.url, alt: n.alt ?? '' })
     }
     case 'inlineMath': {
       const tex = n.value ?? ''

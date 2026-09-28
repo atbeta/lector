@@ -12,7 +12,7 @@ import {
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
 import { mountEditor, type CmHandle } from './cm.ts'
-import { renderBlockHtml, preRenderMath } from './mdastHtml.ts'
+import { renderBlockHtml, preRenderMath, setLinkDefinitions } from './mdastHtml.ts'
 import { iconSvg } from './icons.ts'
 import { mermaidLanguage } from './mermaidLanguage.ts'
 import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
@@ -293,6 +293,8 @@ export function createDocumentEditor({
     // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
     // 文档无 math 节点时,这步 0 开销。
     await preRenderMath(session.blocks)
+    // 定义一变，引用它的块 raw 没变也得重画（sameBlockPaint 只看 raw/kind/表面）
+    if (setLinkDefinitions(session.blocks)) lastPaint.clear()
     const desired: HTMLElement[] = []
     const seen = new Set<string>()
     for (const block of session.blocks) {

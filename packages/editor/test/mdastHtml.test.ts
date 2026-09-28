@@ -2,7 +2,7 @@
 // 只测判据本身（渲染层的行为由 ui-verify 的表格断言兜住），
 // 重点是别把"日期/编号/带文字的格子"误判成数字。
 import { expect, test } from 'bun:test'
-import { isNumericCell, looksLikeMath, renderBlockHtml, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
+import { isNumericCell, looksLikeMath, renderBlockHtml, setLinkDefinitions, setMarkHighlight, setMathEnabled } from '../src/mdastHtml.ts'
 import { setEmojiShortcodes } from '../src/emojiShortcode.ts'
 import { parseBlocks } from '@lector/core'
 import { setAssetResolver } from '../src/asset.ts'
@@ -181,4 +181,47 @@ test('表格：GFM 对齐语法生效，未标注的列才回退数字右对齐'
   expect(html).toContain('<td data-align="right">c</td>')
   expect(html).toContain('<td data-align="left">1</td>')
   expect(html).toContain('<td data-align="right">22</td>')
+})
+
+function renderWithDefinitions(md: string): string {
+  const blocks = parseBlocks(md)
+  setLinkDefinitions(blocks)
+  return blocks.map((b) => renderBlockHtml(b.mdast, b.raw)).join('')
+}
+
+test('引用式链接按跨块定义渲染成链接，文字不丢', () => {
+  const html = renderWithDefinitions(
+    'see [docs][d], [x][] and [Y] end\n\n[d]: https://a.com "文档"\n[x]: https://b.com\n[y]: https://c.com\n',
+  )
+  expect(html).toContain('<a href="https://a.com" data-tip="文档">docs</a>')
+  expect(html).toContain('<a href="https://b.com">x</a>')
+  // label 大小写不敏感：[Y] 命中 [y] 的定义
+  expect(html).toContain('<a href="https://c.com">Y</a>')
+  expect(html).toContain(' end')
+})
+
+test('引用式图片按定义渲染', () => {
+  const html = renderWithDefinitions('![logo][l]\n\n[l]: https://a.com/l.png\n')
+  expect(html).toContain('<img src="https://a.com/l.png" alt="logo" />')
+})
+
+test('重复定义首个生效；危险协议仍降级为纯文本', () => {
+  const html = renderWithDefinitions('[a][k] [b][j]\n\n[k]: https://first.com\n[k]: https://second.com\n[j]: javascript:alert(1)\n')
+  expect(html).toContain('<a href="https://first.com">a</a>')
+  expect(html).not.toContain('second.com')
+  expect(html).toContain('<span>b</span>')
+})
+
+test('定义表缺条目时引用还原成源码', () => {
+  const [para] = parseBlocks('[docs][d]\n\n[d]: https://a.com\n')
+  setLinkDefinitions([])
+  expect(renderBlockHtml(para!.mdast, para!.raw)).toContain('[docs][d]')
+})
+
+test('setLinkDefinitions 只在定义有变时报告变化', () => {
+  const blocks = parseBlocks('[a][k]\n\n[k]: https://a.com\n')
+  setLinkDefinitions([])
+  expect(setLinkDefinitions(blocks)).toBe(true)
+  expect(setLinkDefinitions(blocks)).toBe(false)
+  expect(setLinkDefinitions(parseBlocks('[a][k]\n\n[k]: https://b.com\n'))).toBe(true)
 })
