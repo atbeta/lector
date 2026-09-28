@@ -9,6 +9,12 @@ export {
   isWhitespaceGap,
   adjacentFocusableId,
 } from './parse.ts'
+export {
+  createChunkedParser,
+  finalizeChunkedBlocks,
+  type ChunkedParser,
+  type ChunkStepResult,
+} from './chunk.ts'
 export { normalizeBlockRaw, serialize } from './serialize.ts'
 export {
   blockStats,

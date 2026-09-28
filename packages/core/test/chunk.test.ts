@@ -4,7 +4,14 @@ import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseBlocks } from '../src/index.ts'
-import { createChunkedParser, findSafeSplits, parseBlocksWhole, type ChunkOptions } from '../src/chunk.ts'
+import {
+  createChunkedParser,
+  finalizeChunkedBlocks,
+  findSafeSplits,
+  parseBlocksWhole,
+  type ChunkOptions,
+  type ChunkStepResult,
+} from '../src/chunk.ts'
 import type { BlockView } from '../src/types.ts'
 
 const tiny: ChunkOptions = { target: 256 }
@@ -129,16 +136,50 @@ describe('单块重解析带定义集', () => {
   })
 })
 
+function applyStep(blocks: BlockView[], step: ChunkStepResult): void {
+  if (step.retract > 0) blocks.splice(blocks.length - step.retract, step.retract)
+  blocks.push(...step.append)
+  for (const rep of step.replacements) {
+    let i = 0
+    while (i < blocks.length && blocks[i]!.start < rep.start) i++
+    let j = i
+    while (j < blocks.length && blocks[j]!.end <= rep.end) j++
+    blocks.splice(i, j - i, ...rep.blocks)
+  }
+}
+
+function drain(text: string, opts?: ChunkOptions): BlockView[] {
+  const parser = createChunkedParser(text, opts)
+  const blocks: BlockView[] = []
+  let guard = 0
+  while (!parser.done) {
+    applyStep(blocks, parser.step(0))
+    if (++guard > 10000) throw new Error('增量解析没有结束')
+  }
+  return finalizeChunkedBlocks(blocks, text)
+}
+
 describe('增量解析', () => {
-  test('任意步长跑完与一次性结果相同', () => {
+  test('每次一片跑完与一次性结果相同', () => {
     const text = '一段。\n\n两段。\n\n- 甲\n\n- 乙\n\n见[^a]。\n\n[^a]: 注\n'
     const once = parseBlocks(text, tiny)
-    const parser = createChunkedParser(text, tiny)
-    const stepped: BlockView[] = []
-    // 预算 0：每次最多一片
-    while (!parser.done) stepped.push(...parser.step(0))
+    const stepped = drain(text, tiny)
     expect(signature(stepped)).toBe(signature(once))
     expect(stepped.map((b) => b.raw).join('')).toBe(text)
+  })
+
+  test('预算 0 不会一次把整篇解析完', () => {
+    const text = '一段正文，写得长一些以便越过片目标。\n\n'.repeat(40)
+    const parser = createChunkedParser(text, tiny)
+    const first = parser.step(0)
+    expect(parser.done).toBe(false)
+    expect(first.append.length).toBeGreaterThan(0)
+    expect(first.append.at(-1)!.end).toBeLessThan(text.length)
+  })
+
+  test('未闭合围栏的吞尾合并跨步之后仍与整篇一致', () => {
+    const text = '前文\n\n```\ncode\n    ```\n\n后文\n\n再一段。\n'
+    expect(signature(drain(text, tiny))).toBe(signature(parseBlocks(text, tiny)))
   })
 })
 

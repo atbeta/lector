@@ -7,12 +7,16 @@ import {
   parseBlocks,
   parseBlockRoots,
   serialize,
+  createChunkedParser,
+  finalizeChunkedBlocks,
+  type ChunkedParser,
+  type ChunkStepResult,
   type BlockKind,
   type BlockView,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
 import { mountEditor, type CmHandle } from './cm.ts'
-import { renderBlockHtml, preRenderMath, setLinkDefinitions } from './mdastHtml.ts'
+import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions } from './mdastHtml.ts'
 import { iconSvg } from './icons.ts'
 import { mermaidLanguage } from './mermaidLanguage.ts'
 import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
@@ -105,6 +109,18 @@ export function createDocumentEditor({
   const liveText = new Map<string, string>()
   /** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
   let pendingEmptyFocus: string | null = null
+  /**
+   * 超过这个长度就先解析开头、立刻出首屏，其余用时间片补。
+   * 64KB 在分块解析下大约几十毫秒，混合文档大约两千块。
+   */
+  const PROGRESSIVE_HEAD = 64 * 1024
+  /** 每个时间片的解析预算。一片约 16KB，混合文档一片大约 10ms。 */
+  const PARSE_SLICE_MS = 12
+  let parseGeneration = 0
+  let parsePaused = false
+  let activeParser: ChunkedParser | null = null
+  /** 首屏画完再开始补解析，避免和首批 DOM 抢同一轮。 */
+  let resumeParse: (() => void) | null = null
   let caretIntent: CaretIntent | null = null
   /** 聚焦中的 mermaid 实时预览面板；块失焦/切换时随 CM 一起销毁。 */
   let mermaidPanel: MermaidLivePanel | null = null
@@ -185,6 +201,163 @@ export function createDocumentEditor({
     markDirty()
   }
 
+  function makePending(text: string, start: number): BlockView {
+    return {
+      id: 'pending',
+      kind: 'pending',
+      start,
+      end: text.length,
+      raw: text.slice(start),
+      // 占位的 mdast 必须是真值：统计遇到 null 会按 raw 重解析，尾部可能有好几 MB。
+      mdast: { type: 'html', value: '' },
+      dirty: false,
+    }
+  }
+
+  function dropBlockEl(block: BlockView): void {
+    session.originals.delete(block.id)
+    const el = blocksEl.get(block.id)
+    if (!el) return
+    teardownCodePreview(el)
+    el.remove()
+    blocksEl.delete(block.id)
+    lastPaint.delete(block.id)
+  }
+
+  /** 把一步解析结果写进块表。返回需要画出来的新块。 */
+  function applyParseStep(blocks: BlockView[], step: ChunkStepResult): BlockView[] {
+    const pendingAt = () => blocks.findIndex((b) => b.kind === 'pending')
+    const paint: BlockView[] = []
+    if (step.retract > 0) {
+      const end = pendingAt() < 0 ? blocks.length : pendingAt()
+      const from = Math.max(0, end - step.retract)
+      for (const block of blocks.splice(from, end - from)) dropBlockEl(block)
+    }
+    const at = pendingAt()
+    if (at < 0) blocks.push(...step.append)
+    else blocks.splice(at, 0, ...step.append)
+    paint.push(...step.append)
+    for (const rep of step.replacements) {
+      const range = blocks.filter(
+        (b) => b.kind !== 'pending' && b.start >= rep.start && b.end <= rep.end,
+      )
+      if (range.length === 0) continue
+      if (range.some((b) => b.dirty || b.id === session.focusedId)) continue
+      const i = blocks.indexOf(range[0]!)
+      blocks.splice(i, range.length, ...rep.blocks)
+      for (const block of range) dropBlockEl(block)
+      paint.push(...rep.blocks)
+    }
+    const pending = blocks.find((b) => b.kind === 'pending')
+    const text = session.source?.text
+    if (pending && text) {
+      let covered = 0
+      for (const b of blocks) if (b.kind !== 'pending') covered = b.end
+      pending.start = covered
+      pending.end = text.length
+      pending.raw = text.slice(covered)
+    }
+    return paint
+  }
+
+  function paintFresh(blocks: BlockView[]): void {
+    if (blocks.length === 0) return
+    const pendingEl = blocksEl.get('pending') ?? null
+    const mode = getViewMode()
+    for (const block of blocks) {
+      let el = blocksEl.get(block.id)
+      if (!el) {
+        el = createBlockEl(block)
+        blocksEl.set(block.id, el)
+      }
+      if (pendingEl) contentEl.insertBefore(el, pendingEl)
+      else contentEl.appendChild(el)
+      paintBlock(block, mode)
+    }
+    const pending = session.blocks.find((b) => b.kind === 'pending')
+    if (pending) paintBlock(pending)
+  }
+
+  function finishParse(): void {
+    activeParser = null
+    const text = session.source?.text
+    if (!text) return
+    const pending = session.blocks.find((b) => b.kind === 'pending')
+    const body = session.blocks.filter((b) => b.kind !== 'pending')
+    const finalized = finalizeChunkedBlocks(body, text)
+    const changed = finalized.length !== body.length || finalized.some((b, i) => b !== body[i])
+    session.blocks = finalized
+    for (const b of finalized) if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
+    if (pending) dropBlockEl(pending)
+    if (changed) void render()
+    else {
+      renderOutline()
+      markDirty()
+    }
+  }
+
+  function pumpParser(parser: ChunkedParser, generation: number): void {
+    const run = () => {
+      if (generation !== parseGeneration) return
+      if (parsePaused) {
+        window.setTimeout(run, 16)
+        return
+      }
+      const started = performance.now()
+      const paint: BlockView[] = []
+      while (!parser.done && performance.now() - started < PARSE_SLICE_MS) {
+        const fresh = applyParseStep(session.blocks, parser.step(0))
+        for (const b of fresh) session.originals.set(b.id, b.raw)
+        paint.push(...fresh)
+      }
+      paintFresh(paint)
+      // 公式缓存是异步的：先画原文，算完再重画这一批。定义表变了则已画的引用块也要重画。
+      if (paint.length > 0) {
+        void preRenderMath(paint).then(() => {
+          if (generation !== parseGeneration) return
+          for (const b of paint) lastPaint.delete(b.id)
+          paintFresh(paint)
+        })
+      }
+      if (addLinkDefinitions(paint)) {
+        for (const block of session.blocks) {
+          if (block.kind === 'pending' || !blocksEl.has(block.id)) continue
+          lastPaint.delete(block.id)
+          paintBlock(block)
+        }
+      }
+      if (parser.done) finishParse()
+      else window.setTimeout(run, 0)
+    }
+    window.setTimeout(run, 0)
+  }
+
+  /**
+   * 短文档一次解析完。长文档只同步解析开头，尾巴留一个 pending 块（raw 是剩余原文，
+   * 拼接仍然等于全文），剩下的交给时间片。
+   */
+  function openBlocks(text: string): BlockView[] {
+    if (text.length <= PROGRESSIVE_HEAD) return parseBlocks(text)
+    const parser = createChunkedParser(text, {
+      canRetract: (blocks) => blocks.every((b) => !b.dirty && b.id !== session.focusedId),
+    })
+    const blocks: BlockView[] = []
+    while (!parser.done) {
+      applyParseStep(blocks, parser.step(0))
+      const covered = blocks.at(-1)?.end ?? 0
+      if (covered >= PROGRESSIVE_HEAD || covered >= text.length) break
+    }
+    if (!parser.done && (blocks.at(-1)?.end ?? 0) < text.length) {
+      blocks.push(makePending(text, blocks.at(-1)?.end ?? 0))
+    }
+    if (!parser.done) {
+      activeParser = parser
+      const generation = parseGeneration
+      resumeParse = () => pumpParser(parser, generation)
+    }
+    return blocks
+  }
+
   function loadSession(path: string, raw: string, mtimeMs = Date.now(), byteLen?: number) {
     // 换文档先关掉查找栏：它属于上一篇——留着会拿旧查询去搜新文档，
     // 高亮还要等下一次 refresh 才重画，中间那一眼是自相矛盾的。
@@ -195,6 +368,9 @@ export function createDocumentEditor({
     }
     large.destroy()
     paintGeneration++
+    parseGeneration++
+    activeParser = null
+    resumeParse = null
     blocksEl.clear()
     lastPaint.clear()
     liveText.clear()
@@ -217,7 +393,7 @@ export function createDocumentEditor({
       session.dirty = false
       session.structuralDirty = false
     } else {
-      session.blocks = parseBlocks(session.source.text)
+      session.blocks = openBlocks(session.source.text)
       // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
       // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
       // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
@@ -301,6 +477,8 @@ export function createDocumentEditor({
     // 实际发生过：启动时主题从系统预判切到设置值触发 mermaid 重画（main.ts 的
     // notify → 250ms 后 render），空态闪一下就变白屏。
     if (!session.source) return
+    // 重画期间停下尾巴的解析，避免一边改 DOM 一边往里插块。
+    parsePaused = true
     // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
     // 文档无 math 节点时,这步 0 开销。
     await preRenderMath(session.blocks)
@@ -341,14 +519,32 @@ export function createDocumentEditor({
     for (let i = 0; i < firstCount; i++) paintBlock(session.blocks[i]!, mode)
     caretIntent = null
     scheduleBlockContainment()
-    if (batching) paintRestInBatches(desired, firstCount, ++paintGeneration)
+    const resume = resumeParse
+    resumeParse = null
+    const paintGen = ++paintGeneration
+    const unpause = () => {
+      // 换文档后旧的收尾不能把新文档的暂停清掉，也不能启动旧解析器。
+      if (paintGen !== paintGeneration) return
+      parsePaused = false
+      resume?.()
+    }
+    if (batching) paintRestInBatches(desired, firstCount, paintGen, unpause)
+    else unpause()
   }
 
   /** 首屏之后的块分批补进 DOM。每批让出一次主线程，滚动与输入不受挡。 */
-  function paintRestInBatches(desired: HTMLElement[], from: number, generation: number): void {
+  function paintRestInBatches(
+    desired: HTMLElement[],
+    from: number,
+    generation: number,
+    onDone: () => void,
+  ): void {
     let cursor = from
     const step = () => {
-      if (generation !== paintGeneration) return
+      if (generation !== paintGeneration) {
+        onDone()
+        return
+      }
       const end = Math.min(cursor + PAINT_BATCH, desired.length)
       const mode = getViewMode()
       for (let i = cursor; i < end; i++) {
@@ -356,10 +552,10 @@ export function createDocumentEditor({
         paintBlock(session.blocks[i]!, mode)
       }
       cursor = end
-      if (cursor < desired.length) {
-        window.setTimeout(step, 0)
-      } else {
+      if (cursor < desired.length) window.setTimeout(step, 0)
+      else {
         renderOutline()
+        onDone()
       }
     }
     window.setTimeout(step, 0)
@@ -414,7 +610,7 @@ export function createDocumentEditor({
    */
   function appendBlockChrome(el: HTMLElement, block: BlockView): void {
     // 段间空白缝（.gap）零高、pointer-events:none：没有表面，也没有「一块」可言
-    if (isWhitespaceGap(block)) return
+    if (isWhitespaceGap(block) || block.kind === 'pending') return
 
     const rail = document.createElement('div')
     rail.className = 'block-rail'
@@ -474,6 +670,13 @@ export function createDocumentEditor({
 
   function renderBlockContent(el: HTMLElement, block: BlockView) {
     teardownCodePreview(el)
+    if (block.kind === 'pending') {
+      // 不把未解析的尾巴画成源码：那可能是好几 MB 的文本。
+      el.className = 'block'
+      applyBlockMeta(el, block)
+      el.replaceChildren()
+      return
+    }
     if (isWhitespaceGap(block)) {
       el.className = 'block gap'
       el.replaceChildren()

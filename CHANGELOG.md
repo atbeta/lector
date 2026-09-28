@@ -21,6 +21,7 @@ and the `chore(release):` commits themselves.
 ### Improved
 
 - perf(core): parse large documents in chunks so opening stays responsive
+- perf(editor): show the first screen before the rest of a long document finishes parsing
 
 ### Fixed
 

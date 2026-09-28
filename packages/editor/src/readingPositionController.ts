@@ -47,8 +47,9 @@ export function createReadingPositionController({ getPath, getScroller, onRestor
     if (!scroller) return
     const top = getPosition(positions, path, scroller.scrollHeight)
     if (top === null) return
-    // 长文档是分批补画的：目标位置可能还没进 DOM。等内容高度够了再跳，
-    // 期间用户滚动或点击过就不再打扰。最多等 4 秒，超时按当时高度跳。
+    // 长文档先出首屏、解析和绘制分批补。目标位置可能还没进 DOM。
+    // 等内容高度够了再跳，期间用户滚动或点击过就不再打扰。
+    // 3MB 的补齐大约数秒，给 12 秒；超时按当时高度跳。
     const startedAt = performance.now()
     let scrolled = false
     const onUserScroll = () => {
@@ -60,7 +61,7 @@ export function createReadingPositionController({ getPath, getScroller, onRestor
       scroller.removeEventListener('wheel', onUserScroll)
       scroller.removeEventListener('pointerdown', onUserScroll)
       if (scrolled || getPath() !== path) return
-      if (scroller.scrollHeight < top + scroller.clientHeight && performance.now() - startedAt < 4000) {
+      if (scroller.scrollHeight < top + scroller.clientHeight && performance.now() - startedAt < 12000) {
         scroller.addEventListener('wheel', onUserScroll, { passive: true })
         scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
         window.setTimeout(tryRestore, 50)

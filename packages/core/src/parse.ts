@@ -332,9 +332,9 @@ export function isWhitespaceGap(
   return !!block && block.kind === 'unknown' && block.raw.trim() === ''
 }
 
-/** 可点击进入源码编辑的块。空白缝永远返回 false。 */
+/** 可点击进入源码编辑的块。空白缝与未解析占位永远返回 false。 */
 export function isFocusableBlock(block: { kind: BlockKind; raw: string }): boolean {
-  return !isWhitespaceGap(block)
+  return block.kind !== 'pending' && !isWhitespaceGap(block)
 }
 
 /** 方向键跨块：从 fromId 沿 dir 找下一个可聚焦块，跳过空白缝。 */

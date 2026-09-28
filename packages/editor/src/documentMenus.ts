@@ -197,7 +197,7 @@ export function createDocumentMenus({
     const id = blockEl.dataset.blockId
     const block = id ? editor.getSession().blocks.find((b) => b.id === id) : undefined
     // unknown 类是解析不出内容的块，给它一份「复制/删除本块」菜单只会让人误判
-    if (!block || block.kind === 'unknown') return false
+    if (!block || block.kind === 'unknown' || block.kind === 'pending') return false
     const items = forMode(blockMenuItems(block, blockEl))
     // 只读档过滤后可能一个都不剩（理论上不会：复制三项永远在），那就别弹空菜单
     if (items.length === 0) return false

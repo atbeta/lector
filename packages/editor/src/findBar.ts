@@ -97,6 +97,7 @@ export function findBar(host: FindHost) {
     if (!query) return []
     return host
       .getBlocks()
+      .filter((b) => b.kind !== 'pending')
       .map((b) => ({ id: b.id, count: countFind(b.raw, query, opts) }))
       .filter((m) => m.count > 0)
   }

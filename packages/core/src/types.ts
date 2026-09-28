@@ -23,6 +23,8 @@ export type BlockKind =
   | 'table'
   | 'math'
   | 'unknown'
+  /** 渐进解析还没覆盖的原文。不可聚焦，raw 参与拼接，解析完就换成真正的块。 */
+  | 'pending'
 
 export interface BlockView {
   id: string

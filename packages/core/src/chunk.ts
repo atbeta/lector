@@ -19,6 +19,11 @@ import type { BlockKind, BlockView } from './types.ts'
 export interface ChunkOptions {
   /** 片的目标大小（码元）。从这里往后找第一个安全切点。 */
   target?: number
+  /**
+   * 接缝检查要把上一片并进来之前问一句。返回 false 就保持切开
+   * （例如上一片正在被编辑，合并会丢掉用户的输入）。
+   */
+  canRetract?: (blocks: BlockView[]) => boolean
 }
 
 /** 16KB：单片解析要能放进主线程的一个时间片（A0 实测后可调）。 */
@@ -461,13 +466,38 @@ function parseBlocksChunked(text: string, opts?: ChunkOptions): BlockView[] {
 // 增量解析（A3 的时间片驱动用）
 // ---------------------------------------------------------------------------
 
+export interface ChunkReplacement {
+  /** 被替换的片在全文中的 [start, end)。 */
+  start: number
+  end: number
+  blocks: BlockView[]
+}
+
+export interface ChunkStepResult {
+  /** 本步新解析出的块，接在已返回的块之后。 */
+  append: BlockView[]
+  /** 接缝合并：调用方先删掉此前已返回的最后这么多个块，再接 append。 */
+  retract: number
+  /** 第二遍补桩：按原文区间换掉已经返回的块。 */
+  replacements: ChunkReplacement[]
+  done: boolean
+}
+
 export interface ChunkedParser {
-  /** 解析最多 budgetMs 毫秒，返回这段时间新完成的块。预算 0 = 每次恰好一片。 */
-  step(budgetMs: number): BlockView[]
+  /**
+   * 推进解析。budgetMs > 0 时解析到预算用完；budgetMs <= 0 时恰好推进一片
+   * （吞尾合并算一片）。
+   */
+  step(budgetMs: number): ChunkStepResult
   /** 第一遍与第二遍都完成。 */
   readonly done: boolean
   /** 全篇定义集（第一遍完成后才完整）。 */
   readonly definitions: DefinitionSet
+}
+
+/** 增量解析结束后跑一次 details 合并，结果才与 parseBlocks 对齐。 */
+export function finalizeChunkedBlocks(blocks: BlockView[], text: string): BlockView[] {
+  return mergeDetailsBlocks(blocks, text)
 }
 
 /**
@@ -489,53 +519,63 @@ export function createChunkedParser(text: string, opts?: ChunkOptions): ChunkedP
     get done() {
       return pass === 'done'
     },
-    step(budgetMs: number): BlockView[] {
+    step(budgetMs: number): ChunkStepResult {
       const start = performance.now()
+      const one = budgetMs <= 0
       const out: BlockView[] = []
-      const budget = () => budgetMs > 0 && performance.now() - start >= budgetMs
+      const replacements: ChunkReplacement[] = []
+      let retract = 0
+      let worked = 0
+      const over = () => (budgetMs > 0 && performance.now() - start >= budgetMs) || (one && worked >= 1)
 
       if (pass === 'first') {
-        while (index < bounds.length - 1 && !budget()) {
+        while (index < bounds.length - 1 && !over()) {
           const a = bounds[index]!
           const b = bounds[index + 1]!
           index++
           if (a === b) continue
           let piece = parsePiece(text, a, b)
-          // 吞尾：与下一片合并（合并可能跨越多片，直到不再吞）
+          // 吞尾：与下一片合并（合并可能跨越多片，直到不再吞）。还没交给调用方，不用 retract。
           while (index < bounds.length - 1 && swallowsTrailingBlank(piece, text)) {
             piece = parsePiece(text, piece.start, bounds[index + 1]!)
             index++
           }
           // 接缝：与上一片是同一个列表 → 撤回上一片的块，合并
           const prev = pieces.at(-1)
-          if (prev && splitsAList(prev, piece)) {
+          if (prev && splitsAList(prev, piece) && opts?.canRetract?.(prev.blocks) !== false) {
             const merged = parsePiece(text, prev.start, piece.end)
             pieces.pop()
             const drop = prev.blocks.length
-            out.splice(Math.max(0, out.length - drop), drop)
+            if (out.length >= drop) out.splice(out.length - drop, drop)
+            else {
+              retract += drop - out.length
+              out.length = 0
+            }
             piece = merged
           }
           walkDefinitions(piece.nodes, defs)
           pieces.push(piece)
           out.push(...piece.blocks)
+          worked++
         }
         if (index >= bounds.length - 1) pass = 'second'
       }
 
-      if (pass === 'second' && !budget()) {
+      if (pass === 'second' && !over()) {
         // 第二遍需要全篇定义集，所以只在第一遍完成后运行
-        while (secondIndex < pieces.length && !budget()) {
+        while (secondIndex < pieces.length && !over()) {
           const piece = pieces[secondIndex]!
           secondIndex++
+          worked++
           const replaced = reparsing(text, piece, defs)
           if (replaced) {
-            // 增量接口的第二遍不在 step 的返回里替换，由调用方按片重取
             piece.blocks = replaced
+            replacements.push({ start: piece.start, end: piece.end, blocks: replaced })
           }
         }
         if (secondIndex >= pieces.length) pass = 'done'
       }
-      return out
+      return { append: out, retract, replacements, done: pass === 'done' }
     },
   }
 }

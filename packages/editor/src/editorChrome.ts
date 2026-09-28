@@ -235,10 +235,12 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       return
     }
     const stats = countBlocks(blocks)
+    const parsing = blocks.some((b) => b.kind === 'pending')
     const sections = blocks.filter((b) => b.kind === 'heading').length
     const minutes = readingMinutes(stats)
 
     statusRight.replaceChildren()
+    if (parsing) statusRight.append(item(t('statParsing')))
     if (stats.words === 0) {
       statusRight.append(item(t('statEmpty')))
     } else {
