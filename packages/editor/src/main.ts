@@ -109,6 +109,7 @@ const editor: DocumentEditor = createDocumentEditor({
   },
   restoreReadingPosition: () => positions.restoreReadingPosition(),
   scheduleRecordPosition: () => positions.scheduleRecordPosition(),
+  onStatus: () => chrome.renderStatus(),
 })
 
 const files: FileController = createFileController({ editor, chrome, recovery })

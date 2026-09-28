@@ -6,6 +6,7 @@ import {
   parseOne,
   type BlockKind,
   type BlockView,
+  type DefinitionSet,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
 import { openTableEditor } from './tableEditor.ts'
@@ -23,6 +24,10 @@ interface BlockOperationsDeps {
   focusAfterStructuralEdit(id: string | null, intent?: CaretIntent): void
   insertImageMarkdownAtCaret(md: string): void
   onUndo(label: string): void
+  /** 渐进解析未完成时先排空块表，再做拆块 / 插入 / 删除。 */
+  beforeStructuralEdit?: () => void
+  /** 整篇定义集。单块重解析不带它时，引用链接和脚注会退化成字面量。 */
+  getDefinitions?: () => DefinitionSet
 }
 
 export function createBlockOperations({
@@ -34,7 +39,12 @@ export function createBlockOperations({
   focusAfterStructuralEdit,
   insertImageMarkdownAtCaret,
   onUndo,
+  beforeStructuralEdit,
+  getDefinitions,
 }: BlockOperationsDeps) {
+  function reparseRoots(raw: string): unknown[] {
+    return parseBlockRoots(raw, getDefinitions?.())
+  }
   let seq = 0
   function nextId(): string {
     seq += 1
@@ -75,6 +85,7 @@ export function createBlockOperations({
 
   /** 在块后插入空段落并聚焦，方便直接开始写。 */
   function insertParagraphAfter(id: string): void {
+    beforeStructuralEdit?.()
     const i = blockIndex(id)
     if (i < 0) return
     const at = session.blocks[i]!.end
@@ -97,6 +108,7 @@ export function createBlockOperations({
 
   /** 在块前插入空段落并聚焦。 */
   function insertParagraphBefore(id: string): void {
+    beforeStructuralEdit?.()
     const i = blockIndex(id)
     if (i < 0) return
     const at = session.blocks[i]!.start
@@ -116,6 +128,7 @@ export function createBlockOperations({
 
   /** 在块后插入 mermaid 模板并聚焦：骨架给足，改两笔就是一张能看的图。 */
   function insertMermaidAfter(id: string): void {
+    beforeStructuralEdit?.()
     const i = blockIndex(id)
     if (i < 0) return
     const at = session.blocks[i]!.end
@@ -169,6 +182,7 @@ export function createBlockOperations({
 
   /** 把一批块插回原位（撤销删除用）。 */
   function restoreBlocks(at: number, blocks: BlockView[]): void {
+    beforeStructuralEdit?.()
     const index = Math.max(0, Math.min(at, session.blocks.length))
     session.blocks.splice(index, 0, ...blocks)
     for (const b of blocks) {
@@ -215,6 +229,9 @@ export function createBlockOperations({
    * 首块删掉时把「前置」缝也带走（缝在它前面）。
    */
   function deleteBlock(id: string): void {
+    if (blockIndex(id) < 0) return
+    // 排空可能合并折叠块、换掉下标，所以下标要在排空之后再取。
+    beforeStructuralEdit?.()
     const i = blockIndex(id)
     if (i < 0) return
     const block = session.blocks[i]!
@@ -261,7 +278,7 @@ export function createBlockOperations({
     block.raw = raw
     const original = session.originals.get(block.id) ?? ''
     block.dirty = raw !== original
-    const roots = parseBlockRoots(raw)
+    const roots = reparseRoots(raw)
     block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
     block.kind = kindFromMdast(roots[0]) as BlockKind
     markDirty()
@@ -325,6 +342,7 @@ export function createBlockOperations({
     const pos = view.state.selection.main.head
     if (block.kind !== 'paragraph' && block.kind !== 'heading') return false
     if (pos !== doc.length) return false // 只在块末分裂，规避光标映射复杂度
+    beforeStructuralEdit?.()
     const i = session.blocks.findIndex((b) => b.id === block.id)
     if (i < 0) return false
     // 其后应是空白缝（段落间必有）
@@ -364,6 +382,7 @@ export function createBlockOperations({
     const doc = view.state.doc.toString()
     if (doc.trim() !== '') return false
     if (view.state.selection.main.head !== 0) return false
+    beforeStructuralEdit?.()
     const i = session.blocks.findIndex((b) => b.id === block.id)
     if (i < 0) return false
     // 删除该空段与其前的空白缝
@@ -388,6 +407,7 @@ export function createBlockOperations({
   }
 
   function appendImageParagraph(md: string) {
+    beforeStructuralEdit?.()
     const onlyEmpty =
       session.blocks.length === 1 &&
       session.blocks[0] &&
@@ -435,6 +455,7 @@ export function createBlockOperations({
 
   /** 在某一块之后追加一个图片段落（专门给「拖到文档中间」用）。 */
   function insertAfterBlock(blockId: string, md: string) {
+    beforeStructuralEdit?.()
     const i = session.blocks.findIndex((b) => b.id === blockId)
     if (i < 0) return insertImageMarkdownAtCaret(md)
     const gapId = nextId()

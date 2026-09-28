@@ -55,15 +55,39 @@ export function createReadingPositionController({ getPath, getScroller, onRestor
     const onUserScroll = () => {
       scrolled = true
     }
-    scroller.addEventListener('wheel', onUserScroll, { passive: true })
-    scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
-    const tryRestore = () => {
+    // 键盘翻页不发生在滚动容器上（焦点常在 document 上），只听 wheel / pointerdown 会和恢复逻辑抢滚动条。
+    const onKey = (event: KeyboardEvent) => {
+      if (event.altKey || event.metaKey || event.ctrlKey) return
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (
+        event.key === 'ArrowUp' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'PageUp' ||
+        event.key === 'PageDown' ||
+        event.key === 'Home' ||
+        event.key === 'End' ||
+        event.key === ' '
+      ) {
+        scrolled = true
+      }
+    }
+    const listen = () => {
+      scroller.addEventListener('wheel', onUserScroll, { passive: true })
+      scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
+      document.addEventListener('keydown', onKey)
+    }
+    const unlisten = () => {
       scroller.removeEventListener('wheel', onUserScroll)
       scroller.removeEventListener('pointerdown', onUserScroll)
+      document.removeEventListener('keydown', onKey)
+    }
+    listen()
+    const tryRestore = () => {
+      unlisten()
       if (scrolled || getPath() !== path) return
       if (scroller.scrollHeight < top + scroller.clientHeight && performance.now() - startedAt < 12000) {
-        scroller.addEventListener('wheel', onUserScroll, { passive: true })
-        scroller.addEventListener('pointerdown', onUserScroll, { passive: true })
+        listen()
         window.setTimeout(tryRestore, 50)
         return
       }

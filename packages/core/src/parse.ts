@@ -277,14 +277,23 @@ export function parseBlocks(text: string, opts?: import('./chunk.ts').ChunkOptio
   return chunkParse(text, opts)
 }
 
+export interface MergeDetailsOptions {
+  /** 跨度里有这块就整段保持拆开。正在编辑时合并会换掉块 id，编辑器跟着被拆掉。 */
+  preserveBlock?: (block: BlockView) => boolean
+}
+
 /**
  * details 折叠块合并：CommonMark 的 html 块在空行处截断，`<details>`、
  * 中间的 markdown 内容、`</details>` 会被切成多个块——阅读时整段降级成
- * 源码。这里把「开标签块 … 配对闭标签块」的连续跨度合并成一块（raw 仍
- * 覆盖原文，拼接恒等不破），渲染层（mdastHtml 的 details 白名单）拿到完整
- * 值后重解析内部 markdown。找不到配对闭标签就不合并，维持逐块降级。
+ * 源码。这里把「开标签块 … 配对闭标签块」的连续跨度合并成一块。
+ * 原文用各块当前 raw 拼，不用 text.slice：用户在渐进解析期间改过的字必须留下来。
+ * 找不到配对闭标签就不合并，维持逐块降级。
  */
-export function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView[] {
+export function mergeDetailsBlocks(
+  blocks: BlockView[],
+  text: string,
+  opts?: MergeDetailsOptions,
+): BlockView[] {
   const out: BlockView[] = []
   let i = 0
   while (i < blocks.length) {
@@ -305,15 +314,23 @@ export function mergeDetailsBlocks(blocks: BlockView[], text: string): BlockView
         j++
       }
       if (j < blocks.length && blocks[j]!.kind === 'html' && depth <= 0) {
+        const span = blocks.slice(i, j + 1)
+        if (opts?.preserveBlock && span.some((block) => opts.preserveBlock!(block))) {
+          out.push(...span)
+          i = j + 1
+          continue
+        }
         const end = blocks[j]!.end
+        const baseline = text.slice(b.start, end)
+        const raw = span.map((block) => block.raw).join('')
         out.push({
           id: `b${b.start}:${end}`,
           kind: 'html',
           start: b.start,
           end,
-          raw: text.slice(b.start, end),
-          mdast: { type: 'html', value: text.slice(b.start, end) },
-          dirty: false,
+          raw,
+          mdast: { type: 'html', value: raw },
+          dirty: span.some((block) => block.dirty) || raw !== baseline,
         })
         i = j + 1
         continue

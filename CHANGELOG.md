@@ -26,6 +26,7 @@ and the `chore(release):` commits themselves.
 ### Fixed
 
 - fix(editor): keep unsaved drafts for documents up to 3MB
+- fix(editor): don't drop edits or duplicate text while a long document is still parsing
 
 ## v0.36.0 (2026-09-25)
 

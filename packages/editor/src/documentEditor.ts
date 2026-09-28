@@ -8,21 +8,23 @@ import {
   parseBlockRoots,
   serialize,
   createChunkedParser,
+  definitionsFromBlocks,
   finalizeChunkedBlocks,
   type ChunkedParser,
   type ChunkStepResult,
   type BlockKind,
   type BlockView,
+  type DefinitionSet,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
 import { mountEditor, type CmHandle } from './cm.ts'
-import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions } from './mdastHtml.ts'
+import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions, mdastHasLinkReference } from './mdastHtml.ts'
 import { iconSvg } from './icons.ts'
 import { mermaidLanguage } from './mermaidLanguage.ts'
 import { createMermaidLivePanel, type MermaidLivePanel } from './mermaidLive.ts'
 import { setCurrentMdPath } from './asset.ts'
 import { getSettings } from './settings.ts'
-import { findBar, closeFindBar } from './findBar.ts'
+import { findBar, closeFindBar, refreshFindBar } from './findBar.ts'
 import { replaceFind } from './findMatch.ts'
 import { showToast } from './feedback.ts'
 import { decorateCodeBlock, teardownCodePreview, whenCodePreviewIdle } from './codePreview.ts'
@@ -37,6 +39,7 @@ import { createDocumentSession, type DocumentSession } from './documentSession.t
 import { type CaretIntent, placeCaret, caretX, atVisualVerticalEdge, atHorizontalEdge } from './caretNavigation.ts'
 import { createBlockOperations, type BlockOperations } from './blockOperations.ts'
 import { createLargeDocument } from './largeDocument.ts'
+import { coveredEndBeforePending } from './pendingCover.ts'
 import type { ViewMode } from './editorChrome.ts'
 
 interface DocumentEditorDeps {
@@ -52,6 +55,8 @@ interface DocumentEditorDeps {
   renderOutline(): void
   restoreReadingPosition(): void
   scheduleRecordPosition(): void
+  /** 解析向前推进时刷新状态行。不走 onDirty，避免每片都重建大纲、记草稿。 */
+  onStatus?: () => void
 }
 
 export interface DocumentEditor {
@@ -96,6 +101,7 @@ export function createDocumentEditor({
   renderOutline,
   restoreReadingPosition,
   scheduleRecordPosition,
+  onStatus,
 }: DocumentEditorDeps): DocumentEditor {
   const session = createDocumentSession()
   const blocksEl = new Map<string, HTMLElement>()
@@ -118,9 +124,10 @@ export function createDocumentEditor({
   const PARSE_SLICE_MS = 12
   let parseGeneration = 0
   let parsePaused = false
+  /** render 叠在一起时，只有最后一次绘制能把暂停清掉。换文档 / 关文档也会把票号作废。 */
+  let parsePauseTicket = 0
   let activeParser: ChunkedParser | null = null
-  /** 首屏画完再开始补解析，避免和首批 DOM 抢同一轮。 */
-  let resumeParse: (() => void) | null = null
+  let statusNotifiedAt = 0
   let caretIntent: CaretIntent | null = null
   /** 聚焦中的 mermaid 实时预览面板；块失焦/切换时随 CM 一起销毁。 */
   let mermaidPanel: MermaidLivePanel | null = null
@@ -141,6 +148,9 @@ export function createDocumentEditor({
     focusAfterStructuralEdit: (id, intent) => focusAfterStructuralEdit(id, intent),
     insertImageMarkdownAtCaret: (md) => insertImageMarkdownAtCaret(md),
     onUndo: (label) => showToast(label),
+    // 拆块 / 插图会往块表里塞 end 为 0 的新块。解析没完时先排空，避免把占位块的尾巴算成整篇。
+    beforeStructuralEdit: () => flushParse(),
+    getDefinitions: () => sessionDefs(),
   })
 
   /** 当前正文的滚动容器：普通档是 #content，大文件档是 CM 自己的滚动层。 */
@@ -251,11 +261,13 @@ export function createDocumentEditor({
     const pending = blocks.find((b) => b.kind === 'pending')
     const text = session.source?.text
     if (pending && text) {
-      let covered = 0
-      for (const b of blocks) if (b.kind !== 'pending') covered = b.end
-      pending.start = covered
-      pending.end = text.length
-      pending.raw = text.slice(covered)
+      const covered = coveredEndBeforePending(blocks)
+      // 只向前推进。插在占位块后面的 end:0 块不能把覆盖区间拉回文首。
+      if (covered >= pending.start) {
+        pending.start = covered
+        pending.end = text.length
+        pending.raw = text.slice(covered)
+      }
     }
     return paint
   }
@@ -270,7 +282,8 @@ export function createDocumentEditor({
         el = createBlockEl(block)
         blocksEl.set(block.id, el)
       }
-      if (pendingEl) contentEl.insertBefore(el, pendingEl)
+      // 关文档会把 #content 清空，但 blocksEl 里可能还留着已经脱离文档的占位节点。
+      if (pendingEl && pendingEl.parentNode === contentEl) contentEl.insertBefore(el, pendingEl)
       else contentEl.appendChild(el)
       paintBlock(block, mode)
     }
@@ -278,27 +291,53 @@ export function createDocumentEditor({
     if (pending) paintBlock(pending)
   }
 
-  function finishParse(): void {
+  function sessionDefs(): DefinitionSet {
+    return definitionsFromBlocks(session.blocks)
+  }
+
+  /**
+   * 解析收尾。正在编辑的 details 跨度不合并（合并会换 id，光标所在的编辑器被拆掉）。
+   * 已经改过、但此刻没聚焦的跨度用各块当前 raw 拼回去，不用磁盘原文覆盖。
+   * paint 为 false 时只改块表：结构编辑自己会接着 render，这里再画一次会和它叠在一起。
+   */
+  function commitParsedBlocks(paint: boolean): void {
     activeParser = null
     const text = session.source?.text
     if (!text) return
     const pending = session.blocks.find((b) => b.kind === 'pending')
     const body = session.blocks.filter((b) => b.kind !== 'pending')
-    const finalized = finalizeChunkedBlocks(body, text)
+    const finalized = finalizeChunkedBlocks(body, text, {
+      preserveBlock: (block) => block.id === session.focusedId,
+    })
     const changed = finalized.length !== body.length || finalized.some((b, i) => b !== body[i])
     session.blocks = finalized
-    for (const b of finalized) if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
-    if (pending) dropBlockEl(pending)
-    if (changed) void render()
-    else {
-      renderOutline()
-      markDirty()
+    for (const b of finalized) {
+      if (!session.originals.has(b.id)) session.originals.set(b.id, text.slice(b.start, b.end))
     }
+    if (pending) dropBlockEl(pending)
+    if (paint && changed) void render()
+    else if (paint) renderOutline()
+    markDirty()
+    refreshFindBar()
+  }
+
+  /** 结构编辑之前把剩余的片子同步排空。时间片还在跑时插块，占位块边界和接缝撤回都会算错。 */
+  function flushParse(): void {
+    const parser = activeParser
+    if (!parser) return
+    const generation = parseGeneration
+    activeParser = null
+    while (!parser.done) {
+      if (generation !== parseGeneration) return
+      const fresh = applyParseStep(session.blocks, parser.step(0))
+      for (const b of fresh) if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
+    }
+    commitParsedBlocks(false)
   }
 
   function pumpParser(parser: ChunkedParser, generation: number): void {
     const run = () => {
-      if (generation !== parseGeneration) return
+      if (generation !== parseGeneration || activeParser !== parser) return
       if (parsePaused) {
         window.setTimeout(run, 16)
         return
@@ -307,26 +346,33 @@ export function createDocumentEditor({
       const paint: BlockView[] = []
       while (!parser.done && performance.now() - started < PARSE_SLICE_MS) {
         const fresh = applyParseStep(session.blocks, parser.step(0))
-        for (const b of fresh) session.originals.set(b.id, b.raw)
+        for (const b of fresh) if (!session.originals.has(b.id)) session.originals.set(b.id, b.raw)
         paint.push(...fresh)
       }
       paintFresh(paint)
-      // 公式缓存是异步的：先画原文，算完再重画这一批。定义表变了则已画的引用块也要重画。
+      // 公式缓存是异步的：先画原文，算完再重画这一批。
       if (paint.length > 0) {
         void preRenderMath(paint).then(() => {
-          if (generation !== parseGeneration) return
+          if (generation !== parseGeneration || activeParser !== parser) return
           for (const b of paint) lastPaint.delete(b.id)
           paintFresh(paint)
         })
       }
+      // 定义表变了只重画含引用的块。每片都重画全部已挂载块是 O(片数 × 块数)。
       if (addLinkDefinitions(paint)) {
         for (const block of session.blocks) {
           if (block.kind === 'pending' || !blocksEl.has(block.id)) continue
+          if (!mdastHasLinkReference(block.mdast)) continue
           lastPaint.delete(block.id)
           paintBlock(block)
         }
       }
-      if (parser.done) finishParse()
+      const now = performance.now()
+      if (now - statusNotifiedAt > 200) {
+        statusNotifiedAt = now
+        onStatus?.()
+      }
+      if (parser.done) commitParsedBlocks(true)
       else window.setTimeout(run, 0)
     }
     window.setTimeout(run, 0)
@@ -352,8 +398,9 @@ export function createDocumentEditor({
     }
     if (!parser.done) {
       activeParser = parser
-      const generation = parseGeneration
-      resumeParse = () => pumpParser(parser, generation)
+      // 泵自己续跑。render 只负责暂停，不再保管唯一的启动闭包——
+      // 第一次绘制还没结束就来第二次 render 时，那份闭包会丢，解析就永远停住。
+      pumpParser(parser, parseGeneration)
     }
     return blocks
   }
@@ -367,10 +414,11 @@ export function createDocumentEditor({
       cm = null
     }
     large.destroy()
+    session.focusedId = null
     paintGeneration++
     parseGeneration++
+    parsePauseTicket++
     activeParser = null
-    resumeParse = null
     blocksEl.clear()
     lastPaint.clear()
     liveText.clear()
@@ -478,10 +526,13 @@ export function createDocumentEditor({
     // notify → 250ms 后 render），空态闪一下就变白屏。
     if (!session.source) return
     // 重画期间停下尾巴的解析，避免一边改 DOM 一边往里插块。
+    // 票号只在「这次绘制确实结束」时才允许清暂停。中途又来一次 render，或换了文档，旧的收尾作废。
+    const pauseTicket = ++parsePauseTicket
     parsePaused = true
     // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
     // 文档无 math 节点时,这步 0 开销。
     await preRenderMath(session.blocks)
+    if (pauseTicket !== parsePauseTicket || !session.source) return
     // 定义一变，引用它的块 raw 没变也得重画（sameBlockPaint 只看 raw/kind/表面）
     if (setLinkDefinitions(session.blocks)) lastPaint.clear()
     const desired: HTMLElement[] = []
@@ -519,14 +570,10 @@ export function createDocumentEditor({
     for (let i = 0; i < firstCount; i++) paintBlock(session.blocks[i]!, mode)
     caretIntent = null
     scheduleBlockContainment()
-    const resume = resumeParse
-    resumeParse = null
     const paintGen = ++paintGeneration
     const unpause = () => {
-      // 换文档后旧的收尾不能把新文档的暂停清掉，也不能启动旧解析器。
-      if (paintGen !== paintGeneration) return
+      if (pauseTicket !== parsePauseTicket) return
       parsePaused = false
-      resume?.()
     }
     if (batching) paintRestInBatches(desired, firstCount, paintGen, unpause)
     else unpause()
@@ -790,7 +837,7 @@ export function createDocumentEditor({
     block.raw = text
     block.dirty = text !== original
     if (block.dirty) {
-      const roots = parseBlockRoots(text)
+      const roots = parseBlockRoots(text, sessionDefs())
       block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
       block.kind = kindFromMdast(roots[0]) as BlockKind
     }
@@ -959,7 +1006,7 @@ export function createDocumentEditor({
         // 统一替换器：与计数、高亮共用同一套匹配规则（字符串 / 全词 / 正则）
         b.raw = replaceFind(b.raw, from, to, opts, all)
         b.dirty = true
-        const roots = parseBlockRoots(b.raw)
+        const roots = parseBlockRoots(b.raw, sessionDefs())
         b.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
         b.kind = kindFromMdast(roots[0]) as BlockKind
         markDirty()
@@ -1053,6 +1100,12 @@ export function createDocumentEditor({
       cm.destroy()
       cm = null
     }
+    // 与 loadSession 对齐：旧时间片不能再往已经清空的会话里追加块。
+    paintGeneration++
+    parseGeneration++
+    parsePauseTicket++
+    activeParser = null
+    parsePaused = false
     large.destroy()
     large.deactivate()
     lastPaint.clear()

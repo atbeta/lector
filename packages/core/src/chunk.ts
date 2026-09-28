@@ -427,10 +427,9 @@ function secondPass(text: string, pieces: Piece[], defs: DefinitionSet): BlockVi
       blocks.push(...piece.blocks)
       continue
     }
-    // 片尾还开着跨行结构时，桩会被吞进去：不补
-    const tailOpen = piece.nodes.some((n) => n.position?.end.offset === slice.length && n.type === 'code' || n.type === 'html' || n.type === 'math')
-      && swallowsTrailingBlank({ ...piece, end: piece.end }, text + '\n')
-    if (tailOpen) {
+    // 片尾还开着跨行结构时，桩会被吞进去：不补。
+    // && 比 || 紧，类型判断必须加括号，否则片内任意 html / math 都会被当成片尾还开着。
+    if (trailingStructureOpen(piece, text)) {
       blocks.push(...piece.blocks)
       continue
     }
@@ -496,8 +495,12 @@ export interface ChunkedParser {
 }
 
 /** 增量解析结束后跑一次 details 合并，结果才与 parseBlocks 对齐。 */
-export function finalizeChunkedBlocks(blocks: BlockView[], text: string): BlockView[] {
-  return mergeDetailsBlocks(blocks, text)
+export function finalizeChunkedBlocks(
+  blocks: BlockView[],
+  text: string,
+  opts?: import('./parse.ts').MergeDetailsOptions,
+): BlockView[] {
+  return mergeDetailsBlocks(blocks, text, opts)
 }
 
 /**
@@ -596,14 +599,35 @@ export function stubForSlice(slice: string, defs: DefinitionSet, own: Definition
   return [stubText(linkIds, 'link'), stubText(footnoteIds, 'footnote')].filter(Boolean).join('\n')
 }
 
+/** 片尾节点本身是还没闭合的 code / html / math，补桩会被吞进那个节点。 */
+function trailingStructureOpen(piece: Piece, text: string): boolean {
+  const sliceLen = piece.end - piece.start
+  const open = piece.nodes.some(
+    (n) =>
+      n.position?.end.offset === sliceLen && (n.type === 'code' || n.type === 'html' || n.type === 'math'),
+  )
+  return open && swallowsTrailingBlank(piece, text + '\n')
+}
+
 function reparsing(text: string, piece: Piece, defs: DefinitionSet): BlockView[] | null {
   const slice = text.slice(piece.start, piece.end)
   const own = emptyDefinitionSet()
   walkDefinitions(piece.nodes, own)
   const stub = stubForSlice(slice, defs, own)
-  if (!stub) return null
+  if (!stub || trailingStructureOpen(piece, text)) return null
   const nodes = parseTree(slice + '\n\n' + stub + '\n')
   return blocksFromNodes(nodes, text, piece.start, slice.length)
+}
+
+/** 从已解析块的 mdast 收集整篇定义，供单块重解析补桩。 */
+export function definitionsFromBlocks(blocks: readonly { mdast: unknown }[]): DefinitionSet {
+  const defs = emptyDefinitionSet()
+  for (const block of blocks) {
+    const mdast = block.mdast
+    const nodes = Array.isArray(mdast) ? mdast : mdast ? [mdast] : []
+    walkDefinitions(nodes as MdastNode[], defs)
+  }
+  return defs
 }
 
 import { parseBlocksOriginal } from './parse.ts'

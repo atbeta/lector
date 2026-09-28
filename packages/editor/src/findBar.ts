@@ -1,5 +1,6 @@
 import type { BlockView } from '@lector/core'
 import { iconSvg } from './icons.ts'
+import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
 import { applyFindHighlight, clearFindHighlight, focusFindHit } from './findHighlight.ts'
 import {
@@ -36,10 +37,17 @@ export function escapeRegExp(s: string): string {
 // 当前打开着的查找栏的「关闭器」。换文档 / 关文档时要能主动拆掉它，
 // 而不是靠查 DOM 手动清理——那样会漏掉实例自己的 keydown 监听，留下幽灵。
 let activeClose: (() => void) | null = null
+/** 解析收尾时刷新计数。不滚动：refresh 会对每个命中 scrollIntoView，加载结束时扫一遍会把视口拽走。 */
+let activeRefresh: (() => void) | null = null
 
 /** 主动关闭当前查找栏：换文档 / 关文档时调用（与 X、Esc 走同一条清理路径）。 */
 export function closeFindBar(): void {
   activeClose?.()
+}
+
+/** 块表变了（渐进解析结束、占位块消失）之后，让已打开的查找栏重算命中。 */
+export function refreshFindBar(): void {
+  activeRefresh?.()
 }
 
 export function findBar(host: FindHost) {
@@ -166,21 +174,28 @@ export function findBar(host: FindHost) {
     else sourceFind.reveal(list, cursor)
   }
 
-  function refresh(): void {
+  function refreshMatches(scroll: boolean): void {
     if (sourceFind) {
       refreshSource()
       return
     }
+    const parsing = host.getBlocks().some((b) => b.kind === 'pending')
     const ms = matches()
     const total = ms.reduce((a, m) => a + m.count, 0)
     if (cursor >= total) cursor = 0
     updateCount(total)
     prev.disabled = next.disabled = total === 0
-    repAll.disabled = total === 0
-    for (const m of ms) host.scrollTo(m.id)
+    // 尾巴还没解析时「全部替换」只改得到已出现的块，结果会静默缺一块。先禁用。
+    repAll.disabled = total === 0 || parsing
+    repAll.title = parsing ? t('findReplacePending') : ''
+    if (scroll) for (const m of ms) host.scrollTo(m.id)
     // 空查询/无效模式时先把上一轮的标记拆干净（否则残留在正文里）
     if (total === 0) clearFindHighlight(contentRoot())
     else paint(occurrences())
+  }
+
+  function refresh(): void {
+    refreshMatches(true)
   }
 
   function goto(dir: 1 | -1): void {
@@ -251,13 +266,21 @@ export function findBar(host: FindHost) {
     const from = q.value
     const to = rep.value
     if (!from) return
+    if (host.getBlocks().some((b) => b.kind === 'pending')) {
+      showToast(t('findReplacePending'))
+      return
+    }
     for (const m of matches()) host.replaceInBlock(m.id, from, to, true, { ...opts })
     refresh()
   })
   close.addEventListener('click', closeBar)
   activeClose = closeBar
 
+  const refreshQuiet = () => refreshMatches(false)
+  activeRefresh = refreshQuiet
+
   function closeBar(): void {
+    if (activeRefresh === refreshQuiet) activeRefresh = null
     if (sourceDebounce !== null) {
       window.clearTimeout(sourceDebounce)
       sourceDebounce = null

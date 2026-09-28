@@ -124,6 +124,16 @@ describe('单块重解析带定义集', () => {
     expect(code?.value ?? '').not.toContain('[^a]')
   })
 
+  test('从块上收集的定义能让单块重解析认出脚注', () => {
+    const { definitionsFromBlocks, parseBlockRoots } = require('../src/index.ts') as typeof import('../src/index.ts')
+    const doc = parseBlocks('见[^a]。\n\n[^a]: 注\n', tiny)
+    const defs = definitionsFromBlocks(doc)
+    expect(defs.footnotes.has('a')).toBe(true)
+    const alone = parseBlockRoots('见[^a]。', defs)
+    expect(JSON.stringify(alone)).toContain('footnoteReference')
+    expect(JSON.stringify(parseBlockRoots('见[^a]。'))).not.toContain('footnoteReference')
+  })
+
   test('带定义集时引用被解析成 linkReference', () => {
     const { parseBlockRoots } = require('../src/index.ts') as typeof import('../src/index.ts')
     const roots = parseBlockRoots('见 [docs][d] 这里', {
@@ -180,6 +190,17 @@ describe('增量解析', () => {
   test('未闭合围栏的吞尾合并跨步之后仍与整篇一致', () => {
     const text = '前文\n\n```\ncode\n    ```\n\n后文\n\n再一段。\n'
     expect(signature(drain(text, tiny))).toBe(signature(parseBlocks(text, tiny)))
+  })
+
+  test('片内的行内 HTML 不会让一次解析和分步解析的引用补桩分叉', () => {
+    const text = '见 [文档][ref]。\n\n<br>\n\n' + '填充段落。\n\n'.repeat(40) + '[ref]: https://example.com/a\n'
+    const once = parseBlocks(text, tiny)
+    const stepped = drain(text, tiny)
+    expect(signature(stepped)).toBe(signature(once))
+    expect(JSON.stringify(stepped.map((b) => stripPosition(b.mdast)))).toBe(
+      JSON.stringify(once.map((b) => stripPosition(b.mdast))),
+    )
+    expect(JSON.stringify(once)).toContain('linkReference')
   })
 })
 

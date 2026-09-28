@@ -20,7 +20,7 @@ const store = new Map<string, string>()
 
 import 'fake-indexeddb/auto'
 import { describe, expect, test } from 'bun:test'
-import { rememberRecovery, readRecovery, forgetRecovery } from '../src/recovery.ts'
+import { rememberRecovery, readRecovery, forgetRecovery, resetRecoveryDbForTests } from '../src/recovery.ts'
 
 describe('未保存草稿', () => {
   test('记一份再读回来', async () => {
@@ -69,6 +69,26 @@ describe('未保存草稿', () => {
     expect(store.has('lector-recovery:/docs/old.md')).toBe(false)
     // 再读一次走 IndexedDB，仍然在
     expect((await readRecovery('/docs/old.md'))?.content).toBe('旧草稿')
+  })
+
+  test('IndexedDB 写失败时留下 localStorage 旧草稿', async () => {
+    store.set('lector-recovery:/docs/keep.md', JSON.stringify({ content: '留着', at: 7 }))
+    const original = globalThis.indexedDB
+    resetRecoveryDbForTests()
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      get() {
+        throw new Error('indexedDB 不可用')
+      },
+    })
+    try {
+      const rec = await readRecovery('/docs/keep.md')
+      expect(rec?.content).toBe('留着')
+      expect(store.has('lector-recovery:/docs/keep.md')).toBe(true)
+    } finally {
+      Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: original })
+      resetRecoveryDbForTests()
+    }
   })
 
   test('坏数据当没有，不抛异常', async () => {

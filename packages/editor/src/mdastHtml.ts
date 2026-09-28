@@ -120,6 +120,15 @@ export function addLinkDefinitions(blocks: ReadonlyArray<{ mdast: unknown }>): b
   return changed
 }
 
+/** 这块的预览会不会读链接定义表。定义表变了只需要重画这些块。 */
+export function mdastHasLinkReference(mdast: unknown): boolean {
+  if (!mdast || typeof mdast !== 'object') return false
+  if (Array.isArray(mdast)) return mdast.some((node) => mdastHasLinkReference(node))
+  const node = mdast as { type?: string; children?: unknown[] }
+  if (node.type === 'linkReference' || node.type === 'imageReference') return true
+  return !!node.children?.some((child) => mdastHasLinkReference(child))
+}
+
 /** 由整篇块重建定义表；返回定义是否有变（有变时调用方要让引用块重画）。 */
 export function setLinkDefinitions(blocks: ReadonlyArray<{ mdast: unknown }>): boolean {
   const next = new Map<string, { url: string; title: string | null }>()

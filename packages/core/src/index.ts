@@ -11,9 +11,11 @@ export {
 } from './parse.ts'
 export {
   createChunkedParser,
+  definitionsFromBlocks,
   finalizeChunkedBlocks,
   type ChunkedParser,
   type ChunkStepResult,
+  type DefinitionSet,
 } from './chunk.ts'
 export { normalizeBlockRaw, serialize } from './serialize.ts'
 export {

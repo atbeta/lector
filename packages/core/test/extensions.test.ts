@@ -56,6 +56,56 @@ describe('details 折叠块合并', () => {
     expect(blocks.filter((b) => b.raw.includes('<details>')).length).toBe(1)
   })
 
+  test('编辑过的折叠正文在合并后还在，且仍算脏', () => {
+    const { mergeDetailsBlocks } = require('../src/parse.ts') as typeof import('../src/parse.ts')
+    const open = '<details>\n<summary>标题</summary>\n'
+    const edited = '\n用户改过的正文。\n\n'
+    const close = '</details>\n'
+    const text = open + '\n原文。\n\n' + close
+    const blocks = [
+      { id: 'a', kind: 'html' as const, start: 0, end: open.length, raw: open, mdast: null, dirty: false },
+      {
+        id: 'b',
+        kind: 'paragraph' as const,
+        start: open.length,
+        end: open.length + 8,
+        raw: edited,
+        mdast: null,
+        dirty: true,
+      },
+      {
+        id: 'c',
+        kind: 'html' as const,
+        start: text.length - close.length,
+        end: text.length,
+        raw: close,
+        mdast: null,
+        dirty: false,
+      },
+    ]
+    const merged = mergeDetailsBlocks(blocks, text)
+    expect(merged).toHaveLength(1)
+    expect(merged[0]!.raw).toContain('用户改过的正文')
+    expect(merged[0]!.raw).not.toContain('原文')
+    expect(merged[0]!.dirty).toBe(true)
+  })
+
+  test('正在编辑的折叠跨度保持拆开', () => {
+    const { mergeDetailsBlocks } = require('../src/parse.ts') as typeof import('../src/parse.ts')
+    const open = '<details>\n'
+    const body = '正文\n\n'
+    const close = '</details>'
+    const text = open + '\n' + body + close
+    const blocks = [
+      { id: 'a', kind: 'html' as const, start: 0, end: open.length, raw: open, mdast: null, dirty: false },
+      { id: 'b', kind: 'paragraph' as const, start: open.length, end: open.length + body.length, raw: body, mdast: null, dirty: true },
+      { id: 'c', kind: 'html' as const, start: text.length - close.length, end: text.length, raw: close, mdast: null, dirty: false },
+    ]
+    const merged = mergeDetailsBlocks(blocks, text, { preserveBlock: (b) => b.id === 'b' })
+    expect(merged.map((b) => b.id)).toEqual(['a', 'b', 'c'])
+    expect(merged[1]!.raw).toBe(body)
+  })
+
   test('紧凑写法（单块含闭合）不受影响', () => {
     const md = '<details>\n<summary>标题</summary>\n内容\n</details>'
     const blocks = parseBlocks(md)

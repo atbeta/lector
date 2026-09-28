@@ -35,6 +35,11 @@ interface RecoveryRecord {
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
+/** 测试里换掉 indexedDB 之前调用。连接是进程级缓存，不丢掉的话失败注入打不中。 */
+export function resetRecoveryDbForTests(): void {
+  dbPromise = null
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
@@ -57,14 +62,19 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
   })
 }
 
-/** 记一份草稿。path 为空（未落到磁盘的新文档）时不记——没有"上次打开"可言。 */
-export async function rememberRecovery(path: string, content: string): Promise<void> {
-  if (!path || content.length > MAX_LEN) return
+/**
+ * 记一份草稿。path 为空（未落到磁盘的新文档）时不记——没有"上次打开"可言。
+ * 返回是否写进了 IndexedDB。调用方只有在成功之后才能删掉旧的 localStorage 副本。
+ */
+export async function rememberRecovery(path: string, content: string): Promise<boolean> {
+  if (!path || content.length > MAX_LEN) return false
   try {
     const db = await openDb()
     await requestToPromise(db.transaction(STORE, 'readwrite').objectStore(STORE).put({ path, content, at: Date.now() }, path))
+    return true
   } catch {
     // 配额满 / 隐私模式：恢复是尽力而为的能力，失败不该打扰正在写作的人
+    return false
   }
 }
 
@@ -73,8 +83,8 @@ export async function readRecovery(path: string): Promise<Recovery | null> {
   try {
     const legacy = readLegacy(path)
     if (legacy) {
-      await rememberRecovery(path, legacy.content)
-      localStorage.removeItem(LEGACY_PREFIX + path)
+      // 写失败就留下 localStorage。先删再发现 IndexedDB 没写上，这份草稿就没了。
+      if (await rememberRecovery(path, legacy.content)) localStorage.removeItem(LEGACY_PREFIX + path)
       return legacy
     }
     const db = await openDb()
