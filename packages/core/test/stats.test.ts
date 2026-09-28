@@ -1,7 +1,10 @@
 // 文档统计：状态行要的数字必须经得起核对。
 //
-// 这里最要紧的是「中英混排时字数对不对」——按字符数算会低估英文，
+// 这里最要紧的是「中英混排时词数对不对」——按字符数算会低估英文，
 // 按空格分词会漏掉中文。下面用真实的中英混排样本钉住它。
+//
+// 口径：词对齐 Word（CJK 逐字 + 西文分词，标点计入）；字符 = 源码码点；
+// 行 = 源码逻辑行（换行 + 1）。
 
 import { describe, expect, test } from 'bun:test'
 import { countBlocks, countText, formatCount, readingMinutes } from '../src/stats.ts'
@@ -9,14 +12,20 @@ import { parseBlocks } from '../src/parse.ts'
 
 describe('文档统计', () => {
   test('空文档', () => {
-    expect(countText('')).toEqual({ words: 0, chars: 0, charsWithSpaces: 0, lines: 0 })
-    expect(countText('   \n\n  ')).toEqual({ words: 0, chars: 0, charsWithSpaces: 0, lines: 0 })
+    expect(countText('')).toEqual({ words: 0, chars: 0, lines: 0 })
+    // 只有空白：词 0，但源码有 2 个换行 → 3 行（逻辑行）
+    expect(countText('   \n\n  ')).toEqual({ words: 0, chars: 7, lines: 3 })
     expect(readingMinutes(countText(''))).toBe(0)
   })
 
   test('纯中文按字计，标点计入', () => {
     expect(countText('阅读优先的纯 Markdown 编辑器').words).toBe(10)
     expect(countText('你好，世界。').words).toBe(6)
+  })
+
+  test('全角空格是空白，不算词', () => {
+    // 旧实现把 U+3000 算进 CJK，这里会虚高成 5
+    expect(countText('你好\u3000世界').words).toBe(4)
   })
 
   test('纯英文按词计，标点不算词', () => {
@@ -55,20 +64,29 @@ describe('文档统计', () => {
     expect(s.words).toBe(5)
   })
 
-  test('字符数按渲染后文本算，URL 不计入', () => {
-    const s = countText('[看](https://example.com/very/long/path)')
-    expect(s.chars).toBe(1)
-    expect(s.charsWithSpaces).toBe(1)
+  test('字符数按源码算：Markdown 语法与空白都计入（Typora 口径）', () => {
+    // 链接的 URL 与括号在源码里，字符数照算；词数仍只算「看」。
+    const link = countText('[看](https://example.com/very/long/path)')
+    expect(link.chars).toBe(39)
+    expect(link.words).toBe(1)
+
+    const marked = countText('# 标题\n\n正文')
+    expect(marked.chars).toBe(8) // # 空格 换行都计入
+    expect(marked.words).toBe(countText('标题正文').words)
   })
 
-  test('字符数两种口径', () => {
-    const s = countText('a b\tc\n\nd')
-    expect(s.chars).toBe(4) // 不计空白
-    expect(s.charsWithSpaces).toBe(7) // a b\tc + \n + d
+  test('emoji 与增补平面汉字各算一个字符（按码点，不按 UTF-16）', () => {
+    // 有意与 Typora 不同：它用 .length（UTF-16），emoji 会算成 2。
+    expect(countText('😀').chars).toBe(1)
+    expect(countText('你好😀').chars).toBe(3)
+    expect(countText('😀').words).toBe(0)
   })
 
-  test('非空行数', () => {
-    expect(countText('a\n\n\nb\n   \nc\n').lines).toBe(3)
+  test('行数按源码逻辑行算（含空行与末尾空行）', () => {
+    expect(countText('a\n\n\nb\n   \nc\n').lines).toBe(7) // 6 换行 + 1
+    expect(countText('a\nb').lines).toBe(2)
+    expect(countText('a\nb\n').lines).toBe(3) // 末尾空行也算一行
+    expect(countText('单行').lines).toBe(1)
   })
 
   test('阅读时长至少 1 分钟，随字数增长', () => {

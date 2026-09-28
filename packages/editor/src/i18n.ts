@@ -146,8 +146,9 @@ export const zh = {
   imageTestOk: '✓ 命令可用，返回：{url}',
   imageTestFailed: '命令执行失败：{error}',
   // 状态行
-  statWords: '{n} 字',
+  statWords: '{n} 词',
   statChars: '{n} 字符',
+  statLines: '{n} 行',
   statSections: '{n} 小节',
   statReading: '约 {n} 分钟',
   statUnsaved: '未保存',
@@ -454,6 +455,7 @@ const en: Record<keyof typeof zh, string> = {
   // Status bar
   statWords: '{n} words',
   statChars: '{n} chars',
+  statLines: '{n} lines',
   statSections: '{n} sections',
   statReading: '{n} min read',
   statUnsaved: 'Unsaved',

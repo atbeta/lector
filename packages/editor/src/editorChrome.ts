@@ -180,7 +180,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
    * 状态行：文档的一行自述。
    *
    * 数字取自「当前会把什么写回磁盘」——脏块用编辑器里的文本、净块用磁盘原文，
-   * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 字、保存后变 98」。
+   * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 词、保存后变 98」。
    */
   function renderStatus() {
     clearTimeout(statusTimer)
@@ -247,6 +247,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     } else {
       statusRight.append(item(t('statWords', { n: formatCount(stats.words) })))
       statusRight.append(item(t('statChars', { n: formatCount(stats.chars) })))
+      statusRight.append(item(t('statLines', { n: formatCount(stats.lines) })))
       if (sections > 0) statusRight.append(item(t('statSections', { n: sections })))
       if (minutes > 0) statusRight.append(item(t('statReading', { n: minutes })))
     }
