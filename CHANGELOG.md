@@ -16,6 +16,18 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.37.1 (2026-09-29)
+
+### Fixed
+
+- fix(editor): export every Mermaid diagram as PNG or JPEG
+
+### Improved
+
+- perf(editor): gate large-file mode by block count instead of bytes
+
+[v0.37.1]: https://github.com/atbeta/lector/compare/v0.37.0...v0.37.1
+
 ## v0.37.0 (2026-09-29)
 
 ### Added
