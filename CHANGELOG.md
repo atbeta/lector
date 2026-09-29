@@ -16,6 +16,14 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.37.2 (2026-09-29)
+
+### Improved
+
+- perf(editor): count large-file words in the background, cheaply
+
+[v0.37.2]: https://github.com/atbeta/lector/compare/v0.37.1...v0.37.2
+
 ## v0.37.1 (2026-09-29)
 
 ### Fixed
