@@ -42,6 +42,7 @@ import { type CaretIntent, placeCaret, caretX, atVisualVerticalEdge, atHorizonta
 import { createBlockOperations, type BlockOperations } from './blockOperations.ts'
 import { createLargeDocument } from './largeDocument.ts'
 import { coveredEndBeforePending } from './pendingCover.ts'
+import { createOffscreenShells } from './offscreenShells.ts'
 import type { ViewMode } from './editorChrome.ts'
 
 interface DocumentEditorDeps {
@@ -124,25 +125,8 @@ export function createDocumentEditor({
   const PROGRESSIVE_HEAD = 64 * 1024
   /** 每个时间片的解析预算。一片约 16KB，混合文档一片大约 10ms。 */
   const PARSE_SLICE_MS = 12
-  /**
-   * 超过这么多块，或尾巴还在解析：屏外只占位，滚进视野再画预览。
-   * 10MB 散文大约几万到八万块，全文画 HTML 会把打开和滚动堵死；
-   * 阅读要的是当前这一屏，不是把屏外也渲完。
-   */
-  const DEFER_PAINT_BLOCKS = 400
-  /** 占位块每批挂这么多个。没有 HTML，一批可以比完整绘制大。 */
-  const SHELL_BATCH = 800
   let parseGeneration = 0
   let parsePaused = false
-  /** 用户还在滚动时，解析多让一拍，避免和阅读抢主线程。 */
-  let scrollIdleAt = 0
-  contentEl.addEventListener(
-    'scroll',
-    () => {
-      scrollIdleAt = performance.now() + 140
-    },
-    { passive: true },
-  )
   // 窗口变化会改 #content 的外框。阅读列宽、字号只改根节点的样式，外框不动，
   // 所以两处都要重测可见表格。滚动本身不改栏宽。
   let tableMeasureFrame = 0
@@ -160,17 +144,29 @@ export function createDocumentEditor({
     attributes: true,
     attributeFilter: ['style', 'class', 'data-reading-theme'],
   })
-  let paintObserver: IntersectionObserver | null = null
   /** 见 scrollAnchor.ts：有原生 anchoring 就别再改 scrollTop。 */
   const manualScrollAnchor = shouldAdjustScrollAnchor(
     typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('overflow-anchor', 'auto'),
   )
-  const shellQueue: HTMLElement[] = []
-  const shelled = new WeakSet<HTMLElement>()
   const blockIndex = new Map<string, BlockView>()
   let blockIndexEpoch = -1
-  /** 正文已经高出两屏之后，新块一律先占位。避免每个块都读 scrollHeight（那会强制布局）。 */
-  let preferShell = false
+  const shells = createOffscreenShells({
+    contentEl,
+    blockCount: () => session.blocks.length,
+    hasPending: () => session.blocks.some((b) => b.kind === 'pending'),
+    blockAt: (index) => session.blocks[index],
+    findBlock: (id) => findBlock(id),
+    focusedId: () => session.focusedId,
+    viewMode: () => getViewMode(),
+    paintOf: (id) => lastPaint.get(id),
+    forgetPaint: (id) => {
+      lastPaint.delete(id)
+    },
+    teardownPreview: (el) => teardownCodePreview(el),
+    applyMeta: (el, block) => applyBlockMeta(el, block),
+    paintBlock: (block) => paintBlock(block),
+    onShellsDone: () => renderOutline(),
+  })
   /** render 叠在一起时，只有最后一次绘制能把暂停清掉。换文档 / 关文档也会把票号作废。 */
   let parsePauseTicket = 0
   let activeParser: ChunkedParser | null = null
@@ -336,121 +332,12 @@ export function createDocumentEditor({
     return blockIndex.get(id)
   }
 
-  function deferOffscreenPaint(): boolean {
-    if (session.blocks.length > DEFER_PAINT_BLOCKS) return true
-    for (const block of session.blocks) if (block.kind === 'pending') return true
-    return false
-  }
-
-  /** 阅读列大约 40 个汉字一行，用来给还没画的块一个滚动高度。 */
-  function estimateBlockEm(block: BlockView): number {
-    if (block.kind === 'heading') return 2.6
-    const raw = block.raw
-    let lines = 1
-    let chars = 0
-    const cap = Math.min(raw.length, 8_000)
-    for (let i = 0; i < cap; i++) {
-      if (raw.charCodeAt(i) === 10) lines++
-      else chars++
-    }
-    const wrapped = Math.max(lines, Math.ceil(chars / 40))
-    if (block.kind === 'code') return Math.min(wrapped * 1.35 + 0.8, 28)
-    return Math.min(wrapped * 1.65 + 0.6, 24)
-  }
-
-  function resetPaintObserver(): void {
-    paintObserver?.disconnect()
-    paintObserver = null
-    shellQueue.length = 0
-  }
-
-  function ensurePaintObserver(): IntersectionObserver {
-    if (!paintObserver) {
-      paintObserver = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.isIntersecting) shellQueue.push(entry.target as HTMLElement)
-          }
-          drainVisibleShells()
-        },
-        { root: contentEl, rootMargin: '60% 0px 140% 0px' },
-      )
-    }
-    return paintObserver
-  }
-
-  function drainVisibleShells(): void {
-    const start = performance.now()
-    let guard = 0
-    while (shellQueue.length > 0 && performance.now() - start < 10 && guard < 36) {
-      const el = shellQueue.shift()!
-      guard++
-      const id = el.dataset.blockId
-      const block = id ? findBlock(id) : undefined
-      if (!block || lastPaint.has(block.id)) {
-        paintObserver?.unobserve(el)
-        continue
-      }
-      paintBlock(block)
-      paintObserver?.unobserve(el)
-    }
-    if (shellQueue.length > 0) requestAnimationFrame(drainVisibleShells)
-  }
-
-  /**
-   * 屏外块先占位。已经画对的跳过；切档后表面变了的，卸掉旧预览，滚到再画。
-   */
-  function queueOffscreen(el: HTMLElement, block: BlockView): void {
-    if (block.kind === 'pending' || isWhitespaceGap(block)) return
-    const next = {
-      raw: block.raw,
-      kind: block.kind,
-      surface: blockPaintSurface(getViewMode(), block.id === session.focusedId),
-    }
-    if (sameBlockPaint(lastPaint.get(block.id), next)) return
-    if (lastPaint.has(block.id)) {
-      lastPaint.delete(block.id)
-      teardownCodePreview(el)
-      el.replaceChildren()
-      shelled.delete(el)
-    }
-    if (shelled.has(el)) {
-      ensurePaintObserver().observe(el)
-      return
-    }
-    applyBlockMeta(el, block)
-    const em = estimateBlockEm(block)
-    el.style.containIntrinsicSize = `auto ${em}em`
-    el.style.minHeight = `${em}em`
-    shelled.add(el)
-    ensurePaintObserver().observe(el)
-  }
-
-  /**
-   * 这一批要不要直接画。
-   * 只在批次开始时读一次布局：逐块读 scrollHeight 会让十万块的挂载变成强制布局的平方。
-   */
-  function drawThisBatch(blockCount: number): boolean {
-    if (!deferOffscreenPaint()) return true
-    if (blockCount === 0) return false
-    if (!preferShell) {
-      const height = contentEl.clientHeight
-      if (height > 0 && contentEl.scrollHeight > height * 2) preferShell = true
-    }
-    if (!preferShell) return true
-    if (performance.now() < scrollIdleAt) return false
-    const height = contentEl.clientHeight
-    if (height <= 0) return false
-    // 人已经滚到尾巴附近才继续画，避免新内容落在视野里却还是空白。
-    return contentEl.scrollTop + height * 2 >= contentEl.scrollHeight - 8
-  }
-
   function paintFresh(blocks: BlockView[]): BlockView[] {
     const drawn: BlockView[] = []
     if (blocks.length === 0) return drawn
     const pendingEl = blocksEl.get('pending') ?? null
     const mode = getViewMode()
-    const drawBatch = drawThisBatch(blocks.length)
+    const drawBatch = shells.drawThisBatch(blocks.length)
     for (const block of blocks) {
       let el = blocksEl.get(block.id)
       if (!el) {
@@ -465,7 +352,7 @@ export function createDocumentEditor({
         paintBlock(block, mode)
         drawn.push(block)
       } else {
-        queueOffscreen(el, block)
+        shells.queue(el, block)
       }
     }
     const pending = session.blocks.find((b) => b.kind === 'pending')
@@ -561,7 +448,7 @@ export function createDocumentEditor({
         renderOutline()
       }
       if (parser.done) commitParsedBlocks(true)
-      else window.setTimeout(run, performance.now() < scrollIdleAt ? 140 : 16)
+      else window.setTimeout(run, shells.yieldDelay())
     }
     window.setTimeout(run, 0)
   }
@@ -650,9 +537,8 @@ export function createDocumentEditor({
       session.structuralDirty = false
     }
     setDocumentTitle(path)
-    resetPaintObserver()
+    shells.reset()
     invalidateBlockIndex()
-    preferShell = false
     contentEl.innerHTML = ''
     contentEl.scrollTop = 0
     // 有文档了就把「纸页」表面还回来（空态撤掉的纸面底色与描边，见 loadState.ts）
@@ -778,7 +664,7 @@ export function createDocumentEditor({
       parsePaused = false
     }
     caretIntent = null
-    if (deferOffscreenPaint()) {
+    if (shells.deferring()) {
       // 长文：先把当前这一屏画完，其余只挂占位。全文 HTML 不在打开的关键路径上。
       const start = allBlocksConnected(desired) ? indexNearScroll(desired, contentEl.scrollTop) : 0
       const limit = contentEl.scrollTop + Math.max(contentEl.clientHeight, 640) * 3
@@ -797,7 +683,7 @@ export function createDocumentEditor({
         }
       }
       scheduleBlockContainment()
-      shellRestInBatches(desired, paintGen, unpause)
+      shells.mountRest(desired, () => paintGen === paintGeneration, unpause)
       return
     }
     // 块很多时只先画首屏，其余分批补（见 paintRestInBatches）
@@ -828,41 +714,6 @@ export function createDocumentEditor({
       } else hi = mid - 1
     }
     return ans
-  }
-
-  /** 首屏之外的块分批挂进 DOM，只占位，不画预览。 */
-  function shellRestInBatches(desired: HTMLElement[], generation: number, onDone: () => void): void {
-    let cursor = 0
-    const step = () => {
-      if (generation !== paintGeneration) {
-        onDone()
-        return
-      }
-      // 滚动时别往下挂占位，阅读这一帧优先。
-      if (performance.now() < scrollIdleAt) {
-        window.setTimeout(step, 80)
-        return
-      }
-      const end = Math.min(cursor + SHELL_BATCH, desired.length)
-      const frag = document.createDocumentFragment()
-      const fresh: HTMLElement[] = []
-      for (let i = cursor; i < end; i++) {
-        const el = desired[i]!
-        if (!el.isConnected) {
-          frag.appendChild(el)
-          fresh.push(el)
-        }
-      }
-      if (fresh.length > 0) contentEl.appendChild(frag)
-      for (let i = cursor; i < end; i++) queueOffscreen(desired[i]!, session.blocks[i]!)
-      cursor = end
-      if (cursor < desired.length) window.setTimeout(step, 16)
-      else {
-        renderOutline()
-        onDone()
-      }
-    }
-    window.setTimeout(step, 16)
   }
 
   /** 首屏之后的块分批补进 DOM。每批让出一次主线程，滚动与输入不受挡。 */
@@ -907,13 +758,12 @@ export function createDocumentEditor({
     if (sameBlockPaint(lastPaint.get(block.id), next)) return
     // 占位块的估高和真实高度往往对不上。只补偿「整块还在视口顶边之上」的那一段，
     // 人正在看的块长高就留在眼前。
-    const wasShell = shelled.has(el)
+    const wasShell = shells.has(el)
     const before = wasShell ? el.getBoundingClientRect() : null
     const viewportTop = before ? contentEl.getBoundingClientRect().top : 0
     el.style.minHeight = ''
     el.style.containIntrinsicSize = ''
-    shelled.delete(el)
-    paintObserver?.unobserve(el)
+    shells.release(el)
     renderBlockContent(el, block)
     // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
     appendBlockChrome(el, block)
@@ -1472,9 +1322,8 @@ export function createDocumentEditor({
     parsePauseTicket++
     activeParser = null
     parsePaused = false
-    resetPaintObserver()
+    shells.reset()
     invalidateBlockIndex()
-    preferShell = false
     large.destroy()
     large.deactivate()
     lastPaint.clear()
