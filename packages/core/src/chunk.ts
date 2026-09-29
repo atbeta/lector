@@ -1,5 +1,10 @@
 // 分块解析：整篇 fromMarkdown 是超线性的（实测 2.3MB ≈ 10s），按安全边界切成小片后近线性。
 //
+// 不另引流式 markdown 库。micromark 的 parse 可以按片喂入，但链接和脚注定义必须等全文
+// 才能定，官方说明它不能真正流式。semidown、streaming-markdown 面向边收边画 HTML，
+// 不是与 CommonMark 等价的 mdast。@lezer/markdown 能增量，却是另一套语法，换掉就会离开
+// 「块 IR = micromark/mdast」。所以切点仍在这里模仿安全边界，再靠检查把结果拉回整篇解析。
+//
 // 安全边界 = 空行之后、不在任何跨行结构里、也不是列表续项的行首。判据是对 micromark
 // 规则的模仿，会有漏网，所以切完再做三道解析后检查（吞尾、列表接缝、缩进代码接缝），
 // 判错就合并重解析。
