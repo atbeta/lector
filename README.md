@@ -17,9 +17,12 @@ No library, no workspace, no account, no sync.
   source file at block boundaries; previews stay in sync with the
   file even before any save, and untouched blocks are written back
   byte-identical.
-- **Three view modes.** Read (rendered), write (raw source per
-  block), and split (rendered, with click-to-edit). Toggle via
-  `Ctrl+1` / `Ctrl+2` / `Ctrl+3`, or the title-bar button.
+- **Three view modes.** Read, Edit, and Source. Read is a rendered
+  preview and clicks do not enter editing. Edit is that same preview,
+  and clicking a block edits its source in place. Source shows each
+  block as monospace source, and clicking edits that block. Switch
+  with `Ctrl+1` / `Ctrl+2` / `Ctrl+3`, or cycle with `Ctrl+E`. There
+  is no side-by-side split pane.
 - **Outline and reading position.** A heading-sourced outline panel;
   reopen a file and the view snaps back to where you left off.
 - **Inline Mermaid and KaTeX.** Diagrams and math render with
@@ -28,7 +31,9 @@ No library, no workspace, no account, no sync.
 - **Bare CodeMirror 6 for the focused block.** Only the block being
   edited mounts an editor; the rest of the document stays as a
   rendered preview, so the editor never rewrites content you did not
-  touch.
+  touch. A file too large to hold as blocks, or one unsplittable run
+  of lines, opens as a single plain-text buffer instead. It can still
+  be edited and saved back to the same path.
 - **Atomic write with conflict detection.** Save writes to a temp
   file in the same directory and renames into place. If the file
   changed on disk since you opened it, you are asked before
