@@ -12,6 +12,74 @@ interface LargeDocumentDeps {
   onScroll(): void
 }
 
+/**
+ * 绝对内存上限。再"轻"的文档，几十 MB 的正文加每块的 mdast 也会把 webview 压垮，
+ * 所以字节数本身留一条硬线兜底。
+ */
+export const HARD_MAX_BYTES = 20 * 1024 * 1024
+
+/**
+ * 单个"切不开的巨块"的行数上限。
+ *
+ * 分块解析靠空行 / 标题等安全边界把全文切开，块数与耗时才随规模线性增长。
+ * 但一串没有空行的列表项 / 表格行（`- x\n- y\n…`）没有任何安全边界，整篇落成
+ * **一个块**，退回单块解析又变超线性：实测 1 万行 2.3s、4 万行 15s、且 4 万行
+ * 就吃到 1.8GB。所以先用最长连续非空行数把这种文档挡在解析之前。
+ */
+export const MAX_BLOCK_RUN = 5_000
+
+/**
+ * 投影块数上限。解析成本与内存几乎只由**块数**决定，而非字节：
+ * 4MB 密集 mixed（15 万块）≈ 10MB 纯散文（14 万块）≈ 20s / 1.2GB。
+ * 所以用首屏采样外推全文块数来判断，纯散文放得进，密表挡得住。
+ */
+export const MAX_IR_BLOCKS = 150_000
+
+function isBlankLine(text: string, from: number, to: number): boolean {
+  for (let i = from; i < to; i++) {
+    const c = text.charCodeAt(i)
+    if (c !== 32 && c !== 9 && c !== 13) return false
+  }
+  return true
+}
+
+/** 一遍扫出行数与最长连续非空行。O(n)，不建任何结构。 */
+export function scanText(text: string): { lines: number; longestRun: number } {
+  let lines = 0
+  let run = 0
+  let longest = 0
+  let start = 0
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) !== 10) continue
+    lines++
+    if (isBlankLine(text, start, i)) run = 0
+    else if (++run > longest) longest = run
+    start = i + 1
+  }
+  // 末行没有换行符
+  if (start < text.length) {
+    if (isBlankLine(text, start, text.length)) run = 0
+    else if (++run > longest) longest = run
+  }
+  return { lines, longestRun: longest }
+}
+
+/** 按首屏密度外推全文块数。headEnd 是首屏覆盖到的字符偏移。 */
+export function projectBlockCount(headBlocks: number, headEnd: number, totalLen: number): number {
+  if (headEnd <= 0 || headBlocks <= 0) return headBlocks
+  return Math.ceil((headBlocks * totalLen) / headEnd)
+}
+
+/** 开解析之前的廉价判据：字节硬线，或一个切不开的巨块。 */
+export function precheckTooLarge(bytes: number, longestRun: number): boolean {
+  return bytes > HARD_MAX_BYTES || longestRun > MAX_BLOCK_RUN
+}
+
+/** 首屏采样后的判据：投影全文块数超预算。 */
+export function projectedTooLarge(headBlocks: number, headEnd: number, totalLen: number): boolean {
+  return projectBlockCount(headBlocks, headEnd, totalLen) > MAX_IR_BLOCKS
+}
+
 export function createLargeDocument({ contentEl, getSourceText, onDirty, onScroll }: LargeDocumentDeps) {
   // 大文件状态的声明必须早于模块顶层的 applyModeUI()/renderStatus()——
   // 否则首次初始化时会撞上 `let` 的暂时性死区（ReferenceError），
@@ -28,11 +96,15 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
   /**
    * 大文件模式：不解析、不建块，整篇挂一个裸 CM6 当可编辑缓冲。
    *
-   * 为什么不是块 IR：整篇 mdast 解析是超线性的（实测 1MB≈1.1s、3MB≈4.2s、10MB≈31s），
-   * 几十 MB 的文件根本解析不完；块级 DOM 也会把浏览器压死。而 CM6 自带视口虚拟化，
-   * 装得下整篇、只渲染可见行，于是「能编辑、能保存」这条死线成立。
+   * 为什么不是块 IR：块级 IR 的解析成本与内存几乎只由**块数**决定（约 0.13ms/块、
+   * ~8KB/块）。分块解析把常规文档的缩放拉成了线性，但塞进太多块仍会把 webview 吃光
+   *（4MB 密集 mixed ≈ 15 万块 ≈ 20s / 1.2GB），而 CM6 自带视口虚拟化，装得下整篇、
+   * 只渲染可见行，于是「能编辑、能保存」这条死线始终成立。
    * 代价是大文件下没有块级预览渲染（只有带语法高亮的纯文本）——这是刻意的降级。
-   * 可编辑的窗口化 IR 是后续独立排期的方向。
+   *
+   * 判据分两步（见 HARD_MAX_BYTES / MAX_BLOCK_RUN / MAX_IR_BLOCKS）：
+   *   1. 开解析之前的廉价检查（scanText 一遍）：字节上限 + 最长连续非空行；
+   *   2. 首屏解析出前若干块后，按密度投影全文块数（projectBlockCount）。
    *
    * 写盘仍走 applyEncoding：载入时已按 createSourceDocument 归一换行，未编辑时
    * 还原后与原文字节恒等（core 的文件级测试盯着这条）。
@@ -40,25 +112,24 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
    * 状态本体（largeMode / largeCm / largeDirty / largeBytes / largeTotalLines）
    * 声明在文件顶部 session 旁边：模块初始化期 renderStatus 就会读它们。
    */
-  const LARGE_FILE_BYTES = 3 * 1024 * 1024
-  const LARGE_FILE_LINES = 40_000
 
-  function countLines(text: string): number {
-    let n = 0
-    for (let i = 0; i < text.length; i++) {
-      if (text.charCodeAt(i) === 10) n++
-    }
-    return n
+  /** 开解析前的廉价检查。顺带记下提示条要用的体积与行数。 */
+  function configure(text: string, bytes: number): boolean {
+    const scan = scanText(text)
+    largeBytes = bytes
+    largeTotalLines = scan.lines
+    largeMode = precheckTooLarge(bytes, scan.longestRun)
+    if (largeMode) largeDirty = false
+    return largeMode
   }
 
-  /**
-   * 大文件判据：真实字节数 OR 行数。
-   * 字节优先命中就不必再扫行数；用字节而不是 `text.length`，因为后者是 UTF-16 码元，
-   * 会把中文文档的阈值抬高约 3 倍，也和用户在资源管理器里看到的大小对不上。
-   */
-  function isLargeDocument(bytes: number, text: string): boolean {
-    if (bytes > LARGE_FILE_BYTES) return true
-    return countLines(text) > LARGE_FILE_LINES
+  /** 首屏解析完后的块数投影检查：超预算则转大文件模式，返回是否已是大文件。 */
+  function overBlockBudget(headBlocks: number, headEnd: number, totalLen: number): boolean {
+    if (!largeMode && projectedTooLarge(headBlocks, headEnd, totalLen)) {
+      largeMode = true
+      largeDirty = false
+    }
+    return largeMode
   }
 
   /** 大文件模式的常驻提示条（复用既有提示条外观，不新增视觉语言）。 */
@@ -130,16 +201,6 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
     return largeCm ? largeCm.view.state.doc.toString() : (getSourceText())
   }
 
-  function configure(text: string, bytes: number): boolean {
-    largeMode = isLargeDocument(bytes, text)
-    if (largeMode) {
-      largeDirty = false
-      largeBytes = bytes
-      largeTotalLines = countLines(text)
-    }
-    return largeMode
-  }
-
   function destroy(): void {
     largeCm?.destroy()
     largeCm = null
@@ -156,6 +217,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
 
   return {
     configure,
+    overBlockBudget,
     destroy,
     deactivate,
     markSaved,

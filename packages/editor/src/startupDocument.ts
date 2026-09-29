@@ -42,8 +42,8 @@ export async function openStartupDocument(files: Pick<FileController, 'loadSessi
       }
       files.loadSession('long.md', parts.join(''))
     }
-    // 大文件样例：`?doc=huge`。现场生成 5 万行（约 2MB）——不往仓库里塞大文件，
-    // 同时正好压到"大文件模式"的阈值上（行数阈 4 万）。
+    // 大文件样例：`?doc=huge`。现场生成 5 万行（约 2MB）——不往仓库里塞大文件。
+    // 这一串没有空行、切不开，会撞上"单块巨物"的行数线（MAX_BLOCK_RUN），进大文件模式。
     else if (which === 'huge') {
       const line = '- 这是一行用于压测的正文内容，重复出现以撑大文件体积。\n'
       files.loadSession('huge.md', '# 大文件压测\n\n' + line.repeat(50_000))

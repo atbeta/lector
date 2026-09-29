@@ -380,29 +380,25 @@ export function createDocumentEditor({
 
   /**
    * 短文档一次解析完。长文档只同步解析开头，尾巴留一个 pending 块（raw 是剩余原文，
-   * 拼接仍然等于全文），剩下的交给时间片。
+   * 拼接仍然等于全文），剩下的交给调用方启动时间片续跑（不在这里启动，是为了让
+   * 调用方先按首屏块数判断该走 IR 还是大文件模式）。
    */
-  function openBlocks(text: string): BlockView[] {
-    if (text.length <= PROGRESSIVE_HEAD) return parseBlocks(text)
+  function beginOpen(text: string): { blocks: BlockView[]; parser: ChunkedParser | null; covered: number } {
+    if (text.length <= PROGRESSIVE_HEAD) {
+      return { blocks: parseBlocks(text), parser: null, covered: text.length }
+    }
     const parser = createChunkedParser(text, {
       canRetract: (blocks) => blocks.every((b) => !b.dirty && b.id !== session.focusedId),
     })
     const blocks: BlockView[] = []
+    let covered = 0
     while (!parser.done) {
       applyParseStep(blocks, parser.step(0))
-      const covered = blocks.at(-1)?.end ?? 0
+      covered = blocks.at(-1)?.end ?? 0
       if (covered >= PROGRESSIVE_HEAD || covered >= text.length) break
     }
-    if (!parser.done && (blocks.at(-1)?.end ?? 0) < text.length) {
-      blocks.push(makePending(text, blocks.at(-1)?.end ?? 0))
-    }
-    if (!parser.done) {
-      activeParser = parser
-      // 泵自己续跑。render 只负责暂停，不再保管唯一的启动闭包——
-      // 第一次绘制还没结束就来第二次 render 时，那份闭包会丢，解析就永远停住。
-      pumpParser(parser, parseGeneration)
-    }
-    return blocks
+    if (!parser.done && covered < text.length) blocks.push(makePending(text, covered))
+    return { blocks, parser: parser.done ? null : parser, covered }
   }
 
   function loadSession(path: string, raw: string, mtimeMs = Date.now(), byteLen?: number) {
@@ -431,17 +427,21 @@ export function createDocumentEditor({
     session.saving = false
     session.savedAt = null
     setCurrentMdPath(session.source.path)
-    // 大文件逃生舱：超阈值就不解析、不建块，整篇交给一个裸 CM（见上方注释）。
+    // 大文件逃生舱：超预算就不解析、不建块，整篇交给一个裸 CM（见 largeDocument.ts）。
     // 字节数由壳给出（read_file 的 byte_len）；浏览器预览退回 Blob 大小。
     const bytes = byteLen ?? new Blob([raw]).size
-    if (large.configure(session.source.text, bytes)) {
+    const text = session.source.text
+    // 先做开解析前的廉价预检（字节上限 + 切不开的巨块）；过了才同步解析首屏，
+    // 再按首屏密度投射全文块数——密集表格能靠这一步挡住，纯散文放得进。
+    const opened = large.configure(text, bytes) ? null : beginOpen(text)
+    if (opened === null || large.overBlockBudget(opened.blocks.length, opened.covered, text.length)) {
       session.blocks = []
       session.originals = new Map()
       session.focusedId = null
       session.dirty = false
       session.structuralDirty = false
     } else {
-      session.blocks = openBlocks(session.source.text)
+      session.blocks = opened.blocks
       // 空文件必须**仍然是一份可编辑的文档**：整篇没有块时合成一个空段落。
       // "没打开文件"是两件事，界面上不能表现成同一件事（记事本、Typora 都允许空文件直接打字）。
       // 放在 originals 之前：合成出来的块也要进基线，否则一打开就是"未保存"。
@@ -471,39 +471,55 @@ export function createDocumentEditor({
     document.documentElement.classList.remove('is-loading')
 
     if (large.isActive()) {
-      contentEl.classList.add('large-doc')
-      document.documentElement.classList.add('large-file')
-      // 大文件只有纯文本可编：档位锁在源码档，避免"切回阅读能看见渲染"的误解。
-      // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
-      forceSourceMode()
-      large.mountLargeDocument()
-      large.showLargeFileBar()
-      resetOutline()
-      renderOutline()
-      restoreReadingPosition()
-      // 复位脏点/保存按钮/状态行（换文档前的 dirty 类不能留着）
-      markDirty()
+      activateLargeMode()
     } else {
-      render()
-      markDirty()
-      // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
-      // 用 rAF 等一帧，避免和 render 的布局在同一帧里打架。
-      restoreReadingPosition()
-      // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
-      renderOutline()
-      // 空文档：进编辑档并把光标放进去。
-      // 只合成空段落是不够的——空段落没有可见表面，阅读档里看不到也点不到，
-      // 那还是"打不了字"；光标本身就是这里唯一需要的占位。
-      // 用 rAF 等这一轮渲染落地再聚焦，否则可能拿到还没进 DOM 的块（表现为"点了没反应"）。
-      if (pendingEmptyFocus) {
-        const id = pendingEmptyFocus
-        pendingEmptyFocus = null
-        setViewMode('edit')
-        requestAnimationFrame(() => focusBlock(id))
+      activateIrMode()
+      // 长文档的尾巴交给时间片续跑。render 只负责暂停，不再保管唯一的启动闭包——
+      // 第一次绘制还没结束就来第二次 render 时，那份闭包会丢，解析就永远停住。
+      if (opened?.parser) {
+        activeParser = opened.parser
+        pumpParser(opened.parser, parseGeneration)
       }
-      large.clearLargeFileBar()
     }
     setDocPresent(true)
+  }
+
+  /** 大文件档：整篇裸 CM，锁在源码档，块渲染全部绕开。 */
+  function activateLargeMode(): void {
+    contentEl.classList.add('large-doc')
+    document.documentElement.classList.add('large-file')
+    // 大文件只有纯文本可编：档位锁在源码档，避免"切回阅读能看见渲染"的误解。
+    // 直接改 viewMode 而不走 setViewMode——后者会 render()，而这里是 CM 的场子。
+    forceSourceMode()
+    large.mountLargeDocument()
+    large.showLargeFileBar()
+    resetOutline()
+    renderOutline()
+    restoreReadingPosition()
+    // 复位脏点/保存按钮/状态行（换文档前的 dirty 类不能留着）
+    markDirty()
+  }
+
+  /** 常规块 IR 档：首屏渲染 + 阅读位置 + 大纲。 */
+  function activateIrMode(): void {
+    render()
+    markDirty()
+    // 恢复上次的阅读位置。放在 render 之后：需要块已经进 DOM 才能滚到位。
+    // 用 rAF 等一帧，避免和 render 的布局在同一帧里打架。
+    restoreReadingPosition()
+    // 换文档后大纲要重建：标题变了（在 render() 之后，此时 blocksEl 才填好）
+    renderOutline()
+    // 空文档：进编辑档并把光标放进去。
+    // 只合成空段落是不够的——空段落没有可见表面，阅读档里看不到也点不到，
+    // 那还是"打不了字"；光标本身就是这里唯一需要的占位。
+    // 用 rAF 等这一轮渲染落地再聚焦，否则可能拿到还没进 DOM 的块（表现为"点了没反应"）。
+    if (pendingEmptyFocus) {
+      const id = pendingEmptyFocus
+      pendingEmptyFocus = null
+      setViewMode('edit')
+      requestAnimationFrame(() => focusBlock(id))
+    }
+    large.clearLargeFileBar()
   }
 
   /**

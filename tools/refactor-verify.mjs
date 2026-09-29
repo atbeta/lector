@@ -665,7 +665,9 @@ const mountPreferenceOutline = async () => {
     const r5 = await page.evaluate(async () => {
       const it = window.__it
       const fixture = '﻿# 大标题\r\n\r\n长行内容\r\n'
-      it.files.loadSession('/tmp/it-big.md', fixture, 5, 4 * 1024 * 1024)
+      // byte_len 是壳给出的真实磁盘字节数。这里用一个超过硬上限的值把文档判成大文件——
+      // 新判据不再只看 3MB 字节，还要看切不开的巨块与投影块数（见 largeDocument.ts）。
+      it.files.loadSession('/tmp/it-big.md', fixture, 5, 21 * 1024 * 1024)
       const modeLocked = it.getViewMode() === 'source'
       const isLarge = it.editor.isLarge()
       const ok = await it.files.persistToDisk(true)
@@ -687,6 +689,36 @@ const mountPreferenceOutline = async () => {
     })
     assert.equal(r6.ok, true)
     assert.equal(r6.call.text, '﻿# 大标题\r\n\r\n长行内容\r\nX', 'edited large save must carry CM text with encoding')
+
+    // 新的判据：10MB 纯散文（空行分隔、块不密）应放行进块 IR；
+    // 一串没有空行、切不开的长列表应直接走大文件模式。
+    const r7 = await page.evaluate(async () => {
+      const it = window.__it
+      const para = '这是一段普通的说明文字，用来测试解析策略。它包含一两个句子，偶尔有**加粗**或[链接](https://example.com)。\n\n'
+      const unitBytes = new Blob([para]).size
+      const parts = []
+      let n = 0
+      while (n < 10 * 1024 * 1024) {
+        parts.push(para)
+        n += unitBytes
+      }
+      const prose = parts.join('')
+      it.files.loadSession('/tmp/xl-prose.md', prose, 1, n)
+      const proseLarge = it.editor.isLarge()
+      const proseBlocks = it.editor.getSession().blocks.length
+
+      const listParts = []
+      for (let i = 0; i < 8000; i++) listParts.push(`- 第 ${i} 行\n`)
+      const list = listParts.join('')
+      it.files.loadSession('/tmp/xl-list.md', list, 1, new Blob([list]).size)
+      const listLarge = it.editor.isLarge()
+
+      it.files.loadSession('/tmp/cancel.md', 'x', 1, 1)
+      return { proseLarge, proseBlocks, listLarge }
+    })
+    assert.equal(r7.proseLarge, false, '10MB 纯散文应放行进块 IR')
+    assert.ok(r7.proseBlocks > 0, '散文 IR 应有块')
+    assert.equal(r7.listLarge, true, '切不开的长列表应走大文件模式')
 
     assert.equal(errors.length, 0, `pageerrors: ${errors.join(' | ')}`)
     ok('fileController+documentEditor: save/load/conflict/large integration')
