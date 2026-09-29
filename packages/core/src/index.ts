@@ -22,6 +22,7 @@ export {
   blockStats,
   countBlocks,
   countText,
+  countWordsApprox,
   formatCount,
   readingMinutes,
   type BlockStats,

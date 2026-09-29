@@ -266,6 +266,7 @@ void (async () => {
     outline,
     positions,
     renderStatus: () => chrome.renderStatus(),
+    getScroller: () => editor.activeScroller(),
   })
   await openStartupDocument(files)
 })()

@@ -3,6 +3,7 @@ import {
   HARD_MAX_BYTES,
   MAX_BLOCK_RUN,
   MAX_IR_BLOCKS,
+  countLargeWords,
   precheckTooLarge,
   projectBlockCount,
   projectedTooLarge,
@@ -64,5 +65,24 @@ describe('大文件判据：策略', () => {
   test('阈值常量彼此自洽', () => {
     expect(MAX_IR_BLOCKS).toBeGreaterThan(143_642) // 放得下 10MB 散文实测块数
     expect(MAX_IR_BLOCKS).toBeLessThan(151_746) // 挡得住 4MB 密集 mixed 实测块数
+  })
+})
+
+describe('大文件词数：后台分片统计', () => {
+  test('分片累加，结果与一次性统计一致', () => {
+    const text = 'hello world\n\n你好 世界\n\nfoo bar baz\n'
+    let done: number | null = null
+    // 同步调度：每片立即执行，等价于把时间片压成 0
+    countLargeWords(text, (w) => (done = w), (fn) => fn())
+    expect(done as number | null).toBe(9) // 与 countText 同口径（含 CJK 逐字计）
+  })
+
+  test('取消后不再回调', () => {
+    const text = 'a b c d e f g h i j\n'.repeat(1000)
+    let done: number | null = null
+    // 异步调度：取消发生在第一片之前，回调不该再触发
+    const cancel = countLargeWords(text, (w) => (done = w), (fn) => queueMicrotask(fn))
+    cancel()
+    expect(done).toBeNull()
   })
 })

@@ -2,7 +2,7 @@ import { mountEditor, type CmHandle } from './cm.ts'
 import type { FindMatch } from './findMatch.ts'
 import { getSettings } from './settings.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
-import { formatCount } from '@lector/core'
+import { countWordsApprox, formatCount } from '@lector/core'
 import { t } from './i18n.ts'
 
 interface LargeDocumentDeps {
@@ -10,6 +10,8 @@ interface LargeDocumentDeps {
   getSourceText(): string
   onDirty(): void
   onScroll(): void
+  /** 后台词数算完时回调（刷新状态行）。 */
+  onWordsReady?(): void
 }
 
 /**
@@ -80,7 +82,39 @@ export function projectedTooLarge(headBlocks: number, headEnd: number, totalLen:
   return projectBlockCount(headBlocks, headEnd, totalLen) > MAX_IR_BLOCKS
 }
 
-export function createLargeDocument({ contentEl, getSourceText, onDirty, onScroll }: LargeDocumentDeps) {
+/**
+ * 大文件的词数：后台分片扫一遍，不阻塞输入。
+ *
+ * 用 countWordsApprox（轻量正则清洗）而不是 countText（整篇 mdast 解析）——
+ * 后者对 4MB 文档要 24 秒，大文件状态行只要量级。仍切成时间片：每片扫 CHUNK 个
+ * 字符，让出一帧再继续。结果算完前是 null，状态行不占位。
+ * 编辑后词数会过期——不重算，等下次打开；状态行报的是「打开时这份文档多大」。
+ */
+const WORD_SCAN_CHUNK = 1 << 20
+
+export function countLargeWords(
+  text: string,
+  onDone: (words: number) => void,
+  schedule: (fn: () => void) => void = (fn) => window.setTimeout(fn, 0),
+): () => void {
+  let cancelled = false
+  let offset = 0
+  let words = 0
+  const step = (): void => {
+    if (cancelled) return
+    const end = Math.min(offset + WORD_SCAN_CHUNK, text.length)
+    words += countWordsApprox(text.slice(offset, end))
+    offset = end
+    if (offset < text.length) schedule(step)
+    else onDone(words)
+  }
+  schedule(step)
+  return () => {
+    cancelled = true
+  }
+}
+
+export function createLargeDocument({ contentEl, getSourceText, onDirty, onScroll, onWordsReady }: LargeDocumentDeps) {
   // 大文件状态的声明必须早于模块顶层的 applyModeUI()/renderStatus()——
   // 否则首次初始化时会撞上 `let` 的暂时性死区（ReferenceError），
   // 整个初始化 IIFE 中断，窗口控件与空态都挂不上（真机上就是"右上角按钮消失 + 白屏"）。
@@ -92,6 +126,9 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
   /** 提示条要报的真实体积与行数（载入时算一次）。 */
   let largeBytes = 0
   let largeTotalLines = 0
+  /** 后台算出的词数；算完前是 null（状态行不占位）。 */
+  let largeWords: number | null = null
+  let cancelWordScan: (() => void) | null = null
 
   /**
    * 大文件模式：不解析、不建块，整篇挂一个裸 CM6 当可编辑缓冲。
@@ -152,8 +189,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
     document.querySelector('.large-file-bar')?.remove()
   }
 
-  /**
-   * 大文件的可编辑载体：整篇裸 CM6 铺满正文区，自己滚动（视口虚拟化）。
+  /** 大文件的可编辑载体：整篇裸 CM6 铺满正文区，自己滚动（视口虚拟化）。
    * 不挂结构键——没有块可拆合，Enter 就是普通换行。
    */
   function mountLargeDocument(): void {
@@ -194,6 +230,14 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
       },
       { passive: true },
     )
+    // 词数后台算一次（分片，不阻塞输入）。算完刷新状态行；换文档时取消。
+    cancelWordScan?.()
+    largeWords = null
+    cancelWordScan = countLargeWords(getSourceText(), (words) => {
+      largeWords = words
+      cancelWordScan = null
+      onWordsReady?.()
+    })
   }
 
   /** 大文件下用于写盘 / 状态 / 复制的全文（只在保存等少数时机取一次）。 */
@@ -202,6 +246,8 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
   }
 
   function destroy(): void {
+    cancelWordScan?.()
+    cancelWordScan = null
     largeCm?.destroy()
     largeCm = null
   }
@@ -228,7 +274,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
     isActive: () => largeMode,
     isDirty: () => largeDirty,
     getView: () => largeCm?.view ?? null,
-    getInfo: () => ({ bytes: largeBytes, totalLines: largeTotalLines }),
+    getInfo: () => ({ bytes: largeBytes, totalLines: largeTotalLines, words: largeWords }),
     revealFind: (hits: FindMatch[], current: number) => largeCm?.applyFind(hits, current),
     clearFind: () => largeCm?.clearFind(),
   }

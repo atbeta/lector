@@ -298,21 +298,31 @@ export function bindReadingEvents({
   outline,
   positions,
   renderStatus,
+  getScroller,
 }: {
   contentEl: HTMLElement
   sidebar: Sidebar
   outline: Pick<ReturnType<typeof createOutline>, 'updateActiveHeading'>
   positions: Pick<ReturnType<typeof createReadingPositionController>, 'scheduleRecordPosition'>
   renderStatus(): void
+  /** 当前正文的滚动容器。大文件档是 CM 自己的滚动层，普通档就是 #content。 */
+  getScroller?: () => HTMLElement | null
 }): void {
   // 阅读位置 → 大纲高亮。挂在正文容器上（骨架里滚动发生在正文里）。
   // 同步在滚动中给 html 加 is-scrolling 类，滚动停后 600ms 移除——
   // 滚动条只在「正在滚」时短暂露出，其他时候隐形，干净。
+  //
+  // 大文件档的滚动发生在 CM 的 scrollDOM 里，事件不冒泡到 #content，所以这里
+  // 按 getScroller() 动态挂：换文档时容器会变，用捕获阶段监听 document 一次覆盖
+  // 两种容器，省得每次换档重挂。
   let spyTick = false
   let scrollIdleTimer: number | null = null
-  contentEl.addEventListener(
+  document.addEventListener(
     'scroll',
-    () => {
+    (e) => {
+      const target = e.target
+      const scroller = getScroller?.() ?? contentEl
+      if (target !== contentEl && target !== scroller) return
       if (!document.documentElement.classList.contains('is-scrolling')) {
         document.documentElement.classList.add('is-scrolling')
       }
@@ -330,7 +340,7 @@ export function bindReadingEvents({
       })
       positions.scheduleRecordPosition()
     },
-    { passive: true },
+    { passive: true, capture: true },
   )
   // 顶栏左侧与正文列对齐（窗口变化时自动重算；侧栏开合另见下方 onToggle）
   mountTitlebarInset()

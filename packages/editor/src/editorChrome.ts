@@ -40,7 +40,7 @@ function nextViewMode(m: ViewMode): ViewMode {
 interface EditorChromeDeps {
   getSession(): Readonly<DocumentSession>
   isLarge(): boolean
-  getLargeInfo(): { bytes: number; totalLines: number }
+  getLargeInfo(): { bytes: number; totalLines: number; words: number | null }
   defocus(): void
   render(): Promise<void>
 }
@@ -214,7 +214,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     if (isLarge()) {
       // 大文件不逐键统计字数——那是对几十 MB 全文的扫描，每次按键都做会卡。
       // 只报体积、行数与存盘状态，这是刻意的降级。
-      const { bytes, totalLines } = getLargeInfo()
+      const { bytes, totalLines, words } = getLargeInfo()
       statusLeft.replaceChildren()
       statusRight.replaceChildren()
       statusRight.append(
@@ -225,6 +225,9 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
           }),
         ),
       )
+      // 词数由大文件模式在后台算一次（见 largeDocument.ts 的 countLargeWords），
+      // 算完前是 null，不占位——状态行不该为一次后台统计留一个空槽。
+      if (words !== null) statusRight.append(item(t('statWords', { n: formatCount(words) })))
       statusRight.append(item(saveStateText(), getSession().dirty))
       return
     }

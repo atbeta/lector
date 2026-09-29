@@ -156,6 +156,39 @@ export function countText(text: string): DocStats {
 }
 
 /**
+ * 大文件的近似词数：不解析 markdown，直接对源码做轻量清洗后计数。
+ *
+ * 为什么另开一条：countText 走整篇 mdast 解析，对 4MB 的文档要 24 秒——大文件模式
+ * 要的是「打开时这份文档大概多少词」，不值得为它付一次全量解析。这里用正则剥掉
+ * 最常见的语法噪声（围栏代码、行内代码、链接 URL、图片、标题/列表/引用前缀、
+ * 强调符、frontmatter），再按与 countText 相同的口径（CJK 逐字 + 西文分词）计数。
+ *
+ * 代价是**近似**：表格分隔行、脚注定义、HTML 标签等仍会漏进少量字符。大文件状态行
+ * 报的是量级，不是精确值——精确值留给常规档的 countBlocks。
+ */
+export function countWordsApprox(text: string): number {
+  if (!text) return 0
+  let s = text
+  // frontmatter（文件开头的 --- ... ---）
+  s = s.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+  // 围栏代码块整体去掉（``` 或 ~~~ 围起来的）
+  s = s.replace(/^[ \t]*(```|~~~)[^\n]*\n[\s\S]*?^[ \t]*\1[^\n]*$/gm, '')
+  // 行内代码、图片、链接：只留可见文字
+  s = s.replace(/`[^`\n]*`/g, ' ')
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+  s = s.replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+  // 行首的标题 / 列表 / 引用 / 任务框标记
+  s = s.replace(/^[ \t]*(#{1,6}|>|[-*+]|\d+\.)[ \t]+/gm, '')
+  s = s.replace(/^[ \t]*\[[ xX]\][ \t]+/gm, '')
+  // 强调 / 删除线 / 表格竖线 / 分隔线
+  s = s.replace(/[*_~]{1,3}/g, '')
+  s = s.replace(/^\s*\|?[\s:|-]+\|?\s*$/gm, '')
+  s = s.replace(/\|/g, ' ')
+  return statsFrom(s, 0, 0).words
+}
+
+/**
  * 按块增量统计——状态行的常规路径。
  *
  * 编辑器按块持有 mdast（BlockView），非 dirty 块的树与 raw 一致，直接遍历

@@ -63,7 +63,7 @@ export interface DocumentEditor {
   getSession(): Readonly<DocumentSession>
   getCmView(): EditorView | null
   isLarge(): boolean
-  getLargeInfo(): { bytes: number; totalLines: number }
+  getLargeInfo(): { bytes: number; totalLines: number; words: number | null }
   activeScroller(): HTMLElement | null
   getBlockElement(id: string): HTMLElement | undefined
   loadSession(path: string, raw: string, mtimeMs?: number, byteLen?: number): void
@@ -137,6 +137,7 @@ export function createDocumentEditor({
     getSourceText: () => session.source?.text ?? '',
     onDirty: () => markDirty(),
     onScroll: () => scheduleRecordPosition(),
+    onWordsReady: () => onStatus?.(),
   })
 
   const operations = createBlockOperations({
@@ -1165,7 +1166,7 @@ export function createDocumentEditor({
     return large.isActive()
   }
 
-  function getLargeInfo(): { bytes: number; totalLines: number } {
+  function getLargeInfo(): { bytes: number; totalLines: number; words: number | null } {
     return large.getInfo()
   }
 

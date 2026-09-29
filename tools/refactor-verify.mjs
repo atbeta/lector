@@ -756,7 +756,9 @@ const mountPreferenceOutline = async () => {
     await page.waitForSelector('.outline-row', { timeout: 15000 })
     const counts = await page.evaluate(() => window.__counts)
     assert.equal(counts.controls, 1, 'window controls must mount exactly once')
-    assert.equal(counts.scroll, 2, 'content scroll listeners: header state + reading events')
+    // 阅读事件（大纲高亮 / is-scrolling）改挂 document 捕获阶段，以覆盖大文件档的
+    // CM scrollDOM；#content 上只剩顶栏滚动状态这一个监听。
+    assert.equal(counts.scroll, 1, 'content scroll listeners: header state only')
     assert.equal(errors.length, 0, `pageerrors: ${errors.join(' | ')}`)
     ok('startup: window controls and scroll handlers mounted once')
   } catch (e) {

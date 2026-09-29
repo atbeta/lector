@@ -2427,6 +2427,30 @@ const summary = {
     if (lf.blocks > 0) note('error', `大文件模式仍建了 ${lf.blocks} 个块（应当不建块）`)
     if (ms > 15000) note('error', `大文件打开耗时 ${ms}ms（超过 15s 等同于打不开）`)
     else note('info', `大文件：${ms}ms、mode=${lf.mode}、CM=${lf.cm}、DOM 行 ${lf.renderedLines}`)
+
+    // 滚动条：大文件档滚动发生在 CM 的 scrollDOM 里，事件不冒泡到 #content。
+    // 滚动一下，html.is-scrolling 必须亮起（否则滚动条永远隐形，用户以为卡住）。
+    await page.evaluate(() => {
+      const scroller = document.querySelector('.large-doc-host .cm-scroller')
+      scroller.scrollTop = 4000
+      scroller.dispatchEvent(new Event('scroll', { bubbles: false }))
+    })
+    await page.waitForTimeout(120)
+    const scrolling = await page.evaluate(() => document.documentElement.classList.contains('is-scrolling'))
+    if (!scrolling) note('error', '大文件滚动时 html.is-scrolling 没亮：滚动条不会现身')
+    else note('info', '大文件滚动：is-scrolling 亮起（滚动条会现身）')
+
+    // 词数：后台分片算完前不占位，算完后状态行出现「词」。
+    const wordsShown = await page
+      .waitForFunction(
+        () => /词|words/i.test(document.querySelector('#statusbar')?.textContent ?? ''),
+        { timeout: 20000 },
+      )
+      .then(() => true)
+      .catch(() => false)
+    if (!wordsShown) note('error', '大文件状态行始终没有词数（后台统计没跑完或没接上）')
+    else note('info', '大文件状态行：后台词数已出现')
+
     await page.goto(URL_ARG, { waitUntil: 'load' })
     await page.waitForTimeout(500)
   }

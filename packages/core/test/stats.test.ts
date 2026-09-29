@@ -7,7 +7,7 @@
 // 行 = 源码逻辑行（换行 + 1）。
 
 import { describe, expect, test } from 'bun:test'
-import { blockStats, countBlocks, countText, formatCount, readingMinutes } from '../src/stats.ts'
+import { blockStats, countBlocks, countText, countWordsApprox, formatCount, readingMinutes } from '../src/stats.ts'
 import { parseBlocks } from '../src/parse.ts'
 
 describe('文档统计', () => {
@@ -151,5 +151,35 @@ describe('按块增量统计', () => {
     // 模拟 finalizeFocused 的多根形态
     b.mdast = roots.length > 1 ? roots : b.mdast
     expect(countBlocks(blocks).words).toBeGreaterThan(0)
+  })
+})
+
+describe('大文件近似词数（countWordsApprox）', () => {
+  test('纯散文与精确口径基本一致', () => {
+    const prose = 'hello world\n\n你好 世界\n\nfoo bar baz\n'
+    expect(countWordsApprox(prose)).toBe(countText(prose).words)
+  })
+
+  test('剥掉常见语法噪声：标题 / 列表 / 强调 / 链接 URL / 行内代码', () => {
+    const md = '# 标题\n\n这是一段**加粗**文字，含 [链接](https://example.com) 和 `code`。\n\n- 列表项一\n- 列表项二\n'
+    const approx = countWordsApprox(md)
+    const exact = countText(md).words
+    // 近似值应落在精确值附近（不把 URL / 语法符算成词）
+    expect(approx).toBeGreaterThan(exact * 0.8)
+    expect(approx).toBeLessThanOrEqual(exact)
+  })
+
+  test('围栏代码块整体不计入', () => {
+    const md = '```ts\nconst x = 1\nfunction f() { return x }\n```\n\n正文一段。\n'
+    expect(countWordsApprox(md)).toBe(5) // 只有「正文一段。」（CJK 标点计入）
+  })
+
+  test('frontmatter 不计入', () => {
+    const md = '---\ntitle: 标题\n---\n\n正文内容。\n'
+    expect(countWordsApprox(md)).toBe(5) // 只有「正文内容。」
+  })
+
+  test('空文本为 0', () => {
+    expect(countWordsApprox('')).toBe(0)
   })
 })
