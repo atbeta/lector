@@ -61,15 +61,20 @@ describe('大文件判据：策略', () => {
     // 10MB 纯散文：首屏 64K 字符约 500 块 → 投影约 8 万块。
     // 内存还撑得住，但编辑档没有屏外跳过，8 万个块滚动和编辑都不可用 → 拦
     expect(projectedTooLarge(512, 65_536, 10_485_760)).toBe(true)
-    // 3MB 短段落散文（实测）：首屏 65695 字符 1906 块，全文约 4.2 万块。
+    // 3MB 短段落散文（实测）：首屏 65695 字符 1906 块，全文数万块。
     // 这种文档会一直停在「解析中」，并且拖不动 → 拦
     expect(projectedTooLarge(1906, 65_695, 3_145_796)).toBe(true)
+    // 3MB、每段约 400 字：首屏 356 块 / 66086 字符，投影 5678。
+    // 留在块 IR 时「解析中」要数秒，阅读滚动掉到十几帧以下 → 拦
+    expect(projectedTooLarge(356, 66_086, 1_053_970)).toBe(true)
   })
 
   test('普通长文仍留在块 IR', () => {
     // 首屏 64K 出 200 块，全文约 400KB → 投影约 1200 块
     expect(projectedTooLarge(200, 65_536, 400_000)).toBe(false)
     expect(projectBlockCount(200, 65_536, 400_000)).toBeLessThan(MAX_IR_BLOCKS)
+    // 约 1MB、每段 200 字：首屏 702 块 / 65762 字符，投影 3767，仍走块 IR
+    expect(projectedTooLarge(702, 65_762, 352_867)).toBe(false)
   })
 })
 
