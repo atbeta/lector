@@ -230,6 +230,35 @@ test('定义表缺条目时引用还原成源码', () => {
   expect(renderBlockHtml(para!.mdast, para!.raw)).toContain('[docs][d]')
 })
 
+test('四空格缩进的附录按标题和表格渲染，不再整段变成代码', () => {
+  const md = [
+    '## 7.2 未决问题',
+    '',
+    '| # | 问题 | 状态 |',
+    '|---|---|---|',
+    '| 8 | 设计侧约束 | 待定 |',
+    '',
+    '    ---',
+    '',
+    '    ## 附录 A：术语表（修订）',
+    '',
+    '    | 术语 | 定义 |',
+    '    |---|---|',
+    '    | UCD | 团队 |',
+    '',
+  ].join('\n')
+  const html = parseBlocks(md)
+    .filter((b) => !(b.kind === 'unknown' && b.raw.trim() === ''))
+    .map((b) => renderBlockHtml(b.mdast, b.raw))
+    .join('')
+  expect(html).toContain('<h2>附录 A：术语表（修订）</h2>')
+  expect(html).toContain('<hr />')
+  expect(html).toContain('<table>')
+  expect(html).toContain('UCD')
+  expect(html).not.toContain('## 附录')
+  expect(html).not.toContain('<pre')
+})
+
 test('setLinkDefinitions 只在定义有变时报告变化', () => {
   const blocks = parseBlocks('[a][k]\n\n[k]: https://a.com\n')
   setLinkDefinitions([])

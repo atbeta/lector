@@ -195,6 +195,9 @@ export function kindFromMdast(node: unknown): BlockKind {
  * 表格后紧跟的段落行会被 GFM 吸进表格，这里切出来还成独立块
  * （见 carveTableTail），拼接仍恒等。
  * 空文档给一块可聚焦空段落，否则无法开始输入。
+ *
+ * 行首四空格在 CommonMark 里是缩进代码。文稿里整段附录被贴成这种缩进时，
+ * 标题和表格会整块变成无语言代码（见 liftIndentedMarkdown）。
  */
 /**
  * 整篇解析。分块实现（chunk.ts）的结果必须与它严格一致，测试用它做 oracle。
@@ -269,7 +272,7 @@ export function parseBlocksOriginal(text: string): BlockView[] {
     blocks.push(makeUnknownBlock(cursor, text.length, text))
   }
 
-  return mergeDetailsBlocks(blocks, text)
+  return mergeDetailsBlocks(liftIndentedMarkdown(blocks), text)
 }
 
 /** 分块解析（chunk.ts）。签名保持不变，调用方无感。opts 只供测试把片切小。 */
@@ -369,6 +372,216 @@ export function adjacentFocusableId(
   return null
 }
 
+const FENCED_CODE = /^ {0,3}(`{3,}|~{3,})/
+const INDENTED_CODE_START = /^(?: {4,}|\t)/
+/** 去掉四空格 / Tab 之后，二级标题或表格分隔行才像「贴进来的 Markdown」，而不是代码。 */
+const ATX_HEADING = /^ {0,3}#{2,6}(?:[ \t]|$)/
+
+/**
+ * 缩进代码最多再剥几层。再深就保持代码块，避免上千层缩进把调用栈打穿。
+ * 每一层至少少一个缩进字符，8 层够覆盖到 32 个空格。
+ */
+const MAX_INDENT_LIFT = 8
+let indentLiftDepth = 0
+
+function isTableDelimiterLine(line: string): boolean {
+  if (!line.includes('|')) return false
+  const trimmed = line.trim()
+  if (!/^[\t |:-]+$/.test(trimmed)) return false
+  let body = trimmed
+  if (body.startsWith('|')) body = body.slice(1)
+  if (body.endsWith('|')) body = body.slice(0, -1)
+  const cells = body.split('|')
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))
+}
+
+function looksLikeMarkdownSection(text: string): boolean {
+  let lines = text.split(/\r?\n/)
+  for (let depth = 0; depth < 4; depth++) {
+    if (lines.some((line) => ATX_HEADING.test(line) || isTableDelimiterLine(line))) return true
+    let changed = false
+    lines = lines.map((line) => {
+      const peeled = line.startsWith('    ') ? line.slice(4) : line.startsWith('\t') ? line.slice(1) : line
+      if (peeled !== line) changed = true
+      return peeled
+    })
+    if (!changed) return false
+  }
+  return false
+}
+
+/**
+ * 按 CommonMark 缩进代码的规则剥掉每行最多 4 列前缀。
+ * map[i] 是去缩进后第 i 个字符在 raw 里的下标；剥掉的空格不进 map。
+ * 遇到要把 Tab 拆成「半个在前缀、半个在正文」时放弃（那种正文里的空格在原文里不存在）。
+ */
+function dedentIndentedCode(raw: string): { text: string; map: number[] } | null {
+  const map: number[] = []
+  let text = ''
+  let i = 0
+  while (i < raw.length) {
+    let col = 0
+    let j = i
+    while (col < 4 && j < raw.length) {
+      const c = raw.charCodeAt(j)
+      if (c === 32) {
+        col++
+        j++
+      } else if (c === 9) {
+        const width = 4 - (col % 4)
+        if (col + width > 4) return null
+        col += width
+        j++
+      } else break
+    }
+    if (col >= 4) {
+      i = j
+    } else {
+      let k = j
+      while (k < raw.length) {
+        const c = raw.charCodeAt(k)
+        if (c === 10 || c === 13) break
+        if (c !== 32 && c !== 9) return null
+        k++
+      }
+      i = k
+    }
+    if (i >= raw.length) break
+    while (i < raw.length) {
+      const c = raw.charCodeAt(i)
+      if (c === 13) {
+        text += '\r'
+        map.push(i)
+        i++
+        if (i < raw.length && raw.charCodeAt(i) === 10) {
+          text += '\n'
+          map.push(i)
+          i++
+        }
+        break
+      }
+      if (c === 10) {
+        text += '\n'
+        map.push(i)
+        i++
+        break
+      }
+      text += raw[i]!
+      map.push(i)
+      i++
+    }
+  }
+  if (map.length !== text.length) return null
+  return { text, map }
+}
+
+function sectionKind(block: BlockView): boolean {
+  if (block.kind === 'table') return true
+  if (block.kind !== 'heading') return false
+  const depth = (block.mdast as { depth?: number } | null)?.depth ?? 0
+  return depth >= 2
+}
+
+function rawIndex(map: number[], textOffset: number): number {
+  if (map.length === 0) return 0
+  if (textOffset <= 0) return map[0]!
+  if (textOffset >= map.length) return map[map.length - 1]! + 1
+  return map[textOffset]!
+}
+
+function coversRange(blocks: BlockView[], start: number, end: number, raw: string): boolean {
+  if (blocks.length === 0 || blocks[0]!.start !== start || blocks[blocks.length - 1]!.end !== end) return false
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]!
+    if (block.end <= block.start) return false
+    if (i > 0 && block.start !== blocks[i - 1]!.end) return false
+    if (block.raw !== raw.slice(block.start - start, block.end - start)) return false
+  }
+  return true
+}
+
+/** 把去缩进后的块映射回原文下标。行首空格落在空白缝里，多行块中间的缩进留在该块 raw 中。 */
+function remapLifted(inner: BlockView[], raw: string, base: number, map: number[]): BlockView[] {
+  const out: BlockView[] = []
+  let cursor = 0
+  const push = (relS: number, relE: number, block: BlockView | null) => {
+    if (relE <= relS) return
+    const absS = base + relS
+    const absE = base + relE
+    const slice = raw.slice(relS, relE)
+    const prev = out[out.length - 1]
+    const gap = block === null || (block.kind === 'unknown' && slice.trim() === '')
+    if (gap && prev && prev.kind === 'unknown' && prev.mdast == null && prev.end === absS && prev.raw.trim() === '') {
+      prev.end = absE
+      prev.raw = raw.slice(prev.start - base, relE)
+      prev.id = `b${prev.start}:${absE}`
+      return
+    }
+    out.push({
+      id: `b${absS}:${absE}`,
+      kind: block?.kind ?? 'unknown',
+      start: absS,
+      end: absE,
+      raw: slice,
+      mdast: gap ? null : (block?.mdast ?? null),
+      dirty: false,
+    })
+  }
+  for (const block of inner) {
+    const relS = rawIndex(map, block.start)
+    const relE = rawIndex(map, block.end)
+    if (relS > cursor) push(cursor, relS, null)
+    const from = Math.max(relS, cursor)
+    if (relE > from) push(from, relE, block)
+    cursor = Math.max(cursor, relE)
+  }
+  if (cursor < raw.length) push(cursor, raw.length, null)
+  return out
+}
+
+function expandIndentedCode(block: BlockView): BlockView[] | null {
+  const raw = block.raw
+  if (indentLiftDepth >= MAX_INDENT_LIFT) return null
+  if (!INDENTED_CODE_START.test(raw) || FENCED_CODE.test(raw)) return null
+  const dedented = dedentIndentedCode(raw)
+  if (!dedented || dedented.text.length === 0 || dedented.text.length >= raw.length) return null
+  if (!looksLikeMarkdownSection(dedented.text)) return null
+  indentLiftDepth++
+  let inner: BlockView[]
+  try {
+    inner = parseBlocksOriginal(dedented.text)
+  } finally {
+    indentLiftDepth--
+  }
+  if (!inner.some(sectionKind)) return null
+  const lifted = remapLifted(inner, raw, block.start, dedented.map)
+  if (!coversRange(lifted, block.start, block.end, raw)) return null
+  return lifted
+}
+
+/**
+ * 缩进代码里如果能看出二级及以上标题或 GFM 表格，就按去缩进后的 Markdown 拆块。
+ * `# 注释` 和普通代码留在代码块里。围栏代码不动。拆开后 raw 仍拼回原来的字节。
+ */
+export function liftIndentedMarkdown(blocks: BlockView[]): BlockView[] {
+  let changed = false
+  const out: BlockView[] = []
+  for (const block of blocks) {
+    if (block.kind !== 'code') {
+      out.push(block)
+      continue
+    }
+    const lifted = expandIndentedCode(block)
+    if (!lifted) {
+      out.push(block)
+      continue
+    }
+    changed = true
+    out.push(...lifted)
+  }
+  return changed ? out : blocks
+}
+
 function parseBlockRootsUnrepaired(raw: string): unknown[] {
   const tree = fromMarkdown(raw, { extensions, mdastExtensions }) as {
     children: unknown[]
@@ -376,19 +589,88 @@ function parseBlockRootsUnrepaired(raw: string): unknown[] {
   return tree.children
 }
 
+function blockRootsOf(raw: string, defs?: import('./chunk.ts').DefinitionSet): unknown[] {
+  const parsed = defs ? reparseWithDefs(raw, defs) : raw
+  return parseBlockRootsUnrepaired(parsed)
+    .map((node) => {
+      const n = node as { type?: string; position?: { start?: { offset?: number }; end?: { offset?: number } } }
+      if (n.type !== 'table') return node
+      const s = n.position?.start?.offset ?? 0
+      const e = n.position?.end?.offset ?? raw.length
+      if (s >= raw.length) return null
+      return repairTableMdast(raw.slice(s, Math.min(e, raw.length)), node)
+    })
+    .filter((n) => n !== null)
+}
+
+function rootsHaveSection(nodes: unknown[]): boolean {
+  for (const node of nodes) {
+    const n = node as { type?: string; depth?: number }
+    if (n.type === 'table') return true
+    if (n.type === 'heading' && (n.depth ?? 0) >= 2) return true
+  }
+  return false
+}
+
+function rootsHaveTable(nodes: unknown[]): boolean {
+  return nodes.some((node) => (node as { type?: string }).type === 'table')
+}
+
+/** 行首空白占多少列。空格 1，Tab 落到下一个 4 列。 */
+function whitespaceColumns(ws: string): number {
+  let col = 0
+  for (let i = 0; i < ws.length; i++) {
+    const c = ws.charCodeAt(i)
+    if (c === 32) col++
+    else if (c === 9) col += 4 - (col % 4)
+    else break
+  }
+  return col
+}
+
+/**
+ * 提升后的多行表格，续行仍带着原来的缩进（空格必须留在 raw 里才能拼回原文）。
+ * 只处理「首行已经是表格行、续行整段缩进」这一种。列表项里的标题不能剥，
+ * 否则失焦重解析会把标题拆到列表外面。
+ * 八空格会剥满，只剥一层四空格的话分隔行仍然对不齐。
+ */
+function stripContinuationIndent(raw: string): string | null {
+  const nl = raw.includes('\r\n') ? '\r\n' : '\n'
+  const lines = raw.split(nl)
+  if (lines.length < 2 || !/^\|/.test(lines[0] ?? '')) return null
+  let prefix: string | null = null
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (line.trim() === '') continue
+    const ws = /^[ \t]*/.exec(line)?.[0] ?? ''
+    if (whitespaceColumns(ws) < 4) return null
+    if (prefix === null || ws.length < prefix.length) prefix = ws
+  }
+  if (!prefix) return null
+  // 取续行共有的那一段空白，而不是其中最短一行的全部空白。
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (line.trim() === '') continue
+    if (!line.startsWith(prefix)) {
+      while (prefix.length > 0 && !line.startsWith(prefix)) prefix = prefix.slice(0, -1)
+    }
+  }
+  if (whitespaceColumns(prefix) < 4) return null
+  const out = lines.map((line, index) => (index === 0 || !line.startsWith(prefix) ? line : line.slice(prefix.length)))
+  return out.join(nl)
+}
+
 /**
  * 解析一块 raw，返回全部块级根节点（一段改成两段时预览不能只画第一个）。
  */
 export function parseBlockRoots(raw: string, defs?: import('./chunk.ts').DefinitionSet): unknown[] {
-  const parsed = defs ? reparseWithDefs(raw, defs) : raw
-  return parseBlockRootsUnrepaired(parsed).map((node) => {
-    const n = node as { type?: string; position?: { start?: { offset?: number }; end?: { offset?: number } } }
-    if (n.type !== 'table') return node
-    const s = n.position?.start?.offset ?? 0
-    const e = n.position?.end?.offset ?? raw.length
-    if (s >= raw.length) return null
-    return repairTableMdast(raw.slice(s, Math.min(e, raw.length)), node)
-  }).filter((n) => n !== null)
+  const roots = blockRootsOf(raw, defs)
+  if (rootsHaveSection(roots)) return roots
+  const stripped = stripContinuationIndent(raw)
+  if (!stripped) return roots
+  const alt = blockRootsOf(stripped, defs)
+  // 只接受「剥开后真的是表格」。新冒出来的标题不算——那是列表项被拆平了。
+  return rootsHaveTable(alt) ? alt : roots
 }
 
 /**

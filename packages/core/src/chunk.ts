@@ -1,7 +1,8 @@
 // 分块解析：整篇 fromMarkdown 是超线性的（实测 2.3MB ≈ 10s），按安全边界切成小片后近线性。
 //
 // 安全边界 = 空行之后、不在任何跨行结构里、也不是列表续项的行首。判据是对 micromark
-// 规则的模仿，会有漏网，所以切完再做两道解析后检查（吞尾、接缝），判错就合并重解析。
+// 规则的模仿，会有漏网，所以切完再做三道解析后检查（吞尾、列表接缝、缩进代码接缝），
+// 判错就合并重解析。
 // 结果与整篇解析严格等价，chunk.test.ts 盯着这条。
 
 import { fromMarkdown } from 'mdast-util-from-markdown'
@@ -9,6 +10,7 @@ import {
   carveTableTail,
   extensions,
   kindFromMdast,
+  liftIndentedMarkdown,
   mdastExtensions,
   mergeDetailsBlocks,
   parseOne,
@@ -361,6 +363,53 @@ function splitsAList(prev: Piece, next: Piece): boolean {
   return listMarkerChar(a.raw) === listMarkerChar(b.raw) && listMarkerChar(a.raw) !== ''
 }
 
+/**
+ * 空行分不开两段缩进代码：CommonMark 会把它们收成同一块。
+ * 切点落在这种空行上时，分块结果会比整篇少并进空行，后面的提升也看不到完整附录。
+ * 小段逐片合并；一旦超过上限，整段缩进代码改成一次解析，避免平方，也避免尾巴留成代码。
+ */
+const INDENT_MERGE_MAX = 256 * 1024
+
+function isIndentedCodeRaw(raw: string): boolean {
+  return /^(?: {4,}|\t)/.test(raw)
+}
+
+function isIndentedCodeSeam(prev: Piece, next: Piece): boolean {
+  const a = contentTail(prev.blocks)
+  const b = contentHead(next.blocks)
+  if (!a || !b || a.kind !== 'code' || b.kind !== 'code') return false
+  return isIndentedCodeRaw(a.raw) && isIndentedCodeRaw(b.raw)
+}
+
+function splitsIndentedCode(prev: Piece, next: Piece): boolean {
+  if (next.end - prev.start > INDENT_MERGE_MAX) return false
+  return isIndentedCodeSeam(prev, next)
+}
+
+/** 从 start 起，连续的空行或四空格 / Tab 行延伸到哪里（不含后面的普通行）。 */
+function indentedCodeEnd(text: string, start: number): number {
+  let i = start
+  let end = start
+  while (i < text.length) {
+    let lineEnd = text.indexOf('\n', i)
+    if (lineEnd === -1) lineEnd = text.length
+    const line = text.slice(i, lineEnd).replace(/\r$/, '')
+    const rest = lineEnd < text.length ? lineEnd + 1 : lineEnd
+    if (line.trim() === '' || /^(?: {4,}|\t)/.test(line)) {
+      end = rest
+      i = rest
+      if (rest === text.length) break
+      continue
+    }
+    break
+  }
+  return end
+}
+
+function sameSeam(prev: Piece, next: Piece): boolean {
+  return splitsAList(prev, next) || splitsIndentedCode(prev, next)
+}
+
 function parsePiece(text: string, start: number, end: number): Piece {
   const slice = text.slice(start, end)
   const nodes = parseTree(slice)
@@ -390,14 +439,24 @@ function firstPass(text: string, target: number): { pieces: Piece[]; defs: Defin
       i++
     }
   }
-  // 接缝：两侧是同一个列表 → 合并
+  // 接缝：两侧是同一个列表，或同一段缩进代码 → 合并。
+  // 缩进代码超过上限时不再逐片长，整段一次解析。
   for (let i = 0; i < pieces.length - 1; ) {
-    if (splitsAList(pieces[i]!, pieces[i + 1]!)) {
-      const merged = parsePiece(text, pieces[i]!.start, pieces[i + 1]!.end)
+    const prev = pieces[i]!
+    const next = pieces[i + 1]!
+    if (sameSeam(prev, next)) {
+      const merged = parsePiece(text, prev.start, next.end)
       pieces.splice(i, 2, merged)
-    } else {
-      i++
+      continue
     }
+    if (isIndentedCodeSeam(prev, next)) {
+      let j = i + 1
+      while (j + 1 < pieces.length && isIndentedCodeSeam(pieces[j]!, pieces[j + 1]!)) j++
+      const merged = parsePiece(text, prev.start, pieces[j]!.end)
+      pieces.splice(i, j - i + 1, merged)
+      continue
+    }
+    i++
   }
 
   const defs = emptyDefinitionSet()
@@ -457,7 +516,7 @@ function parseBlocksChunked(text: string, opts?: ChunkOptions): BlockView[] {
   if (text.length === 0) return parseBlocksOriginal(text)
   const target = opts?.target ?? DEFAULT_TARGET
   const { pieces, defs } = firstPass(text, target)
-  const blocks = secondPass(text, pieces, defs)
+  const blocks = liftIndentedMarkdown(secondPass(text, pieces, defs))
   return mergeDetailsBlocks(blocks, text)
 }
 
@@ -500,7 +559,7 @@ export function finalizeChunkedBlocks(
   text: string,
   opts?: import('./parse.ts').MergeDetailsOptions,
 ): BlockView[] {
-  return mergeDetailsBlocks(blocks, text, opts)
+  return mergeDetailsBlocks(liftIndentedMarkdown(blocks), text, opts)
 }
 
 /**
@@ -543,9 +602,30 @@ export function createChunkedParser(text: string, opts?: ChunkOptions): ChunkedP
             piece = parsePiece(text, piece.start, bounds[index + 1]!)
             index++
           }
-          // 接缝：与上一片是同一个列表 → 撤回上一片的块，合并
+          // 接缝：与上一片是同一个列表，或同一段缩进代码 → 撤回上一片再合并。
+          // 缩进代码超过上限时，把这一段剩下的边界一次解析完。
           const prev = pieces.at(-1)
-          if (prev && splitsAList(prev, piece) && opts?.canRetract?.(prev.blocks) !== false) {
+          const overIndentCap =
+            !!prev &&
+            isIndentedCodeSeam(prev, piece) &&
+            !splitsIndentedCode(prev, piece) &&
+            opts?.canRetract?.(prev.blocks) !== false
+          if (overIndentCap && prev) {
+            const regionEnd = indentedCodeEnd(text, prev.start)
+            let endBound = index
+            while (endBound < bounds.length - 1 && bounds[endBound]! < regionEnd) endBound++
+            const end = bounds[endBound] ?? text.length
+            index = endBound
+            const merged = parsePiece(text, prev.start, end)
+            pieces.pop()
+            const drop = prev.blocks.length
+            if (out.length >= drop) out.splice(out.length - drop, drop)
+            else {
+              retract += drop - out.length
+              out.length = 0
+            }
+            piece = merged
+          } else if (prev && sameSeam(prev, piece) && opts?.canRetract?.(prev.blocks) !== false) {
             const merged = parsePiece(text, prev.start, piece.end)
             pieces.pop()
             const drop = prev.blocks.length
