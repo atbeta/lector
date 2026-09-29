@@ -3,6 +3,14 @@
 // 屏上那张图会被栏宽裁切，截图只能拍到窗口里的一块。这里按 SVG 自己的尺寸出整张。
 // 栅格化不拿屏上的 SVG：流程图文字在 foreignObject 里，画进画布会丢字。
 // 导出另渲一版纯文字，并由 mermaid.ts 的队列保证不和屏上的渲染抢全局配置。
+//
+// 栅格化的两条坑，都只影响 PNG / JPEG / 复制（SVG 只写文本，不栅格化）：
+//   1. 壳的 CSP img-src 原先不放行 blob:，`<img src=blob:…>` 一律被拦 → 所有图都失败。
+//      现在 CSP 也放行 blob: 兜底，但栅格化统一走 data URL（svgDataUrl），不依赖 CSP。
+//   2. 少数图（如 journey）不认 htmlLabels，硬把标签塞进 foreignObject；这种 SVG
+//      画进画布会把 canvas 标成 tainted，toBlob/toDataURL 直接抛错。
+//      mermaid 给它们配了 <switch> + <text> 回退，导出前摘掉 foreignObject 即可
+//      （stripForeignObjects）。
 
 import { saveBinaryFile, writeClipboardImage } from '@lector/shell-web'
 import { hideContextMenu, isContextMenuOpenFor, showContextMenu } from './contextMenu.ts'
@@ -17,6 +25,20 @@ export type MermaidExportKind = 'clipboard' | 'svg' | 'png' | 'jpeg'
 
 export function svgHasForeignObject(svg: string): boolean {
   return /<foreignObject[\s>/]/i.test(svg)
+}
+
+/**
+ * 摘掉导出 SVG 里的 foreignObject。
+ *
+ * foreignObject 里的 HTML 会污染 canvas（drawImage 后 toBlob/toDataURL 抛 tainted），
+ * journey 这类不认 htmlLabels 的图就卡在这里。mermaid 把它们包在
+ * `<switch><foreignObject/><text/></switch>` 里，foreignObject 一摘，switch 自动落到
+ * 同位置同字号的 `<text>` 上，字形与布局不变。自闭合的 foreignObject 一并处理。
+ */
+export function stripForeignObjects(svg: string): string {
+  return svg
+    .replace(/<foreignObject\b[^<>]*\/>/gi, '')
+    .replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/gi, '')
 }
 
 /** 读 viewBox（优先）或 width/height。百分比宽度不算尺寸。 */
@@ -51,7 +73,7 @@ export function exportPixelSize(
 /** 写成可脱离页面打开的 SVG：像素宽高、去掉 max-width，并写上带中文的字体。 */
 export function prepareExportSvg(svg: string): string {
   const size = readSvgSize(svg)
-  let out = svg
+  let out = stripForeignObjects(svg)
   if (size) {
     out = out.replace(/<svg\b([^>]*)>/, (_match, attrs: string) => {
       let next = attrs
@@ -74,42 +96,55 @@ function paperColor(): string {
   return raw ? `rgb(${raw})` : '#ffffff'
 }
 
+/**
+ * 把 SVG 文本变成 `<img>` 能加载的 data URL。
+ *
+ * 用 data URL 而不是 blob URL：不受壳的 CSP 约束，浏览器预览与壳里行为一致。
+ * （tauri.conf.json 的 img-src 现已放行 blob: 作兜底，但这里不依赖它。）
+ */
+export function svgDataUrl(svg: string): string {
+  const bytes = new TextEncoder().encode(svg)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return `data:image/svg+xml;base64,${btoa(binary)}`
+}
+
 export async function rasterizeSvg(
   svg: string,
   mime: 'image/png' | 'image/jpeg',
   background: string,
 ): Promise<Blob> {
-  if (svgHasForeignObject(svg)) throw new Error('foreignObject')
   const prepared = prepareExportSvg(svg)
+  // prepareExportSvg 已摘掉 foreignObject；万一还剩（没有 <text> 回退的图），
+  // 画进画布会污染 canvas，这里提前报出来，别等 toBlob 抛一个看不懂的错。
+  if (svgHasForeignObject(prepared)) throw new Error('foreignObject')
   const size = readSvgSize(prepared)
   if (!size) throw new Error('svg size')
   const px = exportPixelSize(size.width, size.height)
-  const url = URL.createObjectURL(new Blob([prepared], { type: 'image/svg+xml;charset=utf-8' }))
-  try {
-    const img = new Image()
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject(new Error('svg image'))
-      img.src = url
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = px.width
-    canvas.height = px.height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('no canvas')
-    if (mime === 'image/jpeg') {
-      ctx.fillStyle = background
-      ctx.fillRect(0, 0, px.width, px.height)
-    }
-    ctx.drawImage(img, 0, 0, px.width, px.height)
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, mime, mime === 'image/jpeg' ? 0.92 : undefined)
-    })
-    if (!blob) throw new Error('encode')
-    return blob
-  } finally {
-    URL.revokeObjectURL(url)
+  const img = new Image()
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error('svg image'))
+    img.src = svgDataUrl(prepared)
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = px.width
+  canvas.height = px.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('no canvas')
+  if (mime === 'image/jpeg') {
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, px.width, px.height)
   }
+  ctx.drawImage(img, 0, 0, px.width, px.height)
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, mime, mime === 'image/jpeg' ? 0.92 : undefined)
+  })
+  if (!blob) throw new Error('encode')
+  return blob
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -144,7 +179,6 @@ export async function exportMermaidDiagram(
     ])
     return ok ? 'saved' : 'cancelled'
   }
-  if (svgHasForeignObject(svg)) throw new Error('foreignObject')
   const mime = kind === 'jpeg' ? 'image/jpeg' : 'image/png'
   const blob = await rasterizeSvg(svg, mime, paperColor())
   if (kind === 'clipboard') {

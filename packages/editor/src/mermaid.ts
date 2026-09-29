@@ -182,7 +182,12 @@ export function mermaidExportFontStack(base: string): string {
   return `${trimmed}, ${EXPORT_FONT_FALLBACK}`
 }
 
-/** 导出必须是 SVG 文字，不能是 foreignObject 里的 HTML，否则画成 PNG 会丢字。根上的 htmlLabels 压过图类型自己的开关。 */
+/**
+ * 导出必须是 SVG 文字，不能是 foreignObject 里的 HTML，否则画成 PNG 会丢字
+ *（canvas 被污染，toBlob 直接失败）。根上的 htmlLabels 压过图类型自己的开关。
+ * 少数图（journey）不认这个开关，仍出 foreignObject；它们的 <switch> 里另带一个
+ * <text> 回退，导出时由 mermaidExport 的 stripForeignObjects 摘掉即可。
+ */
 export function forceTextLabels(config: Record<string, unknown>): Record<string, unknown> {
   return { ...config, htmlLabels: false }
 }
