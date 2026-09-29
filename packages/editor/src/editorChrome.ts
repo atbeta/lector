@@ -237,13 +237,26 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       statusRight.replaceChildren()
       return
     }
-    const stats = countBlocks(blocks)
     const parsing = blocks.some((b) => b.kind === 'pending')
+    if (parsing) {
+      // 尾巴还在解析时不要跑 countBlocks：占位块的 raw 是剩下的好几 MB，
+      // 而且词数只覆盖已解析的开头，状态行会一直写着「解析中」。
+      // 词数用后台近似值（见 beginWordCount），行数用打开时扫到的总行数。
+      const { words, totalLines } = getLargeInfo()
+      statusRight.replaceChildren()
+      // 行数在打开时就已经扫完。词数还在后台算时先出行数，不拿「解析中」占着状态行。
+      if (words !== null) statusRight.append(item(t('statWords', { n: formatCount(words) })))
+      if (totalLines > 0) statusRight.append(item(t('statLines', { n: formatCount(totalLines) })))
+      else if (words === null) statusRight.append(item(t('statParsing')))
+      if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
+      statusRight.append(item(saveStateText(), getSession().dirty))
+      return
+    }
+    const stats = countBlocks(blocks)
     const sections = blocks.filter((b) => b.kind === 'heading').length
     const minutes = readingMinutes(stats)
 
     statusRight.replaceChildren()
-    if (parsing) statusRight.append(item(t('statParsing')))
     if (stats.words === 0) {
       statusRight.append(item(t('statEmpty')))
     } else {

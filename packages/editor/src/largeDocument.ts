@@ -31,14 +31,14 @@ export const HARD_MAX_BYTES = 20 * 1024 * 1024
 export const MAX_BLOCK_RUN = 5_000
 
 /**
- * 投影块数上限。这是**可交互**预算，不是内存崩溃线。
+ * 投影块数上限。这是内存线：再往上 webview 会被 mdast 吃光，才离开块预览。
  *
- * 块一进 DOM 就参与布局。阅读档虽有 content-visibility，3MB、每段约 400 字
- * （约 5700 块）仍会让状态栏停在「解析中」数秒，滚动掉到十几帧以下。
- * 更密的短段落（同样 3MB 可以到数万块）只会更糟。
- * 预算放在这之下：这种文档回纯文本；普通长文（约一千块）和约 1MB / 3700 块的散文仍走块 IR。
+ * 分块解析之后，耗时和内存随块数线性增长。大约 15 万块是 20 秒 / 1.2GB。
+ * 10MB 空行分隔的散文大约 8 万块，3MB 普通段落大约几千到几万块，都低于这条线，
+ * 留在块 IR 里阅读，预览不降级。屏外块先不画 HTML，解析让出主线程，
+ * 所以打开就能读，不必等全文进 DOM。
  */
-export const MAX_IR_BLOCKS = 4_000
+export const MAX_IR_BLOCKS = 150_000
 
 function isBlankLine(text: string, from: number, to: number): boolean {
   for (let i = from; i < to; i++) {
@@ -137,9 +137,8 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
    * 大文件模式：不解析、不建块，整篇挂一个裸 CM6 当可编辑缓冲。
    *
    * 为什么不是块 IR：块级 IR 的成本几乎只由**块数**决定。分块解析把缩放拉成了线性，
-   * 但块一进 DOM 就参与布局，大约四千块之后滚动就掉帧，状态栏也会停在
-   * 「解析中」（见 MAX_IR_BLOCKS）。CM6 自带视口虚拟化，装得下整篇、只渲染可见行，
-   * 于是「能编辑、能保存」这条死线始终成立。
+   * 但大约 15 万块会到 20 秒 / 1.2GB（见 MAX_IR_BLOCKS）。CM6 自带视口虚拟化，
+   * 装得下整篇、只渲染可见行，于是「能编辑、能保存」这条死线始终成立。
    * 代价是大文件下没有块级预览渲染（只有带语法高亮的纯文本）——这是刻意的降级。
    *
    * 判据分两步（见 HARD_MAX_BYTES / MAX_BLOCK_RUN / MAX_IR_BLOCKS）：
@@ -158,6 +157,9 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
     const scan = scanText(text)
     largeBytes = bytes
     largeTotalLines = scan.lines
+    largeWords = null
+    cancelWordScan?.()
+    cancelWordScan = null
     largeMode = precheckTooLarge(bytes, scan.longestRun)
     if (largeMode) largeDirty = false
     return largeMode
@@ -233,7 +235,15 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
       },
       { passive: true },
     )
-    // 词数后台算一次（分片，不阻塞输入）。算完刷新状态行；换文档时取消。
+    beginWordCount()
+  }
+
+  /**
+   * 后台算一次词数（分片，不阻塞阅读）。
+   * 大文件和还在分片解析的长文都走这里：精确的 countBlocks 要等 mdast 齐全，
+   * 那之前状态行不该停在「解析中」。
+   */
+  function beginWordCount(): void {
     cancelWordScan?.()
     largeWords = null
     cancelWordScan = countLargeWords(getSourceText(), (words) => {
@@ -267,6 +277,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
   return {
     configure,
     overBlockBudget,
+    beginWordCount,
     destroy,
     deactivate,
     markSaved,
