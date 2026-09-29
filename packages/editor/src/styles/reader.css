@@ -234,6 +234,35 @@
   border-radius: var(--radius-media);
 }
 .table-wrap table { margin: 0; }
+/* 阅读档：表头跟着阅读区走，宽表借两侧留白，正文栏宽不动。
+   表套默认 overflow-x:auto 会把 sticky 关在格子里（另一轴再写 clip，
+   规范也会把它算成 hidden，同样是滚动容器）。阅读档先放开，
+   表头才能贴着 #content。真正比窗口还宽的表才加 .is-scroll 自己横滑，
+   那种表的表头吸不住阅读区。
+   突出量 = 栏边留白减去 16px，给块轨道留一条缝，也不贴到窗口沿。 */
+html[data-mode='read'] .table-wrap {
+  overflow: visible;
+}
+html[data-mode='read'] .table-wrap.is-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+html[data-mode='read'] .table-wrap.is-wide {
+  --breakout: max(0px, calc(var(--content-pad) - 16px));
+  width: calc(100% + 2 * var(--breakout));
+  max-width: calc(100% + 2 * var(--breakout));
+  margin-inline: calc(var(--breakout) * -1);
+}
+html[data-mode='read'] .reading-prose thead th {
+  position: sticky;
+  /* #content 的上内边距算进 sticky 的包含块，top:0 会悬在沿下 30px。
+     抵消之后表头才贴住阅读区上沿。 */
+  top: calc(var(--content-pad-top) * -1);
+  z-index: 1;
+  /* 半透明底会透出滚过去的行。纸色打底，再叠原来的淡底。 */
+  background-color: rgb(var(--paper));
+  background-image: linear-gradient(rgb(var(--muted) / 0.55), rgb(var(--muted) / 0.55));
+}
 .reading-prose img {
   display: block;
   max-width: 100%;

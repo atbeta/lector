@@ -33,6 +33,8 @@ import { showSvgInLightbox } from './lightbox.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
+import { scrollAnchorDelta } from './scrollAnchor.ts'
+import { tableNeedsBreakout } from './wideTable.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
 import { createDocumentSession, type DocumentSession } from './documentSession.ts'
@@ -141,7 +143,26 @@ export function createDocumentEditor({
     },
     { passive: true },
   )
+  // 窗口变化会改 #content 的外框。阅读列宽、字号只改根节点的样式，外框不动，
+  // 所以两处都要重测可见表格。滚动本身不改栏宽。
+  let tableMeasureFrame = 0
+  const scheduleTableMeasure = () => {
+    if (tableMeasureFrame) return
+    tableMeasureFrame = requestAnimationFrame(() => {
+      tableMeasureFrame = 0
+      measureNearTables()
+    })
+  }
+  const tableObserver = new ResizeObserver(scheduleTableMeasure)
+  tableObserver.observe(contentEl)
+  const columnObserver = new MutationObserver(scheduleTableMeasure)
+  columnObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style', 'class', 'data-reading-theme'],
+  })
   let paintObserver: IntersectionObserver | null = null
+  /** 见 chrome.css：开着 overflow-anchor 时不要再手工改 scrollTop。 */
+  const manualScrollAnchor = getComputedStyle(contentEl).overflowAnchor === 'none'
   const shellQueue: HTMLElement[] = []
   const shelled = new WeakSet<HTMLElement>()
   const blockIndex = new Map<string, BlockView>()
@@ -882,13 +903,82 @@ export function createDocumentEditor({
       surface: blockPaintSurface(mode, focused),
     }
     if (sameBlockPaint(lastPaint.get(block.id), next)) return
+    // 占位块的估高和真实高度往往对不上。只补偿「整块还在视口顶边之上」的那一段，
+    // 人正在看的块长高就留在眼前。
+    const wasShell = shelled.has(el)
+    const before = wasShell ? el.getBoundingClientRect() : null
+    const viewportTop = before ? contentEl.getBoundingClientRect().top : 0
     el.style.minHeight = ''
+    el.style.containIntrinsicSize = ''
     shelled.delete(el)
     paintObserver?.unobserve(el)
     renderBlockContent(el, block)
     // 必须在 renderBlockContent 之后：它每轮 replaceChildren 会把子节点清掉
     appendBlockChrome(el, block)
     lastPaint.set(block.id, next)
+    if (before && before.bottom <= viewportTop + 1) anchorShellAbove(el, before, viewportTop)
+    markWideTables(el)
+  }
+
+  /**
+   * 视口上方的块可能正被 content-visibility 跳过，直接量到的还是估高。
+   * 先强制排版，再把真实高度写回 contain-intrinsic-size：跳过绘制时滚动高度才站得住。
+   */
+  function anchorShellAbove(el: HTMLElement, before: DOMRect, viewportTop: number): void {
+    el.style.contentVisibility = 'visible'
+    const newHeight = el.getBoundingClientRect().height
+    el.style.contentVisibility = ''
+    if (newHeight > 0) el.style.containIntrinsicSize = `auto ${newHeight}px`
+    // 默认 overflow-anchor 已经按视口上方的高度差补过 scrollTop。
+    // 只有它被关掉时才走 scrollAnchorDelta，避免补两次。
+    if (!manualScrollAnchor) return
+    const delta = scrollAnchorDelta({
+      blockTop: before.top,
+      blockBottom: before.bottom,
+      viewportTop,
+      oldHeight: before.height,
+      newHeight,
+    })
+    if (delta !== 0) contentEl.scrollTop = Math.max(0, contentEl.scrollTop + delta)
+  }
+
+  /** 把 #content 已经算好的左右留白写成像素，宽表的负边距才和栏边是同一个数。 */
+  function syncContentPad(): void {
+    const pad = getComputedStyle(contentEl).paddingLeft
+    if (pad && contentEl.style.getPropertyValue('--content-pad') !== pad) {
+      contentEl.style.setProperty('--content-pad', pad)
+    }
+  }
+
+  /** 表格比所在块的内容盒更宽，才借两侧留白。窄表不加类。 */
+  function markWideTables(el: HTMLElement): void {
+    const wraps = el.querySelectorAll<HTMLElement>('.table-wrap')
+    if (wraps.length === 0) return
+    syncContentPad()
+    const column = el.clientWidth
+    const pane = contentEl.clientWidth
+    for (const wrap of wraps) {
+      const table = wrap.querySelector('table')
+      const needed = table?.scrollWidth ?? 0
+      const wide = !!table && tableNeedsBreakout(needed, column)
+      wrap.classList.toggle('is-wide', wide)
+      // 突出到留白里仍比阅读区宽：只能在表内横滑。横滑容器会截住 sticky。
+      wrap.classList.toggle('is-scroll', wide && needed > pane - 8)
+    }
+  }
+
+  /** 栏宽变化后，只重量视口附近的表，避免把屏外表格整篇强制排版。 */
+  function measureNearTables(): void {
+    syncContentPad()
+    const view = contentEl.getBoundingClientRect()
+    if (view.height <= 0) return
+    const margin = view.height
+    for (const el of contentEl.querySelectorAll<HTMLElement>(':scope > .block')) {
+      if (!el.querySelector('.table-wrap')) continue
+      const rect = el.getBoundingClientRect()
+      if (rect.bottom < view.top - margin || rect.top > view.bottom + margin) continue
+      markWideTables(el)
+    }
   }
 
   function applyBlockMeta(el: HTMLElement, block: BlockView) {

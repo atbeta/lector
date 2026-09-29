@@ -438,6 +438,9 @@ html[data-shell='windows'] .window-controls { display: flex; }
   grid-area: content;
   overflow-y: auto;
   overflow-x: hidden;
+  /* 视口上方的占位块换成真实高度时，靠浏览器的 scroll anchoring 保住阅读位置。
+     不要改成 none：手工再补 scrollTop 会和它叠在一起，正文被推上去。 */
+  overflow-anchor: auto;
   /* 大纲跳转是顶部对齐（scrollIntoView block:'start'），
      留 24px 呼吸，标题不贴容器顶边 */
   scroll-padding-top: 24px;
@@ -447,7 +450,10 @@ html[data-shell='windows'] .window-controls { display: flex; }
      两边的留白，不需要给块再加一层包裹元素。 */
   max-width: none;
   margin-inline: 0;
-  padding-block: 30px 18vh;
+  --content-pad-top: 30px;
+  padding-block: var(--content-pad-top) 18vh;
+  /* 留白继续用这条公式。--content-pad 由脚本写成算好的像素，
+     宽表才能按同一侧留白向外借，而不会把百分比再按表格自己的宽度算一遍。 */
   padding-inline: max(32px, calc((100% - var(--reading-max-w)) / 2));
   width: 100%;
   box-sizing: border-box;
@@ -499,6 +505,11 @@ html[data-mode='read'] .block:not(.gap):hover { background: transparent; }
 html[data-mode='read'] #content.blocks-cv > .block:not(.focused):not(.gap) {
   content-visibility: auto;
   contain-intrinsic-size: auto 4.5em;
+}
+/* 表格块不跳过绘制：content-visibility 的 paint contain 会把 sticky 表头关在块里。
+   表通常不多，换来的是表头能贴着阅读区走。 */
+html[data-mode='read'] #content.blocks-cv > .block:not(.focused):not(.gap):has(.table-wrap) {
+  content-visibility: visible;
 }
 
 /* ───────────── 块指示器（左缘轨道 + 把手） ─────────────
