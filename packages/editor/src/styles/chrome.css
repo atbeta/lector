@@ -439,7 +439,8 @@ html[data-shell='windows'] .window-controls { display: flex; }
   overflow-y: auto;
   overflow-x: hidden;
   /* 视口上方的占位块换成真实高度时，靠浏览器的 scroll anchoring 保住阅读位置。
-     不要改成 none：手工再补 scrollTop 会和它叠在一起，正文被推上去。 */
+     支持这个属性时不要再手工改 scrollTop，两份补偿会把正文推上去。
+     Safari 27 之前的 WebKit 会丢掉这条，改由脚本补。 */
   overflow-anchor: auto;
   /* 大纲跳转是顶部对齐（scrollIntoView block:'start'），
      留 24px 呼吸，标题不贴容器顶边 */

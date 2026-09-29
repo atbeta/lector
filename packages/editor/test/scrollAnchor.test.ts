@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { scrollAnchorDelta } from '../src/scrollAnchor.ts'
+import { scrollAnchorDelta, shouldAdjustScrollAnchor } from '../src/scrollAnchor.ts'
 
 describe('占位块换成真实高度后的滚动补偿', () => {
   test('整块在视口顶边之上、变高 → 补上增高', () => {
@@ -72,5 +72,15 @@ describe('占位块换成真实高度后的滚动补偿', () => {
         newHeight: 40,
       }),
     ).toBe(0)
+  })
+})
+
+describe('什么时候手工改 scrollTop', () => {
+  test('浏览器支持 overflow-anchor 时不手工补', () => {
+    expect(shouldAdjustScrollAnchor(true)).toBe(false)
+  })
+
+  test('不支持时才手工补', () => {
+    expect(shouldAdjustScrollAnchor(false)).toBe(true)
   })
 })

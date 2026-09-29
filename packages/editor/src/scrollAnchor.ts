@@ -17,3 +17,11 @@ export function scrollAnchorDelta(box: ScrollAnchorBox): number {
   if (box.blockBottom > box.viewportTop + 1) return 0
   return box.newHeight - box.oldHeight
 }
+
+/**
+ * 有 overflow-anchor 时浏览器已经补过 scrollTop，再补会把正文推上去。
+ * WebKit 在 Safari 27 之前没有这个属性，那时才手工补。
+ */
+export function shouldAdjustScrollAnchor(supportsOverflowAnchor: boolean): boolean {
+  return !supportsOverflowAnchor
+}

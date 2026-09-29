@@ -33,7 +33,7 @@ import { showSvgInLightbox } from './lightbox.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
-import { scrollAnchorDelta } from './scrollAnchor.ts'
+import { scrollAnchorDelta, shouldAdjustScrollAnchor } from './scrollAnchor.ts'
 import { tableNeedsBreakout } from './wideTable.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
@@ -161,8 +161,10 @@ export function createDocumentEditor({
     attributeFilter: ['style', 'class', 'data-reading-theme'],
   })
   let paintObserver: IntersectionObserver | null = null
-  /** 见 chrome.css：开着 overflow-anchor 时不要再手工改 scrollTop。 */
-  const manualScrollAnchor = getComputedStyle(contentEl).overflowAnchor === 'none'
+  /** 见 scrollAnchor.ts：有原生 anchoring 就别再改 scrollTop。 */
+  const manualScrollAnchor = shouldAdjustScrollAnchor(
+    typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('overflow-anchor', 'auto'),
+  )
   const shellQueue: HTMLElement[] = []
   const shelled = new WeakSet<HTMLElement>()
   const blockIndex = new Map<string, BlockView>()
@@ -956,14 +958,22 @@ export function createDocumentEditor({
     if (wraps.length === 0) return
     syncContentPad()
     const column = el.clientWidth
-    const pane = contentEl.clientWidth
+    const pad = Number.parseFloat(getComputedStyle(contentEl).paddingLeft)
+    const breakout = Number.isFinite(pad) ? Math.max(0, pad - 16) : 0
+    // 突出之后的内容盒。比这还宽才在表内横滑，否则会画出 16px 的缝又被 #content 裁掉。
+    const room = column + breakout * 2
     for (const wrap of wraps) {
       const table = wrap.querySelector('table')
-      const needed = table?.scrollWidth ?? 0
-      const wide = !!table && tableNeedsBreakout(needed, column)
+      if (!table) {
+        wrap.classList.remove('is-wide', 'is-scroll')
+        continue
+      }
+      // 先摘掉突出再量。类还在时表格被拉到突出宽度，栏变宽后就再也摘不掉。
+      wrap.classList.remove('is-wide', 'is-scroll')
+      const needed = table.scrollWidth
+      const wide = tableNeedsBreakout(needed, column)
       wrap.classList.toggle('is-wide', wide)
-      // 突出到留白里仍比阅读区宽：只能在表内横滑。横滑容器会截住 sticky。
-      wrap.classList.toggle('is-scroll', wide && needed > pane - 8)
+      wrap.classList.toggle('is-scroll', wide && needed > room + 1)
     }
   }
 
