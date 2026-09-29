@@ -141,4 +141,42 @@ describe('缩进的 Markdown 段落', () => {
     const nested = roots[0]?.children?.[0]?.children?.some((node) => node.type === 'list')
     expect(nested).toBe(true)
   })
+
+  test('列表项里的缩进标题不会被拆到列表外', () => {
+    const raw = '- 甲\n    ## 乙\n    丙\n'
+    const roots = parseBlockRoots(raw) as Array<{ type?: string }>
+    expect(roots.map((node) => node.type)).toEqual(['list'])
+    expect(parseBlocks(raw).filter((b) => b.kind !== 'unknown' || b.raw.trim() !== '').map((b) => b.kind)).toEqual(['list'])
+  })
+
+  test('八空格表格的续行在单块重解析时仍是表格', () => {
+    const text = '        | 术语 | 定义 |\n        |---|---|\n        | UCD | 团队 |\n'
+    const table = parseBlocks(text).find((b) => b.kind === 'table')
+    expect(table?.raw.startsWith('| 术语 |')).toBe(true)
+    const roots = parseBlockRoots(table?.raw ?? '') as Array<{ type?: string }>
+    expect(roots[0]?.type).toBe('table')
+    expect(JSON.stringify(roots)).toContain('UCD')
+  })
+
+  test('超过合并上限的缩进附录仍与整篇解析一致', () => {
+    const lines = ['    ## 附录\n', '\n', '    | 术语 | 定义 |\n', '    |---|---|\n', '    | UCD | 团队 |\n', '\n']
+    const row = '    段落占位把这段缩进撑过合并上限，一行写长一点免得要循环太多次。\n\n'
+    for (let i = 0; i < 8000; i++) lines.push(row)
+    lines.push('后文\n')
+    const text = lines.join('')
+    expect(text.length).toBeGreaterThan(256 * 1024)
+    const whole = parseBlocksWhole(text)
+    const chunked = parseBlocks(text, { target: 32 * 1024 })
+    expect(signature(chunked)).toBe(signature(whole))
+    expect(content(chunked).some((b) => b.kind === 'code')).toBe(false)
+    expect(content(chunked)[0]?.kind).toBe('heading')
+    const parser = createChunkedParser(text, { target: 32 * 1024 })
+    const stepped: BlockView[] = []
+    let guard = 0
+    while (!parser.done) {
+      applyStep(stepped, parser.step(8))
+      if (++guard > 100000) throw new Error('增量解析没有结束')
+    }
+    expect(signature(finalizeChunkedBlocks(stepped, text))).toBe(signature(whole))
+  })
 })

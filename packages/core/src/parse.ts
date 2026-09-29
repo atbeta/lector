@@ -612,28 +612,52 @@ function rootsHaveSection(nodes: unknown[]): boolean {
   return false
 }
 
+function rootsHaveTable(nodes: unknown[]): boolean {
+  return nodes.some((node) => (node as { type?: string }).type === 'table')
+}
+
+/** 行首空白占多少列。空格 1，Tab 落到下一个 4 列。 */
+function whitespaceColumns(ws: string): number {
+  let col = 0
+  for (let i = 0; i < ws.length; i++) {
+    const c = ws.charCodeAt(i)
+    if (c === 32) col++
+    else if (c === 9) col += 4 - (col % 4)
+    else break
+  }
+  return col
+}
+
 /**
- * 提升后的多行表格，续行仍带着原来的四空格（空格必须留在 raw 里才能拼回原文）。
- * 失焦重解析时先剥掉这层续行缩进，否则分隔行不再被认成表格。
+ * 提升后的多行表格，续行仍带着原来的缩进（空格必须留在 raw 里才能拼回原文）。
+ * 只处理「首行已经是表格行、续行整段缩进」这一种。列表项里的标题不能剥，
+ * 否则失焦重解析会把标题拆到列表外面。
+ * 八空格会剥满，只剥一层四空格的话分隔行仍然对不齐。
  */
 function stripContinuationIndent(raw: string): string | null {
   const nl = raw.includes('\r\n') ? '\r\n' : '\n'
   const lines = raw.split(nl)
-  if (lines.length < 2) return null
-  let changed = false
-  const out = lines.map((line, index) => {
-    if (index === 0) return line
-    if (line.startsWith('    ')) {
-      changed = true
-      return line.slice(4)
+  if (lines.length < 2 || !/^\|/.test(lines[0] ?? '')) return null
+  let prefix: string | null = null
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (line.trim() === '') continue
+    const ws = /^[ \t]*/.exec(line)?.[0] ?? ''
+    if (whitespaceColumns(ws) < 4) return null
+    if (prefix === null || ws.length < prefix.length) prefix = ws
+  }
+  if (!prefix) return null
+  // 取续行共有的那一段空白，而不是其中最短一行的全部空白。
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (line.trim() === '') continue
+    if (!line.startsWith(prefix)) {
+      while (prefix.length > 0 && !line.startsWith(prefix)) prefix = prefix.slice(0, -1)
     }
-    if (line.startsWith('\t')) {
-      changed = true
-      return line.slice(1)
-    }
-    return line
-  })
-  return changed ? out.join(nl) : null
+  }
+  if (whitespaceColumns(prefix) < 4) return null
+  const out = lines.map((line, index) => (index === 0 || !line.startsWith(prefix) ? line : line.slice(prefix.length)))
+  return out.join(nl)
 }
 
 /**
@@ -645,7 +669,8 @@ export function parseBlockRoots(raw: string, defs?: import('./chunk.ts').Definit
   const stripped = stripContinuationIndent(raw)
   if (!stripped) return roots
   const alt = blockRootsOf(stripped, defs)
-  return rootsHaveSection(alt) ? alt : roots
+  // 只接受「剥开后真的是表格」。新冒出来的标题不算——那是列表项被拆平了。
+  return rootsHaveTable(alt) ? alt : roots
 }
 
 /**
