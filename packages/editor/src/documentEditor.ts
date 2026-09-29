@@ -433,7 +433,7 @@ export function createDocumentEditor({
     const bytes = byteLen ?? new Blob([raw]).size
     const text = session.source.text
     // 先做开解析前的廉价预检（字节上限 + 切不开的巨块）；过了才同步解析首屏，
-    // 再按首屏密度投射全文块数——密集表格能靠这一步挡住，纯散文放得进。
+    // 再按首屏密度投射全文块数。超过可交互预算就转纯文本，不必把几万块画进 DOM。
     const opened = large.configure(text, bytes) ? null : beginOpen(text)
     if (opened === null || large.overBlockBudget(opened.blocks.length, opened.covered, text.length)) {
       session.blocks = []

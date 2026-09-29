@@ -55,16 +55,21 @@ describe('大文件判据：策略', () => {
     expect(precheckTooLarge(1_000_000, MAX_BLOCK_RUN)).toBe(false)
   })
 
-  test('字节不大但块太密的文档由投影拦下', () => {
+  test('块数超过可交互预算就走大文件，不论字节是不是还没到硬线', () => {
     // 4MB 密集 mixed：首屏 64K 字符约 3100 块 → 投影约 20 万块 → 拦
     expect(projectedTooLarge(3103, 65_536, 4_194_304)).toBe(true)
-    // 10MB 纯散文：首屏 64K 字符约 500 块 → 投影约 8 万块 → 放行
-    expect(projectedTooLarge(512, 65_536, 10_485_760)).toBe(false)
+    // 10MB 纯散文：首屏 64K 字符约 500 块 → 投影约 8 万块。
+    // 内存还撑得住，但编辑档没有屏外跳过，8 万个块滚动和编辑都不可用 → 拦
+    expect(projectedTooLarge(512, 65_536, 10_485_760)).toBe(true)
+    // 3MB 短段落散文（实测）：首屏 65695 字符 1906 块，全文约 4.2 万块。
+    // 这种文档会一直停在「解析中」，并且拖不动 → 拦
+    expect(projectedTooLarge(1906, 65_695, 3_145_796)).toBe(true)
   })
 
-  test('阈值常量彼此自洽', () => {
-    expect(MAX_IR_BLOCKS).toBeGreaterThan(143_642) // 放得下 10MB 散文实测块数
-    expect(MAX_IR_BLOCKS).toBeLessThan(151_746) // 挡得住 4MB 密集 mixed 实测块数
+  test('普通长文仍留在块 IR', () => {
+    // 首屏 64K 出 200 块，全文约 400KB → 投影约 1200 块
+    expect(projectedTooLarge(200, 65_536, 400_000)).toBe(false)
+    expect(projectBlockCount(200, 65_536, 400_000)).toBeLessThan(MAX_IR_BLOCKS)
   })
 })
 

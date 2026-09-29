@@ -31,11 +31,15 @@ export const HARD_MAX_BYTES = 20 * 1024 * 1024
 export const MAX_BLOCK_RUN = 5_000
 
 /**
- * 投影块数上限。解析成本与内存几乎只由**块数**决定，而非字节：
- * 4MB 密集 mixed（15 万块）≈ 10MB 纯散文（14 万块）≈ 20s / 1.2GB。
- * 所以用首屏采样外推全文块数来判断，纯散文放得进，密表挡得住。
+ * 投影块数上限。这是**可交互**预算，不是内存崩溃线。
+ *
+ * 15 万块大约对应 20 秒解析 / 1.2GB，webview 到那儿才会被吃光。可是编辑档
+ * 没有 content-visibility（把手在块外，contain 会裁掉点击），块一进 DOM 就参与布局。
+ * 3MB 短段落散文实测约 4.2 万块：解析本身不到 1 秒，状态栏却会一直停在「解析中」，
+ * 滚动和编辑已经不可用。10MB 散文约 8 万块，同样进不了虚拟化。
+ * 预算放在这之下，这种文档回到纯文本模式；普通长文（约一千块）仍走块 IR。
  */
-export const MAX_IR_BLOCKS = 150_000
+export const MAX_IR_BLOCKS = 12_000
 
 function isBlankLine(text: string, from: number, to: number): boolean {
   for (let i = from; i < to; i++) {
@@ -133,10 +137,10 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
   /**
    * 大文件模式：不解析、不建块，整篇挂一个裸 CM6 当可编辑缓冲。
    *
-   * 为什么不是块 IR：块级 IR 的解析成本与内存几乎只由**块数**决定（约 0.13ms/块、
-   * ~8KB/块）。分块解析把常规文档的缩放拉成了线性，但塞进太多块仍会把 webview 吃光
-   *（4MB 密集 mixed ≈ 15 万块 ≈ 20s / 1.2GB），而 CM6 自带视口虚拟化，装得下整篇、
-   * 只渲染可见行，于是「能编辑、能保存」这条死线始终成立。
+   * 为什么不是块 IR：块级 IR 的成本几乎只由**块数**决定。分块解析把缩放拉成了线性，
+   * 但编辑档没有屏外跳过，大约一万多块之后滚动和编辑就不可用，状态栏也会一直停在
+   * 「解析中」（见 MAX_IR_BLOCKS）。CM6 自带视口虚拟化，装得下整篇、只渲染可见行，
+   * 于是「能编辑、能保存」这条死线始终成立。
    * 代价是大文件下没有块级预览渲染（只有带语法高亮的纯文本）——这是刻意的降级。
    *
    * 判据分两步（见 HARD_MAX_BYTES / MAX_BLOCK_RUN / MAX_IR_BLOCKS）：
