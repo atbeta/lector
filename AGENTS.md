@@ -77,3 +77,13 @@ lector/
 2. ⌘S / Ctrl+S 写回同一路径，未改段落字节级一致。
 3. 中文 IME 段落内输入不丢字、候选窗跟光标。
 4. 粘贴/拖入图片的落点由两根正交的轴决定——**要不要复制**（副本目录模板，默认 md 同目录 `./images/`，可写 `{filename}.assets`）与**要不要上传**（用户配置的命令；自动或只在图片菜单里手动传）。只复制写相对路径；复制+自动上传成功写图床 http(s) URL、失败退回本地副本；不复制则经临时文件中转、正文只留 URL，上传失败仍会补落一份本地副本兜底（绝不丢图）——任何模式下都不进任何库。
+
+## Cursor Cloud specific instructions
+
+Linux 云端机器用来跑内核、编辑器预览和渲染层验证。桌面壳只在 Windows / macOS 上构建；这台环境没有 webkitgtk，不要跑 `tauri:dev` / `tauri:build`。
+
+- Bun 与 CI 相同，固定 **1.3.14**（见 `.github/workflows/ci.yml`）。README 里的「≥ 1.4」在这里不要另装一版。
+- 依赖：`bun install --frozen-lockfile`。质量门：`bun test`、`bun run typecheck`、`node tools/design-audit.mjs`。
+- 浏览器预览：在 `packages/editor` 执行 `bun run dev`。地址写死 `http://127.0.0.1:5173/`（`strictPort`，端口被占就直接失败）。默认载入内置样例。阅读档点块不进编辑；先切到编辑档（顶栏 `button[data-mode=edit]`，或 Ctrl+2）再点块。
+- `bun run verify:ui` 会自己在 5199 起 Vite。系统 Chrome 在 `/usr/bin/google-chrome`。`outline-image-verify` 直接启动 Playwright 自带的 Chromium，需要 `bun x playwright install chromium`（环境安装脚本会做）。有几条断言写死了中文菜单文案，跑的时候要 `LANG=zh_CN.UTF-8`（login shell 已设置）。
+- 提交钩子：`git config core.hooksPath .githooks`（安装脚本会做）。它挡住新增行里的 U+FFFD。
