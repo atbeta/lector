@@ -401,6 +401,50 @@ if (globalGuards.length > 1) {
   }
 }
 
+// (f) 引擎地板：backdrop-filter 必须有 -webkit- 孪生声明。
+// Safari 9–17 只认带前缀的那条，18.0 才去掉前缀（WebKit 官方发布说明）。壳的 WebView
+// 版本跟着用户的系统走——macOS 15 以下拿到的是 Safari 17 的 WebKit。少写前缀的后果
+// 不是「少了个前缀」，而是**整条声明作废**：顶栏的毛玻璃、弹层遮罩的虚化、PDF 导出的
+// 盖幕全变成一块不透明色块，而界面上没有任何报错。
+{
+  // 用后行断言避开 `-webkit-backdrop-filter` 里 `backdrop-filter` 这个子串。
+  const UNPREFIXED = /(?<![-\w])backdrop-filter\s*:/
+  const PREFIXED = /-webkit-backdrop-filter\s*:/
+  const rules = [...APP.matchAll(/([^{}]*)\{([^{}]*)\}/g)].map(([, sel, body]) => [
+    sel.trim().replace(/\s+/g, ' ').slice(0, 40),
+    body,
+  ])
+  const naked = rules
+    .filter(([, body]) => UNPREFIXED.test(body))
+    .filter(([, body]) => !PREFIXED.test(body))
+    .map(([sel]) => sel)
+  if (naked.length) {
+    note(
+      'error',
+      `${naked.length} 处 backdrop-filter 没有 -webkit- 孪生声明（${naked.slice(0, 3).join(' | ')}）：Safari 9–17 只认带前缀的，缺了它整条声明作废（macOS 15 以下无毛玻璃）`,
+    )
+  } else {
+    note('ok', 'backdrop-filter 全部带 -webkit- 孪生声明')
+  }
+}
+
+// (g) 引擎地板：color-mix 只能待在 @supports 里。
+// 它没有可用的前缀（Safari 16.2 / macOS 13 才有），低于这条线的引擎会把用到它的那条
+// 声明**整条丢弃**——不是降级，是那行样式凭空消失。曾经的三处：顶栏滚动后的分隔底色、
+// 「编辑中」状态高亮、侧栏底色。兜底值已经在各处的 @supports 外面给足。
+{
+  const outside = APP.replace(/@supports[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
+  const hit = outside.match(/color-mix\(/g)
+  if (hit) {
+    note(
+      'error',
+      `color-mix 出现在 @supports 之外（${hit.length} 处）：它没有前缀，Safari 16.2 之前整条声明被丢弃而不是降级，兜底值必须写在 @supports 外面`,
+    )
+  } else {
+    note('ok', 'color-mix 全部在 @supports 内')
+  }
+}
+
 // ── 输出 ──
 const order = { error: 0, warn: 1, ok: 2, info: 3 }
 findings.sort((a, b) => order[a.level] - order[b.level])
