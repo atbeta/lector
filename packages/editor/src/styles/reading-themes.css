@@ -142,8 +142,8 @@ html[data-theme='dark'] [data-reading-theme='paper'] {
 }
 
 /* 标题：衬线 + 更松的字重。杂志标题的力气来自字号与留白，不来自 700 的黑。 */
-html[data-reading-theme='paper'] .reading-prose h1 { font-weight: 640; letter-spacing: -0.018em; }
-html[data-reading-theme='paper'] .reading-prose h2 { font-weight: 620; letter-spacing: -0.014em; }
+html[data-reading-theme='paper'] .reading-prose h1 { font-weight: 640; }
+html[data-reading-theme='paper'] .reading-prose h2 { font-weight: 620; }
 html[data-reading-theme='paper'] .reading-prose h3 { font-weight: 600; }
 /* 引用：细一档的竖线 + 更大缩进，读起来像「一段被引的话」而不是「一块灰底」 */
 html[data-reading-theme='paper'] .reading-prose blockquote {
@@ -229,7 +229,7 @@ html[data-reading-theme='book'] .reading-prose blockquote {
   padding-left: 1.1em;
 }
 /* 中文书的标题不居中（居中只用于章名，我们用 h1 表文档名，居中会像封面页） */
-html[data-reading-theme='book'] .reading-prose h1 { font-weight: 640; letter-spacing: -0.01em; }
+html[data-reading-theme='book'] .reading-prose h1 { font-weight: 640; }
 html[data-reading-theme='book'] .reading-prose h2 { font-weight: 620; }
 
 /* ───────────── 手册 Manual ─────────────
@@ -297,7 +297,6 @@ html[data-reading-theme='manual'] .reading-prose h2 {
   padding-bottom: 0.28em;
   border-bottom: 1px solid rgb(var(--border));
 }
-html[data-reading-theme='manual'] .reading-prose h1 { letter-spacing: -0.022em; }
 /* 表格：文档里表格是主角，给满宽带线，不用圆角容器 */
 html[data-reading-theme='manual'] .reading-prose th,
 html[data-reading-theme='manual'] .reading-prose td { padding: 7px 10px; }
@@ -374,8 +373,8 @@ html[data-reading-theme='focus'] .reading-prose blockquote {
   padding-left: 1.6em;
   font-style: italic;
 }
-html[data-reading-theme='focus'] .reading-prose h1 { font-weight: 620; letter-spacing: -0.03em; }
-html[data-reading-theme='focus'] .reading-prose h2 { font-weight: 600; letter-spacing: -0.024em; }
+html[data-reading-theme='focus'] .reading-prose h1 { font-weight: 620; }
+html[data-reading-theme='focus'] .reading-prose h2 { font-weight: 600; }
 
 /* ───────────── 米黄 Sepia ─────────────
  * 像读一份旧剪报：暖纸、褐墨、低对比。长时间阅读的场景——
