@@ -70,6 +70,7 @@
   inset: 0;
   z-index: 200;
   background: rgb(var(--overlay) / 0.72);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   /* 同 .modal-backdrop：带 blur 的遮罩不渐入，否则虚化渐变像卡 */
 }
@@ -167,6 +168,7 @@
   padding: 4px;
   border-radius: var(--radius-card);
   background: rgb(var(--overlay-foreground) / 0.12);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 .lb-tool {
@@ -245,6 +247,7 @@ html.lightbox-open #content { overflow: hidden; }
   place-items: center;
   padding: 24px;
   background: rgb(var(--overlay) / var(--overlay-alpha));
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
   backdrop-filter: blur(var(--overlay-blur));
   /* 遮罩不渐入：opacity 动画会把 backdrop-filter 的虚化也带着从无到有，
      看起来像卡。压暗 + 虚化第一帧就位，入场感交给卡片自己的 pop-in。 */

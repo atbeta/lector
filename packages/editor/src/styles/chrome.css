@@ -24,7 +24,11 @@
    注意：这条曾在我重写顶栏时被连带删掉，UI 上没有任何报错，只有断言能发现。 */
 #titlebar.scrolled {
   box-shadow: var(--shadow-header);
-  background: color-mix(in srgb, rgb(var(--shell)) 82%, transparent);
+  background: rgb(var(--shell) / 0.82);
+  /* 老 WebKit 只认带前缀的那条（Safari 9–17），新的忽略它走下面这条。
+     两条都写是唯一能让「毛玻璃」在旧引擎上还活着的办法——没有第二条可退化时，
+     blur 直接整条作废，顶栏就只剩一层不透明的壳色。 */
+  -webkit-backdrop-filter: blur(7px) saturate(1.15);
   backdrop-filter: blur(7px) saturate(1.15);
 }
 
@@ -78,7 +82,7 @@
   /* 凹槽要比壳稍沉一点才有「三挡开关」的样子；
      --secondary 243 vs 壳 247 只差 1.03:1，肉眼看来三段是三个散按钮。
      用前景色低透明度叠一层，sorted handling 与纸面都成立。 */
-  background: color-mix(in srgb, rgb(var(--foreground)) 8%, transparent);
+  background: rgb(var(--foreground) / 0.08);
   -webkit-app-region: no-drag;
 }
 .mode-opt {
@@ -376,8 +380,17 @@ html[data-shell='windows'] .window-controls { display: flex; }
 }
 .btn-primary:hover:not(:disabled) {
   color: rgb(var(--ink-foreground));
-  background: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
-  border-color: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+  /* 底色先给足：没有 color-mix 的引擎（Safari 16.2 之前）会整条丢弃这条声明，
+     于是 hover 读起来「没反应」。基色用 --ink 本身——hover 落空顶多是少一层提亮，
+     不会像丢背景那样让按钮失去形状。精确的 90/10 混色在下面 @supports 里补。 */
+  background: rgb(var(--ink));
+  border-color: rgb(var(--ink));
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+    border-color: color-mix(in srgb, rgb(var(--ink)) 90%, rgb(var(--ink-foreground)));
+  }
 }
 /* 危险动作：红字 + 淡红描边；悬停才实心。描边让它和次要按钮同属「有边的键」，
    不再是三个里两个光秃秃、一个实心的拼凑感。 */
@@ -423,11 +436,11 @@ html[data-shell='windows'] .window-controls { display: flex; }
 /* 「编辑中」高亮：进入编辑模式后 mode-toggle 按钮跟随 primary 色，不误以为是普通按钮 */
 .btn-icon-toggle[aria-pressed='true'] {
   color: rgb(var(--primary));
-  background: color-mix(in srgb, rgb(var(--primary)) 14%, transparent);
+  background: rgb(var(--primary) / 0.14);
 }
 .btn-icon-toggle[aria-pressed='true']:hover {
   color: rgb(var(--primary));
-  background: color-mix(in srgb, rgb(var(--primary)) 22%, transparent);
+  background: rgb(var(--primary) / 0.22);
 }
 
 /* ───────────── 正文容器 ───────────── */

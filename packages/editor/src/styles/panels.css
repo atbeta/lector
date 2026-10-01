@@ -508,7 +508,14 @@ html[data-shell='windows'] .find-bar { top: 42px; }
 html[data-shell='macos'] .find-bar { top: calc(36px + 10px); }
 .titlebar-title { font-weight: 550; }
 .titlebar-title[data-untitled='true'] { letter-spacing: 0.01em; }
-.sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
+/* 侧栏底色：壳色往纸色掺 8%，让侧栏与正文之间有一丝暖调过渡。
+   8% 的掺量在浅色下只差 1 个 RGB 档（247 → 248），所以没有 color-mix 的引擎
+   直接用 --shell 即可，肉眼看不出差别——但必须给这一条兜底：原先它没有兜底，
+   Safari 16.2 之前整条声明被丢弃，侧栏直接变透明、贴到画布色上。 */
+.sidebar { background: rgb(var(--shell)); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .sidebar { background: color-mix(in srgb, rgb(var(--shell)) 92%, rgb(var(--paper))); }
+}
 html[data-theme='dark'] .sidebar { background: rgb(var(--muted) / 0.22); }
 #statusbar {
   border-top: 1px solid rgb(var(--border-subtle) / 0.56);
@@ -627,6 +634,7 @@ html.large-file .mode-switch { display: none; }
   align-items: center;
   justify-content: center;
   background: rgb(var(--paper) / 0.72);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 .pdf-exporting::after {
