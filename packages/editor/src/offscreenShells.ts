@@ -46,12 +46,17 @@ export function estimateBlockEm(block: { kind: string; raw: string }): number {
 export function createOffscreenShells(host: OffscreenShellHost) {
   /** 用户还在滚动时，解析和挂占位多让一拍。 */
   let scrollIdleAt = 0
-  host.contentEl.addEventListener(
+  // 挂 document 捕获阶段，不挂 host.contentEl：
+  //  - 断言（refactor-verify）要求 #content 上只留顶栏状态这一个滚动监听；
+  //  - 大文件档的滚动发生在 CM 的 scrollDOM 里，#content 自己不滚，
+  //    挂在它身上等于这个节流整个失灵（滚动时该让的一拍不让，占位照挂）。
+  // 捕获阶段能同时覆盖两种容器：滚动事件不冒泡，但捕获先于目标触发。
+  document.addEventListener(
     'scroll',
     () => {
       scrollIdleAt = performance.now() + 140
     },
-    { passive: true },
+    { capture: true, passive: true },
   )
   let paintObserver: IntersectionObserver | null = null
   const shellQueue: HTMLElement[] = []
