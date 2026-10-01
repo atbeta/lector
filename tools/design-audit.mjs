@@ -428,6 +428,31 @@ if (globalGuards.length > 1) {
   }
 }
 
+// (h) 阅读标题不得使用负字距。
+// 负字距是拉丁字的光学收紧规则（大字号侧边留白多，不收会散）。汉字填满 em box、
+// 几乎没有侧边余量，收紧只会把相邻的字挤在一起：30px 的 h1 收到 -0.78px/字时
+// 「读/体」已经贴上，而且比正文（+0.1px）还紧，光学层级整个是反的。
+// 曾经有 8 处（基线 + h1 + h5，以及纸/书/手册/专注四个主题的覆盖）。
+//
+// 两份都要扫：主题表不在 APP 这条 @import 链里，只扫 APP 会漏掉主题里的覆盖——
+// 而那恰恰是最容易重新长出来的地方。
+{
+  const scan = (css) =>
+    [...css.matchAll(/([^{}]*\.reading-prose\s+h[1-6][^{}]*)\{([^{}]*)\}/g)]
+      .map(([, sel, body]) => [sel.trim().replace(/\s+/g, ' ').slice(0, 52), body])
+      .filter(([, body]) => /letter-spacing:\s*-/.test(body))
+      .map(([sel]) => sel)
+  const bad = [...scan(APP), ...scan(THEMES_CSS)]
+  if (bad.length) {
+    note(
+      'error',
+      `${bad.length} 处阅读标题用了负字距（${bad.slice(0, 3).join(' | ')}）：这是拉丁的收紧规则，汉字侧边没有余量可收，越大越挤`,
+    )
+  } else {
+    note('ok', '阅读标题无负字距（基线与四个主题的覆盖都查了）')
+  }
+}
+
 // (g) 引擎地板：color-mix 只能待在 @supports 里。
 // 它没有可用的前缀（Safari 16.2 / macOS 13 才有），低于这条线的引擎会把用到它的那条
 // 声明**整条丢弃**——不是降级，是那行样式凭空消失。曾经的三处：顶栏滚动后的分隔底色、
