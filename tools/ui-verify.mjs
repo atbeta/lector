@@ -533,6 +533,43 @@ const summary = {
   await page.setViewportSize({ width: 1200, height: 820 })
   await page.waitForTimeout(300)
 
+  // 3.2) 极窄窗口：壳自己放不放得下
+  //
+  // 壳的最小窗口宽是 480（io/window.rs 的 min_inner_size），这一整段是用户拖得到的，
+  // 而这里原先只测到 900 —— 480–900 从来没人看过。破口就藏在那段里：
+  // 侧栏停靠时 --band-inset 跟着正文左沿走到 ~320px，顶栏除了它还要放下
+  // titlebar-lead(97) + titlebar-actions(176)，两者相加超过窗口宽时 flex 不会压缩，
+  // .titlebar-actions 越过右沿、连带把文档撑出横向滚动（实测 520 溢出 79px）。
+  //
+  // 走**缩放**路径而不是重新加载：重新加载时侧栏会按 dockMin() 判定为收起，
+  // 破口不出现；只有「宽窗开着侧栏 → 再拖窄」才会踩到。
+  {
+    const bad = []
+    for (const w of [640, 620, 600, 580, 560, 540, 520, 500, 480]) {
+      await page.setViewportSize({ width: w, height: 720 })
+      await page.waitForTimeout(160) // ResizeObserver → rAF → syncTitlebarInset
+      const geo = await page.evaluate(() => {
+        const doc = document.documentElement
+        const bar = document.getElementById('titlebar')
+        return {
+          doc: doc.scrollWidth - doc.clientWidth,
+          bar: bar.scrollWidth - bar.clientWidth,
+          inset: getComputedStyle(doc).getPropertyValue('--band-inset').trim(),
+        }
+      })
+      if (geo.doc > 0 || geo.bar > 0) {
+        bad.push(`${w}px 溢出 ${Math.max(geo.doc, geo.bar)}（band-inset ${geo.inset}）`)
+      }
+    }
+    if (bad.length) {
+      note('error', `极窄窗口下顶栏装不下自己的控件：${bad.join('；')}`)
+    } else {
+      note('info', '极窄窗口 640→480：顶栏与文档均无横向溢出')
+    }
+  }
+  await page.setViewportSize({ width: 1200, height: 820 })
+  await page.waitForTimeout(300)
+
   // 3.4) 大纲：当前小节高亮 + 跳转顶部对齐
   {
     const outline = await page.evaluate(() => {
