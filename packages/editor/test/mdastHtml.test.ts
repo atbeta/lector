@@ -115,7 +115,9 @@ test('HTML <img>：行内与块级走 resolveImageSrc，带 data-html-img', () =
   setAssetResolver((raw) => `resolved:${raw}`)
   try {
     const inline = renderMd('看 <img src="a.png" alt="图"> 完')
-    expect(inline).toContain('<img src="resolved:a.png" alt="图" data-html-img="1" />')
+    expect(inline).toContain(
+      '<img src="resolved:a.png" alt="图" loading="lazy" decoding="async" data-html-img="1" />',
+    )
     const block = renderMd('<img src="b.png" alt="块" width="120" height="80">')
     expect(block).toContain('src="resolved:b.png"')
     expect(block).toContain('width="120"')
@@ -125,6 +127,21 @@ test('HTML <img>：行内与块级走 resolveImageSrc，带 data-html-img', () =
     const inP = renderMd('<p><img src="c.png" alt="包"></p>')
     expect(inP).toContain('src="resolved:c.png"')
     expect(inP).toContain('data-html-img="1"')
+  } finally {
+    setAssetResolver(null)
+  }
+})
+
+test('图片默认档：loading=lazy + decoding=async（解码离开主线程、取图排到视口临近）', () => {
+  setAssetResolver((raw) => `resolved:${raw}`)
+  try {
+    const md = renderMd('![甲](a.png)\n\n![乙](b.png)')
+    const imgs = [...md.matchAll(/<img[^>]*>/g)].map((m) => m[0])
+    expect(imgs.length).toBe(2)
+    for (const tag of imgs) {
+      expect(tag).toContain('loading="lazy"')
+      expect(tag).toContain('decoding="async"')
+    }
   } finally {
     setAssetResolver(null)
   }
@@ -202,7 +219,7 @@ test('引用式链接按跨块定义渲染成链接，文字不丢', () => {
 
 test('引用式图片按定义渲染', () => {
   const html = renderWithDefinitions('![logo][l]\n\n[l]: https://a.com/l.png\n')
-  expect(html).toContain('<img src="https://a.com/l.png" alt="logo" />')
+  expect(html).toContain('<img src="https://a.com/l.png" alt="logo" loading="lazy" decoding="async" />')
 })
 
 test('重复定义首个生效；危险协议仍降级为纯文本', () => {

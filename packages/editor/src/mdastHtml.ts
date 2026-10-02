@@ -208,6 +208,25 @@ function esc(s: string): string {
 }
 
 /**
+ * 图片标签的公共档位。
+ *
+ * loading/decoding 不是可选优化，是正文图片的默认档：
+ *  - decoding="async" 让解码离开主线程。一篇带十几张图的笔记，光解码就能把
+ *    滚动和输入卡出可感知的顿挫，而正文是阅读器的主角。
+ *  - loading="lazy" 把取图排到视口临近时。视口内的图浏览器仍会立刻取，
+ *    所以首屏不受影响；真正的收益在长文档往下滚的那一路——那些图本来
+ *    就用不上，却已经在首屏抢过一轮带宽与主线程。
+ * 冷启动 1.5s 与「正文先出现」都写进了成功标准，这两条是其中最便宜的一环。
+ *
+ * 两条发射路径（Markdown `![]()` 与白名单 HTML `<img>`）必须共用这一份：
+ * 曾经只改了 HTML 那条，于是占绝大多数的 `![](a.png)` 一直还在急加载。
+ */
+function imgTag(src: string, alt: string, extra = ''): string {
+  const tail = extra ? ` ${extra.trim()}` : ''
+  return `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${tail} />`
+}
+
+/**
  * 白名单 HTML `<img>`：只认 src/alt/数字宽高，src 走 resolveImageSrc。
  * 带 on* / style / srcset 等未知属性、危险协议、解析失败 → null（调用方转义降级）。
  * 渲出的节点带 data-html-img，图片菜单据此不把它算进 listImages 下标。
@@ -235,8 +254,7 @@ function renderHtmlImg(value: string): string | null {
   if (attrs.width != null && width == null) return null
   if (attrs.height != null && height == null) return null
   const dim = `${width != null ? ` width="${width}"` : ''}${height != null ? ` height="${height}"` : ''}`
-  return `<img src="${esc(src)}" alt="${esc(alt)}"${dim} data-html-img="1" />`
-}
+  return imgTag(src, alt, `${dim} data-html-img="1"`)}
 
 /** 只认纯数字或数字+px；拒 100% / auto / 表达式。 */
 function parseImgDimension(raw: string | undefined): string | null {
@@ -399,7 +417,7 @@ function inlineNode(n: Node): string {
         const label = t('imageUploading')
         return `<span class="img-pending" data-tip="${esc(label)}">${iconSvg('image', 15)}<span>${esc(label)}</span></span>`
       }
-      return `<img src="${esc(resolveImageSrc(rawUrl))}" alt="${esc(n.alt ?? '')}" />`
+      return imgTag(resolveImageSrc(rawUrl), n.alt ?? '')
     }
     case 'linkReference': {
       // 找不到定义（定义块被删/改名后尚未重解析）时还原成源码，不能把正文吞掉

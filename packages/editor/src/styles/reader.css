@@ -281,8 +281,16 @@ html[data-mode='read'] .reading-prose thead th {
   height: auto;
   margin-inline: auto;
   border-radius: var(--radius-media);
+  /* 只留发丝边，不给投影。
+   *
+   * 投影是「卡片」语言：1px 描边 + 近影 + 远雾是一套 UI 容器的配方，用在正文图上
+   * 会把一段图读成浮在页面上的卡片，而不是坐在纸上的图。文档里的图属于内容，
+   * 它的层级应该由正文流的位置给出，而不是由一层浮雕给出——这一版的主题体系
+   * 自己也写着「表面分层靠档，不靠描边」，投影与那条是同一套说法的两种写法。
+   *
+   * 描边必须留：白底截图贴在白纸上没有边会被读成「这块什么都没有」，
+   * 发丝边正好补上这条轮廓，又不至于读成框。 */
   border: 1px solid rgb(var(--border));
-  box-shadow: var(--shadow-card);
 }
 
 /* 上传中占位：粘贴/拖入后立刻落的 ![](lector-upload://…) 由 mdastHtml 渲成它，
