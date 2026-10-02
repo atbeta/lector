@@ -453,6 +453,33 @@ if (globalGuards.length > 1) {
   }
 }
 
+// (i) Windows 高对比度的兜底必须在场，而且不能被掏空。
+// forced-colors 收走的恰好是这个设计体系的骨架：表面分档（底色差）、极淡底色
+// （聚焦块 3.5%、行内码浅底）、阴影（顶栏分隔与浮层体积）。实测开着高对比度时
+// 四张表面全变成同一个白、标题与正文色差归零、行内码底色消失——用户关掉的不只是
+// 颜色，是整套层级。这段兜底只写在 app.css 末尾（必须最后才赢得层叠），删掉不会有
+// 任何报错，所以在这里钉一道。
+//
+// 顺带钉住三样必须有的补偿：结构改用边框、选中/焦点用系统 Highlight。
+// 只查「块还在」太弱——块被掏空成空壳同样会静默失效。
+{
+  const has = /@media\s*\(forced-colors:\s*active\)/.test(APP)
+  if (!has) {
+    note('error', '缺少 @media (forced-colors: active) 兜底：Windows 高对比度下表面分档/极淡底色/阴影全部失效，界面塌成一张白纸且不报错')
+  } else {
+    const need = [
+      ['border', /forced-colors[\s\S]{0,4000}?\bborder-/],
+      ['Highlight（选中与焦点）', /forced-colors[\s\S]{0,4000}?Highlight/],
+    ]
+    const miss = need.filter(([, re]) => !re.test(APP)).map(([n]) => n)
+    if (miss.length) {
+      note('error', `forced-colors 兜底存在但缺：${miss.join('、')}（结构要靠边框画回来，选中/焦点要用系统 Highlight）`)
+    } else {
+      note('ok', 'forced-colors 兜底在场，且含边框与 Highlight 补偿')
+    }
+  }
+}
+
 // (g) 引擎地板：color-mix 只能待在 @supports 里。
 // 它没有可用的前缀（Safari 16.2 / macOS 13 才有），低于这条线的引擎会把用到它的那条
 // 声明**整条丢弃**——不是降级，是那行样式凭空消失。曾经的三处：顶栏滚动后的分隔底色、
