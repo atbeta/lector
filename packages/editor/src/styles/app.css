@@ -18,3 +18,69 @@
 @import './reader.css';
 @import './overlays.css';
 @import './panels.css';
+
+/* ───────────── Windows 高对比度（forced-colors） ─────────────
+ *
+ * 放在所有 @import 之后：本块不加特异性，只能靠「最后」赢下层叠。
+ *
+ * 这个设计体系的骨架是三样东西——**表面分档**（画布/纸/卡片靠底色差分层）、
+ * **极淡底色**（聚焦块 3.5%、行内码的浅底）、**阴影**（顶栏分隔、浮层体积）。
+ * forced-colors 恰好把这三样全部收走：背景一律换成 Canvas、阴影一律忽略。
+ * 实测（Chromium forcedColors: active）四张表面全变成 rgb(255,255,255)、
+ * 标题与正文的色差归零、行内码底色消失——用户关掉的不只是颜色，是整套层级。
+ *
+ * 所以这里的做法不是「再配一套颜色」：**凡是用底色表达的结构，改用边框画回来**。
+ * 边框是 forced-colors 唯一保留的绘图手段（会被统一刷成 CanvasText）。
+ *
+ * 刻意**不用** forced-color-adjust: none：那等于把用户刚打开的开关又替他按回去，
+ * 高对比度用户要的就是「不要我自己挑的颜色」。代价是下面这些线索只能靠
+ * 边框/字重来表达，而不是靠色相。
+ */
+@media (forced-colors: active) {
+  /* ① 表面分档没了，用竖线把侧栏从正文里切出来。
+     侧栏在左，切分线画在右沿。 */
+  .sidebar { border-right: 1px solid CanvasText; }
+
+  /* ② 顶栏与状态行的分隔原本是「滚动后浮现的阴影」，阴影被忽略 → 换成实线。
+     静止时仍不画（设计上就是「静止留白更干净」），滚动了才给线。 */
+  #titlebar.scrolled { border-bottom: 1px solid CanvasText; }
+  #statusbar { border-top: 1px solid CanvasText; }
+
+  /* ③ 聚焦块：底色（3.5% 洗）与外发光（box-shadow）双双失效，
+     而这两个是「这块正在编辑」的唯一视觉线索。改用 outline——它被保留。 */
+  .block.is-focused,
+  .block:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* ④ 块轨道（读档里「这块从哪到哪」的 2px 左缘）：原本是半透明底色，
+     forced-colors 会把底色收成 Canvas，等于轨道整条消失。改用左边框。 */
+  .block-rail {
+    width: 0;
+    border-left: 2px solid CanvasText;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* ⑤ 行内码：浅底被收走，同段里就认不出哪几个字是代码了（只剩字形差异）。
+     补一条边框，块代码本来就有边框、由系统统一刷色，不用管。 */
+  .reading-prose code { border: 1px solid CanvasText; }
+  .reading-prose pre code { border: 0; }
+
+  /* ⑥ 选中：原本是墨色浅洗（浅色 14% / 深色 34%），两边都被收成 Canvas。
+     用系统成对色，Windows 会给出与文本框选一致的高亮。 */
+  ::selection { background: Highlight; color: HighlightText; }
+
+  /* ⑦ 焦点环用 Highlight：系统会把 --ring 刷成 CanvasText（纯黑），
+     而黑色焦点环在黑色高对比度主题上会「有环但看不见」。 */
+  :is(button, a, [role='button'], [tabindex]):focus-visible {
+    outline-color: Highlight;
+  }
+
+  /* ⑧ 开关：开/关两态原本只差底色（灰 vs 强调色），底色被收走后两态全等——
+     开关会变成一个永远「关着」的静态框。改用左边框的粗细表达状态，
+     这是这个模式下唯一还能保住二元的手段。 */
+  .switch-track.on { border-left: 4px solid Highlight; }
+  .switch-track:not(.on) { border-left: 4px solid transparent; }
+}
