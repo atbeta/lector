@@ -1474,12 +1474,12 @@ const summary = {
     const right = bb ? Math.round(bb.right) : Math.round(cb.right)
     const L = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().x)
     const R = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().right)
-    return { textLeft: left, textRight: right, navLeft: L('.titlebar-lead'), statusLeft: L('#status-left'), statusRight: R('#status-right') }
+    return { textLeft: left, textRight: right, navLeft: L('.titlebar-lead'), statusRight: R('#status-right') }
   })
   const loose = (a, b) => Math.abs(a - b)
-  if (loose(edges.navLeft, edges.statusLeft) > 2) {
-    note('error', `顶栏工具组左沿 ${edges.navLeft} 与状态行左沿 ${edges.statusLeft} 不在一条竖线上`)
-  }
+  // 这里原有「顶栏左沿 == 状态行左沿」一条：状态行重做成「整组贴窗口右下」后它必然失败，
+  // 且与本段注释自相矛盾（注释已写明状态行不在那条线上），故删除。
+  // 该设计的不变量由下面那条「内容右沿必须贴到窗口右沿」守。
   // 状态行：内容整组贴**窗口**右下角，不再与正文列同宽同位
   // （旧规则是「左沿对齐正文、右沿对齐正文右沿」，会让同一屏出现三条较劲的竖线）。
   const winW = await page.evaluate(() => window.innerWidth)

@@ -203,11 +203,8 @@ export function syncTitlebarInset(): void {
     `${Math.round(Math.min(Math.max(14, textLeft), maxInset))}px`,
   )
 
-  // 状态行右端与正文列右沿对齐，让状态行和正文列完全重合（左统计、右状态）。
-  const status = document.getElementById('statusbar')
-  if (status) {
-    status.style.setProperty('--band-inset-right', `${barRight - textRight}px`)
-  }
+  // 状态行是**窗口**的元信息，整组贴窗口右下角，不与正文列对齐——
+  // 所以这里不再算 --band-inset-right：那个变量已无人消费，是重做前的遗留。
 
   // 右侧操作区宽（含呼吸），供标题夹取区间右端使用；顶栏右端的按钮贴窗口边
   const actions = bar.querySelector<HTMLElement>('.titlebar-actions')

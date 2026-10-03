@@ -983,7 +983,8 @@ html.sidebar-resizing { cursor: col-resize; user-select: none; }
   user-select: none;
 }
 .status-group { display: flex; align-items: center; gap: 8px; }
-.status-right { margin-left: auto; }
+/* 不设 margin-left:auto：那会把左组钉在窗口左沿、右组单独右靠，变成"两端贴边"，
+   而设计是「整组贴窗口右下」——排版交给 #statusbar 的 justify-content: flex-end。 */
 /* 组内用间隔点分隔，比逐个加边框安静 */
 .status-item + .status-item::before {
   content: '·';
