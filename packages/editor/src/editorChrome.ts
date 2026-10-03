@@ -179,6 +179,19 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
    * 数字取自「当前会把什么写回磁盘」——脏块用编辑器里的文本、净块用磁盘原文，
    * 所以它和保存后的结果是同一个数，不会出现「状态行说 100 词、保存后变 98」。
    */
+  // 状态行上三个可点动作。由 appBindings 注入（那里同时握着 files 与 settings，
+  // chrome 不引入它们，避免循环依赖）。没注入时对应项退化成不可点的纯读数。
+  let statusActions: {
+    onSaveNow?: () => void
+    onBackToRead?: () => void
+    onZoomReset?: () => void
+  } | null = null
+
+  function setStatusActions(next: NonNullable<typeof statusActions>): void {
+    statusActions = next
+    renderStatus()
+  }
+
   function renderStatus() {
     clearTimeout(statusTimer)
     statusTimer = undefined
@@ -203,13 +216,42 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   function renderStatusNow() {
     // 项目之间补一个空格字符：视觉间隔由 CSS gap 负责，
     // 但读屏与「选中状态行复制」拿到的是 textContent，不能连成一串。
-    const item = (text: string, strong = false) => {
-      const el = document.createElement('span')
-      el.className = 'status-item'
+    // 可点项用 <button>：语义正确、Tab/Enter/Space 免费、有焦点环。
+    // 仍沿用 .status-item 类——否则项之间的分隔点（.status-item + .status-item::before）会断。
+    const item = (
+      text: string,
+      strong = false,
+      action?: { title: string; run?: (() => void) | undefined },
+    ) => {
+      if (!action?.run) {
+        const el = document.createElement('span')
+        el.className = 'status-item'
+        if (strong) el.dataset.strong = 'true'
+        el.textContent = text
+        el.append(' ')
+        return el
+      }
+      const el = document.createElement('button')
+      el.type = 'button'
+      el.className = 'status-item status-item-action'
       if (strong) el.dataset.strong = 'true'
       el.textContent = text
+      el.title = action.title
+      el.addEventListener('click', () => action.run?.())
       el.append(' ')
       return el
+    }
+
+    /**
+     * 左组放**窗口级**状态（文档级状态在右组）。界面缩放是唯一一项：
+     * 读数是"现在被放大了多少"的可见答案，点击复位——这条快捷键在壳里不可靠
+     * （已从键位面板撤下），所以需要一个看得见、点得到的入口。这也是左组存在的理由。
+     */
+    const renderZoomItem = (): void => {
+      const s = getSettings()
+      statusLeft.replaceChildren(
+        item(`${s.uiZoom}%`, false, { title: t('statusZoomReset'), run: statusActions?.onZoomReset }),
+      )
     }
     if (isLarge()) {
       // 大文件不逐键统计字数——那是对几十 MB 全文的扫描，每次按键都做会卡。
@@ -228,7 +270,14 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       // 词数由大文件模式在后台算一次（见 largeDocument.ts 的 countLargeWords），
       // 算完前是 null，不占位——状态行不该为一次后台统计留一个空槽。
       if (words !== null) statusRight.append(item(t('statWords', { n: formatCount(words) })))
-      statusRight.append(item(saveStateText(), getSession().dirty))
+      // 保存状态天然可动作：未保存时点一下就是保存（已保存则退化成纯读数）。
+      statusRight.append(
+        item(saveStateText(), getSession().dirty, {
+          title: t('statusSaveNow'),
+          run: getSession().dirty ? statusActions?.onSaveNow : undefined,
+        }),
+      )
+      renderZoomItem()
       return
     }
     const blocks = getSession().blocks
@@ -248,8 +297,22 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       if (words !== null) statusRight.append(item(t('statWords', { n: formatCount(words) })))
       if (totalLines > 0) statusRight.append(item(t('statLines', { n: formatCount(totalLines) })))
       else if (words === null) statusRight.append(item(t('statParsing')))
-      if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
-      statusRight.append(item(saveStateText(), getSession().dirty))
+      if (viewMode !== 'read') {
+      statusRight.append(
+        item(viewLabel(viewMode), true, {
+          title: t('statusBackToRead'),
+          run: statusActions?.onBackToRead,
+        }),
+      )
+    }
+      // 保存状态天然可动作：未保存时点一下就是保存（已保存则退化成纯读数）。
+      statusRight.append(
+        item(saveStateText(), getSession().dirty, {
+          title: t('statusSaveNow'),
+          run: getSession().dirty ? statusActions?.onSaveNow : undefined,
+        }),
+      )
+      renderZoomItem()
       return
     }
     const stats = countBlocks(blocks)
@@ -275,8 +338,21 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     //    跟着正文列走会让同一屏出现三条互相较劲的竖线；
     // 3. 阅读档不写档位标签：阅读是默认态，给默认态挂标签等于常驻一个「你在阅读」的噪音。
 
-    if (viewMode !== 'read') statusRight.append(item(viewLabel(viewMode), true))
-    statusRight.append(item(saveStateText(), getSession().dirty))
+    if (viewMode !== 'read') {
+      statusRight.append(
+        item(viewLabel(viewMode), true, {
+          title: t('statusBackToRead'),
+          run: statusActions?.onBackToRead,
+        }),
+      )
+    }
+    statusRight.append(
+      item(saveStateText(), getSession().dirty, {
+        title: t('statusSaveNow'),
+        run: getSession().dirty ? statusActions?.onSaveNow : undefined,
+      }),
+    )
+    renderZoomItem()
   }
 
   /**
@@ -444,6 +520,7 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
     scheduleRenderStatus,
     setDocumentTitle,
     setDocPresent,
+    setStatusActions,
   }
 }
 

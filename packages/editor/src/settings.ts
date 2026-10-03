@@ -46,6 +46,7 @@ function applyVars(s: EditorSettings) {
   // ——它改布局视口，100vh 骨架跟着窗口走。**不要**在这里打 CSS zoom 到 <html>：
   // 那只缩放绘制、不改视口，放大时状态行被顶出窗口、缩小时底部留空带。
   void applyUiZoom(s.uiZoom / 100)
+  for (const fn of zoomListeners) fn()
   root.classList.toggle('font-serif', s.fontFamily === 'serif')
   // 阅读主题：纸墨与排版性格全在 CSS 里按这个属性生效（reading-themes.css）。
   // data-theme 与它是正交的两轴——theme 管明暗，readingTheme 管「读起来像什么」。
@@ -117,6 +118,15 @@ export function stepUiZoom(delta: number) {
   const at = i < 0 ? UI_ZOOM_STEPS.length - 1 : i
   const next = UI_ZOOM_STEPS[Math.min(UI_ZOOM_STEPS.length - 1, Math.max(0, at + delta))]!
   setSettings({ ...getSettings(), uiZoom: next })
+}
+
+/** 界面缩放变化后的回调（状态行读数要跟着变）。
+ *  挂在这里是因为 applyVars 是所有缩放入口的唯一咽喉：快捷键、菜单、
+ *  设置里的滑块都最终走到它——挂在任一入口上都会漏掉别的入口。 */
+const zoomListeners = new Set<() => void>()
+
+export function onUiZoomApplied(fn: () => void): void {
+  zoomListeners.add(fn)
 }
 
 /** 界面缩放回到 100%。 */

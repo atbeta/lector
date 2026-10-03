@@ -993,6 +993,21 @@ html.sidebar-resizing { cursor: col-resize; user-select: none; }
 }
 .status-item[data-strong='true'] { color: rgb(var(--muted-foreground)); }
 
+/* 可点的状态项：按钮要清掉默认外观，但**必须**沿用 .status-item 的排版与
+   data-strong 着色，否则它和相邻读数会长得不一样；分隔点由
+   .status-item + .status-item::before 提供，所以类名不能换。 */
+.status-item-action {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.status-item-action:hover { color: rgb(var(--foreground)); background: rgb(var(--block-hover-bg)); }
+.status-item-action:focus-visible { outline: 2px solid rgb(var(--ring)); outline-offset: 2px; }
+
 /* ───────────── 首屏空态 ─────────────
  * 扉页构图：品牌 logo + 衬线字标 + 定位语 + 墨色主按钮。
  * 品牌色只出现在 logo 上（它是门面），按钮仍走墨色——阅读器的第一屏

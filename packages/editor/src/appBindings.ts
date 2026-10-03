@@ -1,7 +1,7 @@
 import { detectEnv, onMenu, closeWindow } from '@lector/shell-web'
 import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
-import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom } from './settings.ts'
+import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom, onUiZoomApplied } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
 import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
@@ -20,7 +20,16 @@ import type { createReadingPositionController } from './readingPositionControlle
 interface AppBindingsDeps {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'>
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
-  chrome: Pick<EditorChrome, 'elements' | 'getViewMode' | 'setViewMode' | 'toggleMode' | 'runExportPdf'>
+  chrome: Pick<
+    EditorChrome,
+    | 'elements'
+    | 'getViewMode'
+    | 'setViewMode'
+    | 'toggleMode'
+    | 'runExportPdf'
+    | 'renderStatus'
+    | 'setStatusActions'
+  >
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
   menus: Pick<DocumentMenus, 'openBlockMenu'>
@@ -222,6 +231,17 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
   chrome.elements.outlineBtn.addEventListener('click', () => outline.toggleOutline())
 
   chrome.elements.saveBtn.addEventListener('click', () => void files.persistToDisk())
+
+  // 状态行上的三个可点动作。接线放在这里，是因为这个模块同时握着 chrome、
+  // files 与 settings——chrome 自己不引它们（避免循环依赖），只收回调。
+  chrome.setStatusActions({
+    onSaveNow: () => void files.persistToDisk(),
+    onBackToRead: () => chrome.setViewMode('read'),
+    onZoomReset: () => resetUiZoom(),
+  })
+  // 缩放变了要刷新读数：applyVars 是缩放的唯一咽喉，回调挂它。只重画状态行，
+  // 不整体重排——缩放本身由壳的原生 zoom 完成。
+  onUiZoomApplied(() => chrome.renderStatus())
   // 「用其他应用打开」不再常驻顶栏：它和导出 PDF 一起收在文件名旁的 ⋯ 菜单里
   // （见 documentMenus 的 fileMenuItems）。标签在建菜单时取 files.openWithLabel()，
   // 天然跟随设置，不需要再订阅同步。

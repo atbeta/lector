@@ -26,6 +26,7 @@ const TARGET = urlArg ?? `http://localhost:${PORT}/`
 const SCRIPTS = [
   ['ui-verify', 'tools/ui-verify.mjs'],
   ['outline-image-verify', 'tools/outline-image-verify.mjs'],
+  ['statusbar-verify', 'tools/statusbar-verify.mjs'],
   ['refactor-verify', 'tools/refactor-verify.mjs'],
   ['block-indicator-verify', 'tools/block-indicator-verify.mjs'],
 ]
