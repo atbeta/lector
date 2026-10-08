@@ -480,6 +480,25 @@ if (globalGuards.length > 1) {
   }
 }
 
+// (j) 状态行不得吃 --band-inset。
+// 它贴窗口右下角，左右都是 14px。macOS 顶栏要让红绿灯，用
+// max(80px, var(--band-inset))；把 #statusbar 写进同一个选择器时，
+// 左内边距会跟正文列走到一两百像素。状态行是网格项，min-width:auto
+// 会把这段留白算进最小宽度，窄窗口下文档再次被撑出横向滚动。
+{
+  const bad = [...APP.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+    .filter(([, sel, body]) => /#statusbar/.test(sel) && /--band-inset/.test(body))
+    .map(([, sel]) => sel.trim().replace(/\s+/g, ' ').slice(0, 72))
+  if (bad.length) {
+    note(
+      'error',
+      `状态行仍在使用 --band-inset（${bad.join(' | ')}）：它应贴窗口边缘，左留白跟正文列走会在窄窗口把文档撑出横向滚动`,
+    )
+  } else {
+    note('ok', '状态行不使用 --band-inset')
+  }
+}
+
 // (g) 引擎地板：color-mix 只能待在 @supports 里。
 // 它没有可用的前缀（Safari 16.2 / macOS 13 才有），低于这条线的引擎会把用到它的那条
 // 声明**整条丢弃**——不是降级，是那行样式凭空消失。曾经的三处：顶栏滚动后的分隔底色、

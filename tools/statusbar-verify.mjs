@@ -60,6 +60,31 @@ try {
   if (back.mode !== 'read') fail(`点档位标签应回阅读档，实为 "${back.mode}"`)
   if (back.rightAction !== 0) fail(`回到阅读档后可点项应消失，实为 ${back.rightAction}`)
   info(`档位标签：edit → 点击 → ${back.mode}`)
+
+  // macOS 顶栏让红绿灯，左内边距跟 --band-inset。状态行必须留在 14px，
+  // 否则侧栏停靠时一两百像素的左留白会把窄窗口撑出横向滚动。
+  await p.evaluate(() => {
+    document.documentElement.dataset.shell = 'macos'
+    document.documentElement.style.setProperty('--band-inset', '280px')
+  })
+  await p.waitForTimeout(50)
+  const pads = await p.evaluate(() => {
+    const status = document.getElementById('statusbar')
+    const title = document.getElementById('titlebar')
+    return {
+      statusLeft: status ? getComputedStyle(status).paddingLeft : '',
+      titleLeft: title ? getComputedStyle(title).paddingLeft : '',
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    }
+  })
+  if (pads.statusLeft !== '14px') {
+    fail(`macOS 状态行左内边距应是 14px，不受 --band-inset 影响，实为 ${pads.statusLeft}`)
+  }
+  if (pads.titleLeft !== '280px') {
+    fail(`macOS 顶栏左内边距应跟着 280px 的 --band-inset，实为 ${pads.titleLeft}`)
+  }
+  if (pads.overflow > 0) fail(`状态行留白把文档撑出横向滚动 ${pads.overflow}px`)
+  info(`macOS 留白：顶栏 ${pads.titleLeft}，状态行 ${pads.statusLeft}`)
 } catch (e) {
   fail(`异常：${e instanceof Error ? e.message : String(e)}`)
 }
