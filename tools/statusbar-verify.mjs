@@ -63,18 +63,17 @@ try {
 
   // macOS 顶栏让红绿灯，左内边距跟 --band-inset。状态行必须留在 14px，
   // 否则侧栏停靠时一两百像素的左留白会把窄窗口撑出横向滚动。
-  await p.evaluate(() => {
-    document.documentElement.dataset.shell = 'macos'
-    document.documentElement.style.setProperty('--band-inset', '280px')
-  })
-  await p.waitForTimeout(50)
+  // 同一次读取里量：壳会在下一帧按正文列重写 --band-inset，拆开量会把顶栏读成那个值。
   const pads = await p.evaluate(() => {
+    const root = document.documentElement
+    root.dataset.shell = 'macos'
+    root.style.setProperty('--band-inset', '280px')
     const status = document.getElementById('statusbar')
     const title = document.getElementById('titlebar')
     return {
       statusLeft: status ? getComputedStyle(status).paddingLeft : '',
       titleLeft: title ? getComputedStyle(title).paddingLeft : '',
-      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      overflow: root.scrollWidth - root.clientWidth,
     }
   })
   if (pads.statusLeft !== '14px') {
