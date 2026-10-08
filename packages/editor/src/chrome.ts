@@ -170,15 +170,15 @@ export function syncTitlebarInset(): void {
     bar.style.setProperty('--titlebar-title-max', `${Math.round(maxW)}px`)
   }
 
-  // 壳两侧（顶栏导航、状态行文字）与正文共用一个左边缘。
+  // 顶栏导航的左边缘与正文共用一条竖线。状态行不在这条线上：
+  // 它是窗口的元信息，整组贴右下角，左右固定 14px（见 #statusbar）。
   //
   // 之前是三套：状态行贴窗口边（14px）、导航固定 80px、正文随窗口居中（130→600px）。
-  // 同一屏里三条竖线，眼睛立刻觉得「没对齐」。
+  // 顶栏后来改成跟着正文列走。状态行试过跟着走，同一屏里多出一条竖线，已经改回去。
   //
-  // 一条规则贯彻到底：壳的左右边缘 = 正文文字的左右沿。
-  // 试过封顶在侧栏宽度（那样宽窗口下导航落在内容区轨道左沿），但正文在轨道内居中，
+  // 试过把顶栏封顶在侧栏宽度（那样宽窗口下导航落在内容区轨道左沿），但正文在轨道内居中，
   // 两者会错开 160px——用户看到的就是「没对齐」。macOS 的红绿灯避让由 CSS 的
-  // max(80px, …) 负责，不在这里掺进来。
+  // max(80px, …) 负责，只作用在顶栏上，不在这里掺进来。
   //
   // 唯一的例外是**壳自己放不下**：侧栏停靠时 textLeft ≈ 320（288 侧栏 + 正文内边距），
   // 而顶栏除了这条左沿还要放下 titlebar-lead(97) 与 titlebar-actions(176)。
@@ -189,8 +189,7 @@ export function syncTitlebarInset(): void {
   // flex 不会压缩这两个盒子（内容定宽 + min-width:auto），所以必须在取值时让位：
   // 左沿最多让到「壳自己的控件刚好放得下」为止。这与上面 macOS 红绿灯那条
   // max(80px, …) 是同一个例外——对齐是偏好，放得下是底线，窄到两者冲突时保后者。
-  // 此时状态行也跟着退到小内边距、与正文列不再对齐；那正是极窄窗口，此时正文本身
-  // 也快贴到窗口沿了（chrome.css 同处注释已经认下这个偏差）。
+  // 极窄时顶栏不再与正文列对齐；那时正文本身也快贴到窗口沿了。
   const leadG = bar.querySelector<HTMLElement>('.titlebar-lead')
   const barW = Math.round(barRight - bar.getBoundingClientRect().left)
   const shellNeeds =

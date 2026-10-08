@@ -202,15 +202,14 @@ html[data-shell='windows'] .titlebar-more { position: static; margin-left: 4px; 
 .window-controls {
   z-index: 1;
 }
-/* 壳的左右留白 = --band-inset（顶栏导航与状态行文字共用一条竖线，
-   与正文列对齐；见 chrome.ts 的 syncTitlebarInset）。
-   macOS 还要让开红绿灯：灯组占 20–72px，所以下限 80px。 */
+/* 顶栏左留白 = --band-inset（导航与正文列对齐；见 chrome.ts 的 syncTitlebarInset）。
+   状态行不走这条：它贴窗口右下角，左右都是 14px（见下方 #statusbar）。
+   macOS 还要让开红绿灯：灯组占 20–72px，所以顶栏下限 80px。 */
 #titlebar { padding-left: var(--band-inset, 14px); }
 /* macOS 窄窗口下红绿灯要占 20–72px，正文左沿可能只有 32px：
-   这时壳退到 80px，顶栏与状态行一起退，保持两条壳线彼此一致
-   （与正文的偏差只在极窄窗口出现，那时正文本身也快贴边了）。 */
-html[data-shell='macos'] #titlebar,
-html[data-shell='macos'] #statusbar { padding-left: max(80px, var(--band-inset, 14px)); }
+   这时只让顶栏退到 80px。状态行不跟着退——把它写进同一条选择器的话，
+   左内边距会跟正文列走到一两百像素，窄窗口下整组读数把文档撑出横向滚动。 */
+html[data-shell='macos'] #titlebar { padding-left: max(80px, var(--band-inset, 14px)); }
 /* 灯的中心由壳量一次写成 --traffic-light-center（窗口点 / 界面缩放）。
    26px 按钮半高 13：padding = 中心 - 13。不再手估。栏 36px，避免 48px 下面空一截。 */
 html[data-shell='macos'] #titlebar {
