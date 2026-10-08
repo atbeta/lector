@@ -16,6 +16,39 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.0 (2026-10-08)
+
+### Added
+
+- feat(editor): make three status-bar readouts clickable
+- feat(editor): hold reading position and widen tables
+
+### Fixed
+
+- fix(editor): keep the status row off the column inset
+- fix(editor,tools): make the status row actually hug the window's bottom-right
+- fix(editor): stop eager-loading body images and unframe them
+- fix(editor): restore structure under Windows high contrast
+- fix(editor): open up CJK heading tracking
+- fix(editor): keep the UI intact on older WebViews
+- fix(editor): throttle shell paint on document scroll
+- fix(editor): keep the top bar inside narrow windows
+- fix(editor): measure wide tables without a stale breakout
+- fix(core): keep indented lifts stable after reparse
+- fix(core): render indented markdown sections as blocks
+
+### Improved
+
+- refactor(editor): move offscreen shells out of documentEditor
+
+### Internal
+
+- docs(core): record why chunking stays in-tree
+- docs(readme): correct the three view mode names
+- docs(agents): document cloud agent dev setup
+
+[v0.38.0]: https://github.com/atbeta/lector/compare/v0.37.3...v0.38.0
+
 ## v0.37.3 (2026-09-29)
 
 ### Improved
