@@ -16,6 +16,12 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.1 (2026-10-11)
+
+### Improved
+
+- style(settings): group rows into cards and align the control column
+
 ## v0.38.0 (2026-10-08)
 
 ### Added
