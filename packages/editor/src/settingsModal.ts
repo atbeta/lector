@@ -170,7 +170,7 @@ export function openSettingsModal(onClose?: () => void) {
   const panesBySection = new Map<string, HTMLElement>()
   const navButtons = new Map<string, HTMLButtonElement>()
 
-  const makeSection = (id: string, label: string): HTMLElement => {
+  const makeSection = (id: string, label: string, icon: string): HTMLElement => {
     const el = h('section', 'settings-group')
     el.dataset.section = id
     el.appendChild(sectionTitle(label))
@@ -180,7 +180,11 @@ export function openSettingsModal(onClose?: () => void) {
     const btn = h('button', 'settings-nav-item') as HTMLButtonElement
     btn.type = 'button'
     btn.dataset.section = id
-    btn.textContent = label
+    const iconEl = h('span', 'settings-nav-icon')
+    iconEl.innerHTML = iconSvg(icon, 16)
+    const text = h('span', 'settings-nav-label')
+    text.textContent = label
+    btn.append(iconEl, text)
     btn.addEventListener('click', () => showSection(id))
     nav.appendChild(btn)
     navButtons.set(id, btn)
@@ -194,15 +198,14 @@ export function openSettingsModal(onClose?: () => void) {
     content.scrollTop = 0
   }
 
-  const reading = makeSection('reading', t('reading'))
-  const appearance = makeSection('appearance', t('appearance'))
-  const editing = makeSection('editing', t('editing'))
-  const markdown = makeSection('markdown', t('markdown'))
-  const images = makeSection('images', t('images'))
-  const files = makeSection('files', t('files'))
-  const shortcuts = makeSection('shortcuts', t('shortcutTitle'))
-  const maintenance = makeSection('maintenance', t('maintenance'))
-  const about = makeSection('about', t('about'))
+  const reading = makeSection('reading', t('reading'), 'book')
+  const appearance = makeSection('appearance', t('appearance'), 'palette')
+  const editing = makeSection('editing', t('editing'), 'pencil')
+  const markdown = makeSection('markdown', t('markdown'), 'hash')
+  const images = makeSection('images', t('images'), 'image')
+  const files = makeSection('files', t('files'), 'folder')
+  const shortcuts = makeSection('shortcuts', t('shortcutTitle'), 'keyboard')
+  const about = makeSection('about', t('about'), 'info')
   navButtons.get('shortcuts')?.classList.add('settings-nav-reference')
 
   // ── 外观 ──
@@ -745,34 +748,6 @@ export function openSettingsModal(onClose?: () => void) {
   }
   shortcuts.appendChild(shortcutGrid)
 
-  // ── 维护 ──
-  // 「我的数据存在哪」的自问自答处。便携版用户尤其需要看见数据是否在程序旁，
-  // 以及随时能打开这两个目录。壳侧解析路径，Web 只拿到这两条并交给
-  // open_with_default 打开——不开通用路径能力。
-  const openDirRow = (label: string, hint: HTMLElement, open: () => void): HTMLElement => {
-    const btn = h('button', 'btn btn-ghost') as HTMLButtonElement
-    btn.type = 'button'
-    btn.textContent = t('openFolderAction')
-    btn.addEventListener('click', open)
-    const r = row(label, btn)
-    r.classList.add('has-hint')
-    r.querySelector('.row-text')?.appendChild(hint)
-    return r
-  }
-  const dataHint = h('span', 'row-hint')
-  const logsHint = h('span', 'row-hint')
-  let dataPath = ''
-  let logsPath = ''
-  maintenance.appendChild(openDirRow(t('openDataDir'), dataHint, () => { if (dataPath) void openWithDefault(dataPath) }))
-  maintenance.appendChild(openDirRow(t('openLogDir'), logsHint, () => { if (logsPath) void openWithDefault(logsPath) }))
-  void appDirs().then((dirs) => {
-    if (!dirs) return
-    dataPath = dirs.data
-    logsPath = dirs.logs
-    dataHint.textContent = dirs.data
-    logsHint.textContent = dirs.logs
-  })
-
   // ── 关于 ──
   // 版本号是「我现在跑的是哪一版」的唯一自问自答处——报问题、对更新都要它。
   // 这节没有可调的项，所以不做成左对齐的设置行，而是一张居中的名片：
@@ -801,8 +776,54 @@ export function openSettingsModal(onClose?: () => void) {
   pane.appendChild(versionRow)
   about.appendChild(pane)
 
+  // 维护：「我的数据存在哪」的自问自答处。便携版用户尤其需要看见数据是否在程序旁，
+  // 以及随时能打开这两个目录。只有两行，单占一个导航项太碎，挂在名片下面。
+  // 壳侧解析路径，Web 只拿到这两条并交给 open_with_default 打开——不开通用路径能力。
+  const openDirRow = (label: string, hint: HTMLElement, open: () => void): HTMLElement => {
+    const btn = h('button', 'btn btn-ghost') as HTMLButtonElement
+    btn.type = 'button'
+    btn.textContent = t('openFolderAction')
+    btn.addEventListener('click', open)
+    const r = row(label, btn)
+    r.classList.add('has-hint')
+    r.querySelector('.row-text')?.appendChild(hint)
+    return r
+  }
+  const dataHint = h('span', 'row-hint row-path')
+  const logsHint = h('span', 'row-hint row-path')
+  let dataPath = ''
+  let logsPath = ''
+  about.appendChild(groupLabel(t('maintenance')))
+  about.appendChild(openDirRow(t('openDataDir'), dataHint, () => { if (dataPath) void openWithDefault(dataPath) }))
+  about.appendChild(openDirRow(t('openLogDir'), logsHint, () => { if (logsPath) void openWithDefault(logsPath) }))
+  void appDirs().then((dirs) => {
+    if (!dirs) return
+    dataPath = dirs.data
+    logsPath = dirs.logs
+    dataHint.textContent = dirs.data
+    logsHint.textContent = dirs.logs
+  })
+
+  // 每个组标题与其后的设置行收进一张分组卡片：组的边界由卡片给出，
+  // 而不是靠一行小灰字和满屏的通栏分隔线去猜。建完再统一收，
+  // 各分区的拼装代码就不用关心自己落在哪张卡里。
+  for (const section of panesBySection.values()) {
+    let block: HTMLElement | null = null
+    for (const child of [...section.children] as HTMLElement[]) {
+      if (child.classList.contains('settings-row-label')) {
+        block = h('div', 'settings-block')
+        child.after(block)
+      } else if (block && child.classList.contains('settings-row')) {
+        block.appendChild(child)
+      } else {
+        block = null
+      }
+    }
+  }
+
   // ── 底栏 ──
-  const footer = h('div', 'modal-footer')
+  // 「恢复默认」靠左、「关闭」靠右：不可逆的动作不和主操作挤在一起，免得顺手点错。
+  const footer = h('div', 'modal-footer settings-footer')
   const reset = h('button', 'btn')
   reset.textContent = t('resetDefaults')
   reset.addEventListener('click', () => {
@@ -840,6 +861,9 @@ export function openSettingsModal(onClose?: () => void) {
         const hit = browsing || (r.textContent ?? '').toLowerCase().includes(q)
         r.hidden = !hit
         if (hit) visibleInSection++
+      }
+      for (const block of el.querySelectorAll<HTMLElement>('.settings-block')) {
+        block.hidden = ![...block.querySelectorAll<HTMLElement>('.settings-row')].some((r) => !r.hidden)
       }
       for (const card of el.querySelectorAll<HTMLElement>('.settings-shortcut-card')) {
         card.hidden = !browsing && ![...card.querySelectorAll<HTMLElement>('.settings-row')].some((r) => !r.hidden)
