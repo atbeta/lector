@@ -21,13 +21,16 @@ import type { DocumentSession } from './documentSession.ts'
 // 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要猜
 // 「我现在在哪一档」；而且第三档叫「分屏」——屏幕上并没有第二条栏，
 // 名字在承诺一件不存在的事。名字与档位一起改掉：阅读 / 编辑 / 源码。
+// 顶栏只放图标，名字在悬停和读屏里。眼睛 / 尖括号说的是「预览 / 代码」，
+// 和这三档对不上——阅读和编辑是同一页，源码是原文。图标换成同一套说法：
+// 书本 / 铅笔 / 带行的文档。
 // 状态走 html[data-mode]——样式 / 点击 / 快捷键都只看这一个属性。
 // 快捷键：⌘1 / ⌘2 / ⌘3 直选，⌘E 循环。
 export type ViewMode = 'read' | 'edit' | 'source'
 
 /** 顺序 = 分段控件里的顺序 = ⌘1/⌘2/⌘3 的顺序。 */
 export const VIEW_MODES: readonly ViewMode[] = ['read', 'edit', 'source']
-const VIEW_ICON: Record<ViewMode, string> = { read: 'eye', edit: 'pencil', source: 'code' }
+const VIEW_ICON: Record<ViewMode, string> = { read: 'book', edit: 'pencil', source: 'fileText' }
 
 function viewLabel(m: ViewMode): string {
   return m === 'read' ? t('modeLabelRead') : m === 'edit' ? t('modeLabelEdit') : t('modeLabelSource')
@@ -83,9 +86,8 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
   /**
    * 分段控件：三档常驻，当前档常亮。
    *
-   * 只有图标 + tip：三档的图标（眼睛 / 铅笔 / 代码）已经足够自明，
-   * 常驻文字会把顶栏变成一排字、还和右侧其它图标按钮争宽度。悬停出 tip、
-   * aria-label 供读屏——文字没有消失，只是移到需要时才出现的层。
+   * 只放图标。字在 tip 和 aria-label 里：常驻文字会和右侧图标按钮争宽度，
+   * 而这三枚（书本 / 铅笔 / 带行的文档）已经落在同一根轴上。
    */
   function buildModeSwitch(): void {
     modeSwitchEl.replaceChildren()
