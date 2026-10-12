@@ -194,16 +194,17 @@
   /* ───────────── Motion（全站唯一缓动来源） ───────────── */
   --motion-fast: 90ms;      /* 悬停/按压反馈 */
   --motion-base: 150ms;      /* 状态过渡 */
+  --motion-modal: 120ms;     /* 设置 / 确认框：遮罩与卡片一起淡入 */
   --motion-slow: 210ms;      /* 浮层入场 */
   --ease-standard: cubic-bezier(0.3, 0, 0.2, 1);
   --ease-enter: cubic-bezier(0.2, 0, 0.4, 1);
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --motion-enter: 12px;      /* 浮层入场位移，配 opacity 使用 */
 
-  /* 弹层遮罩：禁止裸 black */
+  /* 弹层遮罩：禁止裸 black。只压暗，不虚化——虚化渐入会卡，
+     第一帧铺满又像网页弹层。面板自己淡入。 */
   --overlay: 26 25 22;
   --overlay-alpha: 0.28;
-  --overlay-blur: 4px;
   /* 遮罩之上的前景（放大浮层的关闭键）。遮罩永远是暗的，所以这盏「灯」始终亮——
      不跟 --foreground 走：深色主题里 --foreground 也是亮的，浅色主题里它却是黑的，
      拿它当遮罩上的颜色，浅色主题下关闭键会黑底黑字。 */
@@ -284,6 +285,5 @@ html[data-theme='dark'] {
 
   --overlay: 0 0 0;
   --overlay-alpha: 0.48;
-  --overlay-blur: 5px;
   --overlay-foreground: 238 238 242;
 }
