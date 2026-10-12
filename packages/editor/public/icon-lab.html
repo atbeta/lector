@@ -2,452 +2,596 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lector Icon Design Exploration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lector Icon Exploration & Multi-Scale Mockups</title>
   <style>
     :root {
       --bg: #F5F4F0;
       --card: #FFFFFF;
-      --text: #181E24;
-      --muted: #64707D;
-      --border: #E0DDD5;
-      --blue: #2B59FF;
+      --text: #111827;
+      --muted: #4B5563;
+      --border: #E5E7EB;
+      --blue: #2563EB;
+      --radius: 12px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 36px 32px 80px;
       line-height: 1.5;
+      padding: 24px 20px 80px;
     }
-    .wrap { max-width: 1240px; margin: 0 auto; }
-    header { margin-bottom: 28px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
-    h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
-    .subtitle { color: var(--muted); font-size: 15px; }
-
-    .critique {
-      background: #FFF9EB;
-      border: 1px solid #F2DEC0;
-      border-radius: 12px;
-      padding: 16px 22px;
-      margin-bottom: 32px;
+    .container {
+      max-width: 1220px;
+      margin: 0 auto;
     }
-    .critique h3 { font-size: 15px; font-weight: 700; color: #8A5B00; margin-bottom: 6px; }
-    .critique p { font-size: 13.5px; color: #5C4300; line-height: 1.6; }
+    header {
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      border-bottom: 1px solid #DDD9D0;
+      padding-bottom: 18px;
+    }
+    .header-left h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-left p {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #FFFFFF;
+      border: 1px solid #D1D5DB;
+      padding: 8px 16px;
+      border-radius: 8px;
+      color: #374151;
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: all 0.15s ease;
+    }
+    .back-btn:hover {
+      border-color: #9CA3AF;
+      color: #111827;
+    }
 
-    .grid {
+    /* Diagnosis Banner */
+    .diagnosis-card {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 28px;
+    }
+    .diagnosis-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #92400E;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .diagnosis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      font-size: 13px;
+      color: #78350F;
+      line-height: 1.6;
+    }
+    @media (max-width: 768px) {
+      .diagnosis-grid { grid-template-columns: 1fr; }
+    }
+
+    /* 4-Column Grid */
+    .cards-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      margin-bottom: 40px;
+      gap: 16px;
+      margin-bottom: 36px;
     }
-    @media (max-width: 1024px) {
-      .grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 1080px) {
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 580px) {
+      .cards-grid { grid-template-columns: 1fr; }
     }
 
-    .card {
+    .proposal-card {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px 18px;
+      border: 1px solid #D5D2C8;
+      border-radius: var(--radius);
+      padding: 18px 16px;
       display: flex;
       flex-direction: column;
       position: relative;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: all 0.2s ease;
     }
-    .card.highlight {
+    .proposal-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .proposal-card.recommended {
       border: 2px solid var(--blue);
-      box-shadow: 0 8px 24px rgba(43,89,255,0.08);
     }
-    .badge-star {
+    .rec-badge {
       position: absolute;
       top: -11px;
-      right: 18px;
+      right: 14px;
       background: var(--blue);
-      color: #fff;
-      font-size: 11px;
+      color: #FFF;
+      font-size: 10.5px;
       font-weight: 700;
-      padding: 2px 10px;
-      border-radius: 99px;
-      letter-spacing: 0.02em;
+      padding: 2px 9px;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
     }
 
-    .card-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-    .card-sub { font-size: 12.5px; color: var(--muted); min-height: 36px; margin-bottom: 16px; }
+    .card-header {
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .card-sub {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
 
-    .preview-box {
-      background: #FAF9F6;
-      border: 1px solid #EAE7DE;
+    /* Stage for icons */
+    .stage {
+      background: #F9FAFB;
+      border: 1px solid #ECEEF1;
       border-radius: 10px;
       padding: 18px 10px;
       display: flex;
       justify-content: space-around;
       align-items: center;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
-    .icon-col { text-align: center; }
-    .icon-col .tag { font-size: 11px; color: var(--muted); margin-top: 8px; font-weight: 600; }
-    .icon-col svg { display: block; margin: 0 auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.09)); }
+    .icon-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+    }
+    .icon-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
 
-    .points {
-      font-size: 12px;
-      color: #4C5661;
-      border-top: 1px dashed var(--border);
-      padding-top: 14px;
+    /* Feature points */
+    .feature-list {
+      list-style: none;
+      font-size: 12.5px;
+      color: #374151;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 1px dashed #E5E7EB;
+      padding-top: 12px;
       margin-top: auto;
     }
-    .points li { margin-bottom: 6px; list-style-position: inside; }
-
-    /* Testing Area */
-    .test-sec {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 26px 24px;
-      margin-top: 10px;
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
     }
-    .test-sec h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .feature-list li::before {
+      content: "•";
+      color: var(--blue);
+      font-weight: bold;
+    }
 
-    .sim-dock {
+    /* Multi-scale mockups section */
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      margin: 36px 0 16px;
       display: flex;
       align-items: center;
-      gap: 24px;
-      background: rgba(22, 28, 36, 0.92);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 18px;
-      padding: 14px 26px;
-      width: fit-content;
-      margin: 14px 0 26px;
-      box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+      gap: 8px;
     }
-    .dock-unit { text-align: center; color: #FFF; font-size: 11px; }
-    .dock-unit svg { display: block; margin: 0 auto 6px; }
+    .mock-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 40px;
+    }
+    @media (max-width: 860px) {
+      .mock-grid { grid-template-columns: 1fr; }
+    }
+    .mock-panel {
+      background: var(--card);
+      border: 1px solid #D5D2C8;
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .mock-panel h3 {
+      font-size: 14.5px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #1F2937;
+    }
 
-    .sim-finder {
+    /* macOS Dock Simulation */
+    .mac-dock-sim {
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.05);
+      border-radius: 18px;
+      padding: 10px 18px;
       display: flex;
-      gap: 32px;
-      background: #FAFAFB;
-      border: 1px solid #DCE1E6;
-      border-radius: 10px;
-      padding: 18px 24px;
-      align-items: flex-end;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      width: fit-content;
+      margin: 10px auto 14px;
     }
-    .finder-item { text-align: center; width: 90px; }
-    .finder-item .name {
-      font-size: 11px;
-      color: #2D3748;
-      margin-top: 8px;
-      font-weight: 500;
+    .dock-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
     }
+    .dock-dot {
+      width: 4px;
+      height: 4px;
+      background: #4B5563;
+      border-radius: 50%;
+    }
+
+    /* File Explorer Simulation */
+    .files-sim {
+      border: 1px solid #E5E7EB;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .file-row {
+      display: flex;
+      align-items: center;
+      padding: 9px 12px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #F3F4F6;
+      font-size: 12.5px;
+      gap: 10px;
+    }
+    .file-row:last-child { border-bottom: none; }
+    .file-name { font-weight: 500; color: #1F2937; flex: 1; }
+    .file-tag { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+    .tag-curr { background: #FEE2E2; color: #991B1B; }
+    .tag-a { background: #DBEAFE; color: #1E40AF; }
+    .tag-b { background: #FEF3C7; color: #92400E; }
+    .tag-c { background: #F3E8FF; color: #6B21A8; }
   </style>
 </head>
 <body>
-
-<div class="wrap">
-  <header>
-    <h1>Lector Icon Redesign & Polish Lab</h1>
-    <p class="subtitle">Comparing the current (0bf49dd) design against 3 targeted proposals to fix clunky forms, visual clutter, and unbalanced file badges.</p>
-  </header>
-
-  <div class="critique">
-    <h3>Key Issues in Current Version (0bf49dd):</h3>
-    <p>
-      <strong>1. App Icon:</strong> The heavy dark plate houses a cramped, thick "L" constricting a squished "M". The lone red ribbon drooping from the top edge looks like unremoved packing tape rather than an intentional bookmark. It lacks the airy, typographic elegance expected of a "reading-first" Markdown editor.<br>
-      <strong>2. Document Icon:</strong> Slapping a dark, heavy app plate onto the bottom-left corner creates a jarring visual imbalance and turns into an illegible muddy blob at 32px / 16px in File Explorer and Finder.
-    </p>
-  </div>
-
-  <div class="grid">
-
-    <!-- CURRENT -->
-    <div class="card">
-      <div class="card-title">Current (0bf49dd)</div>
-      <div class="card-sub">Cramped L/M cage with arbitrary red tape on top.</div>
-
-      <div class="preview-box">
-        <div class="icon-col">
-          <!-- Current App Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <defs>
-              <linearGradient id="c_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B4F5E"/><stop offset="0.55" stop-color="#28363F"/><stop offset="1" stop-color="#1B242B"/></linearGradient>
-              <linearGradient id="c_ivory" x1="0" y1="8" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FAF6EE"/><stop offset="1" stop-color="#EAE2D3"/></linearGradient>
-              <linearGradient id="c_ribbon" x1="0" y1="0" x2="0" y2="7" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#9E3E2C"/><stop offset="1" stop-color="#C9573C"/></linearGradient>
-              <clipPath id="c_clip"><rect width="32" height="32" rx="7.2"/></clipPath>
-            </defs>
-            <g clip-path="url(#c_clip)">
-              <rect width="32" height="32" fill="url(#c_plate)"/>
-              <path d="M21.72 0H24.48V6.1L23.1 5L21.72 6.1Z" fill="url(#c_ribbon)"/>
-            </g>
-            <rect x="0.25" y="0.25" width="31.5" height="31.5" rx="6.95" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="0.5"/>
-            <g transform="translate(16 16) scale(1.06) translate(-16 -16)" fill="url(#c_ivory)">
-              <path d="M8 8H10.9V20.6A1.8 1.8 0 0 0 12.7 22.4H24V24H8Z"/>
-              <path d="M13.5 8H16.5L18.995 13.311L20.2 8H24V19.6H21.4V8.8L18.95 19.6L14.6 10.341V19.6H13.5Z"/>
-            </g>
-          </svg>
-          <div class="tag">App Icon</div>
-        </div>
-
-        <div class="icon-col">
-          <!-- Current File Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <path d="M9 2H21L27 8V28A2 2 0 0 1 25 30H9A2 2 0 0 1 7 28V4A2 2 0 0 1 9 2Z" fill="#FFFFFF" stroke="#D1D5DB" stroke-width="0.8"/>
-            <path d="M21 2V6.6A1.4 1.4 0 0 0 22.4 8H27Z" fill="#E5E7EB"/>
-            <g fill="#2C3A44">
-              <rect x="11" y="6" width="6.5" height="1.5" rx="0.75" fill-opacity="0.55"/>
-              <rect x="11" y="10" width="12" height="0.9" rx="0.45" fill-opacity="0.2"/>
-              <rect x="11" y="12.5" width="12" height="0.9" rx="0.45" fill-opacity="0.2"/>
-              <rect x="19.5" y="15" width="3.5" height="0.9" rx="0.45" fill-opacity="0.2"/>
-              <rect x="19.5" y="17.5" width="3.5" height="0.9" rx="0.45" fill-opacity="0.2"/>
-            </g>
-            <rect x="4" y="16" width="13" height="13" rx="3" fill="#28363F"/>
-            <path d="M14 16H15.5V19.5L14.75 18.8L14 19.5Z" fill="#C9573C"/>
-            <path d="M6.5 19.5H8V25.5A1 1 0 0 0 9 26.5H14.5V27.5H6.5Z" fill="#FAF6EE"/>
-          </svg>
-          <div class="tag">File (.md)</div>
-        </div>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <h1>🎨 Lector Icon Design Gallery</h1>
+        <p>A reading-first Markdown editor · Comprehensive design evaluation and multi-scale mockups</p>
       </div>
+      <a href="/" class="back-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to Editor
+      </a>
+    </header>
 
-      <ul class="points">
-        <li>Suffocating L & M intersection.</li>
-        <li>Ribbon clashes with minimalist reading aesthetic.</li>
-        <li>Heavy bottom-left block unbalances the paper sheet.</li>
-      </ul>
-    </div>
-
-    <!-- PROPOSAL A -->
-    <div class="card highlight">
-      <div class="badge-star">RECOMMENDED · 方案 A</div>
-      <div class="card-title">A · Folio & Light (舒卷书扉)</div>
-      <div class="card-sub">Open book spine forming an upright "L" with breathing room.</div>
-
-      <div class="preview-box">
-        <div class="icon-col">
-          <!-- Proposal A App Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <defs>
-              <linearGradient id="pA_plate" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#24303B"/>
-                <stop offset="100%" stop-color="#141B21"/>
-              </linearGradient>
-              <linearGradient id="pA_glow" x1="16" y1="6" x2="16" y2="26" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF"/>
-                <stop offset="100%" stop-color="#EDE9E1"/>
-              </linearGradient>
-              <linearGradient id="pA_blue" x1="8" y1="8" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#4F79F6"/>
-                <stop offset="100%" stop-color="#2F54EB"/>
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="7.2" fill="url(#pA_plate)"/>
-            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="0.6"/>
-            <!-- Open page & L spine motif -->
-            <path d="M8.5 7.5C8.5 6.95 8.95 6.5 9.5 6.5H12C12.55 6.5 13 6.95 13 7.5V20.5C13 22.7 14.8 24.5 17 24.5H23.5C24.05 24.5 24.5 24.95 24.5 25.5C24.5 26.05 24.05 26.5 23.5 26.5H15.5C11.63 26.5 8.5 23.37 8.5 19.5V7.5Z" fill="url(#pA_glow)"/>
-            <path d="M15.5 8C15.5 7.45 15.95 7 16.5 7H22.5C23.05 7 23.5 7.45 23.5 8V18C23.5 18.55 23.05 19 22.5 19H19.5C17.3 19 15.5 17.2 15.5 15V8Z" fill="url(#pA_glow)" fill-opacity="0.9"/>
-            <!-- Sapphire focal dot (focus/reading mark) -->
-            <circle cx="21" cy="11.5" r="1.5" fill="url(#pA_blue)"/>
-          </svg>
-          <div class="tag">App Icon</div>
-        </div>
-
-        <div class="icon-col">
-          <!-- Proposal A File Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <defs>
-              <linearGradient id="pA_paper" x1="0" y1="2" x2="0" y2="30" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF"/>
-                <stop offset="100%" stop-color="#F8F7F3"/>
-              </linearGradient>
-            </defs>
-            <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="url(#pA_paper)" stroke="#D4D0C5" stroke-width="0.8"/>
-            <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#EAE6DC"/>
-            <!-- Subtle embossed center folio glyph -->
-            <g transform="translate(17 15.5) scale(0.62) translate(-16 -16)">
-              <path d="M9 7C9 6.45 9.45 6 10 6H12.5C13.05 6 13.5 6.45 13.5 7V19.5C13.5 21.7 15.3 23.5 17.5 23.5H23C23.55 23.5 24 23.95 24 24.5C24 25.05 23.55 25.5 23 25.5H16C12.13 25.5 9 22.37 9 18.5V7Z" fill="#3B4C5A"/>
-              <path d="M16 8C16 7.45 16.45 7 17 7H22C22.55 7 23 7.45 23 8V16C23 16.55 22.55 17 22 17H19.5C17.57 17 16 15.43 16 13.5V8Z" fill="#3B4C5A" fill-opacity="0.82"/>
-            </g>
-            <!-- Sleek, centered Markdown pill badge -->
-            <rect x="10.5" y="22" width="11" height="4.5" rx="1.5" fill="#24313C"/>
-            <text x="16" y="25.3" font-family="-apple-system, sans-serif" font-size="2.8" font-weight="800" fill="#FFF" text-anchor="middle" letter-spacing="0.4">MD</text>
-          </svg>
-          <div class="tag">File (.md)</div>
-        </div>
+    <!-- Diagnosis Banner -->
+    <div class="diagnosis-card">
+      <div class="diagnosis-title">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Key Issues Identified in Current Version (0bf49dd):
       </div>
-
-      <ul class="points">
-        <li><strong>Open Book / Reading Spine</strong> gives instant literary meaning.</li>
-        <li><strong>Clean Markdown Pill:</strong> Instantly recognizable across macOS and Windows.</li>
-        <li>Crystal clear at 16px/32px without visual noise.</li>
-      </ul>
-    </div>
-
-    <!-- PROPOSAL B -->
-    <div class="card">
-      <div class="card-title">B · Pure Monogram (典雅墨印)</div>
-      <div class="card-sub">Confidence in typographic restraint: modern serif "L".</div>
-
-      <div class="preview-box">
-        <div class="icon-col">
-          <!-- Proposal B App Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <defs>
-              <linearGradient id="pB_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#1E2B38"/>
-                <stop offset="100%" stop-color="#0E1620"/>
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="7.2" fill="url(#pB_plate)"/>
-            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="0.6"/>
-            <!-- Custom Monogram L -->
-            <path d="M10 7.5C10 7.22 10.22 7 10.5 7H14C14.28 7 14.5 7.22 14.5 7.5V19.8C14.5 21.01 15.49 22 16.7 22H22.5C22.78 22 23 22.22 23 22.5V24.5C23 24.78 22.78 25 22.5 25H14C11.79 25 10 23.21 10 21V7.5Z" fill="#F8F5EE"/>
-            <circle cx="21" cy="10" r="2" fill="#E89B6C"/>
-          </svg>
-          <div class="tag">App Icon</div>
+      <div class="diagnosis-grid">
+        <div>
+          <strong>1. App Icon: Suffocating Cage & Red Tape</strong><br>
+          Thick serif "L" constricts a squished "M" with zero breathing room. The drooping red tape looks like unremoved packing tape and blurs into a colored artifact at 32px / 48px.
         </div>
-
-        <div class="icon-col">
-          <!-- Proposal B File Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-            <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-            <circle cx="17" cy="16.5" r="5.5" fill="#F6F4ED" stroke="#DDD7C8" stroke-width="0.6"/>
-            <path d="M14.5 12.5H16.2V18.7C16.2 19.3 16.7 19.8 17.3 19.8H20V21H16C15.17 21 14.5 20.33 14.5 19.5V12.5Z" fill="#243342"/>
-            <rect x="12" y="23.5" width="10" height="3.2" rx="1.6" fill="#1E2B38"/>
-            <text x="17" y="25.9" font-family="-apple-system, sans-serif" font-size="2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
-          </svg>
-          <div class="tag">File (.md)</div>
+        <div>
+          <strong>2. Document Icon: Clunky Left-Bottom Weight</strong><br>
+          Slapping a solid black app block on the bottom-left corner heavily unbalances the paper sheet. In Finder / File Explorer it looks like an accidental blotch.
         </div>
-      </div>
-
-      <ul class="points">
-        <li>Classic scholarly aesthetic.</li>
-        <li>Subtle copper/amber ink seal accent.</li>
-        <li>Embossed circular stamp on documents.</li>
-      </ul>
-    </div>
-
-    <!-- PROPOSAL C -->
-    <div class="card">
-      <div class="card-title">C · Markdown Flow (双翼书羽)</div>
-      <div class="card-sub">Dynamic fusion of Markdown chevron and folded page.</div>
-
-      <div class="preview-box">
-        <div class="icon-col">
-          <!-- Proposal C App Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <defs>
-              <linearGradient id="pC_plate" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#2D3A45"/>
-                <stop offset="100%" stop-color="#182026"/>
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="7.2" fill="url(#pC_plate)"/>
-            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
-            <path d="M9 7.5C9 6.67 9.67 6 10.5 6H13C13.83 6 14.5 6.67 14.5 7.5V18.5L19 13.5L23.5 18.5V7.5C23.5 6.67 24.17 6 25 6C25.83 6 26.5 6.67 26.5 7.5V23.5C26.5 24.33 25.83 25 25 25H12C10.34 25 9 23.66 9 22V7.5Z" fill="#F4F1EA"/>
-          </svg>
-          <div class="tag">App Icon</div>
-        </div>
-
-        <div class="icon-col">
-          <!-- Proposal C File Icon -->
-          <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-            <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-            <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-            <path d="M12 14V20M12 14L15 17L18 14M18 14V20" stroke="#37474F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M22 15V19M22 19L20 17M22 19L24 17" stroke="#37474F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <div class="tag">File (.md)</div>
-        </div>
-      </div>
-
-      <ul class="points">
-        <li>Strong developer / Markdown nerd identity.</li>
-        <li>Direct integration of the downward chevron mark.</li>
-        <li>Crisp technical strokes.</li>
-      </ul>
-    </div>
-
-  </div>
-
-  <!-- Real-world simulation -->
-  <div class="test-sec">
-    <h2>Real-world Context Simulation</h2>
-    <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 20px;">
-      Checking clarity in high-contrast macOS Dock / Windows 11 Taskbar, and Explorer list views:
-    </p>
-
-    <h4 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-bottom: 8px;">1. Taskbar / Dock Appearance (48px scale)</h4>
-    <div class="sim-dock">
-      <div class="dock-unit">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="7.2" fill="#28363F"/>
-          <path d="M21.72 0H24.48V6.1L23.1 5L21.72 6.1Z" fill="#C9573C"/>
-          <g fill="#FAF6EE">
-            <path d="M8 8H10.9V20.6A1.8 1.8 0 0 0 12.7 22.4H24V24H8Z"/>
-            <path d="M13.5 8H16.5L18.995 13.311L20.2 8H24V19.6H21.4V8.8L18.95 19.6L14.6 10.341V19.6H13.5Z"/>
-          </g>
-        </svg>
-        <span>Current (Blurry/Heavy)</span>
-      </div>
-
-      <div class="dock-unit" style="border-left: 1px solid rgba(255,255,255,0.18); padding-left: 20px;">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="7.2" fill="#1C252E"/>
-          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.22" stroke-width="0.6"/>
-          <path d="M8.5 7.5C8.5 6.95 8.95 6.5 9.5 6.5H12C12.55 6.5 13 6.95 13 7.5V20.5C13 22.7 14.8 24.5 17 24.5H23.5C24.05 24.5 24.5 24.95 24.5 25.5C24.5 26.05 24.05 26.5 23.5 26.5H15.5C11.63 26.5 8.5 23.37 8.5 19.5V7.5Z" fill="#FFFFFF"/>
-          <path d="M15.5 8C15.5 7.45 15.95 7 16.5 7H22.5C23.05 7 23.5 7.45 23.5 8V18C23.5 18.55 23.05 19 22.5 19H19.5C17.3 19 15.5 17.2 15.5 15V8Z" fill="#F0EDE6"/>
-          <circle cx="21" cy="11.5" r="1.5" fill="#4F79F6"/>
-        </svg>
-        <span style="color: #6DA0FF; font-weight: 700;">Proposal A (Sharp & Clean)</span>
-      </div>
-
-      <div class="dock-unit">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="7.2" fill="#162230"/>
-          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.22" stroke-width="0.6"/>
-          <path d="M10 7.5C10 7.22 10.22 7 10.5 7H14C14.28 7 14.5 7.22 14.5 7.5V19.8C14.5 21.01 15.49 22 16.7 22H22.5C22.78 22 23 22.22 23 22.5V24.5C23 24.78 22.78 25 22.5 25H14C11.79 25 10 23.21 10 21V7.5Z" fill="#FAF6EE"/>
-          <circle cx="21" cy="10" r="2" fill="#E8A87C"/>
-        </svg>
-        <span>Proposal B (Typographic)</span>
       </div>
     </div>
 
-    <h4 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-bottom: 8px;">2. File Explorer / Finder Document List (48px scale)</h4>
-    <div class="sim-finder">
-      <div class="finder-item">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <path d="M9 2H21L27 8V28A2 2 0 0 1 25 30H9A2 2 0 0 1 7 28V4A2 2 0 0 1 9 2Z" fill="#FFF" stroke="#D1D5DB" stroke-width="0.8"/>
-          <path d="M21 2V6.6A1.4 1.4 0 0 0 22.4 8H27Z" fill="#E5E7EB"/>
-          <rect x="4" y="16" width="13" height="13" rx="3" fill="#28363F"/>
-        </svg>
-        <div class="name">Current (Clunky)</div>
+    <!-- 4 Proposals Compared -->
+    <div class="cards-grid">
+      <!-- Current Version -->
+      <div class="proposal-card">
+        <div class="card-header">
+          <div class="card-title">Current (0bf49dd)</div>
+          <div class="card-sub">Cramped L/M cage with red tape</div>
+        </div>
+        <div class="stage">
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <defs>
+                <linearGradient id="curr_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#24303B"/>
+                  <stop offset="100%" stop-color="#141C24"/>
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" rx="7.2" fill="url(#curr_plate)"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="0.6"/>
+              <path d="M10 6H13.6V20.8H18.4V24H10V6Z" fill="#F4F1EA"/>
+              <path d="M14.4 12.8H16.2L18.4 18.2L20.6 12.8H22.4V24H20.4V16.6L18.8 20.6H18L16.4 16.6V24H14.4V12.8Z" fill="#F4F1EA"/>
+              <rect x="18.5" y="0" width="3.2" height="7.5" rx="0.4" fill="#C94A29"/>
+            </svg>
+            <span class="icon-label">App Icon</span>
+          </div>
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
+              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
+              <rect x="11" y="13" width="10" height="1.2" rx="0.6" fill="#D1D5DB"/>
+              <rect x="11" y="16" width="10" height="1.2" rx="0.6" fill="#D1D5DB"/>
+              <rect x="11" y="19" width="7" height="1.2" rx="0.6" fill="#D1D5DB"/>
+              <rect x="5" y="18" width="13" height="13" rx="3.2" fill="#1C242C" stroke="#FFF" stroke-width="0.8"/>
+              <text x="11.5" y="27.5" font-family="-apple-system, sans-serif" font-size="9" font-weight="800" fill="#FFF" text-anchor="middle">L</text>
+            </svg>
+            <span class="icon-label">File (.md)</span>
+          </div>
+        </div>
+        <ul class="feature-list">
+          <li>Suffocating L & M overlap</li>
+          <li>Red bookmark clashes with minimalism</li>
+          <li>Bottom-left block skews visual balance</li>
+        </ul>
       </div>
 
-      <div class="finder-item">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFF" stroke="#D4D0C6" stroke-width="0.8"/>
-          <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E8E4DA"/>
-          <g transform="translate(17 15) scale(0.6) translate(-16 -16)">
-            <path d="M9 7C9 6.45 9.45 6 10 6H12.5C13.05 6 13.5 6.45 13.5 7V19.5C13.5 21.7 15.3 23.5 17.5 23.5H23C23.55 23.5 24 23.95 24 24.5C24 25.05 23.55 25.5 23 25.5H16C12.13 25.5 9 22.37 9 18.5V7Z" fill="#364552"/>
-          </g>
-          <rect x="10.5" y="21.5" width="11" height="4.5" rx="1.5" fill="#2C3842"/>
-          <text x="16" y="24.8" font-family="-apple-system, sans-serif" font-size="2.8" font-weight="800" fill="#FFF" text-anchor="middle">MD</text>
-        </svg>
-        <div class="name" style="color: var(--blue); font-weight: 700;">Proposal A (Balanced)</div>
+      <!-- Proposal A: Folio & Light (Recommended) -->
+      <div class="proposal-card recommended">
+        <span class="rec-badge">RECOMMENDED · A</span>
+        <div class="card-header">
+          <div class="card-title">A · Folio & Light</div>
+          <div class="card-sub">Open reading spine forming an upright "L"</div>
+        </div>
+        <div class="stage">
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <defs>
+                <linearGradient id="pA_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#1E262E"/>
+                  <stop offset="100%" stop-color="#10151A"/>
+                </linearGradient>
+                <linearGradient id="pA_spine" x1="8" y1="6" x2="22" y2="26" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#FFFFFF"/>
+                  <stop offset="100%" stop-color="#E8E5DC"/>
+                </linearGradient>
+                <linearGradient id="pA_sheet" x1="16" y1="12" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#F2EFE6"/>
+                  <stop offset="100%" stop-color="#DCD6C7"/>
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" rx="7.2" fill="url(#pA_plate)"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
+              <!-- Book Spine L and unfolding folio leaf -->
+              <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="url(#pA_spine)"/>
+              <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="url(#pA_sheet)" opacity="0.9"/>
+              <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+            </svg>
+            <span class="icon-label">App Icon</span>
+          </div>
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
+              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
+              <!-- Balanced central watermark -->
+              <path d="M12.5 11C12.5 10.4 13 10 13.5 10H15.5C16 10 16.5 10.4 16.5 11V16C16.5 17.1 17.4 18 18.5 18H20.5C21 18 21.5 18.4 21.5 19C21.5 19.6 21 20 20.5 20H15C13.6 20 12.5 18.9 12.5 17.5V11Z" fill="#1F2937"/>
+              <circle cx="19.5" cy="11.5" r="1.3" fill="#3B82F6"/>
+              <!-- Symmetrical MD pill -->
+              <rect x="11.5" y="23" width="11" height="3.6" rx="1.8" fill="#1E293B"/>
+              <text x="17" y="25.7" font-family="-apple-system, sans-serif" font-size="2.4" font-weight="800" fill="#FFF" text-anchor="middle" letter-spacing="0.05em">MD</text>
+            </svg>
+            <span class="icon-label">File (.md)</span>
+          </div>
+        </div>
+        <ul class="feature-list">
+          <li><strong>Direct literary metaphor</strong>: Reading spine + open folio</li>
+          <li><strong>Subtle sapphire focal point</strong>: Calming, zero visual clutter</li>
+          <li><strong>Centered & clean document icon</strong>: Balanced sheet with MD pill</li>
+        </ul>
       </div>
 
-      <div class="finder-item">
-        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-          <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFF" stroke="#D4D0C6" stroke-width="0.8"/>
-          <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E8E4DA"/>
-          <circle cx="17" cy="16.5" r="5" fill="#F4F2EB" stroke="#DDD7C8" stroke-width="0.5"/>
-          <rect x="12" y="23.5" width="10" height="3" rx="1.5" fill="#1D2A3A"/>
-          <text x="17" y="25.8" font-family="-apple-system, sans-serif" font-size="2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
-        </svg>
-        <div class="name">Proposal B (Stamp)</div>
+      <!-- Proposal B: Pure Monogram -->
+      <div class="proposal-card">
+        <div class="card-header">
+          <div class="card-title">B · Pure Monogram</div>
+          <div class="card-sub">Typographic restraint & amber seal</div>
+        </div>
+        <div class="stage">
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <defs>
+                <linearGradient id="pB_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#1A242F"/>
+                  <stop offset="100%" stop-color="#0E1620"/>
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" rx="7.2" fill="url(#pB_plate)"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
+              <path d="M10 7.5C10 7.22 10.22 7 10.5 7H14C14.28 7 14.5 7.22 14.5 7.5V19.8C14.5 21.01 15.49 22 16.7 22H22.5C22.78 22 23 22.22 23 22.5V24.5C23 24.78 22.78 25 22.5 25H14C11.79 25 10 23.21 10 21V7.5Z" fill="#F8F5EE"/>
+              <circle cx="21" cy="9.5" r="2.2" fill="#D97706"/>
+            </svg>
+            <span class="icon-label">App Icon</span>
+          </div>
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
+              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
+              <circle cx="17" cy="16" r="6" fill="#F8F6F0" stroke="#D8D1BF" stroke-width="0.7"/>
+              <path d="M14.5 12.5H16.2V17.8C16.2 18.5 16.8 19 17.5 19H19.5V20H15.8C15.1 20 14.5 19.4 14.5 18.7V12.5Z" fill="#1F2937"/>
+              <circle cx="18.5" cy="13.5" r="0.9" fill="#D97706"/>
+              <rect x="12" y="24" width="10" height="3" rx="1.5" fill="#1F2937"/>
+              <text x="17" y="26.3" font-family="-apple-system, sans-serif" font-size="2.2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
+            </svg>
+            <span class="icon-label">File (.md)</span>
+          </div>
+        </div>
+        <ul class="feature-list">
+          <li><strong>Typographic confidence</strong>: Single modern serif monogram</li>
+          <li><strong>Warm amber accent</strong>: Evokes classic author wax seal</li>
+          <li><strong>Round seal on paper</strong>: Scholarly publishing identity</li>
+        </ul>
+      </div>
+
+      <!-- Proposal C: Markdown Flow -->
+      <div class="proposal-card">
+        <div class="card-header">
+          <div class="card-title">C · Markdown Flow</div>
+          <div class="card-sub">Dynamic chevron & folded page fusion</div>
+        </div>
+        <div class="stage">
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <defs>
+                <linearGradient id="pC_plate" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#24303B"/>
+                  <stop offset="100%" stop-color="#141A20"/>
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" rx="7.2" fill="url(#pC_plate)"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
+              <path d="M8.5 8C8.5 7.17 9.17 6.5 10 6.5H12C12.83 6.5 13.5 7.17 13.5 8V18L17.5 13.5L21.5 18V8C21.5 7.17 22.17 6.5 23 6.5C23.83 6.5 24.5 7.17 24.5 8V23C24.5 23.83 23.83 24.5 23 24.5H11.5C9.84 24.5 8.5 23.16 8.5 21.5V8Z" fill="#F4F1EA"/>
+              <path d="M17.5 19.5L14 23.5H21L17.5 19.5Z" fill="#10B981"/>
+            </svg>
+            <span class="icon-label">App Icon</span>
+          </div>
+          <div class="icon-unit">
+            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
+              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
+              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
+              <path d="M11 13V19M11 13L14 16L17 13M17 13V19" stroke="#1F2937" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M21 15L23 17L25 15" stroke="#10B981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="11.5" y="23" width="11" height="3.4" rx="1.7" fill="#1F2937"/>
+              <text x="17" y="25.5" font-family="-apple-system, sans-serif" font-size="2.2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
+            </svg>
+            <span class="icon-label">File (.md)</span>
+          </div>
+        </div>
+        <ul class="feature-list">
+          <li><strong>Geek & Markdown heritage</strong>: Integrates M-crest with reading arrow</li>
+          <li><strong>Emerald energy accent</strong>: Sharp and modern</li>
+          <li><strong>High contrast in any theme</strong>: Crisp recognition</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Multi-Scale Mockups -->
+    <div class="section-title">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Multi-Scale Real-World Mockups
+    </div>
+
+    <div class="mock-grid">
+      <!-- macOS Dock Simulation -->
+      <div class="mock-panel">
+        <h3>macOS Dock Simulation (48px Icons)</h3>
+        <p style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">Testing clarity, edge sharpness, and visual weight on the macOS Dock:</p>
+        <div class="mac-dock-sim">
+          <div class="dock-item" title="Current (0bf49dd)">
+            <svg width="48" height="48" viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="7.2" fill="#1C242C"/>
+              <path d="M10 6H13.6V20.8H18.4V24H10V6Z" fill="#F4F1EA"/>
+              <path d="M14.4 12.8H16.2L18.4 18.2L20.6 12.8H22.4V24H20.4V16.6L18.8 20.6H18L16.4 16.6V24H14.4V12.8Z" fill="#F4F1EA"/>
+              <rect x="18.5" y="0" width="3.2" height="7.5" fill="#C94A29"/>
+            </svg>
+            <div class="dock-dot"></div>
+          </div>
+          <div class="dock-item" title="Proposal A (Recommended)">
+            <svg width="48" height="48" viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="7.2" fill="#12171E"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.15" stroke-width="0.6"/>
+              <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#F5F3EC"/>
+              <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7"/>
+              <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+            </svg>
+            <div class="dock-dot" style="background:#2563EB;"></div>
+          </div>
+          <div class="dock-item" title="Proposal B">
+            <svg width="48" height="48" viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="7.2" fill="#10171F"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.15" stroke-width="0.6"/>
+              <path d="M10 7.5H14.5V19.8C14.5 21 15.5 22 16.7 22H22.5V24.5H14C11.8 24.5 10 22.8 10 21V7.5Z" fill="#F8F5EE"/>
+              <circle cx="21" cy="9.5" r="2.2" fill="#D97706"/>
+            </svg>
+          </div>
+          <div class="dock-item" title="Proposal C">
+            <svg width="48" height="48" viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="7.2" fill="#161D24"/>
+              <path d="M8.5 8H13.5V18L17.5 13.5L21.5 18V8H24.5V23H11.5C9.8 23 8.5 21.8 8.5 20.5V8Z" fill="#F4F1EA"/>
+              <path d="M17.5 19.5L14 23.5H21L17.5 19.5Z" fill="#10B981"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Manager Simulation -->
+      <div class="mock-panel">
+        <h3>Finder & File Explorer Document List (24px Icons)</h3>
+        <p style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">Comparing left-corner blotch vs balanced centered mark:</p>
+        <div class="files-sim">
+          <div class="file-row">
+            <svg width="24" height="24" viewBox="0 0 32 32">
+              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+              <rect x="5" y="18" width="13" height="13" rx="3" fill="#1C242C"/>
+              <text x="11.5" y="27.5" font-size="9" font-weight="bold" fill="#FFF" text-anchor="middle">L</text>
+            </svg>
+            <span class="file-name">design_architecture_current.md</span>
+            <span class="file-tag tag-curr">Current</span>
+          </div>
+          <div class="file-row">
+            <svg width="24" height="24" viewBox="0 0 32 32">
+              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+              <path d="M12.5 11H16.5V16C16.5 17 17.5 18 18.5 18H20.5V20H15C13.6 20 12.5 19 12.5 17.5V11Z" fill="#1F2937"/>
+              <circle cx="19.5" cy="11.5" r="1.3" fill="#3B82F6"/>
+              <rect x="11.5" y="23" width="11" height="3.6" rx="1.8" fill="#1E293B"/>
+              <text x="17" y="25.7" font-size="2.4" font-weight="bold" fill="#FFF" text-anchor="middle">MD</text>
+            </svg>
+            <span class="file-name">reading_philosophy_proposal_a.md</span>
+            <span class="file-tag tag-a">Proposal A</span>
+          </div>
+          <div class="file-row">
+            <svg width="24" height="24" viewBox="0 0 32 32">
+              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
+              <circle cx="17" cy="16" r="5" fill="#F8F6F0" stroke="#CBD5E1" stroke-width="0.8"/>
+              <rect x="12" y="24" width="10" height="3" rx="1.5" fill="#1F2937"/>
+              <text x="17" y="26.3" font-size="2.2" font-weight="bold" fill="#FFF" text-anchor="middle">MD</text>
+            </svg>
+            <span class="file-name">literary_essays_proposal_b.md</span>
+            <span class="file-tag tag-b">Proposal B</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
 </body>
 </html>
