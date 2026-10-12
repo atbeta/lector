@@ -1,17 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Markdown 文档</title>
-  <desc id="desc">浅色纸张，右上折角，中央是 Lector 的 L/M 标记——与应用图标同一族，但读起来是一份文档而不是一个应用。</desc>
-
-  <!-- 纸张。右上角让给折角，其余三角圆角。 -->
-  <path d="M8 3H19L26 10V27A2 2 0 0 1 24 29H8A2 2 0 0 1 6 27V5A2 2 0 0 1 8 3Z"
-        fill="#FCFDFE" stroke="#C6D0D9" stroke-width="1.2" stroke-linejoin="round"/>
-  <!-- 折角：比纸面深一档，让"这是一页纸"在最暗的主题里也成立 -->
-  <path d="M19 3V8A2 2 0 0 0 21 10H26Z" fill="#DCE3EA"/>
-
-  <!-- Lector 标记。比应用图标里粗一档：缩到 16px 后笔画只剩 1.3px，
-       细了会糊成一团；同时缩进纸面留出边距，四边都透气。 -->
-  <g transform="translate(16 17) scale(0.8) translate(-16 -16)" stroke="#364653" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M8 8.5V21.25C8 22.4926 9.0074 23.5 10.25 23.5H24"/>
-    <path d="M14 17.75V8.5L19 13.75L24 8.5V17.75"/>
+  <desc id="desc">暖白纸张 + 折角 + 几行正文，左下角压一枚 Lector 徽章：先读出「一篇文字」，再读出「用 Lector 打开」。48px 起用这张。</desc>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="2" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F2EFE8"/></linearGradient>
+    <linearGradient id="fold" x1="21" y1="8" x2="24" y2="5" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#EDE8DE"/><stop offset="1" stop-color="#D6CEBE"/></linearGradient>
+    <linearGradient id="plate" x1="0" y1="15" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B4F5E"/><stop offset="0.55" stop-color="#28363F"/><stop offset="1" stop-color="#1B242B"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="15" x2="0" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.25"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+    <linearGradient id="ivory" x1="0" y1="8" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FAF6EE"/><stop offset="1" stop-color="#EAE2D3"/></linearGradient>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0.35" stdDeviation="0.35" flood-color="#0B1014" flood-opacity="0.22"/></filter>
+    <filter id="foldsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="-0.25" dy="0.35" stdDeviation="0.3" flood-color="#0B1014" flood-opacity="0.18"/></filter>
+  </defs>
+  <!-- 纸：暖白，自上而下极淡的渐变 + 半透明墨色描边，不用灰线框 -->
+  <path d="M9 2H21L27 8V28A2 2 0 0 1 25 30H9A2 2 0 0 1 7 28V4A2 2 0 0 1 9 2Z" fill="url(#paper)" filter="url(#drop)"/>
+  <path d="M9 2.25H20.9L26.75 8.1V28A1.75 1.75 0 0 1 25 29.75H9A1.75 1.75 0 0 1 7.25 28V4A1.75 1.75 0 0 1 9 2.25Z" stroke="#1E2830" stroke-opacity="0.24" stroke-width="0.5"/>
+  <path d="M21 2V6.6A1.4 1.4 0 0 0 22.4 8H27Z" fill="url(#fold)" filter="url(#foldsh)"/>
+  <!-- 正文行：一条标题 + 若干正文，读起来是「一篇文字」 -->
+  <g fill="#2C3A44">
+    <rect x="11" y="6" width="6.5" height="1.5" rx="0.75" fill-opacity="0.55"/>
+    <rect x="11" y="10" width="12" height="0.9" rx="0.45" fill-opacity="0.16"/>
+    <rect x="11" y="12.5" width="12" height="0.9" rx="0.45" fill-opacity="0.16"/>
+    <rect x="19.5" y="15" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
+    <rect x="19.5" y="17.5" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
+    <rect x="19.5" y="20" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
+  </g>
+  <!-- 左下角应用徽章（Windows 11 文档图标惯例） -->
+  <rect x="3" y="15" width="15" height="15" rx="3.4" fill="url(#plate)" filter="url(#drop)"/>
+  <rect x="3.2" y="15.2" width="14.6" height="14.6" rx="3.2" stroke="url(#rim)" stroke-width="0.4"/>
+  <g transform="translate(3 15) scale(0.46875)">
+    <path d="M21.72 0H24.48V6.1L23.1 5L21.72 6.1Z" fill="#C9573C"/>
+    <g transform="translate(16 16) scale(1.06) translate(-16 -16)">
+      <g fill="url(#ivory)">
+        <path d="M8 8H10.9V20.6A1.8 1.8 0 0 0 12.7 22.4H24V24H8Z"/>
+        <path d="M13.5 8H16.5L18.995 13.311L20.2 8H24V19.6H21.4V8.8L18.95 19.6L14.6 10.341V19.6H13.5Z"/>
+      </g>
+    </g>
   </g>
 </svg>

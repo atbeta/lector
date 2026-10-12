@@ -1,0 +1,82 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.23137,0.30980,0.36863,1.00000",
+          "srgb:0.10588,0.14118,0.16863,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "srgb:0.20000,0.26667,0.30980,1.00000",
+          "srgb:0.07843,0.10196,0.12157,1.00000"
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "blur-material": null,
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "glyph.svg",
+          "name": "glyph",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.96471,0.94510,0.90588,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "glyph",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": false,
+        "value": 0.4
+      }
+    },
+    {
+      "blur-material": null,
+      "layers": [
+        {
+          "glass": true,
+          "image-name": "ribbon.svg",
+          "name": "ribbon",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.78824,0.34118,0.23529,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "ribbon",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": false,
+        "value": 0.4
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

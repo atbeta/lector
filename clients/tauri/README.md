@@ -117,35 +117,36 @@ Tauri 会注册一个**用 `fileAssociations[].name` 命名的类键**（本仓�
 
 ### 应用图标（macOS 与 Windows 不是同一张）
 
-源文件两份，**不要**用一份 SVG 同时出 `.icns` 和 `.ico`：
+源文件三份 + 一个 Icon Composer 包，**不要**用一份 SVG 同时出 `.icns` 和 `.ico`：
 
-- `app-icon.svg`：满幅圆角底板。给 Windows `.ico` 与 PNG（任务栏 / 开始菜单会再裁圆角，留白会显得小）。
-- `app-icon-macos.svg`：同一套 L/M，底板按图标网格内缩约 10%。给 `icon.icns`（Dock / Finder）。满幅图在 macOS 上会被系统再套一层超椭圆，光学上比旁边的应用大一圈。
-- 底板色相仍是 `#364653`，不要平涂：顶光 + 左上高光 + 内沿，让石墨像缎面而不是色块。空态 `lector-mark.svg` 跟满幅稿同一套光。
+- `app-icon.svg`：满幅圆角底板。给 `.ico` 的 32px 及以上档位与全部 PNG（任务栏 / 开始菜单会再裁圆角，留白会显得小）。
+- `app-icon-small.svg`：同一套 L/M 手摆进 16px 网格，给 `.ico` 的 16/20/24——对比字形小于 32px 直接缩会糊，这三档必须单独出稿。
+- `app-icon-macos.svg`：底板按图标网格内缩 + 烘焙投影，给 `icon.icns`（Dock / Finder）。满幅图在 macOS 上会被系统再套一层超椭圆，光学上比旁边的应用大一圈。
+- `Lector.icon/`：Icon Composer 包（macOS 26+ Liquid Glass），`actool` 编译出 `Assets.car`，见下。
+
+配色：墨底 `#3B4F5E`→`#1B242B` 纵向渐变，象牙色字形，砖红书签丝带 `#C9573C`。
+
+重新生成走 `build-icons.sh`（仅 macOS；要 rsvg-convert / magick / iconutil，
+actool 与 Icon Composer 需要完整 Xcode，CLT 不够）：
 
 ```
-# Windows（只取 ico；顺带的 icns/android 丢掉）
-bunx tauri icon clients/tauri/app-icon.svg -o /tmp/lector-win-icon
-cp /tmp/lector-win-icon/icon.ico clients/tauri/src-tauri/icons/icon.ico
-cp /tmp/lector-win-icon/32x32.png clients/tauri/src-tauri/icons/32x32.png
-cp /tmp/lector-win-icon/128x128.png clients/tauri/src-tauri/icons/128x128.png
-cp /tmp/lector-win-icon/128x128@2x.png clients/tauri/src-tauri/icons/128x128@2x.png
-cp /tmp/lector-win-icon/icon.png clients/tauri/src-tauri/icons/icon.png
-
-# macOS（只取 icns）
-bunx tauri icon clients/tauri/app-icon-macos.svg -o /tmp/lector-mac-icon
-cp /tmp/lector-mac-icon/icon.icns clients/tauri/src-tauri/icons/icon.icns
+clients/tauri/build-icons.sh
 ```
 
-空态 / About 的 `lector-mark.svg` 仍用满幅稿，那是页面里的品牌块，不受 Dock 网格约束。
+脚本一次出齐 `src-tauri/icons/`：`icon.ico` / `markdown.ico`（每档直接从对应 SVG
+用 rsvg-convert 渲，不让 magick 重采样）、各尺寸 PNG、`icon.icns`（iconutil
+打 .iconset）、`Assets.car`（actool 编 `Lector.icon`）。
 
-- 源文件 `file-icon.svg`（文档图标，与应用图标分开），重新生成：
-  ```
-  bunx tauri icon clients/tauri/file-icon.svg -o /tmp/md-icon
-  cp /tmp/md-icon/icon.ico clients/tauri/src-tauri/icons/markdown.ico
-  ```
-  `tauri icon` 会连带生成 android/ios/icns 一堆用不上的东西，只取 `icon.ico`。
-  生成的 `.ico` 内含 16/24/32/48/64/256 六档——16px 那档必须单独看，
+macOS 26+ Liquid Glass 链路：`Lector.icon` → actool → `icons/Assets.car` →
+`bundle.macOS.files` 拷进 `Contents/Resources/Assets.car` → `src-tauri/Info.plist`
+写 `CFBundleIconName = Lector`。`icon.icns` 仍由 `CFBundleIconFile` 兜底给旧系统。
+
+空态 / About 的 `lector-mark.svg` 是 `app-icon.svg` 的同内容副本——页面里的品牌块，不受 Dock 网格约束。
+
+- 源文件 `file-icon.svg` / `file-icon-32.svg` / `file-icon-small.svg`（文档图标，
+  与应用图标分开），也由 `build-icons.sh` 一起生成 `markdown.ico`：
+  16/20/24 用手摆网格的小稿，32 用专用稿，48/64/256 用 `file-icon.svg`。
+  生成的 `.ico` 内含 16/20/24/32/48/64/256 七档——16px 那档必须单独看，
   它是资源管理器列表视图里真正显示的那张。
 - 图标文件由 `bundle.resources` 落到安装目录（`"icons/markdown.ico" -> "resources/markdown.ico"`）。
   这一步是**静默失败**的：落点对不上时 hook 会退回 exe 图标，注册表里照样有值。
