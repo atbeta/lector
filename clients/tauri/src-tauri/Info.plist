@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- macOS 26+ 从 Assets.car 读 Liquid Glass 图标（Lector.icon 经 actool 编译）；
-     icon.icns 仍由 CFBundleIconFile 兜底，供旧系统使用 -->
 <plist version="1.0">
 <dict>
-	<key>CFBundleIconName</key>
-	<string>Lector</string>
 </dict>
 </plist>
