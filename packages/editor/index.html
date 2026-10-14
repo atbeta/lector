@@ -2142,5 +2142,763 @@
   })();
 </script>
 
+  
+<!-- 图标打磨全屏展厅 -->
+<style>
+#icon-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: #F4F6F8;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  color: #1F2328;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+  :root {
+    --bg: #F4F6F8;
+    --card-bg: #FFFFFF;
+    --text-main: #111827;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --primary: #0969DA;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 24px 16px 60px;
+    line-height: 1.45;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0F172A;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .btn-editor {
+    background: #0969DA;
+    color: #FFFFFF;
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(9,105,218,0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    position: relative;
+  }
+  .card.final {
+    border: 2px solid #0969DA;
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+  }
+  .badge {
+    position: absolute;
+    top: -9px;
+    right: 12px;
+    background: #0969DA;
+    color: #FFF;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .badge-dim {
+    background: #64748B;
+  }
+  .card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .card-desc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .preview-stage {
+    background: #F8FAFC;
+    border-radius: 8px;
+    border: 1px dashed #CBD5E1;
+    padding: 16px 12px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .icon-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748B;
+  }
+  .points {
+    font-size: 11.5px;
+    color: #475569;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 10px;
+  }
+  .points li::before {
+    content: "• ";
+    color: #0969DA;
+    font-weight: bold;
+  }
+
+  /* Multi-scale bar */
+  .shelf {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .shelf-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .shelf-items {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .shelf-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #64748B;
+    font-weight: 600;
+  }
+
+</style>
+<div id="icon-review-overlay">
+  <div class="container" style="padding-top:28px;padding-bottom:60px;">
+    
+  <div class="header">
+    <div>
+      <div class="title">Proposal A3 · Subtraction & Final Pair</div>
+      <div class="subtitle">Removed decorative dot entirely (pure book & folios); Document icon paired with A3-0 typography stripes.</div>
+    </div>
+    
+  <button type="button" id="close-icon-review" style="background:#0969DA;color:#FFF;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(9,105,218,0.3);">
+    ✕ Enter Editor (切换编辑器)
+  </button>
+
+  </div>
+
+  <div class="grid">
+    <!-- 左边：对照有点的 A3-A -->
+    <div class="card">
+      <span class="badge badge-dim">Previous (With Dot)</span>
+      <div class="card-name">A3-A · With Blue Focus Dot</div>
+      <div class="card-desc">Had a decorative cyan dot at top right; felt ambiguous in meaning.</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pOld_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <filter id="pOld_shadow" x="6" y="4" width="20" height="23" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.55"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pOld_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 3 tiers -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+            <!-- L -->
+            <g filter="url(#pOld_shadow)">
+              <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+            </g>
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+          </svg>
+          <span class="icon-label">App (With Dot)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <path d="M11.5 9.5 V17.5 C11.5 18.3 12.2 19 13 19 H17.5" stroke="#0969DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="14" y1="12" x2="19.5" y2="12" stroke="#94A3B8" stroke-width="1.2" stroke-linecap="round"/>
+            <line x1="14" y1="14.5" x2="20.5" y2="14.5" stroke="#94A3B8" stroke-width="1.2" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (Previous)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>The dot at (21, 6.2) adds an unnecessary extra focus element</li>
+        <li>Document icon had blue stroke L, slightly competing with MD capsule</li>
+      </ul>
+    </div>
+
+    <!-- 右边：彻底做减法后的纯粹终稿 pair！ -->
+    <div class="card final">
+      <span class="badge">Pure Minimal (Final Pair)</span>
+      <div class="card-name">A3 · Pure Subtraction + A3-0 Doc</div>
+      <div class="card-desc">Zero extra dots. Pure book spine L + 3 tiers + A3-0 classic typographic doc icon.</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- 纯粹去点版 A3-A App Icon -->
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pClean_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <filter id="pClean_l_shadow" x="6" y="4" width="20" height="23" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.55"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pClean_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            
+            <!-- 3 阶舒展纸页阶梯 (层次丰富，没有多余杂点) -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5" stroke="#FFFFFF" stroke-width="0.7" stroke-linecap="round"/>
+
+            <!-- 前景纯白雕塑 L (独立投影，无可争议的绝对主角) -->
+            <g filter="url(#pClean_l_shadow)">
+              <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+              <!-- 顶部硬朗切沿高光 -->
+              <path d="M9.2 6.5 H13.8" stroke="#FFFFFF" stroke-width="0.6" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <span class="icon-label" style="color:#0969DA;">App (Pure L & Folios)</span>
+        </div>
+        <div class="icon-wrap">
+          <!-- 用户指定的 A3-0 文件图标：纯净排版横线 + 居中 MD 胶囊 -->
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <!-- 经典 A3-0 三道纤细排版横线 (排版与文字段落隐喻) -->
+            <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <!-- 底部居中深灰 MD 胶囊 -->
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label" style="color:#0969DA;">Doc (A3-0 Typographic)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li><strong>App 图标彻底减法</strong>：移除圆点，画面只有书脊 L 与纯净三阶书页，呼吸感极好</li>
+        <li><strong>Doc 图标采用 A3-0</strong>：优雅棉纸 + 三道排版文字线 + 居中深灰 MD 胶囊，稳健典雅</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Dock & Taskbar Multi-Scale Compare -->
+  <div class="shelf">
+    <span class="shelf-title">macOS Dock & Taskbar (48px Scale)</span>
+    <div class="shelf-items">
+      <div class="shelf-item">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+          <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+          <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+        <span>With Dot</span>
+      </div>
+
+      <div class="shelf-item" style="color:#0969DA;">
+        <!-- 纯粹去点版 48px -->
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+          <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+          <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+        </svg>
+        <span>🌟 Pure Minimal (No Dot)</span>
+      </div>
+
+      <div class="shelf-item" style="color:#0969DA;">
+        <!-- A3-0 文件图标 44px -->
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+          <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+          <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+          <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+          <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+        </svg>
+        <span>🌟 Doc (.md) A3-0</span>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+<script>
+  (function() {
+    var overlay = document.getElementById("icon-review-overlay");
+    var closeBtn = document.getElementById("close-icon-review");
+    var banner = document.getElementById("icon-lab-banner");
+    
+    if (closeBtn && overlay) {
+      closeBtn.addEventListener("click", function() {
+        overlay.style.display = "none";
+        if (banner) banner.style.display = "flex";
+      });
+    }
+    if (banner && overlay) {
+      banner.addEventListener("click", function(e) {
+        e.preventDefault();
+        overlay.style.display = "flex";
+      });
+    }
+  })();
+</script>
+
+  
+<!-- 图标打磨全屏展厅 -->
+<style>
+#icon-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: #F4F6F8;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  color: #1F2328;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+  :root {
+    --bg: #F4F6F8;
+    --card-bg: #FFFFFF;
+    --text-main: #111827;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --primary: #0969DA;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 24px 16px 60px;
+    line-height: 1.45;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0F172A;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .btn-editor {
+    background: #0969DA;
+    color: #FFFFFF;
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(9,105,218,0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    position: relative;
+  }
+  .card.final {
+    border: 2px solid #0969DA;
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+  }
+  .badge {
+    position: absolute;
+    top: -9px;
+    right: 12px;
+    background: #0969DA;
+    color: #FFF;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .badge-dim {
+    background: #64748B;
+  }
+  .card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .card-desc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .preview-stage {
+    background: #F8FAFC;
+    border-radius: 8px;
+    border: 1px dashed #CBD5E1;
+    padding: 16px 12px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .icon-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748B;
+  }
+  .points {
+    font-size: 11.5px;
+    color: #475569;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 10px;
+  }
+  .points li::before {
+    content: "• ";
+    color: #0969DA;
+    font-weight: bold;
+  }
+
+  /* Multi-scale bar */
+  .shelf {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .shelf-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .shelf-items {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .shelf-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #64748B;
+    font-weight: 600;
+  }
+
+</style>
+<div id="icon-review-overlay">
+  <div class="container" style="padding-top:28px;padding-bottom:60px;">
+    
+  <div class="header">
+    <div>
+      <div class="title">Proposal A3 · Subtraction & Final Pair</div>
+      <div class="subtitle">Removed decorative dot entirely (pure book & folios); Document icon paired with A3-0 typography stripes.</div>
+    </div>
+    
+  <button type="button" id="close-icon-review" style="background:#0969DA;color:#FFF;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(9,105,218,0.3);">
+    ✕ Enter Editor (切换编辑器)
+  </button>
+
+  </div>
+
+  <div class="grid">
+    <!-- 左边：对照有点的 A3-A -->
+    <div class="card">
+      <span class="badge badge-dim">Previous (With Dot)</span>
+      <div class="card-name">A3-A · With Blue Focus Dot</div>
+      <div class="card-desc">Had a decorative cyan dot at top right; felt ambiguous in meaning.</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pOld_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <filter id="pOld_shadow" x="6" y="4" width="20" height="23" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.55"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pOld_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 3 tiers -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+            <!-- L -->
+            <g filter="url(#pOld_shadow)">
+              <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+            </g>
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+          </svg>
+          <span class="icon-label">App (With Dot)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <path d="M11.5 9.5 V17.5 C11.5 18.3 12.2 19 13 19 H17.5" stroke="#0969DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="14" y1="12" x2="19.5" y2="12" stroke="#94A3B8" stroke-width="1.2" stroke-linecap="round"/>
+            <line x1="14" y1="14.5" x2="20.5" y2="14.5" stroke="#94A3B8" stroke-width="1.2" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (Previous)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>The dot at (21, 6.2) adds an unnecessary extra focus element</li>
+        <li>Document icon had blue stroke L, slightly competing with MD capsule</li>
+      </ul>
+    </div>
+
+    <!-- 右边：彻底做减法后的纯粹终稿 pair！ -->
+    <div class="card final">
+      <span class="badge">Pure Minimal (Final Pair)</span>
+      <div class="card-name">A3 · Pure Subtraction + A3-0 Doc</div>
+      <div class="card-desc">Zero extra dots. Pure book spine L + 3 tiers + A3-0 classic typographic doc icon.</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- 纯粹去点版 A3-A App Icon -->
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pClean_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <filter id="pClean_l_shadow" x="6" y="4" width="20" height="23" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.55"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pClean_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            
+            <!-- 3 阶舒展纸页阶梯 (层次丰富，没有多余杂点) -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+            <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5" stroke="#FFFFFF" stroke-width="0.7" stroke-linecap="round"/>
+
+            <!-- 前景纯白雕塑 L (独立投影，无可争议的绝对主角) -->
+            <g filter="url(#pClean_l_shadow)">
+              <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+              <!-- 顶部硬朗切沿高光 -->
+              <path d="M9.2 6.5 H13.8" stroke="#FFFFFF" stroke-width="0.6" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <span class="icon-label" style="color:#0969DA;">App Icon: Pure subtraction. Pure L spine + stepped folios without decorative noise& Folios)</span>
+        </div>
+        <div class="icon-wrap">
+          <!-- 用户指定的 A3-0 文件图标：纯净排版横线 + 居中 MD 胶囊 -->
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <!-- 经典 A3-0 三道纤细排版横线 (排版与文字段落隐喻) -->
+            <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <!-- 底部居中深灰 MD 胶囊 -->
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label" style="color:#0969DA;">Doc (A3-0 Typographic)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li><strong>App Icon: Pure subtraction. Pure L spine + stepped folios without decorative noise与纯净三阶书页，呼吸感极好</li>
+        <li><strong>Doc 图标采用 A3-0</strong>：优雅棉纸 + 三道排版文字线 + 居中深灰 MD 胶囊，稳健典雅</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Dock & Taskbar Multi-Scale Compare -->
+  <div class="shelf">
+    <span class="shelf-title">macOS Dock & Taskbar (48px Scale)</span>
+    <div class="shelf-items">
+      <div class="shelf-item">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+          <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+          <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+        <span>With Dot</span>
+      </div>
+
+      <div class="shelf-item" style="color:#0969DA;">
+        <!-- 纯粹去点版 48px -->
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+          <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+          <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+        </svg>
+        <span>🌟 Pure Minimal (No Dot)</span>
+      </div>
+
+      <div class="shelf-item" style="color:#0969DA;">
+        <!-- A3-0 文件图标 44px -->
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+          <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+          <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+          <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+          <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+          <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+        </svg>
+        <span>🌟 Doc (.md) A3-0</span>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+<script>
+  (function() {
+    var overlay = document.getElementById("icon-review-overlay");
+    var closeBtn = document.getElementById("close-icon-review");
+    var banner = document.getElementById("icon-lab-banner");
+    
+    if (closeBtn && overlay) {
+      closeBtn.addEventListener("click", function() {
+        overlay.style.display = "none";
+        if (banner) banner.style.display = "flex";
+      });
+    }
+    if (banner && overlay) {
+      banner.addEventListener("click", function(e) {
+        e.preventDefault();
+        overlay.style.display = "flex";
+      });
+    }
+  })();
+</script>
+
   </body>
 </html>
