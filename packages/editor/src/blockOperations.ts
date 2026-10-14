@@ -14,6 +14,7 @@ import { t } from './i18n.ts'
 import { createUndoStack } from './undoStack.ts'
 import type { DocumentSession } from './documentSession.ts'
 import type { CaretIntent } from './caretNavigation.ts'
+import { applySourceSpan, type SpanPoint } from './sourceSpan.ts'
 
 interface BlockOperationsDeps {
   session: DocumentSession
@@ -273,6 +274,65 @@ export function createBlockOperations({
     render()
   }
 
+  /**
+   * 源码档里跨块（或未聚焦的块内）选区：按原文偏移删掉或替换这一段。
+   * 只重解析被盖住的区间，区间外的块保持原对象。对不上的端点由调用方事先放弃。
+   */
+  function replaceSourceSpan(edit: {
+    startId: string
+    startOffset: number
+    endId: string
+    endOffset: number
+    replacement: string
+  }): boolean {
+    beforeStructuralEdit?.()
+    const start = pointFor(edit.startId, edit.startOffset)
+    const end = pointFor(edit.endId, edit.endOffset)
+    if (!start || !end) return false
+    const applied = applySourceSpan(session.blocks, start, end, edit.replacement, nextId)
+    if (!applied) return false
+    const removed = session.blocks.slice(
+      Math.min(start.index, end.index),
+      Math.max(start.index, end.index) + 1,
+    )
+    const inserted = applied.blocks.filter((block) => !session.blocks.includes(block))
+    session.blocks = applied.blocks
+    for (const block of removed) session.originals.delete(block.id)
+    for (const block of inserted) session.originals.set(block.id, block.raw)
+    forgetBlocks(removed)
+    const caret = applied.blocks[applied.caretIndex]
+    blockUndoStack.push(t('menuUndoSelection'), () => {
+      const insertedIds = new Set(inserted.map((block) => block.id))
+      const kept = session.blocks.filter((block) => !insertedIds.has(block.id))
+      const at = session.blocks.findIndex((block) => insertedIds.has(block.id))
+      const index = at < 0 ? Math.min(Math.min(start.index, end.index), kept.length) : at
+      kept.splice(index, 0, ...removed)
+      session.blocks = kept
+      for (const block of inserted) session.originals.delete(block.id)
+      for (const block of removed) {
+        if (!session.originals.has(block.id)) session.originals.set(block.id, block.raw)
+      }
+      forgetBlockViews(inserted)
+      session.structuralDirty = true
+    })
+    session.structuralDirty = true
+    markDirty()
+    if (caret && isFocusableBlock(caret)) {
+      focusAfterStructuralEdit(caret.id, { mode: 'pos', pos: applied.caretPos })
+    } else {
+      focusAfterStructuralEdit(null)
+    }
+    return true
+  }
+
+  function pointFor(id: string, offset: number): SpanPoint | null {
+    const index = blockIndex(id)
+    if (index < 0) return null
+    const raw = session.blocks[index]!.raw
+    if (offset < 0 || offset > raw.length) return null
+    return { index, offset }
+  }
+
   /** 把块的原文写回并标脏（用于任务勾选这类「只改一小处」的操作）。 */
   function setBlockRaw(block: BlockView, raw: string): void {
     block.raw = raw
@@ -491,6 +551,7 @@ export function createBlockOperations({
     insertParagraphAfter,
     insertMermaidAfter,
     deleteBlock,
+    replaceSourceSpan,
     setBlockRaw,
     toggleTaskItem,
     openTableForBlock,

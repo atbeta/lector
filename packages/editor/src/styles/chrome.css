@@ -575,6 +575,8 @@ html[data-mode='read'] .block[data-kind='blockquote'] > .block-rail { display: n
   border: 0;
   border-radius: var(--radius-btn);
   background: transparent;
+  /* 把手是控件，不是正文。框选时若把端点落在图标上，就对不回源码偏移。 */
+  user-select: none;
   color: rgb(var(--muted-foreground));
   cursor: pointer;
   opacity: 0;

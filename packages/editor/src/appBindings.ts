@@ -10,6 +10,13 @@ import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import { resolveShortcut } from './shortcutDispatch.ts'
 import type { DocumentEditor } from './documentEditor.ts'
+import {
+  isForeignEditable,
+  mapSourceSelection,
+  selectionHandledByFocusedEditor,
+  selectionTouchesCodeMirror,
+  sourceKeyAction,
+} from './sourceSelection.ts'
 import type { FileController } from './fileController.ts'
 import type { EditorChrome } from './editorChrome.ts'
 import type { createOutline } from './outline.ts'
@@ -18,7 +25,10 @@ import type { Sidebar } from './sidebar.ts'
 import type { createReadingPositionController } from './readingPositionController.ts'
 
 interface AppBindingsDeps {
-  editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'>
+  editor: Pick<
+    DocumentEditor,
+    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'finalizeFocused' | 'isLarge' | 'openFind' | 'operations'
+  >
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
   chrome: Pick<
     EditorChrome,
@@ -38,6 +48,91 @@ interface AppBindingsDeps {
 }
 
 export function bindAppEvents({ editor, files, chrome, outline, menus, insertImageAtCaret }: AppBindingsDeps): void {
+  // 源码档的跨块选区活在浏览器选区里，删除键只接在聚焦块的编辑器上，所以原先按了没反应。
+  // 捕获阶段处理：若等事件落到聚焦块，那一个编辑器会先删掉自己的一个字符。
+  function mappedSourceSpan(commitFocused: boolean) {
+    if (chrome.getViewMode() !== 'source' || editor.isLarge()) return null
+    const sel = window.getSelection()
+    const root = chrome.elements.contentEl
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
+    if (selectionHandledByFocusedEditor(sel, root)) return null
+    // 改文档前先把聚焦块写回，避免接着拆掉编辑器时丢掉还没同步的字。
+    // 复制不改文档：只有选区伸进那个编辑器时才需要写回，好让偏移对上。
+    if (commitFocused || selectionTouchesCodeMirror(sel)) editor.finalizeFocused()
+    return mapSourceSelection(sel, editor.getSession().blocks, root, editor.getCmView(), editor.getSession().focusedId)
+  }
+
+  function applyMappedReplacement(text: string): boolean {
+    const mapped = mappedSourceSpan(true)
+    if (!mapped) return false
+    const applied = editor.operations.replaceSourceSpan({
+      startId: mapped.startId,
+      startOffset: mapped.startOffset,
+      endId: mapped.endId,
+      endOffset: mapped.endOffset,
+      replacement: text,
+    })
+    if (applied) window.getSelection()?.removeAllRanges()
+    return applied
+  }
+
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      const action = sourceKeyAction(e)
+      if (action.kind !== 'replace' || isForeignEditable(e.target)) return
+      if (!applyMappedReplacement(action.text)) return
+      e.preventDefault()
+      e.stopPropagation()
+    },
+    true,
+  )
+
+  window.addEventListener(
+    'copy',
+    (e) => {
+      const mapped = mappedSourceSpan(false)
+      if (!mapped || !e.clipboardData) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.clipboardData.setData('text/plain', mapped.text)
+    },
+    true,
+  )
+
+  window.addEventListener(
+    'cut',
+    (e) => {
+      const mapped = mappedSourceSpan(true)
+      if (!mapped || !e.clipboardData) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.clipboardData.setData('text/plain', mapped.text)
+      editor.operations.replaceSourceSpan({
+        startId: mapped.startId,
+        startOffset: mapped.startOffset,
+        endId: mapped.endId,
+        endOffset: mapped.endOffset,
+        replacement: '',
+      })
+      window.getSelection()?.removeAllRanges()
+    },
+    true,
+  )
+
+  window.addEventListener(
+    'paste',
+    (e) => {
+      if (e.defaultPrevented || isForeignEditable(e.target)) return
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      if (!text) return
+      if (!applyMappedReplacement(text)) return
+      e.preventDefault()
+      e.stopPropagation()
+    },
+    true,
+  )
+
   chrome.elements.contentEl.addEventListener('click', (e) => {
     // 块把手：它只负责唤出块菜单，**不聚焦、不进入编辑**——
     // 「点块正文」才是进来改，「点把手」是管理这一块，两件事不能混成一个动作。

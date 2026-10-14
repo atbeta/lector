@@ -663,7 +663,8 @@ export function createDocumentEditor({
       if (pauseTicket !== parsePauseTicket) return
       parsePaused = false
     }
-    caretIntent = null
+    // 光标意图留给聚焦块挂上 CM 时用掉。在这里清掉的话，结构编辑刚设好的落点
+    // （跨块删除后的接缝、块首 Backspace 回到上一段末尾）会在绘制前丢掉。
     if (shells.deferring()) {
       // 长文：先把当前这一屏画完，其余只挂占位。全文 HTML 不在打开的关键路径上。
       const start = allBlocksConnected(desired) ? indexNearScroll(desired, contentEl.scrollTop) : 0
@@ -1005,11 +1006,17 @@ export function createDocumentEditor({
         el.appendChild(mermaidPanel.el)
       }
       const intent = caretIntent
-      requestAnimationFrame(() => {
+      caretIntent = null
+      const place = () => {
         if (!cm) return
         cm.view.focus()
         if (intent) placeCaret(cm.view, intent)
-      })
+      }
+      // 按字符偏移落点不需要布局，当场聚焦。拖到下一帧的话，替换选区后紧接着
+      // 敲的下一个字会落在还没聚焦的编辑器外面，等于丢字。
+      // 靠坐标落点要等这一帧排完，否则 posAtCoords 读到的是空的。
+      if (!intent || intent.mode === 'pos') place()
+      else requestAnimationFrame(place)
     } else if (getViewMode() === 'source') {
       // 源码模式：每块以等宽源码呈现，不走 mdast HTML。
       // mermaid / 图片的渲染属于预览路径，源码模式不解释。
@@ -1117,6 +1124,9 @@ export function createDocumentEditor({
       if (el) teardownCodePreview(el)
       el?.remove()
       blocksEl.delete(r.id)
+      // 元素已经拆掉。留下绘制缓存的话，撤销把同一 id 插回来时
+      // paintBlock 会以为画过了，新元素就一直是空的。
+      lastPaint.delete(r.id)
     }
     if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
       if (cm) {
