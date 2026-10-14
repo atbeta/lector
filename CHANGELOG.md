@@ -16,6 +16,12 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.3 (2026-10-14)
+
+### Added
+
+- feat: update icon names for view modes to book, pencil, and code
+
 ## v0.38.2 (2026-10-14)
 
 ### Added
