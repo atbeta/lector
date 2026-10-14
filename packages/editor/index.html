@@ -147,11 +147,8 @@
     </script>
     <script type="module" src="/src/main.ts"></script>
 
-    <!-- 图标打磨全屏展厅（默认显示在首页正中央，用户可随时一键切换编辑器） -->
-    <a href="#" id="icon-lab-banner" style="display:none;position:fixed;bottom:28px;right:20px;z-index:9999;background:#0969DA;color:#F9FAFB;padding:9px 18px;border-radius:24px;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-weight:600;align-items:center;gap:8px;text-decoration:none;box-shadow:0 6px 20px rgba(9,105,218,0.35);border:1px solid rgba(255,255,255,0.2);letter-spacing:-0.01em;">
-      <span style="font-size:15px;">🎨</span> 查看 4 套图标打磨方案 (对比与多端模拟) ➜
-    </a>
 
+<!-- 图标打磨全屏展厅 -->
 <style>
 #icon-review-overlay {
   position: fixed;
@@ -164,602 +161,990 @@
   color: #1F2328;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-#icon-review-overlay * {
-  box-sizing: border-box;
-}
 
-    :root {
-      --bg: #F5F4F0;
-      --card: #FFFFFF;
-      --text: #111827;
-      --muted: #4B5563;
-      --border: #E5E7EB;
-      --blue: #2563EB;
-      --radius: 12px;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      padding: 24px 20px 80px;
-    }
-    .container {
-      max-width: 1220px;
-      margin: 0 auto;
-    }
-    header {
-      margin-bottom: 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 16px;
-      border-bottom: 1px solid #DDD9D0;
-      padding-bottom: 18px;
-    }
-    .header-left h1 {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #111827;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .header-left p {
-      color: var(--muted);
-      font-size: 14px;
-      margin-top: 4px;
-    }
-    .back-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: #FFFFFF;
-      border: 1px solid #D1D5DB;
-      padding: 8px 16px;
-      border-radius: 8px;
-      color: #374151;
-      text-decoration: none;
-      font-size: 13.5px;
-      font-weight: 600;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-      transition: all 0.15s ease;
-    }
-    .back-btn:hover {
-      border-color: #9CA3AF;
-      color: #111827;
-    }
+  :root {
+    --bg: #F4F6F8;
+    --card-bg: #FFFFFF;
+    --text-main: #1F2328;
+    --text-muted: #656D76;
+    --border: #D0D7DE;
+    --primary: #0969DA;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 30px 20px 80px;
+    line-height: 1.5;
+  }
+  .container {
+    max-width: 1040px;
+    margin: 0 auto;
+  }
+  .header {
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #111827;
+  }
+  .subtitle {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    max-width: 680px;
+  }
+  .btn-editor {
+    background: #0969DA;
+    color: #FFFFFF;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(9,105,218,0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+    gap: 18px;
+    margin-bottom: 32px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  }
+  .card.recommended {
+    border: 2px solid #0969DA;
+    background: linear-gradient(180deg, #FAFCFF 0%, #FFFFFF 100%);
+  }
+  .badge {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: #0969DA;
+    color: #FFF;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    border-radius: 12px;
+    text-transform: uppercase;
+  }
+  .badge-dim {
+    background: #6B7280;
+  }
+  .card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 4px;
+  }
+  .card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-height: 36px;
+    margin-bottom: 16px;
+  }
+  .preview-stage {
+    background: #F8FAFC;
+    border-radius: 10px;
+    border: 1px dashed #E2E8F0;
+    padding: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 16px;
+  }
+  .icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .icon-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748B;
+  }
+  .feature-list {
+    list-style: none;
+    font-size: 12px;
+    color: #475569;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .feature-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .feature-list li::before {
+    content: "•";
+    color: #0969DA;
+    font-weight: bold;
+  }
 
-    /* Diagnosis Banner */
-    .diagnosis-card {
-      background: #FFFBEB;
-      border: 1px solid #FDE68A;
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      margin-bottom: 28px;
-    }
-    .diagnosis-title {
-      font-size: 14.5px;
-      font-weight: 700;
-      color: #92400E;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .diagnosis-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      font-size: 13px;
-      color: #78350F;
-      line-height: 1.6;
-    }
-    @media (max-width: 768px) {
-      .diagnosis-grid { grid-template-columns: 1fr; }
-    }
+  /* Dock & Taskbar Mockups */
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 36px 0 16px;
+    color: #0F172A;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dock-shelf {
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.8);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border-radius: 20px;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    width: fit-content;
+    margin-bottom: 24px;
+  }
+  .dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .dock-tag {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748B;
+  }
 
-    /* 4-Column Grid */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 36px;
-    }
-    @media (max-width: 1080px) {
-      .cards-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 580px) {
-      .cards-grid { grid-template-columns: 1fr; }
-    }
-
-    .proposal-card {
-      background: var(--card);
-      border: 1px solid #D5D2C8;
-      border-radius: var(--radius);
-      padding: 18px 16px;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-      transition: all 0.2s ease;
-    }
-    .proposal-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-    }
-    .proposal-card.recommended {
-      border: 2px solid var(--blue);
-    }
-    .rec-badge {
-      position: absolute;
-      top: -11px;
-      right: 14px;
-      background: var(--blue);
-      color: #FFF;
-      font-size: 10.5px;
-      font-weight: 700;
-      padding: 2px 9px;
-      border-radius: 20px;
-      letter-spacing: 0.04em;
-    }
-
-    .card-header {
-      margin-bottom: 14px;
-    }
-    .card-title {
-      font-size: 15.5px;
-      font-weight: 700;
-      color: #111827;
-    }
-    .card-sub {
-      font-size: 12.5px;
-      color: var(--muted);
-      margin-top: 3px;
-    }
-
-    /* Stage for icons */
-    .stage {
-      background: #F9FAFB;
-      border: 1px solid #ECEEF1;
-      border-radius: 10px;
-      padding: 18px 10px;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .icon-unit {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 7px;
-    }
-    .icon-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #6B7280;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* Feature points */
-    .feature-list {
-      list-style: none;
-      font-size: 12.5px;
-      color: #374151;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      border-top: 1px dashed #E5E7EB;
-      padding-top: 12px;
-      margin-top: auto;
-    }
-    .feature-list li {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-    }
-    .feature-list li::before {
-      content: "•";
-      color: var(--blue);
-      font-weight: bold;
-    }
-
-    /* Multi-scale mockups section */
-    .section-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #111827;
-      margin: 36px 0 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .mock-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-bottom: 40px;
-    }
-    @media (max-width: 860px) {
-      .mock-grid { grid-template-columns: 1fr; }
-    }
-    .mock-panel {
-      background: var(--card);
-      border: 1px solid #D5D2C8;
-      border-radius: var(--radius);
-      padding: 18px 20px;
-    }
-    .mock-panel h3 {
-      font-size: 14.5px;
-      font-weight: 700;
-      margin-bottom: 12px;
-      color: #1F2937;
-    }
-
-    /* macOS Dock Simulation */
-    .mac-dock-sim {
-      background: rgba(255, 255, 255, 0.5);
-      backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      box-shadow: 0 16px 36px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.05);
-      border-radius: 18px;
-      padding: 10px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      width: fit-content;
-      margin: 10px auto 14px;
-    }
-    .dock-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-    }
-    .dock-dot {
-      width: 4px;
-      height: 4px;
-      background: #4B5563;
-      border-radius: 50%;
-    }
-
-    /* File Explorer Simulation */
-    .files-sim {
-      border: 1px solid #E5E7EB;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .file-row {
-      display: flex;
-      align-items: center;
-      padding: 9px 12px;
-      background: #FFFFFF;
-      border-bottom: 1px solid #F3F4F6;
-      font-size: 12.5px;
-      gap: 10px;
-    }
-    .file-row:last-child { border-bottom: none; }
-    .file-name { font-weight: 500; color: #1F2937; flex: 1; }
-    .file-tag { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
-    .tag-curr { background: #FEE2E2; color: #991B1B; }
-    .tag-a { background: #DBEAFE; color: #1E40AF; }
-    .tag-b { background: #FEF3C7; color: #92400E; }
-    .tag-c { background: #F3E8FF; color: #6B21A8; }
-  
 </style>
 <div id="icon-review-overlay">
   <div class="container" style="padding-top:28px;padding-bottom:60px;">
     
-    <header>
-      <div class="header-left">
-        <h1>🎨 Lector Icon Design Gallery</h1>
-        <p>A reading-first Markdown editor · Comprehensive design evaluation and multi-scale mockups</p>
-      </div>
-      
-  <div style="display:flex;gap:10px;align-items:center;">
-    <button type="button" id="close-icon-review" style="background:#0969DA;color:#FFF;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(9,105,218,0.3);">
-      ✕ Enter Editor
-    </button>
+  <div class="header">
+    <div>
+      <div class="title">方案 A【Folio & Light · 舒卷书扉】书页清晰度精修打磨</div>
+      <div class="subtitle">针对反馈“书页不太清晰”，优化了书页开合弧度、纸张高光边缘与翻阅景深，强化 32px / 48px 小尺寸下的识别力。</div>
+    </div>
+    
+  <button type="button" id="close-icon-review" style="background:#0969DA;color:#FFF;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(9,105,218,0.3);">
+    ✕ Enter Editor (切换编辑器)
+  </button>
+
   </div>
 
-    </header>
-
-    <!-- Diagnosis Banner -->
-    <div class="diagnosis-card">
-      <div class="diagnosis-title">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Key Issues Identified in Current Version (0bf49dd):
+  <div class="grid">
+    <!-- 原版 A (对照) -->
+    <div class="card">
+      <span class="badge badge-dim">原版 A 对照</span>
+      <div class="card-name">A0 · 初始版</div>
+      <div class="card-desc">书页面积偏小、缺乏受光边缘与景深，辨识偏弱</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- A0 App -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#FFFFFF"/>
+            <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7" opacity="0.9"/>
+            <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+          </svg>
+          <span class="icon-label">App</span>
+        </div>
+        <div class="icon-wrap">
+          <!-- A0 Doc -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#D1D5DB" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E5E7EB"/>
+            <path d="M12 10V18C12 18.5 12.5 19 13 19H17" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#374151"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc</span>
+        </div>
       </div>
-      <div class="diagnosis-grid">
-        <div>
-          <strong>1. App Icon: Suffocating Cage & Red Tape</strong><br>
-          Thick serif "L" constricts a squished "M" with zero breathing room. The drooping red tape looks like unremoved packing tape and blurs into a colored artifact at 32px / 48px.
+      <ul class="feature-list">
+        <li>书页偏矮偏平，与书脊几乎粘连</li>
+        <li>缺少光影投射，像平面色块拼接</li>
+      </ul>
+    </div>
+
+    <!-- 优化 A1: 双层微翻书页 (层次丰富与透亮高光) -->
+    <div class="card recommended">
+      <span class="badge">推荐 · 方案 A1</span>
+      <div class="card-name">A1 · 舒卷双叠页</div>
+      <div class="card-desc">前后两层纸页叠进，带清晰微透落影与受光高光轮廓</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- A1 App -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA1_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <linearGradient id="pA1_spine" x1="8" y1="6" x2="20" y2="25" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="100%" stop-color="#E2DFD6"/>
+              </linearGradient>
+              <linearGradient id="pA1_page_front" x1="13" y1="10" x2="25" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="60%" stop-color="#F5F2EB"/>
+                <stop offset="100%" stop-color="#DBD5C7"/>
+              </linearGradient>
+              <filter id="pA1_shadow" x="12" y="9" width="15" height="15" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.45"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA1_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 后层书页打底 -->
+            <path d="M14.5 8.5 C17.5 7.8 21.5 8.5 24 10.2 C24.5 10.5 24.8 11.1 24.8 11.7 V18.2 C22 17 18 16.5 14.5 17.5 Z" fill="#E2DDD2" fill-opacity="0.45"/>
+            <!-- 前层主书页 (带真实投影与白光顶沿) -->
+            <g filter="url(#pA1_shadow)">
+              <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8 C24.7 13.2 25 13.8 25 14.4 V20.2 C21.8 18.5 17.5 18.2 14 19.8 Z" fill="url(#pA1_page_front)"/>
+              <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+            </g>
+            <!-- 挺拔书脊 L -->
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="url(#pA1_spine)"/>
+            <!-- 阅读视点 -->
+            <circle cx="21" cy="7" r="1.6" fill="#38BDF8"/>
+            <circle cx="21" cy="7" r="2.6" stroke="#38BDF8" stroke-width="0.5" stroke-opacity="0.4"/>
+          </svg>
+          <span class="icon-label">App</span>
         </div>
-        <div>
-          <strong>2. Document Icon: Clunky Left-Bottom Weight</strong><br>
-          Slapping a solid black app block on the bottom-left corner heavily unbalances the paper sheet. In Finder / File Explorer it looks like an accidental blotch.
+        <div class="icon-wrap">
+          <!-- A1 Doc -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <!-- 居中精细浮雕 L 符号与翻页轻影 -->
+            <path d="M11.5 9.5V17.5C11.5 18.3 12.2 19 13 19H17" stroke="#0969DA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14.5 12.5 C16.5 11.5 19 12 20.5 13.5 V16.5 C19 15 16.5 14.8 14.5 15.8" stroke="#0969DA" stroke-width="1.2" stroke-opacity="0.4" stroke-linecap="round"/>
+            <!-- 居中 MD 胶囊 -->
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc</span>
         </div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>双层自然景深</strong>：后页打底、前页飘扬，立体感跃然纸上</li>
+        <li><strong>受光顶沿纯白高光线</strong>：小尺寸下边缘依然极其锐利清晰</li>
+      </ul>
+    </div>
+
+    <!-- 优化 A2: 翻卷大弧度开卷 (开阔舒展与肌理) -->
+    <div class="card">
+      <span class="badge" style="background:#059669;">方案 A2</span>
+      <div class="card-name">A2 · 翻阅开卷</div>
+      <div class="card-desc">大弧度翻起的大书页，内含 2 道纤细排版肌理线，书感最强</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- A2 App -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA2_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <linearGradient id="pA2_leaf" x1="14" y1="10" x2="25" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="50%" stop-color="#F2EEE5"/>
+                <stop offset="100%" stop-color="#D5CEBE"/>
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA2_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 页底阴影 -->
+            <path d="M14 12 C17 9.8 21.5 9.5 25 11.2 V17 C21.5 15.5 17 15.8 14 18 Z" fill="#000" fill-opacity="0.38"/>
+            <!-- 大弧度翻卷书页体 -->
+            <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6 C25.7 10.9 26 11.5 26 12.1 V17.8 C22 16 17.5 16.2 13.5 18.5 Z" fill="url(#pA2_leaf)"/>
+            <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6" stroke="#FFFFFF" stroke-width="0.9" stroke-linecap="round"/>
+            <!-- 书页阅读肌理线 (表明是文字排版) -->
+            <path d="M17 12.6 C19.5 11.6 22.5 11.9 24.2 12.8" stroke="#1E262E" stroke-opacity="0.22" stroke-width="0.7" stroke-linecap="round"/>
+            <path d="M16.5 15 C19 14.1 22 14.4 23.6 15.2" stroke="#1E262E" stroke-opacity="0.22" stroke-width="0.7" stroke-linecap="round"/>
+            <!-- 书脊 L -->
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+            <!-- 蓝晶点 -->
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+            <circle cx="21" cy="6.2" r="2.8" stroke="#38BDF8" stroke-width="0.5" stroke-opacity="0.35"/>
+          </svg>
+          <span class="icon-label">App</span>
+        </div>
+        <div class="icon-wrap">
+          <!-- A2 Doc -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <path d="M12 9.5V17.5C12 18.3 12.7 19 13.5 19H17" stroke="#475569" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M14.5 11.5 C16.5 10.2 19.5 10.5 21 11.8 V16.5 C19.5 15.2 16.5 15.2 14.5 16.5" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.8"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>大弧度翻展</strong>：书页面积大增，向右上方扬起展开</li>
+        <li><strong>两道微排版肌理</strong>：纸页上带有暗示文字的纤细线条</li>
+      </ul>
+    </div>
+
+    <!-- 优化 A3: 阶梯纯净三层页 (高对比、小尺寸无敌锐利) -->
+    <div class="card">
+      <span class="badge" style="background:#7C3AED;">方案 A3</span>
+      <div class="card-name">A3 · 纯净层叠</div>
+      <div class="card-desc">三重等高阶梯纸页边缘，具有现代建筑雕塑般的极高锐度</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <!-- A3 App -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA3_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA3_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 3 层清晰分明的纸张边缘阶梯 -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.5"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#CBD5E1" fill-opacity="0.7"/>
+            <path d="M13.8 16.5 C18 15 22.5 15.8 25.2 18 C25.7 18.4 26 19 26 19.6 V20.6 C22 18.5 17.5 18.8 13.8 20.8 Z" fill="#FFFFFF"/>
+            <path d="M13.8 16.5 C18 15 22.5 15.8 25.2 18" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+            <!-- 书脊 L -->
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+          </svg>
+          <span class="icon-label">App</span>
+        </div>
+        <div class="icon-wrap">
+          <!-- A3 Doc -->
+          <svg width="72" height="72" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <!-- 极简三道轻盈横线呼应 -->
+            <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><strong>几何层次分明</strong>：3 级纸页阶梯黑白灰分明</li>
+        <li><strong>极高缩放锐度</strong>：不依赖模糊渐变，16px/24px 下最清晰</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 多端真实尺寸模拟 -->
+  <div class="section-title">🖥️ macOS Dock 真实缩放模拟 (48px)</div>
+  <div class="dock-shelf">
+    <div class="dock-item">
+      <div style="width:48px;height:48px;">
+        <!-- A0 48px -->
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+          <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#FFFFFF"/>
+          <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7" opacity="0.9"/>
+          <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+        </svg>
+      </div>
+      <span class="dock-tag">原版 A</span>
+    </div>
+
+    <div class="dock-item">
+      <div style="width:48px;height:48px;position:relative;">
+        <!-- A1 48px -->
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+          <path d="M14.5 8.5 C17.5 7.8 21.5 8.5 24 10.2 C24.5 10.5 24.8 11.1 24.8 11.7 V18.2 C22 17 18 16.5 14.5 17.5 Z" fill="#E2DDD2" fill-opacity="0.45"/>
+          <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8 C24.7 13.2 25 13.8 25 14.4 V20.2 C21.8 18.5 17.5 18.2 14 19.8 Z" fill="#F8F6F0"/>
+          <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="7" r="1.6" fill="#38BDF8"/>
+        </svg>
+      </div>
+      <span class="dock-tag" style="color:#0969DA;font-weight:700;">🌟 优化 A1</span>
+    </div>
+
+    <div class="dock-item">
+      <div style="width:48px;height:48px;">
+        <!-- A2 48px -->
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+          <path d="M14 12 C17 9.8 21.5 9.5 25 11.2 V17 C21.5 15.5 17 15.8 14 18 Z" fill="#000" fill-opacity="0.4"/>
+          <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6 C25.7 10.9 26 11.5 26 12.1 V17.8 C22 16 17.5 16.2 13.5 18.5 Z" fill="#F4EFE6"/>
+          <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6" stroke="#FFFFFF" stroke-width="0.9" stroke-linecap="round"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+      </div>
+      <span class="dock-tag">优化 A2</span>
+    </div>
+
+    <div class="dock-item">
+      <div style="width:48px;height:48px;">
+        <!-- A3 48px -->
+        <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.5"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#CBD5E1" fill-opacity="0.7"/>
+          <path d="M13.8 16.5 C18 15 22.5 15.8 25.2 18 C25.7 18.4 26 19 26 19.6 V20.6 C22 18.5 17.5 18.8 13.8 20.8 Z" fill="#FFFFFF"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+      </div>
+      <span class="dock-tag">优化 A3</span>
+    </div>
+  </div>
+
+  <div class="section-title">📂 系统文件管理器 .md 文档图标模拟 (36px)</div>
+  <div style="background:#FFF;border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:flex;gap:36px;align-items:center;width:fit-content;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
+        <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+        <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+        <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+        <path d="M11.5 9.5V17.5C11.5 18.3 12.2 19 13 19H17" stroke="#0969DA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14.5 12.5 C16.5 11.5 19 12 20.5 13.5 V16.5 C19 15 16.5 14.8 14.5 15.8" stroke="#0969DA" stroke-width="1.2" stroke-opacity="0.4" stroke-linecap="round"/>
+        <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+        <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+      </svg>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#1E293B;">README.md</div>
+        <div style="font-size:11px;color:#64748B;">Markdown 文档 · 12 KB</div>
       </div>
     </div>
 
-    <!-- 4 Proposals Compared -->
-    <div class="cards-grid">
-      <!-- Current Version -->
-      <div class="proposal-card">
-        <div class="card-header">
-          <div class="card-title">Current (0bf49dd)</div>
-          <div class="card-sub">Cramped L/M cage with red tape</div>
-        </div>
-        <div class="stage">
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <defs>
-                <linearGradient id="curr_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#24303B"/>
-                  <stop offset="100%" stop-color="#141C24"/>
-                </linearGradient>
-              </defs>
-              <rect width="32" height="32" rx="7.2" fill="url(#curr_plate)"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="0.6"/>
-              <path d="M10 6H13.6V20.8H18.4V24H10V6Z" fill="#F4F1EA"/>
-              <path d="M14.4 12.8H16.2L18.4 18.2L20.6 12.8H22.4V24H20.4V16.6L18.8 20.6H18L16.4 16.6V24H14.4V12.8Z" fill="#F4F1EA"/>
-              <rect x="18.5" y="0" width="3.2" height="7.5" rx="0.4" fill="#C94A29"/>
-            </svg>
-            <span class="icon-label">App Icon</span>
-          </div>
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-              <rect x="11" y="13" width="10" height="1.2" rx="0.6" fill="#D1D5DB"/>
-              <rect x="11" y="16" width="10" height="1.2" rx="0.6" fill="#D1D5DB"/>
-              <rect x="11" y="19" width="7" height="1.2" rx="0.6" fill="#D1D5DB"/>
-              <rect x="5" y="18" width="13" height="13" rx="3.2" fill="#1C242C" stroke="#FFF" stroke-width="0.8"/>
-              <text x="11.5" y="27.5" font-family="-apple-system, sans-serif" font-size="9" font-weight="800" fill="#FFF" text-anchor="middle">L</text>
-            </svg>
-            <span class="icon-label">File (.md)</span>
-          </div>
-        </div>
-        <ul class="feature-list">
-          <li>Suffocating L & M overlap</li>
-          <li>Red bookmark clashes with minimalism</li>
-          <li>Bottom-left block skews visual balance</li>
-        </ul>
-      </div>
-
-      <!-- Proposal A: Folio & Light (Recommended) -->
-      <div class="proposal-card recommended">
-        <span class="rec-badge">RECOMMENDED · A</span>
-        <div class="card-header">
-          <div class="card-title">A · Folio & Light</div>
-          <div class="card-sub">Open reading spine forming an upright "L"</div>
-        </div>
-        <div class="stage">
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <defs>
-                <linearGradient id="pA_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#1E262E"/>
-                  <stop offset="100%" stop-color="#10151A"/>
-                </linearGradient>
-                <linearGradient id="pA_spine" x1="8" y1="6" x2="22" y2="26" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#FFFFFF"/>
-                  <stop offset="100%" stop-color="#E8E5DC"/>
-                </linearGradient>
-                <linearGradient id="pA_sheet" x1="16" y1="12" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#F2EFE6"/>
-                  <stop offset="100%" stop-color="#DCD6C7"/>
-                </linearGradient>
-              </defs>
-              <rect width="32" height="32" rx="7.2" fill="url(#pA_plate)"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
-              <!-- Book Spine L and unfolding folio leaf -->
-              <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="url(#pA_spine)"/>
-              <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="url(#pA_sheet)" opacity="0.9"/>
-              <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
-            </svg>
-            <span class="icon-label">App Icon</span>
-          </div>
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-              <!-- Balanced central watermark -->
-              <path d="M12.5 11C12.5 10.4 13 10 13.5 10H15.5C16 10 16.5 10.4 16.5 11V16C16.5 17.1 17.4 18 18.5 18H20.5C21 18 21.5 18.4 21.5 19C21.5 19.6 21 20 20.5 20H15C13.6 20 12.5 18.9 12.5 17.5V11Z" fill="#1F2937"/>
-              <circle cx="19.5" cy="11.5" r="1.3" fill="#3B82F6"/>
-              <!-- Symmetrical MD pill -->
-              <rect x="11.5" y="23" width="11" height="3.6" rx="1.8" fill="#1E293B"/>
-              <text x="17" y="25.7" font-family="-apple-system, sans-serif" font-size="2.4" font-weight="800" fill="#FFF" text-anchor="middle" letter-spacing="0.05em">MD</text>
-            </svg>
-            <span class="icon-label">File (.md)</span>
-          </div>
-        </div>
-        <ul class="feature-list">
-          <li><strong>Direct literary metaphor</strong>: Reading spine + open folio</li>
-          <li><strong>Subtle sapphire focal point</strong>: Calming, zero visual clutter</li>
-          <li><strong>Centered & clean document icon</strong>: Balanced sheet with MD pill</li>
-        </ul>
-      </div>
-
-      <!-- Proposal B: Pure Monogram -->
-      <div class="proposal-card">
-        <div class="card-header">
-          <div class="card-title">B · Pure Monogram</div>
-          <div class="card-sub">Typographic restraint & amber seal</div>
-        </div>
-        <div class="stage">
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <defs>
-                <linearGradient id="pB_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#1A242F"/>
-                  <stop offset="100%" stop-color="#0E1620"/>
-                </linearGradient>
-              </defs>
-              <rect width="32" height="32" rx="7.2" fill="url(#pB_plate)"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
-              <path d="M10 7.5C10 7.22 10.22 7 10.5 7H14C14.28 7 14.5 7.22 14.5 7.5V19.8C14.5 21.01 15.49 22 16.7 22H22.5C22.78 22 23 22.22 23 22.5V24.5C23 24.78 22.78 25 22.5 25H14C11.79 25 10 23.21 10 21V7.5Z" fill="#F8F5EE"/>
-              <circle cx="21" cy="9.5" r="2.2" fill="#D97706"/>
-            </svg>
-            <span class="icon-label">App Icon</span>
-          </div>
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-              <circle cx="17" cy="16" r="6" fill="#F8F6F0" stroke="#D8D1BF" stroke-width="0.7"/>
-              <path d="M14.5 12.5H16.2V17.8C16.2 18.5 16.8 19 17.5 19H19.5V20H15.8C15.1 20 14.5 19.4 14.5 18.7V12.5Z" fill="#1F2937"/>
-              <circle cx="18.5" cy="13.5" r="0.9" fill="#D97706"/>
-              <rect x="12" y="24" width="10" height="3" rx="1.5" fill="#1F2937"/>
-              <text x="17" y="26.3" font-family="-apple-system, sans-serif" font-size="2.2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
-            </svg>
-            <span class="icon-label">File (.md)</span>
-          </div>
-        </div>
-        <ul class="feature-list">
-          <li><strong>Typographic confidence</strong>: Single modern serif monogram</li>
-          <li><strong>Warm amber accent</strong>: Evokes classic author wax seal</li>
-          <li><strong>Round seal on paper</strong>: Scholarly publishing identity</li>
-        </ul>
-      </div>
-
-      <!-- Proposal C: Markdown Flow -->
-      <div class="proposal-card">
-        <div class="card-header">
-          <div class="card-title">C · Markdown Flow</div>
-          <div class="card-sub">Dynamic chevron & folded page fusion</div>
-        </div>
-        <div class="stage">
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <defs>
-                <linearGradient id="pC_plate" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#24303B"/>
-                  <stop offset="100%" stop-color="#141A20"/>
-                </linearGradient>
-              </defs>
-              <rect width="32" height="32" rx="7.2" fill="url(#pC_plate)"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
-              <path d="M8.5 8C8.5 7.17 9.17 6.5 10 6.5H12C12.83 6.5 13.5 7.17 13.5 8V18L17.5 13.5L21.5 18V8C21.5 7.17 22.17 6.5 23 6.5C23.83 6.5 24.5 7.17 24.5 8V23C24.5 23.83 23.83 24.5 23 24.5H11.5C9.84 24.5 8.5 23.16 8.5 21.5V8Z" fill="#F4F1EA"/>
-              <path d="M17.5 19.5L14 23.5H21L17.5 19.5Z" fill="#10B981"/>
-            </svg>
-            <span class="icon-label">App Icon</span>
-          </div>
-          <div class="icon-unit">
-            <svg width="76" height="76" viewBox="0 0 32 32" fill="none">
-              <path d="M8.5 2.5H21L27.5 9V27.5C27.5 28.6 26.6 29.5 25.5 29.5H8.5C7.4 29.5 6.5 28.6 6.5 27.5V4.5C6.5 3.4 7.4 2.5 8.5 2.5Z" fill="#FFFFFF" stroke="#D3D7DC" stroke-width="0.8"/>
-              <path d="M21 2.5V7.5C21 8.3 21.7 9 22.5 9H27.5Z" fill="#E3E7EB"/>
-              <path d="M11 13V19M11 13L14 16L17 13M17 13V19" stroke="#1F2937" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M21 15L23 17L25 15" stroke="#10B981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <rect x="11.5" y="23" width="11" height="3.4" rx="1.7" fill="#1F2937"/>
-              <text x="17" y="25.5" font-family="-apple-system, sans-serif" font-size="2.2" font-weight="700" fill="#FFF" text-anchor="middle">MD</text>
-            </svg>
-            <span class="icon-label">File (.md)</span>
-          </div>
-        </div>
-        <ul class="feature-list">
-          <li><strong>Geek & Markdown heritage</strong>: Integrates M-crest with reading arrow</li>
-          <li><strong>Emerald energy accent</strong>: Sharp and modern</li>
-          <li><strong>High contrast in any theme</strong>: Crisp recognition</li>
-        </ul>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
+        <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+        <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+        <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+        <path d="M11.5 9.5V17.5C11.5 18.3 12.2 19 13 19H17" stroke="#0969DA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14.5 12.5 C16.5 11.5 19 12 20.5 13.5 V16.5 C19 15 16.5 14.8 14.5 15.8" stroke="#0969DA" stroke-width="1.2" stroke-opacity="0.4" stroke-linecap="round"/>
+        <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+        <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+      </svg>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#1E293B;">Release-Notes.md</div>
+        <div style="font-size:11px;color:#64748B;">Markdown 文档 · 4.8 KB</div>
       </div>
     </div>
+  </div>
 
-    <!-- Multi-Scale Mockups -->
-    <div class="section-title">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-      Multi-Scale Real-World Mockups
-    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    var overlay = document.getElementById("icon-review-overlay");
+    var closeBtn = document.getElementById("close-icon-review");
+    var banner = document.getElementById("icon-lab-banner");
+    
+    if (closeBtn && overlay) {
+      closeBtn.addEventListener("click", function() {
+        overlay.style.display = "none";
+        if (banner) banner.style.display = "flex";
+      });
+    }
+    if (banner && overlay) {
+      banner.addEventListener("click", function(e) {
+        e.preventDefault();
+        overlay.style.display = "flex";
+      });
+    }
+  })();
+</script>
 
-    <div class="mock-grid">
-      <!-- macOS Dock Simulation -->
-      <div class="mock-panel">
-        <h3>macOS Dock Simulation (48px Icons)</h3>
-        <p style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">Testing clarity, edge sharpness, and visual weight on the macOS Dock:</p>
-        <div class="mac-dock-sim">
-          <div class="dock-item" title="Current (0bf49dd)">
-            <svg width="48" height="48" viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="7.2" fill="#1C242C"/>
-              <path d="M10 6H13.6V20.8H18.4V24H10V6Z" fill="#F4F1EA"/>
-              <path d="M14.4 12.8H16.2L18.4 18.2L20.6 12.8H22.4V24H20.4V16.6L18.8 20.6H18L16.4 16.6V24H14.4V12.8Z" fill="#F4F1EA"/>
-              <rect x="18.5" y="0" width="3.2" height="7.5" fill="#C94A29"/>
-            </svg>
-            <div class="dock-dot"></div>
-          </div>
-          <div class="dock-item" title="Proposal A (Recommended)">
-            <svg width="48" height="48" viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="7.2" fill="#12171E"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.15" stroke-width="0.6"/>
-              <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#F5F3EC"/>
-              <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7"/>
-              <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
-            </svg>
-            <div class="dock-dot" style="background:#2563EB;"></div>
-          </div>
-          <div class="dock-item" title="Proposal B">
-            <svg width="48" height="48" viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="7.2" fill="#10171F"/>
-              <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.15" stroke-width="0.6"/>
-              <path d="M10 7.5H14.5V19.8C14.5 21 15.5 22 16.7 22H22.5V24.5H14C11.8 24.5 10 22.8 10 21V7.5Z" fill="#F8F5EE"/>
-              <circle cx="21" cy="9.5" r="2.2" fill="#D97706"/>
-            </svg>
-          </div>
-          <div class="dock-item" title="Proposal C">
-            <svg width="48" height="48" viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="7.2" fill="#161D24"/>
-              <path d="M8.5 8H13.5V18L17.5 13.5L21.5 18V8H24.5V23H11.5C9.8 23 8.5 21.8 8.5 20.5V8Z" fill="#F4F1EA"/>
-              <path d="M17.5 19.5L14 23.5H21L17.5 19.5Z" fill="#10B981"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- File Manager Simulation -->
-      <div class="mock-panel">
-        <h3>Finder & File Explorer Document List (24px Icons)</h3>
-        <p style="font-size:12.5px; color:#6B7280; margin-bottom:12px;">Comparing left-corner blotch vs balanced centered mark:</p>
-        <div class="files-sim">
-          <div class="file-row">
-            <svg width="24" height="24" viewBox="0 0 32 32">
-              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
-              <rect x="5" y="18" width="13" height="13" rx="3" fill="#1C242C"/>
-              <text x="11.5" y="27.5" font-size="9" font-weight="bold" fill="#FFF" text-anchor="middle">L</text>
-            </svg>
-            <span class="file-name">design_architecture_current.md</span>
-            <span class="file-tag tag-curr">Current</span>
-          </div>
-          <div class="file-row">
-            <svg width="24" height="24" viewBox="0 0 32 32">
-              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
-              <path d="M12.5 11H16.5V16C16.5 17 17.5 18 18.5 18H20.5V20H15C13.6 20 12.5 19 12.5 17.5V11Z" fill="#1F2937"/>
-              <circle cx="19.5" cy="11.5" r="1.3" fill="#3B82F6"/>
-              <rect x="11.5" y="23" width="11" height="3.6" rx="1.8" fill="#1E293B"/>
-              <text x="17" y="25.7" font-size="2.4" font-weight="bold" fill="#FFF" text-anchor="middle">MD</text>
-            </svg>
-            <span class="file-name">reading_philosophy_proposal_a.md</span>
-            <span class="file-tag tag-a">Proposal A</span>
-          </div>
-          <div class="file-row">
-            <svg width="24" height="24" viewBox="0 0 32 32">
-              <path d="M8.5 2.5H21L27.5 9V27.5H8.5V2.5Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
-              <circle cx="17" cy="16" r="5" fill="#F8F6F0" stroke="#CBD5E1" stroke-width="0.8"/>
-              <rect x="12" y="24" width="10" height="3" rx="1.5" fill="#1F2937"/>
-              <text x="17" y="26.3" font-size="2.2" font-weight="bold" fill="#FFF" text-anchor="middle">MD</text>
-            </svg>
-            <span class="file-name">literary_essays_proposal_b.md</span>
-            <span class="file-tag tag-b">Proposal B</span>
-          </div>
-        </div>
-      </div>
-    </div>
   
+<!-- 图标打磨全屏展厅 -->
+<style>
+#icon-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: #F4F6F8;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  color: #1F2328;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+  :root {
+    --bg: #F4F6F8;
+    --card-bg: #FFFFFF;
+    --text-main: #111827;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --primary: #0969DA;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 24px 16px 60px;
+    line-height: 1.45;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0F172A;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .btn-editor {
+    background: #0969DA;
+    color: #FFFFFF;
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(9,105,218,0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    position: relative;
+  }
+  .card.recommended {
+    border: 2px solid #0969DA;
+    background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+  }
+  .badge {
+    position: absolute;
+    top: -9px;
+    right: 12px;
+    background: #0969DA;
+    color: #FFF;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .badge-dim {
+    background: #64748B;
+  }
+  .card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+  }
+  .card-desc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .preview-stage {
+    background: #F8FAFC;
+    border-radius: 8px;
+    border: 1px dashed #CBD5E1;
+    padding: 14px 10px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+  .icon-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #64748B;
+  }
+  .points {
+    font-size: 11px;
+    color: #475569;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 8px;
+  }
+  .points li::before {
+    content: "• ";
+    color: #0969DA;
+    font-weight: bold;
+  }
+
+  /* Multi-scale bar */
+  .shelf {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .shelf-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .shelf-items {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .shelf-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #64748B;
+    font-weight: 600;
+  }
+
+</style>
+<div id="icon-review-overlay">
+  <div class="container" style="padding-top:28px;padding-bottom:60px;">
+    
+  <div class="header">
+    <div>
+      <div class="title">Proposal A · Folio Clarity Refinements</div>
+      <div class="subtitle">Focus: sharpening the open folio page curvature, crisp light rim, and depth layers.</div>
+    </div>
+    
+  <button type="button" id="close-icon-review" style="background:#0969DA;color:#FFF;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(9,105,218,0.3);">
+    ✕ Enter Editor (切换编辑器)
+  </button>
+
+  </div>
+
+  <div class="grid">
+    <!-- A0 Base -->
+    <div class="card">
+      <span class="badge badge-dim">Baseline</span>
+      <div class="card-name">A0 · Initial Concept</div>
+      <div class="card-desc">Page leaf is small & flat; blurry at 32px / 48px</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#FFFFFF"/>
+            <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7" opacity="0.9"/>
+            <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+          </svg>
+          <span class="icon-label">App (32x32)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#D1D5DB" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E5E7EB"/>
+            <path d="M12 10V18C12 18.5 12.5 19 13 19H17" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#374151"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (.md)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>Flat leaf geometry attached to L column</li>
+        <li>No contrast edge or paper lighting</li>
+      </ul>
+    </div>
+
+    <!-- A1 Double Folio -->
+    <div class="card recommended">
+      <span class="badge">Recommended</span>
+      <div class="card-name">A1 · Dual-Layer Folio</div>
+      <div class="card-desc">Two natural paper sheets: back shadow + crisp rim light</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA1_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <linearGradient id="pA1_spine" x1="8" y1="6" x2="20" y2="25" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="100%" stop-color="#E2DFD6"/>
+              </linearGradient>
+              <linearGradient id="pA1_page_front" x1="13" y1="10" x2="25" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="60%" stop-color="#F5F2EB"/>
+                <stop offset="100%" stop-color="#DBD5C7"/>
+              </linearGradient>
+              <filter id="pA1_shadow" x="12" y="9" width="15" height="15" filterUnits="userSpaceOnUse">
+                <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.45"/>
+              </filter>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA1_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- Back Page -->
+            <path d="M14.5 8.5 C17.5 7.8 21.5 8.5 24 10.2 C24.5 10.5 24.8 11.1 24.8 11.7 V18.2 C22 17 18 16.5 14.5 17.5 Z" fill="#E2DDD2" fill-opacity="0.45"/>
+            <!-- Front Page with Shadow & White Rim -->
+            <g filter="url(#pA1_shadow)">
+              <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8 C24.7 13.2 25 13.8 25 14.4 V20.2 C21.8 18.5 17.5 18.2 14 19.8 Z" fill="url(#pA1_page_front)"/>
+              <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+            </g>
+            <!-- L Spine -->
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="url(#pA1_spine)"/>
+            <circle cx="21" cy="7" r="1.6" fill="#38BDF8"/>
+            <circle cx="21" cy="7" r="2.6" stroke="#38BDF8" stroke-width="0.5" stroke-opacity="0.4"/>
+          </svg>
+          <span class="icon-label">App (32x32)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <path d="M11.5 9.5V17.5C11.5 18.3 12.2 19 13 19H17" stroke="#0969DA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14.5 12.5 C16.5 11.5 19 12 20.5 13.5 V16.5 C19 15 16.5 14.8 14.5 15.8" stroke="#0969DA" stroke-width="1.2" stroke-opacity="0.4" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (.md)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>Fore page has subtle shadow over rear sheet</li>
+        <li>Top rim highlight guarantees crispness at 32px</li>
+      </ul>
+    </div>
+
+    <!-- A2 Dynamic Open Book -->
+    <div class="card">
+      <span class="badge" style="background:#059669;">Option A2</span>
+      <div class="card-name">A2 · Sweeping Turn</div>
+      <div class="card-desc">Larger upward wing page with 2 reading lines</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA2_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+              <linearGradient id="pA2_leaf" x1="14" y1="10" x2="25" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF"/>
+                <stop offset="50%" stop-color="#F2EEE5"/>
+                <stop offset="100%" stop-color="#D5CEBE"/>
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA2_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- Shadow -->
+            <path d="M14 12 C17 9.8 21.5 9.5 25 11.2 V17 C21.5 15.5 17 15.8 14 18 Z" fill="#000" fill-opacity="0.38"/>
+            <!-- Sweeping page -->
+            <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6 C25.7 10.9 26 11.5 26 12.1 V17.8 C22 16 17.5 16.2 13.5 18.5 Z" fill="url(#pA2_leaf)"/>
+            <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6" stroke="#FFFFFF" stroke-width="0.9" stroke-linecap="round"/>
+            <path d="M17 12.6 C19.5 11.6 22.5 11.9 24.2 12.8" stroke="#1E262E" stroke-opacity="0.22" stroke-width="0.7" stroke-linecap="round"/>
+            <path d="M16.5 15 C19 14.1 22 14.4 23.6 15.2" stroke="#1E262E" stroke-opacity="0.22" stroke-width="0.7" stroke-linecap="round"/>
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+            <circle cx="21" cy="6.2" r="2.8" stroke="#38BDF8" stroke-width="0.5" stroke-opacity="0.35"/>
+          </svg>
+          <span class="icon-label">App (32x32)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <path d="M12 9.5V17.5C12 18.3 12.7 19 13.5 19H17" stroke="#475569" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M14.5 11.5 C16.5 10.2 19.5 10.5 21 11.8 V16.5 C19.5 15.2 16.5 15.2 14.5 16.5" fill="#F1F5F9" stroke="#94A3B8" stroke-width="0.8"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (.md)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>Expansive upward curve gives open reading feel</li>
+        <li>Two subtle text stripes establish paper identity</li>
+      </ul>
+    </div>
+
+    <!-- A3 Stepped 3-Plies -->
+    <div class="card">
+      <span class="badge" style="background:#7C3AED;">Option A3</span>
+      <div class="card-name">A3 · 3-Step Precision</div>
+      <div class="card-desc">3 stepped paper edges with architectural sharpness</div>
+      <div class="preview-stage">
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <defs>
+              <linearGradient id="pA3_plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1E262E"/>
+                <stop offset="100%" stop-color="#10151A"/>
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="7.2" fill="url(#pA3_plate)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFF" stroke-opacity="0.14" stroke-width="0.6"/>
+            <!-- 3 Crisp tiers -->
+            <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.5"/>
+            <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#CBD5E1" fill-opacity="0.7"/>
+            <path d="M13.8 16.5 C18 15 22.5 15.8 25.2 18 C25.7 18.4 26 19 26 19.6 V20.6 C22 18.5 17.5 18.8 13.8 20.8 Z" fill="#FFFFFF"/>
+            <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+            <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+          </svg>
+          <span class="icon-label">App (32x32)</span>
+        </div>
+        <div class="icon-wrap">
+          <svg width="68" height="68" viewBox="0 0 32 32" fill="none">
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" fill="#FFF"/>
+            <path d="M7 4.5C7 3.67 7.67 3 8.5 3H19.5L25 8.5V27.5C25 28.33 24.33 29 23.5 29H8.5C7.67 29 7 28.33 7 27.5V4.5Z" stroke="#CBD5E1" stroke-width="0.8"/>
+            <path d="M19 3V8C19 8.55 19.45 9 20 9H25" fill="#E2E8F0"/>
+            <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+            <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+            <text x="16" y="24.8" fill="#FFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="sans-serif">MD</text>
+          </svg>
+          <span class="icon-label">Doc (.md)</span>
+        </div>
+      </div>
+      <ul class="points">
+        <li>Zero blur or gradient dependencies</li>
+        <li>Highest contrast silhouette at 16px/24px</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Dock & Taskbar Multi-Scale Compare -->
+  <div class="shelf">
+    <span class="shelf-title">macOS Dock & Taskbar (48px)</span>
+    <div class="shelf-items">
+      <div class="shelf-item">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M9.5 8C9.5 6.9 10.4 6 11.5 6H14.5C15.6 6 16.5 6.9 16.5 8V18.5C16.5 19.9 17.6 21 19 21H23C23.8 21 24.5 21.7 24.5 22.5C24.5 23.3 23.8 24 23 24H14C11.5 24 9.5 22 9.5 19.5V8Z" fill="#FFFFFF"/>
+          <path d="M16.5 14C18.2 12.8 20.8 12.5 23.5 13.2C24.1 13.3 24.5 13.9 24.5 14.5V18.5C22 17.8 19.2 18 16.5 19.2V14Z" fill="#DCD6C7"/>
+          <circle cx="21.5" cy="8.5" r="1.8" fill="#3B82F6"/>
+        </svg>
+        <span>A0 (Old)</span>
+      </div>
+
+      <div class="shelf-item" style="color:#0969DA;">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14.5 8.5 C17.5 7.8 21.5 8.5 24 10.2 C24.5 10.5 24.8 11.1 24.8 11.7 V18.2 C22 17 18 16.5 14.5 17.5 Z" fill="#E2DDD2" fill-opacity="0.45"/>
+          <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8 C24.7 13.2 25 13.8 25 14.4 V20.2 C21.8 18.5 17.5 18.2 14 19.8 Z" fill="#F8F6F0"/>
+          <path d="M14 11.2 C17.2 10.2 21.5 10.8 24.2 12.8" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="7" r="1.6" fill="#38BDF8"/>
+        </svg>
+        <span>🌟 A1 (Crisp)</span>
+      </div>
+
+      <div class="shelf-item">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 12 C17 9.8 21.5 9.5 25 11.2 V17 C21.5 15.5 17 15.8 14 18 Z" fill="#000" fill-opacity="0.4"/>
+          <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6 C25.7 10.9 26 11.5 26 12.1 V17.8 C22 16 17.5 16.2 13.5 18.5 Z" fill="#F4EFE6"/>
+          <path d="M13.5 11 C17 8.8 21.8 8.8 25.2 10.6" stroke="#FFFFFF" stroke-width="0.9" stroke-linecap="round"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+        <span>A2 (Turn)</span>
+      </div>
+
+      <div class="shelf-item">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7.2" fill="#1E262E"/>
+          <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.5"/>
+          <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#CBD5E1" fill-opacity="0.7"/>
+          <path d="M13.8 16.5 C18 15 22.5 15.8 25.2 18 C25.7 18.4 26 19 26 19.6 V20.6 C22 18.5 17.5 18.8 13.8 20.8 Z" fill="#FFFFFF"/>
+          <path d="M8.5 8C8.5 6.9 9.4 6 10.5 6H13.2C14.3 6 15.2 6.9 15.2 8V19C15.2 20.1 16.1 21 17.2 21H22.5C23.3 21 24 21.7 24 22.5C24 23.3 23.3 24 22.5 24H12.5C10.3 24 8.5 22.2 8.5 20V8Z" fill="#FFFFFF"/>
+          <circle cx="21" cy="6.2" r="1.6" fill="#38BDF8"/>
+        </svg>
+        <span>A3 (Tiers)</span>
+      </div>
+    </div>
+  </div>
+
   </div>
 </div>
 <script>
