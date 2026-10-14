@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --cwd packages/editor dev --host 0.0.0.0 --port 3000",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify:ui": "node tools/verify-ui.mjs",
