@@ -16,6 +16,17 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.2 (2026-10-14)
+
+### Added
+
+- feat(icons): adopt pure minimal book-spine L and folio tiers for app icon, typography stripes for md file icon
+
+### Improved
+
+- style(chrome): match view-mode icons to read, edit, source
+- style(editor): fade modal scrims without blurring the page
+
 ## v0.38.1 (2026-10-11)
 
 ### Improved
