@@ -2316,7 +2316,7 @@ dependencies = [
 
 [[package]]
 name = "lector"
-version = "0.38.4"
+version = "0.38.5"
 dependencies = [
  "image",
  "log",
