@@ -1,13 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Lector</title>
-  <desc id="desc">16/20/24px 专用：同一 L/M 结构，笔画加粗、对齐 16 像素网格，去掉粗细对比与阴影——缩小后对比只会糊成灰。</desc>
-  <defs>
-    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="16" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B4F5E"/><stop offset="1" stop-color="#1F2A31"/></linearGradient>
-  </defs>
-  <rect width="16" height="16" rx="3.5" fill="url(#plate)"/>
-  <g fill="#F6F1E7">
-    <path d="M3 3H5V11H13V13H3Z"/>
-    <path d="M7 3H9.1L9.784 4.323L10 3H13V9H11V3.5L10.1 9L8 4.935V9H7Z"/>
-  </g>
-  <path d="M11 0H13V2.5L12 1.9L11 2.5Z" fill="#C9573C"/>
+  <desc id="desc">16/20/24px 专用：对齐 16 像素网格，L 骨架与阶梯纸页。</desc>
+  <rect width="16" height="16" rx="3.5" fill="#14191F"/>
+  <!-- 阶梯纸页微刻线 -->
+  <path d="M7 4.5 C9 4 11.5 4.5 13 5.5 V7 C11.5 6 9 5.8 7 6.5 Z" fill="#64748B" fill-opacity="0.8"/>
+  <path d="M7 6.8 C9 6.2 11.5 6.8 13 7.8 V9.2 C11.5 8.2 9 8 7 8.8 Z" fill="#CBD5E1"/>
+  <!-- 纯白极锐 L -->
+  <path d="M4 3.5 H6.5 V10.5 H12 V12.5 H4 Z" fill="#FFFFFF"/>
 </svg>

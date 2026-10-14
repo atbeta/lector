@@ -1,36 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Markdown 文档</title>
-  <desc id="desc">32px 专用：与 file-icon.svg 同一张纸，徽章里换成小尺寸的加粗 L/M（与 app-icon-small.svg 同形）。</desc>
-  <defs>
-    <linearGradient id="paper" x1="0" y1="2" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F2EFE8"/></linearGradient>
-    <linearGradient id="fold" x1="21" y1="8" x2="24" y2="5" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#EDE8DE"/><stop offset="1" stop-color="#D6CEBE"/></linearGradient>
-    <linearGradient id="plate" x1="0" y1="15" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B4F5E"/><stop offset="0.55" stop-color="#28363F"/><stop offset="1" stop-color="#1B242B"/></linearGradient>
-    <linearGradient id="rim" x1="0" y1="15" x2="0" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.25"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
-    <linearGradient id="ivory" x1="0" y1="8" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FAF6EE"/><stop offset="1" stop-color="#EAE2D3"/></linearGradient>
-    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0.35" stdDeviation="0.35" flood-color="#0B1014" flood-opacity="0.22"/></filter>
-    <filter id="foldsh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="-0.25" dy="0.35" stdDeviation="0.3" flood-color="#0B1014" flood-opacity="0.18"/></filter>
-  </defs>
-  <!-- 纸：暖白，自上而下极淡的渐变 + 半透明墨色描边，不用灰线框 -->
-  <path d="M9 2H21L27 8V28A2 2 0 0 1 25 30H9A2 2 0 0 1 7 28V4A2 2 0 0 1 9 2Z" fill="url(#paper)" filter="url(#drop)"/>
-  <path d="M9 2.25H20.9L26.75 8.1V28A1.75 1.75 0 0 1 25 29.75H9A1.75 1.75 0 0 1 7.25 28V4A1.75 1.75 0 0 1 9 2.25Z" stroke="#1E2830" stroke-opacity="0.24" stroke-width="0.5"/>
-  <path d="M21 2V6.6A1.4 1.4 0 0 0 22.4 8H27Z" fill="url(#fold)" filter="url(#foldsh)"/>
-  <!-- 正文行：一条标题 + 若干正文，读起来是「一篇文字」 -->
-  <g fill="#2C3A44">
-    <rect x="11" y="6" width="6.5" height="1.5" rx="0.75" fill-opacity="0.55"/>
-    <rect x="11" y="10" width="12" height="0.9" rx="0.45" fill-opacity="0.16"/>
-    <rect x="11" y="12.5" width="12" height="0.9" rx="0.45" fill-opacity="0.16"/>
-    <rect x="19.5" y="15" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
-    <rect x="19.5" y="17.5" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
-    <rect x="19.5" y="20" width="3.5" height="0.9" rx="0.45" fill-opacity="0.16"/>
-  </g>
-  <!-- 左下角应用徽章（Windows 11 文档图标惯例） -->
-  <rect x="3" y="15" width="15" height="15" rx="3.4" fill="url(#plate)" filter="url(#drop)"/>
-  <rect x="3.2" y="15.2" width="14.6" height="14.6" rx="3.2" stroke="url(#rim)" stroke-width="0.4"/>
-  <g transform="translate(3 15) scale(0.9375)">
-    <path d="M11 0H13V2.5L12 1.9L11 2.5Z" fill="#C9573C"/>
-    <g fill="#F6F1E7">
-      <path d="M3 3H5V11H13V13H3Z"/>
-      <path d="M7 3H9.1L9.784 4.323L10 3H13V9H11V3.5L10.1 9L8 4.935V9H7Z"/>
-    </g>
-  </g>
+  <desc id="desc">纯白棉纸 + 折角 + 3 道排版文字横线 + 底部居中深灰 MD 胶囊标识。</desc>
+  <path d="M7 4.5 C7 3.67 7.67 3 8.5 3 H19.5 L25 8.5 V27.5 C25 28.33 24.33 29 23.5 29 H8.5 C7.67 29 7 28.33 7 27.5 V4.5 Z" fill="#FFFFFF"/>
+  <path d="M7 4.5 C7 3.67 7.67 3 8.5 3 H19.5 L25 8.5 V27.5 C25 28.33 24.33 29 23.5 29 H8.5 C7.67 29 7 28.33 7 27.5 V4.5 Z" stroke="#CBD5E1" stroke-width="0.8"/>
+  <path d="M19 3 V8 C19 8.55 19.45 9 20 9 H25" fill="#E2E8F0"/>
+  <!-- 3 道纤细排版横线 (Markdown 段落隐喻) -->
+  <line x1="11" y1="12" x2="19" y2="12" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="11" y1="15" x2="21" y2="15" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="11" y1="18" x2="16" y2="18" stroke="#94A3B8" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- 底部居中深灰 MD 胶囊 -->
+  <rect x="11.5" y="21.5" width="9" height="4.5" rx="2.25" fill="#1E293B"/>
+  <text x="16" y="24.8" fill="#FFFFFF" font-size="2.6" font-weight="700" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">MD</text>
 </svg>

@@ -1,25 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32" fill="none" role="img" aria-labelledby="title desc">
   <title id="title">Lector</title>
-  <desc id="desc">墨蓝底板，象牙色 L 托住 M：竖粗横细、平切收尾，像书页上的铅字；右上一条砖红书签丝带落在 M 的粗竖上。满幅稿，给 Windows .ico（32px 起）、PNG 与页面里的品牌块。</desc>
+  <desc id="desc">挺拔立书脊 L 托住三阶舒展阶梯纸页：阅读优先，纯粹克制，极简典雅。</desc>
   <defs>
-    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3B4F5E"/><stop offset="0.55" stop-color="#28363F"/><stop offset="1" stop-color="#1B242B"/></linearGradient>
-    <linearGradient id="ivory" x1="0" y1="8" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FAF6EE"/><stop offset="1" stop-color="#EAE2D3"/></linearGradient>
-    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="7" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#9E3E2C"/><stop offset="1" stop-color="#C9573C"/></linearGradient>
-    <filter id="sit" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0.3" stdDeviation="0.3" flood-color="#0B1014" flood-opacity="0.35"/></filter>
-    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="16" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
-    <clipPath id="clip"><rect width="32" height="32" rx="7.2"/></clipPath>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E262E"/>
+      <stop offset="100%" stop-color="#10151A"/>
+    </linearGradient>
+    <filter id="l_shadow" x="6" y="4" width="20" height="23" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0.6" dy="1.4" stdDeviation="0.8" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
   </defs>
-  <g clip-path="url(#clip)">
-    <rect width="32" height="32" fill="url(#plate)"/>
-    <!-- 丝带：宽度正好等于 M 的粗竖（缩放后），从顶边垂下 -->
-    <path d="M21.72 0H24.48V6.1L23.1 5L21.72 6.1Z" fill="url(#ribbon)" filter="url(#sit)"/>
-  </g>
-  <!-- 只有上半圈的高光内沿，不用光斑 -->
-  <rect x="0.25" y="0.25" width="31.5" height="31.5" rx="6.95" stroke="url(#rim)" stroke-width="0.5"/>
-  <g transform="translate(16 16) scale(1.06) translate(-16 -16)">
-    <g fill="url(#ivory)" filter="url(#sit)">
-      <path d="M8 8H10.9V20.6A1.8 1.8 0 0 0 12.7 22.4H24V24H8Z"/>
-      <path d="M13.5 8H16.5L18.995 13.311L20.2 8H24V19.6H21.4V8.8L18.95 19.6L14.6 10.341V19.6H13.5Z"/>
-    </g>
+  <rect width="32" height="32" rx="7.2" fill="url(#plate)"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.7" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="0.6"/>
+  
+  <!-- 3 阶舒展阶梯纸页（退到后方衬托 L） -->
+  <path d="M14 9.2 C18 8.2 22.5 8.9 25 10.8 V13.5 C22.5 11.8 18 11.2 14 12 Z" fill="#64748B" fill-opacity="0.55"/>
+  <path d="M14 12.8 C18 11.6 22.5 12.2 25 14.2 V17 C22.5 15.2 18 14.5 14 15.8 Z" fill="#94A3B8" fill-opacity="0.75"/>
+  <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5 C25.7 17.9 26 18.5 26 19.1 V20.2 C22 18.2 17.5 18.5 14 20 Z" fill="#E2E8F0"/>
+  <path d="M14 16.2 C18 14.8 22.5 15.4 25.2 17.5" stroke="#FFFFFF" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- 前景纯白挺拔书脊 L (独立投影，无可争议的绝对主角) -->
+  <g filter="url(#l_shadow)">
+    <path d="M8.5 7.5 C8.5 6.7 9.2 6 10 6 H13.5 C14.3 6 15 6.7 15 7.5 V18.5 C15 19.3 15.7 20 16.5 20 H22.5 C23.3 20 24 20.7 24 21.5 V22.5 C24 23.3 23.3 24 22.5 24 H11 C9.6 24 8.5 22.9 8.5 21.5 V7.5 Z" fill="#FFFFFF"/>
+    <path d="M9.2 6.5 H13.8" stroke="#FFFFFF" stroke-width="0.6" stroke-linecap="round"/>
   </g>
 </svg>
