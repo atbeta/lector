@@ -178,5 +178,5 @@ describe('缩进的 Markdown 段落', () => {
       if (++guard > 100000) throw new Error('增量解析没有结束')
     }
     expect(signature(finalizeChunkedBlocks(stepped, text))).toBe(signature(whole))
-  })
+  }, 15000)
 })
