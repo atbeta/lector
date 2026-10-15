@@ -16,6 +16,12 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.6 (2026-10-15)
+
+### Fixed
+
+- fix(editor): delete a source-mode selection that spans blocks
+
 ## v0.38.5 (2026-10-14)
 
 ### Fixed
