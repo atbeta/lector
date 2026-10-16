@@ -1269,6 +1269,85 @@ const summary = {
     )
     await setMode('edit')
 
+    // ── 源码档：选中文字右键要能删 ──
+    //
+    // 跨块选区活在浏览器选区里，删除键走 appBindings 的换算；右键菜单是同一件事的
+    // 另一个入口，不给就成了「⌫ 能删、菜单里删不掉」。判据按**行为**（删完正文确实
+    // 短了、⌘Z 又回来），不按文案——这个页面没钉 locale，按中文标签找会永远假红。
+    {
+      await setMode('source')
+      // 块正文：源码档读 .source-view，删完光标块会挂上编辑器，那一块改读 .cm-content。
+      // 两边都得算，否则「删完短了多少」会被挂编辑器这件事本身干扰。
+      const bodyText = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('#content .block:not(.gap)')]
+            .map((b) => b.querySelector('.source-view > code')?.textContent ?? b.querySelector('.cm-content')?.textContent ?? '')
+            .join('\n'),
+        )
+      const before = await bodyText()
+      const probe = await page.evaluate(() => {
+        const lastText = (el) => {
+          const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+          let last = null
+          while (w.nextNode()) last = w.currentNode
+          return last
+        }
+        const codes = [...document.querySelectorAll('#content .block[data-block-id] > .source-view > code')]
+        const pair = codes.filter((c) => c.textContent && lastText(c))
+        if (pair.length < 2) return null
+        const [a, b] = pair
+        const bLast = lastText(b)
+        const r = document.createRange()
+        r.setStart(a, 0)
+        r.setEnd(bLast, Math.min(3, bLast.textContent.length))
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(r)
+        b.scrollIntoView({ block: 'center' })
+        const box = b.getBoundingClientRect()
+        return {
+          text: sel.toString(),
+          // 落点取第二块的头几个字：那一段必然落在选区里，右键才不会顺手把选区收掉
+          x: Math.round(box.left + 6),
+          y: Math.round(box.top + Math.min(box.height - 2, 10)),
+        }
+      })
+      if (!probe || probe.text.length < 2) {
+        note('warn', '源码档里取不到跨块的可选文本，「删除选中的文字」这条没验到')
+      } else {
+        await page.waitForTimeout(250)
+        await page.mouse.click(probe.x, probe.y, { button: 'right' })
+        await page.waitForTimeout(250)
+        const kept = await page.evaluate(() => window.getSelection()?.toString() ?? '')
+        const withSel = await menuItems()
+        // 两种语言都写进正则：这个页面的文案随机器语言变（见 1040 行那条）
+        const delAt = withSel.findIndex((l) => /删除选中的文字|Delete selection/i.test(l))
+        if (kept !== probe.text) {
+          note('warn', `右键把选区收掉了（${probe.text.length} → ${kept.length} 字）：落点没落在选区里，这条没验到`)
+        } else if (delAt < 0) {
+          note('error', `源码档选区右键没有「删除选中的文字」：${JSON.stringify(withSel)}`)
+        } else {
+          await page.locator('.context-menu .context-item').nth(delAt).click()
+          await page.waitForTimeout(350)
+          const afterDel = await bodyText()
+          if (afterDel.length >= before.length) {
+            note('error', `点了「删除选中的文字」，正文没有变短（${before.length} → ${afterDel.length}）`)
+          }
+          await page.keyboard.press(`${MOD}+z`)
+          await page.waitForTimeout(400)
+          const afterUndo = await bodyText()
+          if (afterUndo !== before) {
+            note('error', `⌘Z 没恢复选区删除（${before.length} → ${afterDel.length} → ${afterUndo.length}）`)
+          }
+          note('info', `源码档选区菜单 ${withSel.length} 项，删除 ${before.length}→${afterDel.length}，⌘Z → ${afterUndo.length}`)
+        }
+      }
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+      await page.evaluate(() => window.getSelection()?.removeAllRanges())
+      await setMode('edit')
+    }
+
     // ── 有选区时右键，焦点不许离开正文 ──
     //
     // 焦点一走，WebKit 就不再绘制选区高亮（选区还在、⌘C 也复制得到，但用户看不到

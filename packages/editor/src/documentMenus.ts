@@ -7,6 +7,7 @@ import { showContextMenu, hideContextMenu, isContextMenuOpenFor, type ContextMen
 import { resolveMenuDecision } from './menuTarget.ts'
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
+import type { SourceSpanEditor } from './sourceSelection.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
 import type { ViewMode } from './editorChrome.ts'
@@ -19,6 +20,7 @@ export function createDocumentMenus({
   insertImageAtCaret,
   contentEl,
   getViewMode,
+  sourceSpans,
   exportPdf,
 }: {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
@@ -30,6 +32,8 @@ export function createDocumentMenus({
   insertImageAtCaret: () => void
   contentEl: HTMLElement
   getViewMode: () => ViewMode
+  /** 源码档跨块选区的换算入口。「删除选中的文字」靠它判断给不给、点了怎么删（见 sourceSelection）。 */
+  sourceSpans: SourceSpanEditor
   /** 导出 PDF：实现在 editorChrome，菜单只负责把它挂进「更多文件操作」。 */
   exportPdf: () => Promise<void>
 }) {
@@ -201,7 +205,7 @@ export function createDocumentMenus({
     const items = forMode(blockMenuItems(block, blockEl))
     // 只读档过滤后可能一个都不剩（理论上不会：复制三项永远在），那就别弹空菜单
     if (items.length === 0) return false
-    appendSelectionCopy(items)
+    appendSelectionItems(items)
     showContextMenu(items, x, y)
     return true
   }
@@ -290,8 +294,14 @@ export function createDocumentMenus({
     }
   }
 
-  /** 正文里已选中文字时，往菜单末尾补一条「复制选中的文字」。 */
-  function appendSelectionCopy(items: ContextMenuItem[]): void {
+  /**
+   * 正文里已选中文字时，往菜单末尾补动作。
+   *
+   * 复制哪一档都有用，所以一直都在。删除只有源码档能给：跨块选区得先换算回原文
+   * 区间才动得了，预览档渲染出来的是 mdast 结果、映不回偏移（见 sourceSelection），
+   * 硬给就是删错地方。换算不出来就不给这一项——少一个入口好过给一条会删错的。
+   */
+  function appendSelectionItems(items: ContextMenuItem[]): void {
     const text = window.getSelection()?.toString() ?? ''
     if (!text) return
     items.push({
@@ -299,6 +309,15 @@ export function createDocumentMenus({
       label: t('menuCopySelection'),
       hint: mod('C'),
       run: () => void copyText(text, t('menuCopied')),
+    })
+    if (!sourceSpans.canReplace()) return
+    items.push({
+      label: t('menuDeleteSelection'),
+      danger: true,
+      // 菜单是阅读档与编辑档共用的入口，而这一项改文档：标上才可能被 forMode 摘掉。
+      // 眼下走不到（它只在源码档出现），但规矩是「会改文档就标」，不是「今天用得上就标」。
+      mutates: true,
+      run: () => sourceSpans.replace(''),
     })
   }
 
@@ -440,7 +459,7 @@ export function createDocumentMenus({
   function showBlankAreaMenu(target: HTMLElement, e: MouseEvent): void {
     const items = forMode(blankAreaMenuItems(nearestBlockBefore(target)))
     if (items.length === 0) return
-    appendSelectionCopy(items)
+    appendSelectionItems(items)
     showContextMenu(items, e.clientX, e.clientY)
   }
 

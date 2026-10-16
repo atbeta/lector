@@ -12,6 +12,7 @@ import { createFileController, type FileController } from './fileController.ts'
 import { createImageController } from './imageController.ts'
 import { createDocumentMenus } from './documentMenus.ts'
 import { bindImageTransfer } from './imageTransfer.ts'
+import { createSourceSpanEditor } from './sourceSelection.ts'
 import { bindAppEvents, bindReadingEvents } from './appBindings.ts'
 import { openStartupDocument } from './startupDocument.ts'
 import { mountSelectionBubble } from './selectionBubble.ts'
@@ -114,6 +115,26 @@ const editor: DocumentEditor = createDocumentEditor({
 
 const files: FileController = createFileController({ editor, chrome, recovery })
 const images = createImageController({ editor })
+// 源码档的跨块选区活在浏览器选区里，要改它就得先换算回原文区间。
+// 键盘（输入/删除/粘贴）、剪贴板（复制/剪切）与右键菜单共用这一份——
+// 三处各写一遍换算，改一处漏一处时界面不报错，只会出现「⌫ 能删、菜单里删不掉」。
+const sourceSpans = createSourceSpanEditor({
+  isSourceMode: () => chrome.getViewMode() === 'source',
+  isLarge: () => editor.isLarge(),
+  contentRoot: contentEl,
+  getBlocks: () => editor.getSession().blocks,
+  getCmView: () => editor.getCmView(),
+  getFocusedId: () => editor.getSession().focusedId,
+  finalizeFocused: () => editor.finalizeFocused(),
+  replaceSpan: (span, replacement) =>
+    editor.operations.replaceSourceSpan({
+      startId: span.startId,
+      startOffset: span.startOffset,
+      endId: span.endId,
+      endOffset: span.endOffset,
+      replacement,
+    }),
+})
 const menus = createDocumentMenus({
   editor,
   files,
@@ -123,6 +144,7 @@ const menus = createDocumentMenus({
   contentEl,
   // 菜单要分档：阅读档只给「读」的动作（见 documentMenus 的 forMode）
   getViewMode: () => chrome.getViewMode(),
+  sourceSpans,
   // 导出 PDF 实现在 editorChrome，菜单只负责把它挂进「更多文件操作」
   exportPdf: () => chrome.runExportPdf(),
 })
@@ -171,6 +193,7 @@ bindAppEvents({
   chrome,
   outline,
   menus,
+  sourceSpans,
   insertImageAtCaret: () => void images.pickAndInsert({ type: 'caret' }),
 })
 if (detectEnv() === 'shell') {

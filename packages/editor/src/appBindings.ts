@@ -10,13 +10,7 @@ import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import { resolveShortcut } from './shortcutDispatch.ts'
 import type { DocumentEditor } from './documentEditor.ts'
-import {
-  isForeignEditable,
-  mapSourceSelection,
-  selectionHandledByFocusedEditor,
-  selectionTouchesCodeMirror,
-  sourceKeyAction,
-} from './sourceSelection.ts'
+import { isForeignEditable, sourceKeyAction, type SourceSpanEditor } from './sourceSelection.ts'
 import type { FileController } from './fileController.ts'
 import type { EditorChrome } from './editorChrome.ts'
 import type { createOutline } from './outline.ts'
@@ -27,7 +21,7 @@ import type { createReadingPositionController } from './readingPositionControlle
 interface AppBindingsDeps {
   editor: Pick<
     DocumentEditor,
-    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'finalizeFocused' | 'isLarge' | 'openFind' | 'operations'
+    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'
   >
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
   chrome: Pick<
@@ -43,45 +37,25 @@ interface AppBindingsDeps {
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
   menus: Pick<DocumentMenus, 'openBlockMenu'>
+  /** 源码档跨块选区的换算入口：键盘、剪贴板与右键菜单共用一份（见 sourceSelection）。 */
+  sourceSpans: SourceSpanEditor
   /** 原生「编辑 → 插入图片」：落在光标处（没聚焦块则文末）。 */
   insertImageAtCaret: () => void
 }
 
-export function bindAppEvents({ editor, files, chrome, outline, menus, insertImageAtCaret }: AppBindingsDeps): void {
+export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpans, insertImageAtCaret }: AppBindingsDeps): void {
   // 源码档的跨块选区活在浏览器选区里，删除键只接在聚焦块的编辑器上，所以原先按了没反应。
   // 捕获阶段处理：若等事件落到聚焦块，那一个编辑器会先删掉自己的一个字符。
-  function mappedSourceSpan(commitFocused: boolean) {
-    if (chrome.getViewMode() !== 'source' || editor.isLarge()) return null
-    const sel = window.getSelection()
-    const root = chrome.elements.contentEl
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
-    if (selectionHandledByFocusedEditor(sel, root)) return null
-    // 改文档前先把聚焦块写回，避免接着拆掉编辑器时丢掉还没同步的字。
-    // 复制不改文档：只有选区伸进那个编辑器时才需要写回，好让偏移对上。
-    if (commitFocused || selectionTouchesCodeMirror(sel)) editor.finalizeFocused()
-    return mapSourceSelection(sel, editor.getSession().blocks, root, editor.getCmView(), editor.getSession().focusedId)
-  }
-
-  function applyMappedReplacement(text: string): boolean {
-    const mapped = mappedSourceSpan(true)
-    if (!mapped) return false
-    const applied = editor.operations.replaceSourceSpan({
-      startId: mapped.startId,
-      startOffset: mapped.startOffset,
-      endId: mapped.endId,
-      endOffset: mapped.endOffset,
-      replacement: text,
-    })
-    if (applied) window.getSelection()?.removeAllRanges()
-    return applied
-  }
+  //
+  // 「选区 ↔ 原文区间」的具体换算住在 sourceSelection 的 sourceSpans 里——
+  // 右键菜单的「删除选中的文字」走的是同一份，两边不会各删各的。
 
   window.addEventListener(
     'keydown',
     (e) => {
       const action = sourceKeyAction(e)
       if (action.kind !== 'replace' || isForeignEditable(e.target)) return
-      if (!applyMappedReplacement(action.text)) return
+      if (!sourceSpans.replace(action.text)) return
       e.preventDefault()
       e.stopPropagation()
     },
@@ -91,7 +65,7 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
   window.addEventListener(
     'copy',
     (e) => {
-      const mapped = mappedSourceSpan(false)
+      const mapped = sourceSpans.span('read')
       if (!mapped || !e.clipboardData) return
       e.preventDefault()
       e.stopPropagation()
@@ -103,19 +77,12 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
   window.addEventListener(
     'cut',
     (e) => {
-      const mapped = mappedSourceSpan(true)
+      const mapped = sourceSpans.span('commit')
       if (!mapped || !e.clipboardData) return
       e.preventDefault()
       e.stopPropagation()
       e.clipboardData.setData('text/plain', mapped.text)
-      editor.operations.replaceSourceSpan({
-        startId: mapped.startId,
-        startOffset: mapped.startOffset,
-        endId: mapped.endId,
-        endOffset: mapped.endOffset,
-        replacement: '',
-      })
-      window.getSelection()?.removeAllRanges()
+      sourceSpans.replace('')
     },
     true,
   )
@@ -126,7 +93,7 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
       if (e.defaultPrevented || isForeignEditable(e.target)) return
       const text = e.clipboardData?.getData('text/plain') ?? ''
       if (!text) return
-      if (!applyMappedReplacement(text)) return
+      if (!sourceSpans.replace(text)) return
       e.preventDefault()
       e.stopPropagation()
     },

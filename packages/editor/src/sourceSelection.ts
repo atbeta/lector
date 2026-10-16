@@ -169,3 +169,75 @@ export function mapSourceSelection(
     text,
   }
 }
+
+/**
+ * 取区间时打算拿它做什么。三种意图的差别只在「要不要先写回聚焦块」。
+ *
+ * 单独列出来是因为这条差别是有代价的：`finalizeFocused` 会改脏状态、刷新状态行，
+ * 拿它当「看一眼能不能删」的探针就等于右键一下也算编辑。
+ */
+export type SourceSpanIntent =
+  /** 只看不碰：右键菜单判断该不该给「删除选中的文字」。探不出来就不给那一项 */
+  | 'probe'
+  /** 复制不改文档，但选区伸进聚焦块时仍要写回，否则偏移对不上 */
+  | 'read'
+  /** 要改文档：先写回，免得接着拆掉那个编辑器时丢掉还没同步的字 */
+  | 'commit'
+
+export interface SourceSpanEditorDeps {
+  /** 只有源码档的选区才映得回原文（预览档渲染的是 mdast 结果） */
+  isSourceMode: () => boolean
+  /** 大文档走纯文本降级，没有块级 DOM 可映 */
+  isLarge: () => boolean
+  contentRoot: HTMLElement
+  getBlocks: () => readonly BlockView[]
+  getCmView: () => EditorView | null
+  getFocusedId: () => string | null
+  finalizeFocused: () => void
+  /** 按原文区间改文档；返回 false 表示这次没换成 */
+  replaceSpan: (span: MappedSourceSpan, replacement: string) => boolean
+}
+
+export interface SourceSpanEditor {
+  span: (intent: SourceSpanIntent) => MappedSourceSpan | null
+  /** 用 replacement 换掉选区，成功后清掉选区（⌫ 已经这么干了） */
+  replace: (replacement: string) => boolean
+  /** 菜单探针：这一段选区现在换得掉吗。不碰文档、不动选区 */
+  canReplace: () => boolean
+}
+
+/**
+ * 源码档跨块选区的唯一入口。
+ *
+ * 键盘（输入/删除/粘贴）、剪贴板（复制/剪切）与右键菜单都要做同一件事：
+ * 把浏览器选区换算成原文区间再改。**三处各写一份换算必然漂移**——改一处漏一处时
+ * 界面不会报错，只会出现「⌫ 能删、菜单里删不掉」这种对不上的现象。
+ */
+export function createSourceSpanEditor(deps: SourceSpanEditorDeps): SourceSpanEditor {
+  function span(intent: SourceSpanIntent): MappedSourceSpan | null {
+    if (!deps.isSourceMode() || deps.isLarge()) return null
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
+    const root = deps.contentRoot
+    // 整段都在聚焦块的编辑器里时，删除与复制都该留给那一个 CM
+    if (selectionHandledByFocusedEditor(sel, root)) return null
+    if (intent === 'commit' || (intent === 'read' && selectionTouchesCodeMirror(sel))) deps.finalizeFocused()
+    return mapSourceSelection(sel, deps.getBlocks(), root, deps.getCmView(), deps.getFocusedId())
+  }
+
+  function replace(replacement: string): boolean {
+    const mapped = span('commit')
+    if (!mapped) return false
+    if (!deps.replaceSpan(mapped, replacement)) return false
+    window.getSelection()?.removeAllRanges()
+    return true
+  }
+
+  return {
+    span,
+    replace,
+    // 探不出来（对不上原文、落在把手上）就不给删除项：宁可少一个入口，
+    // 也不能给一条点了会删错地方的。
+    canReplace: () => span('probe') !== null,
+  }
+}
