@@ -4,7 +4,7 @@ import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
 import { showContextMenu, hideContextMenu, isContextMenuOpenFor, type ContextMenuItem } from './contextMenu.ts'
-import { resolveMenuDecision } from './menuTarget.ts'
+import { resolveMenuDecision, withSelectionActions } from './menuTarget.ts'
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
 import type { SourceSpanEditor } from './sourceSelection.ts'
@@ -295,30 +295,38 @@ export function createDocumentMenus({
   }
 
   /**
-   * 正文里已选中文字时，往菜单末尾补动作。
+   * 正文里已选中文字时，把选区动作插到菜单最前。
    *
-   * 复制哪一档都有用，所以一直都在。删除只有源码档能给：跨块选区得先换算回原文
-   * 区间才动得了，预览档渲染出来的是 mdast 结果、映不回偏移（见 sourceSelection），
-   * 硬给就是删错地方。换算不出来就不给这一项——少一个入口好过给一条会删错的。
+   * 阅读、编辑、源码同一顺序：先「复制选中的文字」，源码档能换算回原文区间时
+   * 紧跟着「删除选中的文字」，再才是复制本块 / 插入段落。选区是右键当下的对象，
+   * 埋在菜单末尾等于没给。
+   *
+   * 删除只有源码档能给：跨块选区得先换算回原文区间才动得了，预览档渲染出来的是
+   * mdast 结果、映不回偏移（见 sourceSelection），硬给就是删错地方。换算不出来
+   * 就不给这一项——少一个入口好过给一条会删错的。
    */
   function appendSelectionItems(items: ContextMenuItem[]): void {
     const text = window.getSelection()?.toString() ?? ''
     if (!text) return
-    items.push({
-      separatorBefore: true,
-      label: t('menuCopySelection'),
-      hint: mod('C'),
-      run: () => void copyText(text, t('menuCopied')),
-    })
-    if (!sourceSpans.canReplace()) return
-    items.push({
-      label: t('menuDeleteSelection'),
-      danger: true,
-      // 菜单是阅读档与编辑档共用的入口，而这一项改文档：标上才可能被 forMode 摘掉。
-      // 眼下走不到（它只在源码档出现），但规矩是「会改文档就标」，不是「今天用得上就标」。
-      mutates: true,
-      run: () => sourceSpans.replace(''),
-    })
+    const actions: ContextMenuItem[] = [
+      {
+        label: t('menuCopySelection'),
+        hint: mod('C'),
+        run: () => void copyText(text, t('menuCopied')),
+      },
+    ]
+    if (sourceSpans.canReplace()) {
+      actions.push({
+        label: t('menuDeleteSelection'),
+        danger: true,
+        // 菜单是阅读档与编辑档共用的入口，而这一项改文档：标上才可能被 forMode 摘掉。
+        // 眼下走不到（它只在源码档出现，且插在 forMode 之后），但规矩是「会改文档就标」。
+        mutates: true,
+        run: () => sourceSpans.replace(''),
+      })
+    }
+    const next = withSelectionActions(items, actions)
+    items.splice(0, items.length, ...next)
   }
 
   /**

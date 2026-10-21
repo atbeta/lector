@@ -3,7 +3,7 @@
 //
 // 不需要浏览器：这里测的是纯函数，DOM 探测在 documentMenus.ts 的薄适配层里。
 import { describe, expect, test } from 'bun:test'
-import { resolveMenuDecision, type MenuHints } from '../src/menuTarget.ts'
+import { resolveMenuDecision, withSelectionActions, type MenuHints } from '../src/menuTarget.ts'
 
 /** 默认「点在正文段落上、有文件、无选区」——各用例只改自己关心的那几项。 */
 function hints(over: Partial<MenuHints> = {}): MenuHints {
@@ -96,5 +96,50 @@ describe('右键分派', () => {
     const base = { inContent: false, inProse: false, inBlock: false }
     expect(kind({ ...base, hasSelection: true })).toBe('copySelection')
     expect(kind(base)).toBe('none')
+  })
+})
+
+describe('选区动作排在菜单最前', () => {
+  type Item = { label: string; separatorBefore?: boolean }
+
+  test('没有选区动作时菜单原样返回', () => {
+    const items: Item[] = [{ label: '复制本块' }, { label: '删除本块' }]
+    expect(withSelectionActions(items, [])).toBe(items)
+  })
+
+  test('复制在最前，删除紧随，后面的块动作另起一组', () => {
+    const items: Item[] = [
+      { label: '复制本块', separatorBefore: false },
+      { label: '剪切本块', separatorBefore: true },
+    ]
+    const actions: Item[] = [
+      { label: '复制选中的文字', separatorBefore: true },
+      { label: '删除选中的文字' },
+    ]
+    const next = withSelectionActions(items, actions)
+    expect(next.map((i) => i.label)).toEqual([
+      '复制选中的文字',
+      '删除选中的文字',
+      '复制本块',
+      '剪切本块',
+    ])
+    expect(next[0]?.separatorBefore).toBe(false)
+    expect(next[1]?.separatorBefore).toBeUndefined()
+    expect(next[2]?.separatorBefore).toBe(true)
+    expect(next[3]?.separatorBefore).toBe(true)
+  })
+
+  test('阅读档只有复制时，它仍然压在块动作上面', () => {
+    const items: Item[] = [{ label: '复制本块' }, { label: '复制为纯文本' }]
+    const next = withSelectionActions(items, [{ label: '复制选中的文字' }])
+    expect(next.map((i) => i.label)).toEqual(['复制选中的文字', '复制本块', '复制为纯文本'])
+    expect(next[0]?.separatorBefore).toBe(false)
+    expect(next[1]?.separatorBefore).toBe(true)
+  })
+
+  test('块菜单被滤空时，选区动作自己成一份菜单且顶上没有分隔线', () => {
+    const actions: Item[] = [{ label: '复制选中的文字', separatorBefore: true }]
+    const next = withSelectionActions([], actions)
+    expect(next).toEqual([{ label: '复制选中的文字', separatorBefore: false }])
   })
 })

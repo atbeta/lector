@@ -70,3 +70,28 @@ export function resolveMenuDecision(h: MenuHints): MenuDecision {
   if (h.hasSelection) return { kind: 'copySelection' }
   return { kind: 'none' }
 }
+
+/**
+ * 选区动作排在菜单最前。
+ *
+ * 右键落在已选中的文字上时，用户要的是「对这段选区做什么」，不是先翻过
+ * 「复制本块 / 插入段落」才看到选区项。阅读、编辑、源码三档同一条规矩：
+ * 有选区就把选区动作放最上面，再用一条分隔线和后面的块动作分开。
+ * 没有选区动作时原样返回，避免无选区的菜单被多画一条线。
+ */
+function withSeparator<T extends { separatorBefore?: boolean }>(item: T, separatorBefore: boolean): T {
+  // 只改分隔线这一位。展开后的对象在 exactOptionalPropertyTypes 下不再被看成 T，
+  // 但字段集合没变，调用方拿到的仍是原来的菜单项。
+  return { ...item, separatorBefore } as T
+}
+
+export function withSelectionActions<T extends { separatorBefore?: boolean }>(
+  items: T[],
+  actions: T[],
+): T[] {
+  if (actions.length === 0) return items
+  const head: T[] = actions.map((item, i) => (i === 0 ? withSeparator<T>(item, false) : item))
+  const first = items[0]
+  if (first === undefined) return head
+  return [...head, withSeparator<T>(first, true), ...items.slice(1)]
+}

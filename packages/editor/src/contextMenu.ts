@@ -163,20 +163,39 @@ export function showContextMenu(
       hideContextMenu()
     }
   }
-  const onScroll = () => hideContextMenu()
-  const onBlur = () => hideContextMenu()
+  // 打开这一刻正文滚到哪。紧接着若冒出位移为 0 的 scroll（内容可见性重算、
+  // 滚动锚定补了 0），菜单不该被收掉——右键刚弹出就没了，选区动作等于没有。
+  const place = new Map<EventTarget, { top: number; left: number }>()
+  const content = document.getElementById('content')
+  if (content) place.set(content, { top: content.scrollTop, left: content.scrollLeft })
+  for (const node of document.querySelectorAll('.cm-scroller')) {
+    place.set(node, { top: (node as HTMLElement).scrollTop, left: (node as HTMLElement).scrollLeft })
+  }
+  const onScroll = (e: Event) => {
+    const t = e.target
+    if (!(t instanceof HTMLElement)) return
+    // 只跟正文走。大纲把当前小节滚进可视区、设置面板自己滚，都不挪右键落点，
+    // 菜单留在原地仍然指着刚才那一块。
+    if (t.id !== 'content' && !t.classList.contains('cm-scroller')) return
+    const next = { top: t.scrollTop, left: t.scrollLeft }
+    const prev = place.get(t)
+    place.set(t, next)
+    if (prev && prev.top === next.top && prev.left === next.left) return
+    hideContextMenu()
+  }
+  const close = () => hideContextMenu()
 
   document.addEventListener('mousedown', onDown, true)
   document.addEventListener('keydown', onKey, true)
   window.addEventListener('scroll', onScroll, true)
-  window.addEventListener('resize', onScroll)
-  window.addEventListener('blur', onBlur)
+  window.addEventListener('resize', close)
+  window.addEventListener('blur', close)
   detach = () => {
     document.removeEventListener('mousedown', onDown, true)
     document.removeEventListener('keydown', onKey, true)
     window.removeEventListener('scroll', onScroll, true)
-    window.removeEventListener('resize', onScroll)
-    window.removeEventListener('blur', onBlur)
+    window.removeEventListener('resize', close)
+    window.removeEventListener('blur', close)
     panel?.remove()
     panel = null
   }

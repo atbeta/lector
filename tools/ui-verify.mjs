@@ -1321,11 +1321,15 @@ const summary = {
         const kept = await page.evaluate(() => window.getSelection()?.toString() ?? '')
         const withSel = await menuItems()
         // 两种语言都写进正则：这个页面的文案随机器语言变（见 1040 行那条）
+        const copyAt = withSel.findIndex((l) => /复制选中的文字|Copy selection/i.test(l))
         const delAt = withSel.findIndex((l) => /删除选中的文字|Delete selection/i.test(l))
         if (kept !== probe.text) {
           note('warn', `右键把选区收掉了（${probe.text.length} → ${kept.length} 字）：落点没落在选区里，这条没验到`)
-        } else if (delAt < 0) {
-          note('error', `源码档选区右键没有「删除选中的文字」：${JSON.stringify(withSel)}`)
+        } else if (copyAt !== 0 || delAt !== 1) {
+          note(
+            'error',
+            `源码档选区动作没排在最前（复制 ${copyAt}，删除 ${delAt}）：${JSON.stringify(withSel)}`,
+          )
         } else {
           await page.locator('.context-menu .context-item').nth(delAt).click()
           await page.waitForTimeout(350)
@@ -1395,7 +1399,65 @@ const summary = {
       if (after.sel !== selProbe.text) {
         note('error', `右键后选区变了：${JSON.stringify(selProbe.text)} → ${JSON.stringify(after.sel)}`)
       }
-      note('info', `有选区右键：焦点=${after.active || '(正文)'}，选区 ${after.sel.length} 字未丢`)
+      const editSelMenu = await menuItems()
+      const editCopyAt = editSelMenu.findIndex((l) => /复制选中的文字|Copy selection/i.test(l))
+      const editDelAt = editSelMenu.findIndex((l) => /删除选中的文字|Delete selection/i.test(l))
+      if (after.sel === selProbe.text && editCopyAt !== 0) {
+        note('error', `编辑档选区右键，「复制选中的文字」不在最前：${JSON.stringify(editSelMenu)}`)
+      }
+      if (editDelAt >= 0) {
+        note('error', `编辑档预览映不回原文，不该出现「删除选中的文字」：${JSON.stringify(editSelMenu)}`)
+      }
+      note('info', `有选区右键：焦点=${after.active || '(正文)'}，选区 ${after.sel.length} 字未丢，菜单首项=${editSelMenu[0] ?? '(空)'}`)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(200)
+      await page.evaluate(() => window.getSelection()?.removeAllRanges())
+    }
+
+    // ── 阅读档：选区动作同样在最前，且没有「删除选中的文字」 ──
+    //
+    // 预览映不回原文偏移，删除只在源码档出现。复制则三档同一位置，否则
+    // 阅读档右键还是先看到「复制本块」。
+    await setMode('read')
+    const readSel = await page.evaluate(() => {
+      const paras = [...document.querySelectorAll('#content .block[data-kind="paragraph"] .reading-prose p')]
+      for (const para of paras) {
+        const node = para.firstChild
+        if (!node || node.nodeType !== 3 || node.textContent.length < 6) continue
+        para.scrollIntoView({ block: 'center' })
+        const r = document.createRange()
+        r.setStart(node, 0)
+        r.setEnd(node, 6)
+        const box = r.getBoundingClientRect()
+        const x = Math.round(box.left + box.width / 2)
+        const y = Math.round(box.top + box.height / 2)
+        if (!document.elementFromPoint(x, y)?.closest('.reading-prose')) continue
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(r)
+        return { x, y, text: sel.toString() }
+      }
+      return null
+    })
+    if (!readSel) {
+      note('warn', '阅读档段落里取不到可选文本，选区菜单位置这条没验到')
+    } else {
+      await page.mouse.click(readSel.x, readSel.y, { button: 'right' })
+      await page.waitForTimeout(260)
+      const readMenu = await menuItems()
+      const kept = await page.evaluate(() => window.getSelection()?.toString() ?? '')
+      const readCopyAt = readMenu.findIndex((l) => /复制选中的文字|Copy selection/i.test(l))
+      const readDelAt = readMenu.findIndex((l) => /删除选中的文字|Delete selection/i.test(l))
+      if (kept !== readSel.text) {
+        note('warn', '阅读档右键把选区收掉了，选区菜单位置这条没验到')
+      } else if (readCopyAt !== 0) {
+        note('error', `阅读档选区右键，「复制选中的文字」不在最前：${JSON.stringify(readMenu)}`)
+      }
+      if (readDelAt >= 0) {
+        note('error', `阅读档不该出现「删除选中的文字」：${JSON.stringify(readMenu)}`)
+      } else if (kept === readSel.text && readCopyAt === 0) {
+        note('info', `阅读档选区菜单首项=${readMenu[0]}`)
+      }
       await page.keyboard.press('Escape')
       await page.waitForTimeout(200)
       await page.evaluate(() => window.getSelection()?.removeAllRanges())
@@ -1406,7 +1468,6 @@ const summary = {
     // 以前这里是 preventDefault() 之后**什么都不做**：本地链接点了没反应。
     // 浏览器预览里没有壳，所以落到「本地文件要在应用里打开」的提示上；真机里它开新窗口
     // （同一文件已打开就聚焦那个窗口）。判据只看**有没有提示**，不认文案。
-    await setMode('read')
     const linkClicked = await page.evaluate(() => {
       const a = document.querySelector('#content .reading-prose a')
       const toast = document.getElementById('lector-toast')
