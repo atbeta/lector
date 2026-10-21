@@ -16,6 +16,20 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.7 (2026-10-21)
+
+### Added
+
+- feat(editor): delete a source-mode selection from the context menu
+
+### Fixed
+
+- fix(editor): put selection actions first in the context menu
+
+### Internal
+
+- docs(readme): make the README bilingual and add screenshots
+
 ## v0.38.6 (2026-10-15)
 
 ### Fixed
