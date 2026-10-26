@@ -16,6 +16,12 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+## v0.38.8 (2026-10-26)
+
+### Fixed
+
+- fix(core): keep a divider from becoming YAML frontmatter
+
 ## v0.38.7 (2026-10-21)
 
 ### Added
