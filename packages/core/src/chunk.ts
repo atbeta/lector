@@ -14,6 +14,8 @@ import { fromMarkdown } from 'mdast-util-from-markdown'
 import {
   carveTableTail,
   extensions,
+  fragmentExtensions,
+  fragmentMdastExtensions,
   kindFromMdast,
   liftIndentedMarkdown,
   mdastExtensions,
@@ -196,8 +198,18 @@ export function findSafeSplits(text: string, target = DEFAULT_TARGET): number[] 
 // 解析一片
 // ---------------------------------------------------------------------------
 
-function parseTree(text: string): MdastNode[] {
-  const tree = fromMarkdown(text, { extensions, mdastExtensions }) as { children: MdastNode[] }
+/**
+ * 解析一片。fragment = 这片不是文档开头：frontmatter 只认整篇的第一行，
+ * 片段开头的 --- 是分隔线。开着 frontmatter 解析片段，那行 --- 会把后面整段
+ * 吞成 yaml 块（分隔线后面的小节标题不渲染——切点落在 --- 上时必现）。
+ */
+function parseTree(text: string, fragment: boolean): MdastNode[] {
+  const tree = fromMarkdown(
+    text,
+    fragment
+      ? { extensions: fragmentExtensions, mdastExtensions: fragmentMdastExtensions }
+      : { extensions, mdastExtensions },
+  ) as { children: MdastNode[] }
   return tree.children
 }
 
@@ -417,7 +429,7 @@ function sameSeam(prev: Piece, next: Piece): boolean {
 
 function parsePiece(text: string, start: number, end: number): Piece {
   const slice = text.slice(start, end)
-  const nodes = parseTree(slice)
+  const nodes = parseTree(slice, start > 0)
   const blocks = blocksFromNodes(nodes, text, start, slice.length) ?? []
   return { start, end, nodes, blocks }
 }
@@ -499,7 +511,7 @@ function secondPass(text: string, pieces: Piece[], defs: DefinitionSet): BlockVi
     }
     const stub = [stubText(linkIds, 'link'), stubText(footnoteIds, 'footnote')].filter(Boolean).join('\n')
     const parsed = slice + '\n\n' + stub + '\n'
-    const nodes = parseTree(parsed)
+    const nodes = parseTree(parsed, piece.start > 0)
     const reparsed = blocksFromNodes(nodes, text, piece.start, slice.length)
     blocks.push(...(reparsed ?? piece.blocks))
   }
@@ -700,7 +712,7 @@ function reparsing(text: string, piece: Piece, defs: DefinitionSet): BlockView[]
   walkDefinitions(piece.nodes, own)
   const stub = stubForSlice(slice, defs, own)
   if (!stub || trailingStructureOpen(piece, text)) return null
-  const nodes = parseTree(slice + '\n\n' + stub + '\n')
+  const nodes = parseTree(slice + '\n\n' + stub + '\n', piece.start > 0)
   return blocksFromNodes(nodes, text, piece.start, slice.length)
 }
 
