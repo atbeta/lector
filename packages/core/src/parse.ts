@@ -59,26 +59,44 @@ const markMdastExtension = {
 // 扩展清单导出给 images.ts 复用：图片定位必须和主解析对同一块文本看到
 // 完全相同的语法集，两份清单迟早漂移（0.27.3 的 CI 挂掉就是 images.ts
 // 还 import 已移除的 gfm 捆绑包暴露出来的）。
-export const extensions = (
-  ENABLE_GFM
-    ? [
-        gfmAutolinkLiteral(),
-        // 删除线只认双波浪（~~删除~~）：单波浪留给「1~6」这类范围写法。
-        gfmStrikethrough({ singleTilde: false }),
-        gfmTable(),
-        gfmTaskListItem(),
-        gfmFootnote(),
-        math(),
-        frontmatter(),
-        markExtension,
-      ]
-    : [math(), frontmatter(), markExtension]
-) as FromMarkdownOptions['extensions']
-export const mdastExtensions = (
-  ENABLE_GFM
-    ? [gfmFromMarkdown(), mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
-    : [mathFromMarkdown(), frontmatterFromMarkdown(), markMdastExtension]
-) as FromMarkdownOptions['mdastExtensions']
+// 语法集拆成「带 frontmatter」与「不带」两套。
+// frontmatter 只在整篇文档的开头成立，而 micromark 的 frontmatter 扩展只看
+// 被解析文本的第一行：拿它去解析一段「片段」时，片段开头的 --- 会被当成 YAML 头，
+// 后面整段（含 ## 标题）被吞成 yaml 块——分隔线后的小节标题就不渲染了。
+// 分块的非首片、缩进附录的拆块都是片段：它们的 --- 是分隔线，不是 YAML 头。
+const GFM_EXTENSIONS = [
+  gfmAutolinkLiteral(),
+  // 删除线只认双波浪（~~删除~~）：单波浪留给「1~6」这类范围写法。
+  gfmStrikethrough({ singleTilde: false }),
+  gfmTable(),
+  gfmTaskListItem(),
+  gfmFootnote(),
+  math(),
+]
+const PLAIN_EXTENSIONS = [math()]
+const GFM_MDAST_EXTENSIONS = [gfmFromMarkdown(), mathFromMarkdown()]
+const PLAIN_MDAST_EXTENSIONS = [mathFromMarkdown()]
+
+export const extensions = ([
+  ...(ENABLE_GFM ? GFM_EXTENSIONS : PLAIN_EXTENSIONS),
+  frontmatter(),
+  markExtension,
+] as unknown) as FromMarkdownOptions['extensions']
+export const mdastExtensions = ([
+  ...(ENABLE_GFM ? GFM_MDAST_EXTENSIONS : PLAIN_MDAST_EXTENSIONS),
+  frontmatterFromMarkdown(),
+  markMdastExtension,
+] as unknown) as FromMarkdownOptions['mdastExtensions']
+
+/** 片段解析用的语法集：与上面同一套语法，但没有 frontmatter。 */
+export const fragmentExtensions = ([
+  ...(ENABLE_GFM ? GFM_EXTENSIONS : PLAIN_EXTENSIONS),
+  markExtension,
+] as unknown) as FromMarkdownOptions['extensions']
+export const fragmentMdastExtensions = ([
+  ...(ENABLE_GFM ? GFM_MDAST_EXTENSIONS : PLAIN_MDAST_EXTENSIONS),
+  markMdastExtension,
+] as unknown) as FromMarkdownOptions['mdastExtensions']
 
 function makeUnknownBlock(start: number, end: number, text: string): BlockView {
   return {
@@ -203,7 +221,16 @@ export function kindFromMdast(node: unknown): BlockKind {
  * 整篇解析。分块实现（chunk.ts）的结果必须与它严格一致，测试用它做 oracle。
  * 生产路径走 parseBlocks（分块），它不导出到 index。
  */
-export function parseBlocksOriginal(text: string): BlockView[] {
+export interface ParseOptions {
+  /**
+   * 开头是否当 frontmatter（YAML 头）。整篇解析为 true。
+   * 解析「片段」时为 false：片段不是文档，它的开头没有 YAML 头的资格，
+   * 开头那行 --- 是分隔线（分块的非首片、缩进附录的拆块都是片段）。
+   */
+  frontmatter?: boolean
+}
+
+export function parseBlocksOriginal(text: string, opts?: ParseOptions): BlockView[] {
   if (text.length === 0) {
     return [
       {
@@ -218,7 +245,12 @@ export function parseBlocksOriginal(text: string): BlockView[] {
     ]
   }
 
-  const tree = fromMarkdown(text, { extensions, mdastExtensions }) as {
+  const tree = fromMarkdown(
+    text,
+    opts?.frontmatter === false
+      ? { extensions: fragmentExtensions, mdastExtensions: fragmentMdastExtensions }
+      : { extensions, mdastExtensions },
+  ) as {
     children: Array<{
       type: string
       position?: { start: { offset?: number }; end: { offset?: number } } | null
@@ -549,7 +581,8 @@ function expandIndentedCode(block: BlockView): BlockView[] | null {
   indentLiftDepth++
   let inner: BlockView[]
   try {
-    inner = parseBlocksOriginal(dedented.text)
+    // 附录是片段：它开头的 --- 是分隔线，不是 YAML 头
+    inner = parseBlocksOriginal(dedented.text, { frontmatter: false })
   } finally {
     indentLiftDepth--
   }
