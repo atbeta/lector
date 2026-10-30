@@ -16,14 +16,19 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
-`## Unreleased` holds entries for the next release. When cutting a version,
-rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the notes up
-by that header.
+Entries for the next release are collected under `## Unreleased`; when cutting a
+version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
+release notes up by that header.
 
-## Unreleased
+## v0.38.9 (2026-10-31)
+
+### Added
+
+- feat(editor): snap the interface zoom slider to discrete stops
 
 ### Fixed
 
+- fix(core): cap interface zoom at 150%
 - fix(editor): keep wide content inside the reading column
 
 ## v0.38.8 (2026-10-26)
