@@ -42,6 +42,9 @@ describe('settings schema', () => {
     expect(normalizeSettings({ fontSize: 2 }).fontSize).toBe(11)
     expect(normalizeSettings({ lineHeight: 5 }).lineHeight).toBe(2.6)
     expect(normalizeSettings({ readingWidth: 2000 }).readingWidth).toBe(1600)
+    expect(normalizeSettings({ uiZoom: 125 }).uiZoom).toBe(125)
+    expect(normalizeSettings({ uiZoom: 160 }).uiZoom).toBe(150)
+    expect(normalizeSettings({ uiZoom: 40 }).uiZoom).toBe(70)
   })
 
   test('theme 三种合法值', () => {

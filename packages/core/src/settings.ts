@@ -175,8 +175,9 @@ const CLAMP = {
   lineHeight: { min: 1.2, max: 2.6 },
   // 上限 1600：2K 屏（2560）扣掉侧栏还有 2200px，1200 的天花板会在最需要它的屏幕上先撞到
   readingWidth: { min: 480, max: 1600 },
-  // 上限 160：再大在 1080p 上会被顶栏裁掉内容；下限 70 是为了小屏同时看别的窗口
-  uiZoom: { min: 70, max: 160 },
+  // 上限 150：与快捷键、滑杆同一组档的最高档。再大在 1080p 上会被顶栏裁掉。
+  // 旧滑杆按 10% 线性取整，能写出 160；读入时收成最高档。
+  uiZoom: { min: 70, max: 150 },
 } as const
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {
