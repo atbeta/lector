@@ -1,0 +1,59 @@
+name: diag-sign
+
+# 临时诊断：v0.38.9 的 macOS 签名卡在 codesign --timestamp 上。
+# 用最小二进制把「钥匙串」「时间戳服务」「app 本身」三件事拆开量。
+# 诊断完删除本文件。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Import Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="build.keychain"
+          echo "$APPLE_CERTIFICATE" | tr -d '[:space:]' | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "temp" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "temp" "$KEYCHAIN"
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" "$KEYCHAIN"
+          security find-identity -v -p codesigning
+
+      - name: TSA probes
+        run: |
+          set -x
+          curl -s -o /dev/null -w 'http80 %{http_code} %{time_total}s\n' --max-time 10 http://timestamp.apple.com/ts01 || true
+          curl -s -o /dev/null -w 'https443 %{http_code} %{time_total}s\n' --max-time 10 https://timestamp.apple.com/ts01 || true
+          curl -4 -s -o /dev/null -w 'v4 %{http_code} %{time_total}s\n' --max-time 10 http://timestamp.apple.com/ts01 || true
+          curl -6 -s -o /dev/null -w 'v6 %{http_code} %{time_total}s\n' --max-time 10 http://timestamp.apple.com/ts01 || true
+          openssl ts -query -data /etc/hosts -no_nonce -sha256 -out /tmp/q.tsq
+          curl -s -o /tmp/q.tsr -w 'tsq %{http_code} %{time_total}s\n' --max-time 20 \
+            -H 'Content-Type: application/timestamp-query' --data-binary @/tmp/q.tsq \
+            http://timestamp.apple.com/ts01 || true
+          ls -l /tmp/q.tsr; openssl ts -reply -in /tmp/q.tsr -text 2>&1 | head -12 || true
+
+      - name: Sign a tiny binary without timestamp
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          printf 'int main(void){return 0;}\n' > /tmp/h.c
+          clang -o /tmp/hello /tmp/h.c
+          /usr/bin/time -p codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" /tmp/hello
+          codesign -dv /tmp/hello 2>&1 | head -6
+
+      - name: Sign a tiny binary with timestamp (3 min cap)
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          cp /tmp/hello /tmp/hello-ts
+          /usr/bin/time -p perl -e 'alarm shift; exec @ARGV' 180 \
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" /tmp/hello-ts \
+            && echo "timestamped ok" || echo "timestamped FAILED exit=$?"
+          codesign -dv /tmp/hello-ts 2>&1 | head -6
