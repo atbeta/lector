@@ -16,6 +16,16 @@ and the `chore(release):` commits themselves.
 > may mix Chinese and English depending on who wrote each commit. Translation
 > would break `git blame` traceability, so it is intentionally not done.
 
+`## Unreleased` holds entries for the next release. When cutting a version,
+rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the notes up
+by that header.
+
+## Unreleased
+
+### Fixed
+
+- fix(editor): keep wide content inside the reading column
+
 ## v0.38.8 (2026-10-26)
 
 ### Fixed
