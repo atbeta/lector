@@ -18,9 +18,14 @@ concurrency:
 jobs:
   macos:
     name: signed DMG (arm64)
-    runs-on: macos-latest
-    # 兜底：没有步级超时的时候 GitHub 默认给 6 小时。v0.38.9 的签名步骤卡了
-    # 两个多小时，期间 job 一直「进行中」，取消请求也送不到失联的 runner。
+    # 暂时 pin 到 macOS 15（arm64）。2026-10-26 的 macos-26-arm64 镜像
+    # （20261026.0455）上，codesign --timestamp 签主二进制会挂死：v0.38.9 两次
+    # 复现，15 分钟没有任何输出；同一镜像签一个 4KB 的 Mach-O 只要 0.14s，
+    # 时间戳服务、钥匙串都正常。旧镜像 20261013.0424 上同样的步骤 33 秒签完。
+    # 等上游修好再收回 macos-latest（那里现在是 macos-26-arm64）。
+    runs-on: macos-15
+    # 兜底：步级超时之外，整个 job 再压一道。之前没有超时，签名卡住时
+    # job 只会一直「进行中」，要等 GitHub 的 6 小时上限。
     timeout-minutes: 75
     permissions:
       contents: write
