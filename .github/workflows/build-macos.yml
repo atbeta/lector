@@ -103,9 +103,9 @@ jobs:
       - name: Build unsigned .app
         run: bun run tauri:build -- --target aarch64-apple-darwin --bundles app --no-sign
 
-      # codesign --timestamp 每签一个文件都要连 Apple 的时间戳服务，而它**没有超时**：
-      # 服务不通时 codesign 会一直等（v0.38.9 卡在下一步两小时，日志里只有最后一条
-      # sign，没有任何报错）。先探一下：连不上就立刻失败，别把 job 上限当超时。
+      # codesign --timestamp 每签一个文件都要连 Apple 的时间戳服务，而它没有自己的
+      # 超时：服务真不通时 codesign 会一直等下去。探一下并把结果写进日志——v0.38.9
+      # 那次两小时挂起的真因是 runner 镜像，不是这个服务，但日志里有这条能少走弯路。
       - name: Time-stamp service reachable
         run: |
           set -euo pipefail
