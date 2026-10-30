@@ -120,6 +120,55 @@ export interface SliderOptions {
   home?: number
   /** 双击复位的提示（写在 title 上，侧栏宽度已经用过同一句）。 */
   resetTip?: string
+  /**
+   * 离散档。给出后轨道按档等分：点击、拖动、方向键都进最近的一档，不再按 step 线性取整。
+   * 档与档的数值间距可以不等（界面缩放的 125 与 150），等分是为了每一档一样好点。
+   */
+  stops?: readonly number[]
+}
+
+/**
+ * 把 0–1 的轨道位置收成最近的一档。各档沿轨道等分。
+ * 半档边界用四舍五入，靠右的那一档胜出。
+ */
+export function sliderStopAt(stops: readonly number[], pos: number): number {
+  if (stops.length === 0) return 0
+  if (stops.length === 1) return stops[0]!
+  const p = clamp(pos, 0, 1)
+  const idx = Math.round(p * (stops.length - 1))
+  return stops[Math.min(stops.length - 1, Math.max(0, idx))]!
+}
+
+/**
+ * 数值在等分档上的位置（0–1）。
+ * 刚好落在某一档上时对准该档；落在两档之间时按数值比例插在这两档中间。超出两端则贴边。
+ */
+export function sliderStopPos(stops: readonly number[], value: number): number {
+  const last = stops.length - 1
+  if (last <= 0) return 0
+  if (value <= stops[0]!) return 0
+  if (value >= stops[last]!) return 1
+  let i = 0
+  while (i < last - 1 && stops[i + 1]! <= value) i++
+  const a = stops[i]!
+  const b = stops[i + 1]!
+  const t = b === a ? 0 : (value - a) / (b - a)
+  return (i + t) / last
+}
+
+/** 方向键：走向比当前值更高或更低的相邻一档。 */
+function adjacentStop(stops: readonly number[], current: number, delta: number): number {
+  if (delta > 0) {
+    const i = stops.findIndex((v) => v > current)
+    return i < 0 ? stops[stops.length - 1]! : stops[i]!
+  }
+  if (delta < 0) {
+    for (let i = stops.length - 1; i >= 0; i--) {
+      if (stops[i]! < current) return stops[i]!
+    }
+    return stops[0]!
+  }
+  return current
 }
 
 /**
@@ -151,8 +200,12 @@ export function Slider(
   wrap.setAttribute('aria-valuemax', String(max))
   wrap.tabIndex = 0
 
+  const stops = opts.stops && opts.stops.length >= 2 ? opts.stops : null
   let dragging = false
   let home = opts.home
+  // 按下时的轨道矩形。界面缩放会立刻改视口，浮层跟着去贴按钮，轨道在指针底下挪走；
+  // 松手之前都用这份矩形，点下去的位置才不会在移动后再被重算一次。
+  let dragRect: { left: number; width: number } | null = null
 
   function placeHome() {
     if (home == null || !Number.isFinite(home)) {
@@ -160,14 +213,14 @@ export function Slider(
       wrap.removeAttribute('title')
       return
     }
-    const pct = ((clamp(home, min, max) - min) / (max - min)) * 100
+    const pct = stops ? sliderStopPos(stops, home) * 100 : ((clamp(home, min, max) - min) / (max - min)) * 100
     homeTick.style.left = `${pct}%`
     homeTick.hidden = false
     if (opts.resetTip) wrap.title = opts.resetTip
   }
 
   function render(v: number) {
-    const pct = ((v - min) / (max - min)) * 100
+    const pct = stops ? sliderStopPos(stops, v) * 100 : ((v - min) / (max - min)) * 100
     fill.style.width = `${pct}%`
     thumb.style.left = `${pct}%`
     readout.textContent = format(v)
@@ -191,37 +244,62 @@ export function Slider(
     onChange(v)
   }
 
-  function setFrom(clientX: number) {
-    const rect = track.getBoundingClientRect()
-    const pos = clamp((clientX - rect.left) / rect.width, 0, 1)
+  function valueAt(clientX: number): number {
+    const rect = dragRect ?? track.getBoundingClientRect()
+    const width = rect.width > 0 ? rect.width : 1
+    const pos = clamp((clientX - rect.left) / width, 0, 1)
+    if (stops) return sliderStopAt(stops, pos)
     const raw = min + pos * (max - min)
-    const stepped = Math.round(raw / step) * step
-    const v = clamp(stepped, min, max)
+    return clamp(Math.round(raw / step) * step, min, max)
+  }
+
+  function setFrom(clientX: number) {
+    const v = valueAt(clientX)
     render(v)
     onChange(v)
   }
 
   track.addEventListener('pointerdown', (e) => {
-    dragging = true
-    setFrom(e.clientX)
+    if (e.button !== 0) return
     track.setPointerCapture(e.pointerId)
+    // 鼠标的第几击写在随后的 mousedown.detail 上；pointerdown.detail 按规范是 0，不能用来认双击。
+    // 触摸没有这下 mousedown 的计数，按下即拖。
+    if (e.pointerType !== 'mouse') {
+      dragging = true
+      dragRect = track.getBoundingClientRect()
+      setFrom(e.clientX)
+    }
+  })
+  track.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return
+    // 双击复位的第二下留给 dblclick 回家，不要按新位置再改一档。
+    if (e.detail > 1) return
+    dragging = true
+    dragRect = track.getBoundingClientRect()
+    setFrom(e.clientX)
   })
   track.addEventListener('pointermove', (e) => {
     if (dragging) setFrom(e.clientX)
   })
-  track.addEventListener('pointerup', () => (dragging = false))
-  track.addEventListener('pointercancel', () => (dragging = false))
-  // 双击回家：侧栏宽度已经是这个手势。第一次 pointerdown 会先落到点击处，
-  // dblclick 再弹回——中间那一帧的跳动可以接受，比另做长按轻。
+  const endDrag = () => {
+    dragging = false
+    dragRect = null
+  }
+  track.addEventListener('pointerup', endDrag)
+  track.addEventListener('pointercancel', endDrag)
+  // 双击回家：第一下已经落到点击处，这里弹回。第二下不再改值，所以中间只跳一次。
   wrap.addEventListener('dblclick', (e) => {
     e.preventDefault()
+    endDrag()
     snapHome()
   })
   wrap.addEventListener('keydown', (e) => {
     let v = parseFloat(wrap.getAttribute('aria-valuenow') ?? String(value))
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = clamp(v + step, min, max)
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = clamp(v - step, min, max)
-    else if (e.key === 'Home' && home != null) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      v = stops ? adjacentStop(stops, v, 1) : clamp(v + step, min, max)
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      v = stops ? adjacentStop(stops, v, -1) : clamp(v - step, min, max)
+    } else if (e.key === 'Home' && home != null) {
       e.preventDefault()
       snapHome()
       return

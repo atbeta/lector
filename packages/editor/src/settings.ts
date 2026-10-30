@@ -108,16 +108,33 @@ export function resetFontSize() {
   setSettings({ ...current, fontSize: typographyHome(current).fontSize })
 }
 
-/** 界面缩放的档位：演示时常用 125/150，两个端点之间不留太多空档 */
-const UI_ZOOM_STEPS = [70, 80, 90, 100, 110, 125, 150]
+/**
+ * 界面缩放的档位。快捷键与滑杆共用。
+ * 125 / 150 是演示常用档；两档间距不等，滑杆按档等分，不按百分比线性铺。
+ */
+export const UI_ZOOM_STEPS = [70, 80, 90, 100, 110, 125, 150] as const
+
+/**
+ * 从当前值走向相邻的一档。
+ * 当前值落在两档之间（旧滑杆写过 120 这类值）时，加号去更高的下一档，减号去更低的上一档，不跳档。
+ */
+export function uiZoomStep(current: number, delta: number): number {
+  if (delta > 0) {
+    const i = UI_ZOOM_STEPS.findIndex((v) => v > current)
+    return i < 0 ? UI_ZOOM_STEPS[UI_ZOOM_STEPS.length - 1]! : UI_ZOOM_STEPS[i]!
+  }
+  if (delta < 0) {
+    for (let i = UI_ZOOM_STEPS.length - 1; i >= 0; i--) {
+      if (UI_ZOOM_STEPS[i]! < current) return UI_ZOOM_STEPS[i]!
+    }
+    return UI_ZOOM_STEPS[0]
+  }
+  return current
+}
 
 /** 步进一档界面缩放（方向键/快捷键用）。 */
 export function stepUiZoom(delta: number) {
-  const cur = getSettings().uiZoom
-  const i = UI_ZOOM_STEPS.findIndex((v) => v >= cur)
-  const at = i < 0 ? UI_ZOOM_STEPS.length - 1 : i
-  const next = UI_ZOOM_STEPS[Math.min(UI_ZOOM_STEPS.length - 1, Math.max(0, at + delta))]!
-  setSettings({ ...getSettings(), uiZoom: next })
+  setSettings({ ...getSettings(), uiZoom: uiZoomStep(getSettings().uiZoom, delta) })
 }
 
 /** 界面缩放变化后的回调（状态行读数要跟着变）。

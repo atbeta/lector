@@ -19,6 +19,7 @@ import {
   setReadingTheme,
   setThemeMode,
   notify,
+  UI_ZOOM_STEPS,
 } from './settings.ts'
 import { DEFAULT_SETTINGS, hasImageCommand, imagePipeline, isPlausibleAppPath, pushRecentApp, typographyHome } from '@lector/core'
 import type { EditorSettings } from '@lector/core'
@@ -258,12 +259,12 @@ export function openSettingsModal(onClose?: () => void) {
   // 与正文字号是两件事：读得舒服 ≠ 隔着三米能看清，所以两个旋钮都留着。
   const zoomSlider = Slider(
     getSettings().uiZoom,
-    70,
-    160,
+    UI_ZOOM_STEPS[0],
+    UI_ZOOM_STEPS[UI_ZOOM_STEPS.length - 1]!,
     10,
     (v) => apply((s) => ({ ...s, uiZoom: v })),
     (n) => `${n}%`,
-    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip') },
+    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip'), stops: UI_ZOOM_STEPS },
   )
   appearance.appendChild(cellRow(t('uiZoom'), zoomSlider))
   appearance.appendChild(groupLabel(t('settingsGroupGlobalStyle')))

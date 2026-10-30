@@ -9,7 +9,7 @@
 // 栏宽与界面缩放是同一类动作——也要能看着正文调——所以一并放在这里。
 
 import { DEFAULT_SETTINGS, typographyHome } from '@lector/core'
-import { getSettings, notify, setReadingTheme, setSettings, setThemeMode } from './settings.ts'
+import { getSettings, notify, setReadingTheme, setSettings, setThemeMode, UI_ZOOM_STEPS } from './settings.ts'
 import { appearanceControls } from './themeGallery.ts'
 import { Slider } from './ui.ts'
 import { t } from './i18n.ts'
@@ -59,12 +59,12 @@ export function openAppearancePop(anchor: HTMLElement): void {
   )
   const zoom = Slider(
     getSettings().uiZoom,
-    70,
-    160,
+    UI_ZOOM_STEPS[0],
+    UI_ZOOM_STEPS[UI_ZOOM_STEPS.length - 1]!,
     10,
     (v) => setSettings({ ...getSettings(), uiZoom: v }),
     (n) => `${n}%`,
-    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip') },
+    { home: DEFAULT_SETTINGS.uiZoom, resetTip: t('sliderResetTip'), stops: UI_ZOOM_STEPS },
   )
   // 三列网格而不是「每行一个 flex」：两行的标签宽度不同，各自 flex 会让两个
   // 滑块的起点错开；同一个网格里列宽才是共享的，也就不会写死 em 去赌文案长度。
