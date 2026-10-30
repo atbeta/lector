@@ -795,6 +795,13 @@ html.printing .reading-prose pre.has-ln > code {
 html.printing .reading-prose img {
   max-width: 100%;
 }
+/* 纸张没有横向滚动。屏幕上的单元格下限（防「其余列被压成一字宽」）会让
+   列数多的表比页面还宽，多出来的那几列直接印不出来。纸上只能折行：
+   收掉下限，让 anywhere 把长 token 断开，列数再多也留在页内。 */
+html.printing .reading-prose th,
+html.printing .reading-prose td {
+  min-width: 0;
+}
 /* 代码卡头部条（语言标 + 复制键）与行号是屏幕交互件，纸上无意义还占宽。 */
 html.printing .code-bar {
   display: none !important;

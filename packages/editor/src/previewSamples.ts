@@ -67,6 +67,89 @@ graph TD
 \`\`\`
 `
 
+/** 没有空格、连字符、斜杠，UAX 断行点为空。用来把「放不进栏宽」变成可见的样例。 */
+const unbroken = 'Abcdefghij'.repeat(32)
+
+export const boundarySample = `---
+title: 栏宽边界
+author: Lector
+unbrokenfield${unbroken}: 短值
+homepage: https://example.com/${unbroken}
+---
+
+# 栏宽边界
+
+这段对照用来确认正常阅读没有被拆开。configuration 与 readable 都应完整留在同一行里，中文句子按字换行，不该为了防溢出把每个词都切开。短公式 $E=mc^2$ 仍嵌在句子里。
+
+## 超长 token
+
+段落里的一整段没有断点：${unbroken}
+
+行内代码 \`const token = "${unbroken}"\` 也要留在栏内。
+
+链接文字本身就是这一段：[${unbroken}](https://example.com/${unbroken})
+
+- 列表项末尾同样是 ${unbroken}
+
+> 引用里也不例外：${unbroken}
+
+<details>
+<summary>摘要里有一条放不下的 ${unbroken}</summary>
+
+折叠正文仍是正常的一句话，不该被上面的长 token 带出栏宽。
+</details>
+
+## 表格
+
+| 名称 | 说明 | 备注 |
+| --- | --- | --- |
+| 短标签 | ${unbroken} | 普通说明文字 |
+| 中文 | 这是一段正常的中文说明，换行应当发生在放不下的时候，而不是每个字单独成行。 | 12 |
+
+| 名称 | 图 | 备注 |
+| --- | --- | --- |
+| 宽图 | ![2400 像素宽](boundary-wide.svg) | 旁注 |
+| 小图 | ![示例](images/sample.png) | 不放大 |
+
+| 名称 | 公式 |
+| --- | --- |
+| 求和 | $a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n$ |
+
+| 引擎 | 语言 | 体积 | 定位 |
+| --- | --- | ---: | --- |
+| CodeMirror 6 | TS | ~4MB | 焦点块源码编辑 |
+| ProseMirror | TS | 重 | 被排除（保真原罪） |
+
+列多但不宽：十一个短列应当借两侧留白，不能把整表顶成横向滚动；纸上则必须收回页内。
+
+| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 |
+| 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 |
+
+## 公式
+
+行内长公式：$a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n$
+
+$$
+a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z+a+b+c+d+e+f+g+h+i+j+k+l+m+n
+$$
+
+## 脚注
+
+正文提到一条放不进栏宽的说明[^long]。
+
+[^long]: 脚注正文里的 token 是 ${unbroken}
+
+## 代码块
+
+长行应在代码卡内部横向滚动，而不是把阅读栏撑开。
+
+\`\`\`
+${unbroken}
+\`\`\`
+`
+
 export const sample = `# 阅读体验展示
 
 > Lector —— 阅读优先的 Markdown 编辑器。未聚焦块以预览显示，点击任意块进入源码编辑。

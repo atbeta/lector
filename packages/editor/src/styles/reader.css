@@ -5,6 +5,13 @@
   line-height: var(--reading-line-height);
   font-size: var(--reading-font-size);
   letter-spacing: 0.006em;
+  /* 没有断行点的长 token（哈希、长标识符、URL 里的一整段）否则会画出栏外，
+     被 #content 的 overflow-x:hidden 切掉，页面上又没有滚动条。
+     anywhere 只在这一行已经没有正常断点时才切开；空格和中文的换行不变。
+     pre / nowrap（代码块、脚注序号）不受它影响。
+     代价：整棵子树的 min-content 会缩到 1 个字宽，表格列因此能压到「一字一行」。
+     单元格另有 min-width 下限兜底（见下方 th/td），别把这条当成只有好处。 */
+  overflow-wrap: anywhere;
 }
 /* 块级间距交给 .block；块内只保留多子节点之间的间隔 */
 .reading-prose > * { margin: 0; }
@@ -210,6 +217,17 @@
      最右列不画——外框由 .table-wrap 提供，再画一条就和它重了。 */
   border-right: 1px solid rgb(var(--border-subtle));
   text-align: left;
+  /* 长 URL / 长代码 token 必须能断行。表格按 min-content 定列宽：一个 300 字符
+     的 token 会把那一列撑到两三千像素，其余列全被压成 1 字宽，整表还要横向滚。
+     anywhere（不是 break-word）才会让 min-content 也变小，表才肯回到栏内；
+     断行只在放不下时发生，普通词和中文的换行行为不变。
+     列宽下限挡住「其余列被压成一字宽」：三个字的标签必须还能横排。3em 只是
+     三个汉字宽的临界值（加 0.006em 字距就超了，实测「短标签」照样折成两行），
+     所以留到 3.5em：每格约 78px（49px 内容 + 28px 内边距），十一二列还走宽表
+     借白，十几列才真横滑。下限再往上只会让「列多」的表更早横滑。
+     纸面没有横滑，打印时这条下限要收掉（见 panels.css 的 html.printing）。 */
+  overflow-wrap: anywhere;
+  min-width: 3.5em;
 }
 .reading-prose th:last-child,
 .reading-prose td:last-child { border-right: none; }
@@ -274,6 +292,16 @@ html[data-mode='read'] .reading-prose thead th {
   /* 半透明底会透出滚过去的行。纸色打底，再叠原来的淡底。 */
   background-color: rgb(var(--paper));
   background-image: linear-gradient(rgb(var(--muted) / 0.55), rgb(var(--muted) / 0.55));
+}
+/* 单元格里的宽图：表格宽 100%，列宽按内容分配；图片先按 max-width:100% 缩回
+   自己的格子，2400px 的固有宽才不会把整表顶出窗口。旁边列不被图片压垮，
+   靠的是上面那条 3em 下限，不是这里。
+   不写 width / min-width：img 的 auto 宽就是固有宽，min-width 对替换元素
+   不参与列宽计算——两行都加过，实测对结果没有任何影响。 */
+.reading-prose th img,
+.reading-prose td img {
+  max-width: 100%;
+  height: auto;
 }
 .reading-prose img {
   display: block;
@@ -398,7 +426,11 @@ html[data-mode='read'] .reading-prose thead th {
   color: rgb(var(--muted-foreground));
   font-weight: 500;
   text-align: right;
-  white-space: nowrap;
+  /* 短键名仍是一行。nowrap 会让一个没有断点的长键把整张卡撑出栏宽；
+     上限大约十四个字，放得下常见字段名，再长就折行。卡片会因此变高，
+     但键名是元数据，宁可整条露出来，也不省略成「…」。 */
+  max-width: 14em;
+  overflow-wrap: anywhere;
 }
 .frontmatter .fm-value {
   color: rgb(var(--foreground));
@@ -733,6 +765,31 @@ html[data-mode='read'] .mermaid-diagram {
   /* KaTeX 默认 有 vertical-align,放进中文里会出色:换个 baseline 衡接 */
   font-size: 1.05em;
 }
+/* 行内公式：盒子限制在栏内，长公式在栏宽内折行——anywhere 继承自正文，
+   KaTeX 自己不带断点，断点落在运算符之间。折行不好看，但整条式子都看得见；
+   横滑会把后半截藏进没有滚动条的盒子里（macOS 覆盖式滚动条根本不显形）。
+   overflow 只作兜底：某个构造完全不折行时宁可在盒内滑，也不画到栏外。
+   别加 white-space:nowrap 改成横滑——实测公式盒会撑到 800px，表格跟着从
+   798 涨到 920，正好把它赶回栏外（见下一条）。 */
+.reading-prose .math-inline {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: middle;
+}
+/* 单元格：宽度交给格子，长公式在格内折行，表格才不会为一条式子长胖。
+   上限仍用阅读栏这个确定长度，防止不折行的构造把格子顶宽。
+   nowrap 在这里代价更大：公式盒按 max-width 撑满 800px，整表 920px。 */
+.reading-prose th .math-inline,
+.reading-prose td .math-inline,
+.reading-prose th .math-block,
+.reading-prose td .math-block {
+  display: block;
+  max-width: var(--reading-max-w);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 /* 块级公式有错误时(解析失败)仍能走原文:用 pre 包一下 */
 .math-error {
   display: block;
@@ -775,7 +832,9 @@ html[data-mode='read'] .mermaid-diagram {
 .reading-prose .footnote-ref a:hover { text-decoration: underline; }
 .reading-prose .footnote-definition {
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* 1fr 的默认最小宽度是 min-content。脚注里一条放不进栏的 URL
+     会把这一行撑出栏宽。minmax(0, 1fr) 让内容列可以缩到栏内再折行。 */
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.6em;
   font-size: 0.92em;
   line-height: var(--reading-line-height);
@@ -789,6 +848,9 @@ html[data-mode='read'] .mermaid-diagram {
   min-width: 1.6em;
 }
 /* 内容列：段落已平铺成行内内容，这里兜底压掉可能出现的块级 margin */
+.reading-prose .footnote-definition-body {
+  min-width: 0;
+}
 .reading-prose .footnote-definition-body > p {
   margin: 0;
 }

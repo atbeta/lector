@@ -1,5 +1,5 @@
 import { detectEnv, takePendingOpen, read } from '@lector/shell-web'
-import { mediaSample, frontmatterSample, mermaidSample, sample } from './previewSamples.ts'
+import { boundarySample, mediaSample, frontmatterSample, mermaidSample, sample } from './previewSamples.ts'
 import type { FileController } from './fileController.ts'
 
 export async function openStartupDocument(files: Pick<FileController, 'loadSession' | 'renderEmptyState' | 'renderLoadingState'>): Promise<void> {
@@ -28,6 +28,9 @@ export async function openStartupDocument(files: Pick<FileController, 'loadSessi
     else if (which === 'frontmatter') files.loadSession('frontmatter.md', frontmatterSample)
     else if (which === 'media') files.loadSession('media.md', mediaSample)
     else if (which === 'mermaid') files.loadSession('mermaid.md', mermaidSample)
+    // 栏宽边界：`?doc=boundary`。超长 token、宽图、长公式、脚注、属性卡。
+    // 对照段是正常句子和短表，用来确认加固没有拆开日常排版。
+    else if (which === 'boundary') files.loadSession('boundary.md', boundarySample)
     // 空文档样例：`?doc=blank`。用来验证"空的 .md 仍是一份可编辑文档"
     // （空文件必须能直接打字，不能表现成"没打开文件"）。
     else if (which === 'blank') files.loadSession('blank.md', '')

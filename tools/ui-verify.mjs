@@ -2819,6 +2819,108 @@ const summary = {
     await page.setViewportSize({ width: 1200, height: 820 })
     await page.waitForTimeout(200)
   }
+
+  // 3.20) 栏宽边界（`?doc=boundary`）：长 token / 宽图 / 长公式 / 脚注 / 属性卡 / 列多表
+  //
+  // 这一档不看 CSS 值，只看画出来的结果。anywhere 被摘掉、单元格下限被调大、
+  // 图片不再缩进格子，表现都是同一件事：**右沿被切掉一截，页面上又没有滚动条**。
+  // 代码块是反面参照——它本来就该在卡片里横滑，不能被 anywhere 一起折掉。
+  // 纸面另有一档：打印没有横滑，列多的表必须靠折行收进页内（下限要收掉）。
+  {
+    await page.setViewportSize({ width: 1200, height: 820 })
+    await page.goto(`${URL_ARG}?doc=boundary`, { waitUntil: 'networkidle' })
+    const hasSample = await page
+      .waitForSelector('.reading-prose .table-wrap', { timeout: 10000 })
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasSample) note('error', '栏宽边界样例没渲染出来（?doc=boundary）')
+    else {
+      // 宽图是 lazy 的：先把每块滚进视野，等图片拿到固有尺寸，否则量到的是空表。
+      await page.evaluate(async () => {
+        const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        for (const block of document.querySelectorAll('#content > .block')) {
+          block.scrollIntoView({ block: 'center' })
+          await nextPaint()
+        }
+        document.getElementById('content').scrollTop = 0
+        await nextPaint()
+      })
+      await page
+        .waitForFunction(
+          () =>
+            [...document.querySelectorAll('.reading-prose img')].every((i) => i.complete && i.naturalWidth > 0),
+          { timeout: 8000 },
+        )
+        .catch(() => {})
+
+      // 逐块量：content-visibility 会把屏外块跳过排版，只有滚进视野再量才是真值。
+      const wide = await page.evaluate(async () => {
+        const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        const outside = []
+        const tables = []
+        let codeScrolls = false
+        let column = 0
+        for (const block of document.querySelectorAll('#content > .block')) {
+          const prose = block.querySelector('.reading-prose')
+          if (!prose) continue
+          block.scrollIntoView({ block: 'center' })
+          await nextPaint()
+          const right = prose.getBoundingClientRect().right
+          column = Math.max(column, Math.round(prose.getBoundingClientRect().width))
+          for (const el of prose.querySelectorAll('*')) {
+            const b = el.getBoundingClientRect()
+            if (!b.width || b.right <= right + 1) continue
+            // 滚动容器自己会裁内容；要抓的是「直接画到栏外」的元素
+            if (el.closest('pre, .table-wrap, .mermaid-diagram')) continue
+            // 公式盒里的 KaTeX 原子在盒内横滑是设计好的；盒子本身仍要量（见下）
+            const math = el.closest('.math-inline, .math-block')
+            if (math && math !== el) continue
+            const cls = typeof el.className === 'string' && el.className ? `.${el.className.split(' ')[0]}` : ''
+            outside.push(`${el.tagName.toLowerCase()}${cls}`)
+          }
+          for (const w of prose.querySelectorAll('.table-wrap')) {
+            tables.push({ scroll: w.scrollWidth, client: w.clientWidth, scrolling: w.classList.contains('is-scroll') })
+          }
+          for (const pre of prose.querySelectorAll('pre')) {
+            if (pre.scrollWidth > pre.clientWidth + 1) codeScrolls = true
+          }
+        }
+        return { column, outside: [...new Set(outside)].slice(0, 6), tables, codeScrolls }
+      })
+
+      if (!wide.tables.length) note('error', '栏宽边界：一张表都没量到（样例结构变了？）')
+      if (wide.outside.length) note('error', `栏宽边界：内容画出栏外（${wide.outside.join(', ')}）`)
+      const scrolling = wide.tables.filter((t) => t.scrolling || t.scroll > t.client + 1)
+      if (scrolling.length)
+        note('error', `栏宽边界：样表被顶成横向滚动（${scrolling.length}/${wide.tables.length} 张，含列多表）`)
+      if (!wide.codeScrolls) note('warn', '栏宽边界：代码块没有横向滚动，长行被折了（anywhere 漏进 pre？）')
+      if (!wide.outside.length && !scrolling.length)
+        note('info', `栏宽边界：${wide.tables.length} 张样表都在 ${wide.column}px 栏内，没有内容越界`)
+
+      // 纸面：A4 宽 794，收掉单元格下限后任何列数的表都要留在页内。
+      await page.setViewportSize({ width: 794, height: 1123 })
+      await page.evaluate(() => document.documentElement.classList.add('printing'))
+      await page.waitForTimeout(400)
+      const paper = await page.evaluate(async () => {
+        const nextPaint = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        const pageRight = document.documentElement.clientWidth
+        const over = []
+        for (const w of document.querySelectorAll('.reading-prose .table-wrap')) {
+          w.scrollIntoView({ block: 'center' })
+          await nextPaint()
+          const right = w.querySelector('table').getBoundingClientRect().right
+          if (right > pageRight + 1) over.push(Math.round(right))
+        }
+        return { pageRight, over: over.slice(0, 4) }
+      })
+      await page.evaluate(() => document.documentElement.classList.remove('printing'))
+      await page.setViewportSize({ width: 1200, height: 820 })
+      await page.waitForTimeout(200)
+      if (paper.over.length) note('error', `栏宽边界：打印时表格出页（右沿 ${paper.over.join(', ')}px / 页宽 ${paper.pageRight}px）`)
+      else note('info', `栏宽边界：打印宽度 ${paper.pageRight}px 内所有表格都在页内`)
+    }
+  }
 }
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
 const order = { error: 0, warn: 1, info: 2 }
