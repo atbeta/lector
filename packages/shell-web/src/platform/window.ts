@@ -23,6 +23,19 @@ export function currentUiZoom(): number {
 }
 
 /**
+ * 拖滑块时，把屏幕位移换算回按下那一刻的 CSS 像素要用的倍率。
+ *
+ * 壳里的原生 zoom 会改 CSS 像素：zoom 变大后，同一物理位置的 clientX 变小，
+ * 但按下时量到的轨道矩形还是旧坐标系。screenX 不跟 zoom 走，位移要除以按下时的倍率。
+ * 浏览器预览没有原生 zoom（appliedZoom 仍会改，只是坐标不变），这里必须返回 1，
+ * 否则会把没发生的缩放再除一次，滑块跟手会偏。
+ */
+export function uiZoomPointerScale(): number {
+  if (!nativeZoomApplied) return 1
+  return appliedZoom > 0 && Number.isFinite(appliedZoom) ? appliedZoom : 1
+}
+
+/**
  * 应用界面缩放。
  *
  * 壳里走 WebView 的**原生 zoom**（壳命令 `set_zoom`）：它改的是布局视口，`100vh`

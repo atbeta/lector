@@ -2182,6 +2182,70 @@ const summary = {
     const z2 = await readZoomValue()
     if (z2 !== '100%') note('error', `⌘/Ctrl + 0 没有回到 100%：${z2}`)
 
+    // 点中一档之后，原生 zoom 会把 clientX 缩到另一套坐标系，按下时的轨道矩形还是旧的。
+    // 若还用新的 clientX 去对旧矩形，读数会在两档之间来回跳（界面跟着闪）。
+    // 手指没动（screenX 不变）时读数必须停住；屏幕上真的移动才改档。
+    await page.click('.settings-nav-item[data-section="appearance"]')
+    await page.waitForTimeout(200)
+    const zoomDrag = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.settings-row.cell')].find(
+        (r) => (r.textContent ?? '').includes('界面缩放') || (r.textContent ?? '').includes('Interface zoom'),
+      )
+      const track = row?.querySelector('.slider-track')
+      if (!track || !row) return null
+      const read = () => (row.querySelector('.slider-value')?.textContent ?? '').trim()
+      const rect = track.getBoundingClientRect()
+      if (rect.width < 20) return { pressed: '', held: '', moved: '', narrow: true }
+      const x = rect.left + rect.width * 0.6
+      const screen = 1400
+      track.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: x, screenX: screen, detail: 1 }),
+      )
+      const pressed = read()
+      const zoomedX = rect.left + (x - rect.left) / 1.1
+      track.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          button: 0,
+          clientX: zoomedX,
+          screenX: screen,
+          pointerId: 1,
+        }),
+      )
+      const held = read()
+      track.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          button: 0,
+          clientX: zoomedX,
+          screenX: screen + rect.width * 0.2,
+          pointerId: 1,
+        }),
+      )
+      const moved = read()
+      track.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1 }))
+      return { pressed, held, moved, narrow: false }
+    })
+    if (!zoomDrag) note('error', '界面缩放滑块的轨道找不到，拖动稳定性没验到')
+    else if (zoomDrag.narrow) note('error', '界面缩放滑块轨道过窄，拖动稳定性没验到')
+    else {
+      if (zoomDrag.pressed !== '110%') {
+        note('error', `点在轨道 0.6 处应是 110%，实际 ${zoomDrag.pressed}`)
+      }
+      if (zoomDrag.held !== zoomDrag.pressed) {
+        note(
+          'error',
+          `缩放把 clientX 缩小后读数跳档了（${zoomDrag.pressed} → ${zoomDrag.held}）：拖动时会在两档之间闪`,
+        )
+      }
+      if (zoomDrag.moved === zoomDrag.held) {
+        note('error', `手指沿轨道移动后界面缩放没有改档：${zoomDrag.moved}`)
+      }
+      note('info', `界面缩放拖动：按下 ${zoomDrag.pressed}，坐标被缩放后仍是 ${zoomDrag.held}，移开后 ${zoomDrag.moved}`)
+    }
+    await page.keyboard.press(`${MOD}+0`)
+    await page.waitForTimeout(200)
+
     // 分区标题浏览时隐藏（左侧已说明当前分区），搜索时显示以说明跨分区结果归属。
     //
     // 查询词从界面里取（「界面缩放」这一行的标签），不硬写字符串：这个脚本的页面没钉 locale，

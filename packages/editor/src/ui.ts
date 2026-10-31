@@ -1,6 +1,8 @@
 // 自绘控件（无 React 依赖，Radix/Linear 观感，使用我们的 token）。
 // 滑块 / 开关 / 分段选择器，均为受控组件。
 
+import { uiZoomPointerScale } from '@lector/shell-web'
+
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n))
 }
@@ -156,6 +158,21 @@ export function sliderStopPos(stops: readonly number[], value: number): number {
   return (i + t) / last
 }
 
+/**
+ * 拖动中的指针，换算回按下时的 clientX。
+ *
+ * 界面缩放走原生 zoom，一改缩放，clientX 和按下时的轨道矩形就不再是同一套数：
+ * 点在 110% 上，缩放生效后同一只鼠标被算成相邻那一档，于是两档来回切换，界面一直闪。
+ * screenX 不跟 zoom 走。按下时记下倍率，之后只累加「屏幕位移 / 按下时的倍率」。
+ */
+export function sliderDragX(
+  origin: { clientX: number; screenX: number; zoom: number },
+  screenX: number,
+): number {
+  const zoom = origin.zoom > 0 && Number.isFinite(origin.zoom) ? origin.zoom : 1
+  return origin.clientX + (screenX - origin.screenX) / zoom
+}
+
 /** 方向键：走向比当前值更高或更低的相邻一档。 */
 function adjacentStop(stops: readonly number[], current: number, delta: number): number {
   if (delta > 0) {
@@ -203,9 +220,12 @@ export function Slider(
   const stops = opts.stops && opts.stops.length >= 2 ? opts.stops : null
   let dragging = false
   let home = opts.home
-  // 按下时的轨道矩形。界面缩放会立刻改视口，浮层跟着去贴按钮，轨道在指针底下挪走；
-  // 松手之前都用这份矩形，点下去的位置才不会在移动后再被重算一次。
-  let dragRect: { left: number; width: number } | null = null
+  // 按下时的轨道，以及当时的指针。松手之前都用这份，不要重新 getBoundingClientRect：
+  // 界面缩放会改视口，浮层跟着去贴按钮，轨道在指针底下挪走；clientX 也会变成新坐标系。
+  let dragOrigin: { rectLeft: number; rectWidth: number; clientX: number; screenX: number; zoom: number } | null = null
+  // 已经提交给 onChange 的值。同一档上的指针移动不要反复写设置——
+  // 写一次就会改缩放、挪轨道，拖动中等于自己把下一帧的落点打偏。
+  let committed = value
 
   function placeHome() {
     if (home == null || !Number.isFinite(home)) {
@@ -229,7 +249,9 @@ export function Slider(
 
   function set(v: number) {
     if (dragging) return
-    render(clamp(v, min, max))
+    const next = clamp(v, min, max)
+    committed = next
+    render(next)
   }
 
   function setHome(next: number | undefined) {
@@ -237,26 +259,45 @@ export function Slider(
     placeHome()
   }
 
-  function snapHome() {
-    if (home == null || !Number.isFinite(home)) return
-    const v = clamp(home, min, max)
+  function commit(v: number) {
     render(v)
+    if (v === committed) return
+    committed = v
     onChange(v)
   }
 
-  function valueAt(clientX: number): number {
-    const rect = dragRect ?? track.getBoundingClientRect()
-    const width = rect.width > 0 ? rect.width : 1
-    const pos = clamp((clientX - rect.left) / width, 0, 1)
+  function snapHome() {
+    if (home == null || !Number.isFinite(home)) return
+    commit(clamp(home, min, max))
+  }
+
+  function valueAt(clientX: number, screenX: number): number {
+    const origin = dragOrigin
+    const x = origin ? sliderDragX(origin, screenX) : clientX
+    const left = origin ? origin.rectLeft : track.getBoundingClientRect().left
+    const width = origin ? origin.rectWidth : track.getBoundingClientRect().width
+    const span = width > 0 ? width : 1
+    const pos = clamp((x - left) / span, 0, 1)
     if (stops) return sliderStopAt(stops, pos)
     const raw = min + pos * (max - min)
     return clamp(Math.round(raw / step) * step, min, max)
   }
 
-  function setFrom(clientX: number) {
-    const v = valueAt(clientX)
-    render(v)
-    onChange(v)
+  function setFrom(e: { clientX: number; screenX: number }) {
+    commit(valueAt(e.clientX, e.screenX))
+  }
+
+  function beginDrag(e: { clientX: number; screenX: number }) {
+    const rect = track.getBoundingClientRect()
+    dragOrigin = {
+      rectLeft: rect.left,
+      rectWidth: rect.width > 0 ? rect.width : 1,
+      clientX: e.clientX,
+      screenX: e.screenX,
+      zoom: uiZoomPointerScale(),
+    }
+    dragging = true
+    setFrom(e)
   }
 
   track.addEventListener('pointerdown', (e) => {
@@ -264,26 +305,20 @@ export function Slider(
     track.setPointerCapture(e.pointerId)
     // 鼠标的第几击写在随后的 mousedown.detail 上；pointerdown.detail 按规范是 0，不能用来认双击。
     // 触摸没有这下 mousedown 的计数，按下即拖。
-    if (e.pointerType !== 'mouse') {
-      dragging = true
-      dragRect = track.getBoundingClientRect()
-      setFrom(e.clientX)
-    }
+    if (e.pointerType !== 'mouse') beginDrag(e)
   })
   track.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return
     // 双击复位的第二下留给 dblclick 回家，不要按新位置再改一档。
     if (e.detail > 1) return
-    dragging = true
-    dragRect = track.getBoundingClientRect()
-    setFrom(e.clientX)
+    beginDrag(e)
   })
   track.addEventListener('pointermove', (e) => {
-    if (dragging) setFrom(e.clientX)
+    if (dragging) setFrom(e)
   })
   const endDrag = () => {
     dragging = false
-    dragRect = null
+    dragOrigin = null
   }
   track.addEventListener('pointerup', endDrag)
   track.addEventListener('pointercancel', endDrag)
@@ -305,8 +340,7 @@ export function Slider(
       return
     } else return
     e.preventDefault()
-    render(v)
-    onChange(v)
+    commit(v)
   })
 
   render(value)

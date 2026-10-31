@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { normalizeSettings } from '@lector/core'
 import { UI_ZOOM_STEPS, uiZoomStep } from '../src/settings.ts'
-import { sliderStopAt, sliderStopPos } from '../src/ui.ts'
+import { sliderDragX, sliderStopAt, sliderStopPos } from '../src/ui.ts'
 
 const stops = UI_ZOOM_STEPS
 
@@ -38,6 +38,28 @@ describe('界面缩放档位', () => {
     expect(sliderStopPos(stops, 120)).toBeCloseTo((4 + (120 - 110) / (125 - 110)) / 6)
     expect(sliderStopPos(stops, 160)).toBe(1)
     expect(sliderStopPos(stops, 40)).toBe(0)
+  })
+
+  test('缩放改了 clientX 之后，没移动的指针仍停在按下的那一档', () => {
+    // 轨道宽 600，点在 0.6 处是 110。原生 zoom 到 110% 后，同一物理位置的
+    // clientX 会按比例变小；若还拿它和按下时的矩形比，就会落回 100 甚至更低。
+    const rect = { left: 800, width: 600 }
+    const clientX = rect.left + rect.width * 0.6
+    const origin = { clientX, screenX: 1400, zoom: 1 }
+    const stayed = sliderDragX(origin, origin.screenX)
+    expect(sliderStopAt(stops, (stayed - rect.left) / rect.width)).toBe(110)
+    const zoomedClientX = clientX / 1.1
+    expect(sliderStopAt(stops, (zoomedClientX - rect.left) / rect.width)).not.toBe(110)
+    // 手指在屏幕上再走 0.2 个轨道宽（按下时 zoom 是 1，屏幕位移 = CSS 像素）
+    const moved = sliderDragX(origin, origin.screenX + rect.width * 0.2)
+    expect(sliderStopAt(stops, (moved - rect.left) / rect.width)).toBe(125)
+  })
+
+  test('按下时已经在 125%，屏幕位移要按这个倍率换回当时的 CSS 像素', () => {
+    const origin = { clientX: 200, screenX: 500, zoom: 1.25 }
+    // 10 个屏幕单位 = 8 个按下时的 CSS 像素
+    expect(sliderDragX(origin, 510)).toBeCloseTo(208)
+    expect(sliderDragX({ ...origin, zoom: 0 }, 510)).toBeCloseTo(210)
   })
 
   test('快捷键按相邻档走，不跳过 125，也不停在 120', () => {
