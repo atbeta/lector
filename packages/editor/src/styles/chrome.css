@@ -465,8 +465,7 @@ html[data-shell='windows'] .window-controls { display: flex; }
   margin-inline: 0;
   --content-pad-top: 30px;
   padding-block: var(--content-pad-top) 18vh;
-  /* 留白继续用这条公式。--content-pad 由脚本写成算好的像素，
-     宽表才能按同一侧留白向外借，而不会把百分比再按表格自己的宽度算一遍。 */
+  /* 留白用这条公式，把正文收进 --reading-max-w。表也停在这条栏里，不向外借。 */
   padding-inline: max(32px, calc((100% - var(--reading-max-w)) / 2));
   width: 100%;
   box-sizing: border-box;

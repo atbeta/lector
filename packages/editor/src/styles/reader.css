@@ -223,8 +223,9 @@
      断行只在放不下时发生，普通词和中文的换行行为不变。
      列宽下限挡住「其余列被压成一字宽」：三个字的标签必须还能横排。3em 只是
      三个汉字宽的临界值（加 0.006em 字距就超了，实测「短标签」照样折成两行），
-     所以留到 3.5em：每格约 78px（49px 内容 + 28px 内边距），十一二列还走宽表
-     借白，十几列才真横滑。下限再往上只会让「列多」的表更早横滑。
+     所以留到 3.5em：每格约 78px（49px 内容 + 28px 内边距）。列数一多，
+     整表会宽过设置的最大行宽，这时在栏内横滑，不把外框拉出栏去。
+     下限再往上只会让表更早横滑。
      纸面没有横滑，打印时这条下限要收掉（见 panels.css 的 html.printing）。 */
   overflow-wrap: anywhere;
   min-width: 3.5em;
@@ -264,43 +265,20 @@
   border-radius: var(--radius-media);
 }
 .table-wrap table { margin: 0; }
-/* 阅读档：表头跟着阅读区走，放得进留白的宽表才向外借，正文栏宽不动。
+/* 阅读档：表停在设置的最大行宽里，不借两侧留白。
    表套默认 overflow-x:auto 会把 sticky 关在格子里（另一轴再写 clip，
-   规范也会把它算成 hidden，同样是滚动容器）。阅读档先放开，
-   表头才能贴着 #content。借完留白仍放不下的表（二十列）不加突出，
-   只加 .is-scroll 在栏内横滑——外框拉满整行时，左框和块轨道会浮在格子上。
-   那种表的表头吸不住阅读区。
-   突出量 = 栏边留白减去 16px，给块轨道留一条缝，也不贴到窗口沿。 */
+   规范也会把它算成 hidden，同样是滚动容器）。放得下的表先放开，
+   表头才能贴着 #content。比栏宽的表加 .is-scroll，在栏内横滑，
+   末列才不会被 #content 裁掉；那种表的表头吸不住阅读区。 */
 html[data-mode='read'] .table-wrap {
   overflow: visible;
 }
 html[data-mode='read'] .table-wrap.is-scroll {
-  /* 外框停在栏宽里。表自己更宽时在这里横滑，不能把末列画到 #content 外面再裁掉。 */
+  /* 外框不超过这一栏（设置的最大行宽）。表更宽时沿用原来的横滑，不把外框拉出栏去。 */
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
   min-width: 0;
-  /* 全局滑块默认透明，要滚才现身。末列已经在视口外，不把条画出来就等于这几列没了。 */
-  --scrollbar-thumb: rgb(var(--foreground) / 0.45);
-  --scrollbar-thumb-delay: 0s;
-  scrollbar-color: rgb(var(--foreground) / 0.45) rgb(var(--muted) / 0.7);
-}
-html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar {
-  height: 10px;
-}
-html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar-track {
-  background: rgb(var(--muted) / 0.7);
-}
-html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar-thumb {
-  background: rgb(var(--foreground) / 0.45);
-  background-clip: content-box;
-  border: 2px solid transparent;
-}
-html[data-mode='read'] .table-wrap.is-wide {
-  --breakout: max(0px, calc(var(--content-pad) - 16px));
-  width: calc(100% + 2 * var(--breakout));
-  max-width: calc(100% + 2 * var(--breakout));
-  margin-inline: calc(var(--breakout) * -1);
 }
 html[data-mode='read'] .reading-prose thead th {
   position: sticky;

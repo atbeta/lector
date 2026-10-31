@@ -34,7 +34,7 @@ import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
 import { scrollAnchorDelta, shouldAdjustScrollAnchor } from './scrollAnchor.ts'
-import { wideTablePlacement } from './wideTable.ts'
+import { tableScrollsInColumn } from './wideTable.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
 import { createDocumentSession, type DocumentSession } from './documentSession.ts'
@@ -795,42 +795,28 @@ export function createDocumentEditor({
     if (delta !== 0) contentEl.scrollTop = Math.max(0, contentEl.scrollTop + delta)
   }
 
-  /** 把 #content 已经算好的左右留白写成像素，宽表的负边距才和栏边是同一个数。 */
-  function syncContentPad(): void {
-    const pad = getComputedStyle(contentEl).paddingLeft
-    if (pad && contentEl.style.getPropertyValue('--content-pad') !== pad) {
-      contentEl.style.setProperty('--content-pad', pad)
-    }
-  }
-
-  /** 表格比所在块的内容盒更宽，才借两侧留白。窄表不加类。 */
+  /**
+   * 表比阅读栏宽，就在栏内横滑。
+   * 外框不超过设置的最大行宽，不借两侧留白——借出去会占满整行，末列还会被裁掉。
+   */
   function markWideTables(el: HTMLElement): void {
     const wraps = el.querySelectorAll<HTMLElement>('.table-wrap')
     if (wraps.length === 0) return
-    syncContentPad()
     const column = el.clientWidth
-    const pad = Number.parseFloat(getComputedStyle(contentEl).paddingLeft)
-    const breakout = Number.isFinite(pad) ? Math.max(0, pad - 16) : 0
-    // 突出之后的内容盒。比这还宽才在表内横滑，否则会画出 16px 的缝又被 #content 裁掉。
-    const room = column + breakout * 2
     for (const wrap of wraps) {
       const table = wrap.querySelector('table')
       if (!table) {
         wrap.classList.remove('is-wide', 'is-scroll')
         continue
       }
-      // 先摘掉突出再量。类还在时表格被拉到突出宽度，栏变宽后就再也摘不掉。
+      // 先摘掉旧的突出再量。类还在时表格被拉出栏宽，量出来的宽度就再也回不去。
       wrap.classList.remove('is-wide', 'is-scroll')
-      const needed = table.scrollWidth
-      const place = wideTablePlacement(needed, column, room)
-      wrap.classList.toggle('is-wide', place.breakout)
-      wrap.classList.toggle('is-scroll', place.scroll)
+      wrap.classList.toggle('is-scroll', tableScrollsInColumn(table.scrollWidth, column))
     }
   }
 
   /** 栏宽变化后，只重量视口附近的表，避免把屏外表格整篇强制排版。 */
   function measureNearTables(): void {
-    syncContentPad()
     const view = contentEl.getBoundingClientRect()
     if (view.height <= 0) return
     const margin = view.height

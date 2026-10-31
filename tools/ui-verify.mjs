@@ -2973,26 +2973,27 @@ const summary = {
 
       if (!wide.tables.length) note('error', '栏宽边界：一张表都没量到（样例结构变了？）')
       if (wide.outside.length) note('error', `栏宽边界：内容画出栏外（${wide.outside.join(', ')}）`)
+      const past = wide.tables.filter((t) => t.wrapPast || t.wide)
+      if (past.length) {
+        note('error', `表格外框超出最大行宽：${past.map((t) => `${t.cols}列 ${t.wrapW}/${t.proseW}`).join(', ')}`)
+      }
       const many = wide.tables.find((t) => t.cols >= 30)
-      const rest = wide.tables.filter((t) => t.cols < 30)
-      const scrolling = rest.filter((t) => t.scrolling || t.scroll > t.client + 1)
-      if (scrolling.length)
-        note('error', `栏宽边界：不该横滑的表在滑（${scrolling.length} 张，十一列应当借留白）`)
       if (!many) note('error', '栏宽边界：没有三十列的表，末列裁切没验到')
       else {
-        if (!many.scrolling || many.wide) {
-          note('error', `三十列表应在栏内横滑，实际 scrolling=${many.scrolling} wide=${many.wide} ${many.wrapW}px / 栏 ${many.proseW}px`)
-        }
-        if (many.wrapPast) {
-          note('error', `三十列表外框超出阅读栏（${many.wrapW}px / 栏 ${many.proseW}px）`)
+        if (!many.scrolling) {
+          note('error', `三十列表比栏宽还宽，却没有栏内横滑（${many.wrapW}px / 栏 ${many.proseW}px）`)
         }
         if (!many.lastVisible) {
           note('error', '三十列表滚到头仍看不到最后一列：末列被裁掉了，没有可用的横滑')
         }
       }
+      const eleven = wide.tables.find((t) => t.cols === 11)
+      if (eleven && eleven.scroll > eleven.client + 1 && !eleven.scrolling) {
+        note('error', `十一列表宽过最大行宽，却没有栏内横滑（${eleven.wrapW}px / 栏 ${eleven.proseW}px）`)
+      }
       if (!wide.codeScrolls) note('warn', '栏宽边界：代码块没有横向滚动，长行被折了（anywhere 漏进 pre？）')
-      if (!wide.outside.length && !scrolling.length && many?.lastVisible && !many.wrapPast)
-        note('info', `栏宽边界：${rest.length} 张窄表在 ${wide.column}px 栏内；三十列表栏内横滑，末列可见`)
+      if (!wide.outside.length && !past.length && many?.lastVisible)
+        note('info', `栏宽边界：表都停在 ${wide.column}px 行宽内；三十列表栏内横滑，末列可见`)
 
       // 纸面：A4 宽 794，收掉单元格下限后任何列数的表都要留在页内。
       await page.setViewportSize({ width: 794, height: 1123 })
