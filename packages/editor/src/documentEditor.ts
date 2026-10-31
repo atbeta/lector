@@ -34,7 +34,7 @@ import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
 import { scrollAnchorDelta, shouldAdjustScrollAnchor } from './scrollAnchor.ts'
-import { tableNeedsBreakout } from './wideTable.ts'
+import { wideTablePlacement } from './wideTable.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
 import { t } from './i18n.ts'
 import { createDocumentSession, type DocumentSession } from './documentSession.ts'
@@ -822,9 +822,9 @@ export function createDocumentEditor({
       // 先摘掉突出再量。类还在时表格被拉到突出宽度，栏变宽后就再也摘不掉。
       wrap.classList.remove('is-wide', 'is-scroll')
       const needed = table.scrollWidth
-      const wide = tableNeedsBreakout(needed, column)
-      wrap.classList.toggle('is-wide', wide)
-      wrap.classList.toggle('is-scroll', wide && needed > room + 1)
+      const place = wideTablePlacement(needed, column, room)
+      wrap.classList.toggle('is-wide', place.breakout)
+      wrap.classList.toggle('is-scroll', place.scroll)
     }
   }
 

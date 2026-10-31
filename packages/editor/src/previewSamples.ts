@@ -70,6 +70,14 @@ graph TD
 /** 没有空格、连字符、斜杠，UAX 断行点为空。用来把「放不进栏宽」变成可见的样例。 */
 const unbroken = 'Abcdefghij'.repeat(32)
 
+/** 短格子的宽表。列数一多，min-width 会让整表宽过阅读栏。 */
+function markdownGrid(cols: number, rows: number): string {
+  const line = (r: number) =>
+    `| ${Array.from({ length: cols }, (_, i) => (r === 0 ? `列${i + 1}` : `${r}-${i + 1}`)).join(' | ')} |`
+  const sep = `| ${Array.from({ length: cols }, () => '---').join(' | ')} |`
+  return [line(0), sep, ...Array.from({ length: rows }, (_, i) => line(i + 1))].join('\n')
+}
+
 export const boundarySample = `---
 title: 栏宽边界
 author: Lector
@@ -126,6 +134,10 @@ homepage: https://example.com/${unbroken}
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 |
 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 |
+
+三十列放不进栏宽：外框停在栏里横滑，最后一列不能被裁掉。
+
+${markdownGrid(30, 10)}
 
 ## 公式
 

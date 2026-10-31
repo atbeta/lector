@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { tableNeedsBreakout } from '../src/wideTable.ts'
+import { tableNeedsBreakout, wideTablePlacement } from '../src/wideTable.ts'
 
 describe('宽表才突出栏边', () => {
   test('比栏宽超出容差 → 突出', () => {
@@ -19,5 +19,17 @@ describe('宽表才突出栏边', () => {
     expect(tableNeedsBreakout(0, 800)).toBe(false)
     expect(tableNeedsBreakout(900, 0)).toBe(false)
     expect(tableNeedsBreakout(Number.NaN, 800)).toBe(false)
+  })
+
+  test('借得下留白就突出，不在表内横滑', () => {
+    expect(wideTablePlacement(858, 800, 960)).toEqual({ breakout: true, scroll: false })
+  })
+
+  test('二十列借完留白仍放不下：留在栏内横滑，外框不占满整行', () => {
+    expect(wideTablePlacement(1559, 800, 960)).toEqual({ breakout: false, scroll: true })
+  })
+
+  test('窄表既不突出也不横滑', () => {
+    expect(wideTablePlacement(420, 800, 960)).toEqual({ breakout: false, scroll: false })
   })
 })

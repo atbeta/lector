@@ -2944,7 +2944,25 @@ const summary = {
             outside.push(`${el.tagName.toLowerCase()}${cls}`)
           }
           for (const w of prose.querySelectorAll('.table-wrap')) {
-            tables.push({ scroll: w.scrollWidth, client: w.clientWidth, scrolling: w.classList.contains('is-scroll') })
+            const cols = w.querySelectorAll('thead th').length
+            const proseBox = prose.getBoundingClientRect()
+            const wrapBox = w.getBoundingClientRect()
+            const last = w.querySelector('thead th:last-child')
+            const maxScroll = w.scrollWidth - w.clientWidth
+            if (maxScroll > 1) w.scrollLeft = maxScroll
+            const lastBox = last?.getBoundingClientRect()
+            w.scrollLeft = 0
+            tables.push({
+              cols,
+              scroll: w.scrollWidth,
+              client: w.clientWidth,
+              scrolling: w.classList.contains('is-scroll'),
+              wide: w.classList.contains('is-wide'),
+              wrapW: Math.round(wrapBox.width),
+              proseW: Math.round(proseBox.width),
+              wrapPast: wrapBox.right > proseBox.right + 1 || wrapBox.left < proseBox.left - 1,
+              lastVisible: !!lastBox && lastBox.right <= wrapBox.right + 2 && lastBox.width > 1,
+            })
           }
           for (const pre of prose.querySelectorAll('pre')) {
             if (pre.scrollWidth > pre.clientWidth + 1) codeScrolls = true
@@ -2955,12 +2973,26 @@ const summary = {
 
       if (!wide.tables.length) note('error', '栏宽边界：一张表都没量到（样例结构变了？）')
       if (wide.outside.length) note('error', `栏宽边界：内容画出栏外（${wide.outside.join(', ')}）`)
-      const scrolling = wide.tables.filter((t) => t.scrolling || t.scroll > t.client + 1)
+      const many = wide.tables.find((t) => t.cols >= 30)
+      const rest = wide.tables.filter((t) => t.cols < 30)
+      const scrolling = rest.filter((t) => t.scrolling || t.scroll > t.client + 1)
       if (scrolling.length)
-        note('error', `栏宽边界：样表被顶成横向滚动（${scrolling.length}/${wide.tables.length} 张，含列多表）`)
+        note('error', `栏宽边界：不该横滑的表在滑（${scrolling.length} 张，十一列应当借留白）`)
+      if (!many) note('error', '栏宽边界：没有三十列的表，末列裁切没验到')
+      else {
+        if (!many.scrolling || many.wide) {
+          note('error', `三十列表应在栏内横滑，实际 scrolling=${many.scrolling} wide=${many.wide} ${many.wrapW}px / 栏 ${many.proseW}px`)
+        }
+        if (many.wrapPast) {
+          note('error', `三十列表外框超出阅读栏（${many.wrapW}px / 栏 ${many.proseW}px）`)
+        }
+        if (!many.lastVisible) {
+          note('error', '三十列表滚到头仍看不到最后一列：末列被裁掉了，没有可用的横滑')
+        }
+      }
       if (!wide.codeScrolls) note('warn', '栏宽边界：代码块没有横向滚动，长行被折了（anywhere 漏进 pre？）')
-      if (!wide.outside.length && !scrolling.length)
-        note('info', `栏宽边界：${wide.tables.length} 张样表都在 ${wide.column}px 栏内，没有内容越界`)
+      if (!wide.outside.length && !scrolling.length && many?.lastVisible && !many.wrapPast)
+        note('info', `栏宽边界：${rest.length} 张窄表在 ${wide.column}px 栏内；三十列表栏内横滑，末列可见`)
 
       // 纸面：A4 宽 794，收掉单元格下限后任何列数的表都要留在页内。
       await page.setViewportSize({ width: 794, height: 1123 })

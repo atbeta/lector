@@ -264,18 +264,37 @@
   border-radius: var(--radius-media);
 }
 .table-wrap table { margin: 0; }
-/* 阅读档：表头跟着阅读区走，宽表借两侧留白，正文栏宽不动。
+/* 阅读档：表头跟着阅读区走，放得进留白的宽表才向外借，正文栏宽不动。
    表套默认 overflow-x:auto 会把 sticky 关在格子里（另一轴再写 clip，
    规范也会把它算成 hidden，同样是滚动容器）。阅读档先放开，
-   表头才能贴着 #content。真正比窗口还宽的表才加 .is-scroll 自己横滑，
+   表头才能贴着 #content。借完留白仍放不下的表（二十列）不加突出，
+   只加 .is-scroll 在栏内横滑——外框拉满整行时，左框和块轨道会浮在格子上。
    那种表的表头吸不住阅读区。
    突出量 = 栏边留白减去 16px，给块轨道留一条缝，也不贴到窗口沿。 */
 html[data-mode='read'] .table-wrap {
   overflow: visible;
 }
 html[data-mode='read'] .table-wrap.is-scroll {
+  /* 外框停在栏宽里。表自己更宽时在这里横滑，不能把末列画到 #content 外面再裁掉。 */
   overflow-x: auto;
   overflow-y: hidden;
+  max-width: 100%;
+  min-width: 0;
+  /* 全局滑块默认透明，要滚才现身。末列已经在视口外，不把条画出来就等于这几列没了。 */
+  --scrollbar-thumb: rgb(var(--foreground) / 0.45);
+  --scrollbar-thumb-delay: 0s;
+  scrollbar-color: rgb(var(--foreground) / 0.45) rgb(var(--muted) / 0.7);
+}
+html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar-track {
+  background: rgb(var(--muted) / 0.7);
+}
+html[data-mode='read'] .table-wrap.is-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--foreground) / 0.45);
+  background-clip: content-box;
+  border: 2px solid transparent;
 }
 html[data-mode='read'] .table-wrap.is-wide {
   --breakout: max(0px, calc(var(--content-pad) - 16px));
