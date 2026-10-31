@@ -20,6 +20,17 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.38.10 (2026-10-31)
+
+### Fixed
+
+- fix(editor): stop the zoom slider bouncing between stops
+
+### Improved
+
+- ci(build-macos): pin the runner to macOS 15 for now
+- ci(build-macos): fail fast when signing hangs
+
 ## v0.38.9 (2026-10-31)
 
 ### Added
