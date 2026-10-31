@@ -20,6 +20,13 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.38.11 (2026-10-31)
+
+### Fixed
+
+- fix(editor): keep tables inside the reading measure
+- fix(editor): scroll oversized tables inside the column
+
 ## v0.38.10 (2026-10-31)
 
 ### Fixed
