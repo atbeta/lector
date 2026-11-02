@@ -62,6 +62,7 @@ export function shortcutGroups(): ShortcutGroup[] {
         { keys: mod('I'), label: t('fmtItalic') },
         { keys: mod('K'), label: t('fmtLink') },
         { keys: mod('Z'), label: t('menuUndo') },
+        { keys: modShift('Z'), label: t('menuRedo') },
       ],
     },
   ]

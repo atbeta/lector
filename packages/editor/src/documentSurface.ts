@@ -13,7 +13,7 @@
  */
 
 import type { EditorView } from '@codemirror/view'
-import { undo as cmUndo, undoDepth } from '@codemirror/commands'
+import { undo as cmUndo, redo as cmRedo, undoDepth, redoDepth } from '@codemirror/commands'
 import type { FindHost } from './findBar.ts'
 import type { FindMatch } from './findMatch.ts'
 
@@ -37,8 +37,10 @@ export interface DocumentSurface {
   replaceText(find: string, replacement: string): boolean
   /** 查找栏的接入参数；整篇 CM 还没挂上时返回 null。 */
   findTarget(): FindHost | null
-  /** 整篇 CM 自己的撤销历史还有就撤一步并返回 true；块档恒为 false。 */
+  /** 整篇 CM 自己的撤销历史还有就撤一步并返回 true；块档看聚焦块的 CM。 */
   undoHistory(): boolean
+  /** 承载自己的重做历史还有就放一步并返回 true；没有可重做的返回 false。 */
+  redoHistory(): boolean
   /** 切档撤销的落点：把整篇换成 raw。大文件档不支持，返回 false。 */
   restoreWhole(raw: string): boolean
 }
@@ -108,6 +110,11 @@ export function createWholeDocumentSurface(deps: WholeDocumentSurfaceDeps): Docu
     undoHistory: () => {
       const view = deps.view()
       return !!view && undoDepth(view.state) > 0 && cmUndo(view)
+    },
+    // 重做同一张脸：CM 重做栈里有东西才轮得到它（兜底重做在更外层先问）。
+    redoHistory: () => {
+      const view = deps.view()
+      return !!view && redoDepth(view.state) > 0 && cmRedo(view)
     },
     restoreWhole: (raw) => deps.restoreWhole(raw),
   }

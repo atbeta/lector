@@ -42,10 +42,25 @@ describe('快捷键分派', () => {
     // 查找框 / 设置输入框里的 ⌘Z 撤销的是刚敲的文本；接管它就会拿
     // 块级操作或切档快照去改整篇文档。
     expect(kind({ mod: true, key: 'z', focusInTextField: true })).toBe(null)
-    // ⇧⌘Z 本来就不是 undo-block（重做路径不受影响）
-    expect(kind({ mod: true, shift: true, key: 'Z', focusInTextField: true })).toBe(null)
     // 文本框守卫不波及保存等其它快捷键
     expect(kind({ mod: true, key: 's', focusInTextField: true })).toBe('save')
+  })
+
+  test('块级重做：⇧⌘Z 与 Ctrl+Y 在编辑器未聚焦时接管', () => {
+    expect(kind({ mod: true, shift: true, key: 'Z' })).toBe('redo-block')
+    expect(kind({ mod: true, key: 'y' })).toBe('redo-block')
+    // ⇧⌘Y 不是重做键
+    expect(kind({ mod: true, shift: true, key: 'Y' })).toBe(null)
+  })
+
+  test('块级重做：聚焦块 / 编辑器聚焦 / 文本框时让位', () => {
+    // 聚焦块里的重做归 CM 自己的 historyKeymap（见底再走块内兜底）
+    expect(kind({ mod: true, shift: true, key: 'Z', focusedBlock: true })).toBe(null)
+    expect(kind({ mod: true, key: 'y', focusedBlock: true })).toBe(null)
+    expect(kind({ mod: true, shift: true, key: 'Z', editorMounted: true })).toBe(null)
+    // 文本框里的重做归框内原生（同 ⌘Z 的守卫）
+    expect(kind({ mod: true, shift: true, key: 'Z', focusInTextField: true })).toBe(null)
+    expect(kind({ mod: true, key: 'y', focusInTextField: true })).toBe(null)
   })
 
   test('Esc 只在有聚焦块时退出编辑', () => {

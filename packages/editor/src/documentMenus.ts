@@ -1,5 +1,4 @@
 import type { BlockView } from '@lector/core'
-import { undo, redo } from '@codemirror/commands'
 import { openExternal, readClipboard } from '@lector/shell-web'
 import { safeHref } from './mdastHtml.ts'
 import { copyText, showToast } from './feedback.ts'
@@ -21,7 +20,10 @@ export function createDocumentMenus({
   getViewMode,
   exportPdf,
 }: {
-  editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
+  editor: Pick<
+    DocumentEditor,
+    'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations' | 'undo' | 'redo'
+  >
   files: Pick<FileController, 'currentDiskPath' | 'openDefaultApp' | 'openWithLabel' | 'revealCurrent' | 'closeFile'>
   imageMenuItems: (img: HTMLImageElement) => ContextMenuItem[]
   /** 选文件插入图片：落在这块后面。实现住在 imageController，菜单只负责入口。 */
@@ -71,8 +73,10 @@ export function createDocumentMenus({
       // 撤销/重做/剪切/粘贴都会改文档，标上 mutates：它们在阅读档结构上就到不了
       // （阅读档没有嵌着的 CM，见 editorChrome.setViewMode 的 defocus），
       // 标了只是让「阅读档不给改文档的动作」这条规矩没有例外可钻。
-      { label: t('menuUndo'), hint: mod('Z'), mutates: true, run: () => editor.getCmView() && undo(editor.getCmView()!) },
-      { label: t('menuRedo'), hint: modShift('Z'), mutates: true, run: () => editor.getCmView() && redo(editor.getCmView()!) },
+      // 撤销 / 重做走 editor 的统一入口，而不是直接叫 CM：CM 历史见底时菜单项
+      // 不能是哑的（块级操作与切档快照还在），与快捷键同一条语义链。
+      { label: t('menuUndo'), hint: mod('Z'), mutates: true, run: () => editor.undo() },
+      { label: t('menuRedo'), hint: modShift('Z'), mutates: true, run: () => editor.redo() },
       { separatorBefore: true, label: t('menuCut'), hint: mod('X'), mutates: true, run: run('cut') },
       { label: t('menuCopy'), hint: mod('C'), run: run('copy') },
       {

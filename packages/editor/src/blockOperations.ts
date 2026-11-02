@@ -11,6 +11,7 @@ import {
 import type { EditorView } from '@codemirror/view'
 import { openTableEditor } from './tableEditor.ts'
 import { t } from './i18n.ts'
+import { modShift } from './keys.ts'
 import { createUndoStack } from './undoStack.ts'
 import type { DocumentSession } from './documentSession.ts'
 import type { CaretIntent } from './caretNavigation.ts'
@@ -35,6 +36,14 @@ interface BlockOperationsDeps {
    * 所以这里只要一个「把文档变成这段正文」的黑盒。
    */
   replaceWholeDocument?: (raw: string) => void
+  /**
+   * 当前整篇正文（documentEditor 传 `surface().saveText()`）。
+   *
+   * 重做的有效性判据：每次兜底撤销 / 重做之后记下这里的值当基线，
+   * 下一次重做前先比对——正文和基线不一致，说明撤销之后又有改动，
+   * 重做栈作废（见 redoStack 的注释）。
+   */
+  wholeText(): string
 }
 
 export function createBlockOperations({
@@ -49,6 +58,7 @@ export function createBlockOperations({
   beforeStructuralEdit,
   getDefinitions,
   replaceWholeDocument,
+  wholeText,
 }: BlockOperationsDeps) {
   function reparseRoots(raw: string): unknown[] {
     return parseBlockRoots(raw, getDefinitions?.())
@@ -104,10 +114,20 @@ export function createBlockOperations({
     session.blocks.splice(i + 1, 0, gap, para)
     session.originals.set(para.id, para.raw)
     session.originals.set(gap.id, gap.raw)
-    blockUndoStack.push(t('menuUndoInsert'), () => {
-      const removed = takeBlocks([para.id, gap.id])
-      if (removed.length) forgetBlocks(removed)
-    })
+    pushBlockUndo(
+      t('menuUndoInsert'),
+      () => {
+        const removed = takeBlocks([para.id, gap.id])
+        if (removed.length) forgetBlocks(removed)
+      },
+      () => {
+        // 重放 = 把同一对块按原锚点插回去。锚点还在才动手，不在宁可漏做。
+        const j = blockIndex(id)
+        if (j < 0) return
+        restoreBlocks(j + 1, [gap, para])
+        focusBlock(para.id)
+      },
+    )
     session.structuralDirty = true
     markDirty()
     render()
@@ -124,10 +144,19 @@ export function createBlockOperations({
     session.blocks.splice(i, 0, para, gap)
     session.originals.set(para.id, para.raw)
     session.originals.set(gap.id, gap.raw)
-    blockUndoStack.push(t('menuUndoInsert'), () => {
-      const removed = takeBlocks([para.id, gap.id])
-      if (removed.length) forgetBlocks(removed)
-    })
+    pushBlockUndo(
+      t('menuUndoInsert'),
+      () => {
+        const removed = takeBlocks([para.id, gap.id])
+        if (removed.length) forgetBlocks(removed)
+      },
+      () => {
+        const j = blockIndex(id)
+        if (j < 0) return
+        restoreBlocks(j, [para, gap])
+        focusBlock(para.id)
+      },
+    )
     session.structuralDirty = true
     markDirty()
     render()
@@ -163,10 +192,19 @@ export function createBlockOperations({
     session.blocks.splice(i + 1, 0, gap, block)
     session.originals.set(block.id, block.raw)
     session.originals.set(gap.id, gap.raw)
-    blockUndoStack.push(t('menuUndoInsert'), () => {
-      const removed = takeBlocks([block.id, gap.id])
-      if (removed.length) forgetBlocks(removed)
-    })
+    pushBlockUndo(
+      t('menuUndoInsert'),
+      () => {
+        const removed = takeBlocks([block.id, gap.id])
+        if (removed.length) forgetBlocks(removed)
+      },
+      () => {
+        const j = blockIndex(id)
+        if (j < 0) return
+        restoreBlocks(j + 1, [gap, block])
+        focusBlock(block.id)
+      },
+    )
     session.structuralDirty = true
     markDirty()
     render()
@@ -206,6 +244,57 @@ export function createBlockOperations({
    */
   const modeUndoStack = createUndoStack(BLOCK_UNDO_MAX)
 
+  /**
+   * 重做栈：撤销时弹出来的项带重放闭包就进这里，⌘⇧Z / Ctrl+Y 重放。
+   *
+   * 两条撤销栈共用**一条**重做栈——块级操作和切档快照的撤销顺序本来就是
+   * 混在一起的（undoFallback 先块级后快照），重做也得按同一条时序回放，
+   * 各记一份就会把「先撤的后重做」这个次序弄丢。
+   *
+   * source 记着这条是从哪条撤销栈来的：重做成功后要把同一条撤销闭包
+   * 塞回它原来的栈，⌘Z 才能再次撤它。
+   */
+  interface RedoItem {
+    label: string
+    /** 原撤销闭包：重做成功后塞回来源栈，供下一次 ⌘Z。 */
+    undo: () => void
+    /** 重放这次操作。 */
+    redo: () => void
+    source: 'block' | 'mode'
+  }
+  const redoStack: RedoItem[] = []
+  /**
+   * 重做基线：上一次兜底撤销 / 重做落地后的整篇正文。
+   *
+   * 规则只有一条：**任何不是兜底撤销 / 重做的正文变化都让重做栈作废**。
+   * 不靠事件接线，靠文本比对——打一个字、CM 自己撤销/重做、存盘换基线，
+   * 哪条路进来的改动都会让 currentWholeText() 偏离基线。一次比对覆盖
+   * 所有路径，包括根本没进撤销栈的那些：漏掉一次重做没关系（少一步），
+   * 重放错了不行（拿旧闭包改写现在的正文，撞「磁盘字节不能误写」的红线）。
+   */
+  let redoBaseline: string | null = null
+
+  /** 新动作落地，重做链作废（「新动作杀死重做」这条编辑器通例）。 */
+  function invalidateRedo(): void {
+    redoStack.length = 0
+    redoBaseline = null
+  }
+
+  /**
+   * 压一条块级撤销。所有**外部**压栈点都走它：压栈意味着文档刚被改过，
+   * 重做链到此为止。redoFallback 内部把撤销项塞回栈的「再入栈」不走它——
+   * 那是重放的记账动作，不是新改动，清了它重做就只剩一步。
+   */
+  function pushBlockUndo(label: string, undo: () => void, redo?: () => void): void {
+    invalidateRedo()
+    blockUndoStack.push(label, undo, redo)
+  }
+
+  /** 上一次兜底撤销 / 重做落地后的正文基线。 */
+  function recordRedoBaseline(): void {
+    redoBaseline = wholeText()
+  }
+
   /** 把一批块插回原位（撤销删除用）。 */
   function restoreBlocks(at: number, blocks: BlockView[]): void {
     beforeStructuralEdit?.()
@@ -244,30 +333,80 @@ export function createBlockOperations({
    */
   function pushModeSwitchUndo(before: string): void {
     if (!replaceWholeDocument) return
+    // 切档结算意味着正文刚换过一段：同压栈通例，重做链到此为止。
+    invalidateRedo()
     // 超上限不记这一条还不够，必须清栈：留着更早的快照，下一次 ⌘Z 会把
     // 更早的正文盖到这段没有留下快照的新编辑上——等于用旧内容改写文件。
     if (before.length > MODE_SNAPSHOT_MAX_CHARS) {
       modeUndoStack.clear()
       return
     }
-    modeUndoStack.push(t('menuUndoModeSwitch'), () => replaceWholeDocument(before))
+    // 重做的目标是「撤销这一刻的正文」：撤销闭包动手覆盖之前先把它存下来。
+    // 压栈时拿不到——那时用户还没撤，正文可能还要继续被改。
+    let redoText = ''
+    modeUndoStack.push(
+      t('menuUndoModeSwitch', { redoKey: modShift('Z') }),
+      () => {
+        redoText = wholeText()
+        replaceWholeDocument(before)
+      },
+      () => replaceWholeDocument(redoText),
+    )
+  }
+
+  /** 撤销跑完后记账：能重放就进重做栈，没有重放闭包则整条重做链断掉。 */
+  function afterFallbackUndo(entry: { label: string; undo: () => void; redo?: () => void }, source: 'block' | 'mode'): void {
+    if (entry.redo) redoStack.push({ label: entry.label, undo: entry.undo, redo: entry.redo, source })
+    else invalidateRedo()
+    recordRedoBaseline()
   }
 
   /** 弹一条切档撤销；没有就返回 false，让 ⌘Z 回到正常路径。 */
   function undoModeSwitch(): boolean {
-    const label = modeUndoStack.undo()
-    if (label === null) return false
-    onUndo(label)
+    const entry = modeUndoStack.undo()
+    if (entry === null) return false
+    afterFallbackUndo(entry, 'mode')
+    onUndo(entry.label)
     return true
   }
 
   /** 弹一次撤销并重绘；没有可撤的就返回 false，让 ⌘Z 回到正常路径。 */
   function undoBlockOp(): boolean {
-    const label = blockUndoStack.undo()
-    if (label === null) return false
+    const entry = blockUndoStack.undo()
+    if (entry === null) return false
+    afterFallbackUndo(entry, 'block')
     markDirty()
     render()
-    onUndo(label)
+    onUndo(entry.label)
+    return true
+  }
+
+  /**
+   * 兜底重做：重放最近一次被撤掉的操作。
+   *
+   * 先做基线比对再动栈——撤销之后正文被改过（打字、CM 自己的撤销/重做、
+   * 存盘换基线……任何一条路径都算），整条重做链作废。这是「漏掉一步重做
+   * 可以接受、拿旧闭包改错正文不能接受」的那一侧。
+   *
+   * 重放成功后把同一条撤销闭包塞回它原来的栈，⌘Z 就又撤得动它；
+   * 因此这里是先 pop 再决定塞回哪条栈（source 记的就是来路）。
+   */
+  function redoFallback(): boolean {
+    const item = redoStack.pop()
+    if (!item) return false
+    if (wholeText() !== redoBaseline) {
+      invalidateRedo()
+      return false
+    }
+    item.redo()
+    if (item.source === 'mode') modeUndoStack.push(item.label, item.undo, item.redo)
+    else {
+      blockUndoStack.push(item.label, item.undo, item.redo)
+      // 块级重放改了块表：与 undoBlockOp 同一个收尾，标脏 + 重绘。
+      markDirty()
+      render()
+    }
+    recordRedoBaseline()
     return true
   }
 
@@ -279,15 +418,22 @@ export function createBlockOperations({
   function clearUndo(): void {
     blockUndoStack.clear()
     modeUndoStack.clear()
+    invalidateRedo()
   }
 
   /**
    * 块级撤销项只对「记录时的那张块表」有效：闭包里记着旧块的对象与下标。
    * 块表重建（整篇重解析 / 切档快照落回块档）之后它们指向不存在的块，
    * 必须丢掉——撤错了比没的撤更糟（核心红线：磁盘字节不能被误写）。
+   *
+   * 重做栈同理会指着旧块，块级来源的重放项一并丢掉；切档快照的重放项
+   * 只需要 replaceWholeDocument（整篇换正文），与块表身份无关，保留。
    */
   function discardBlockOps(): void {
     blockUndoStack.clear()
+    for (let i = redoStack.length - 1; i >= 0; i--) {
+      if (redoStack[i]!.source === 'block') redoStack.splice(i, 1)
+    }
   }
 
   /**
@@ -310,16 +456,26 @@ export function createBlockOperations({
       const before = block.raw
       const beforeKind = block.kind
       const beforeMdast = block.mdast
+      const clearedMdast = parseOne('')
       block.raw = ''
-      block.mdast = parseOne('')
+      block.mdast = clearedMdast
       block.kind = 'paragraph'
       block.dirty = (session.originals.get(block.id) ?? '') !== ''
-      blockUndoStack.push(t('menuUndoBlock'), () => {
-        block.raw = before
-        block.kind = beforeKind
-        block.mdast = beforeMdast
-        block.dirty = block.raw !== (session.originals.get(block.id) ?? '')
-      })
+      pushBlockUndo(
+        t('menuUndoBlock'),
+        () => {
+          block.raw = before
+          block.kind = beforeKind
+          block.mdast = beforeMdast
+          block.dirty = block.raw !== (session.originals.get(block.id) ?? '')
+        },
+        () => {
+          block.raw = ''
+          block.kind = 'paragraph'
+          block.mdast = clearedMdast
+          block.dirty = block.raw !== (session.originals.get(block.id) ?? '')
+        },
+      )
       markDirty()
       render()
       focusBlock(block.id)
@@ -335,7 +491,16 @@ export function createBlockOperations({
       count += 1 // 末块：带走前面的缝
     }
     const removed = session.blocks.splice(from, count)
-    blockUndoStack.push(t('menuUndoBlock'), () => restoreBlocks(from, removed))
+    pushBlockUndo(
+      t('menuUndoBlock'),
+      () => restoreBlocks(from, removed),
+      () => {
+        // 重放 = 按 id 把同一批块再摘走。基线保证此刻块表与撤销时一致。
+        const gone = takeBlocks(removed.map((b) => b.id))
+        if (gone.length) forgetBlocks(gone)
+        session.structuralDirty = true
+      },
+    )
     forgetBlocks(removed)
     session.structuralDirty = true
     markDirty()
@@ -368,9 +533,10 @@ export function createBlockOperations({
       if (seen === itemIndex) {
         const before = block.raw
         lines[i] = `${m[1]}${checked ? 'x' : ' '}${m[3]}${lines[i]!.slice(m[0].length)}`
-        setBlockRaw(block, lines.join('\n'))
+        const after = lines.join('\n')
+        setBlockRaw(block, after)
         // 勾错了要能撤回来。勾选不经过 CM，所以得自己进撤销链。
-        blockUndoStack.push(t('menuUndoCheck'), () => setBlockRaw(block, before))
+        pushBlockUndo(t('menuUndoCheck'), () => setBlockRaw(block, before), () => setBlockRaw(block, after))
         render()
         return
       }
@@ -387,7 +553,7 @@ export function createBlockOperations({
     if (md === block.raw) return
     const before = block.raw
     setBlockRaw(block, md)
-    blockUndoStack.push(t('menuUndoTable'), () => setBlockRaw(block, before))
+    pushBlockUndo(t('menuUndoTable'), () => setBlockRaw(block, before), () => setBlockRaw(block, md))
     render()
   }
 
@@ -596,13 +762,14 @@ export function createBlockOperations({
     undoBlockOp,
     pushModeSwitchUndo,
     undoModeSwitch,
+    redoFallback,
     clearUndo,
     discardBlockOps,
     splitBlock,
     mergeBlock,
     appendImageParagraph,
     insertAfterBlock,
-    pushUndo: blockUndoStack.push,
+    pushUndo: pushBlockUndo,
   }
 }
 

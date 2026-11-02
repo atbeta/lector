@@ -37,6 +37,7 @@ export interface ShortcutHints {
 
 export type ShortcutAction =
   | { kind: 'undo-block' }
+  | { kind: 'redo-block' }
   | { kind: 'leave-edit' }
   | { kind: 'save-as' }
   | { kind: 'save' }
@@ -63,6 +64,17 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
   //    （编辑器里那是 CM 的文字撤销；文本框里是框内内容的原生撤销）
   if (h.mod && !h.shift && lower === 'z' && !h.focusedBlock && !h.editorMounted && !h.focusInTextField) {
     return { kind: 'undo-block' }
+  }
+  // 重做同一组守卫：⇧⌘Z 是 mac / 各平台通用约定，Ctrl+Y 是 Windows / Linux 的惯例
+  // （CM 的 historyKeymap 也是这两条）。⇧⌘Y 不算重做键，不收。
+  if (
+    h.mod &&
+    ((h.shift && lower === 'z') || (!h.shift && lower === 'y')) &&
+    !h.focusedBlock &&
+    !h.editorMounted &&
+    !h.focusInTextField
+  ) {
+    return { kind: 'redo-block' }
   }
 
   // 2) 不检查 defaultPrevented 的一组（见文件头第 2 条）

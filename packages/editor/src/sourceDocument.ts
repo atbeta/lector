@@ -19,6 +19,8 @@ interface SourceDocumentDeps {
    * 它一无所知。历史走完还没撤到东西，就轮到边界上存的那条快照（见 undoModeSwitch）。
    */
   onUndoFallback(): boolean
+  /** CM 重做历史见底时往外交（块级 / 切档重做），与撤销同一条让位线。 */
+  onRedoFallback(): boolean
 }
 
 /**
@@ -34,6 +36,7 @@ export function createSourceEditor({
   onDocChanged,
   onScroll,
   onUndoFallback,
+  onRedoFallback,
 }: SourceDocumentDeps) {
   let cm: CmHandle | null = null
   /** 挂上编辑器时的全文。没改过离开源码档就不必重解析块。 */
@@ -86,6 +89,7 @@ export function createSourceEditor({
         // 正文没变过就接回上次的撤销栈（见 savedState）。
         ...(savedState ? { initialState: savedState } : {}),
         onUndoFallback,
+        onRedoFallback,
         onDocChanged,
         onSelectionChange: (sel) => {
           if (!sel || !cm) {

@@ -324,6 +324,90 @@ assert.ok(afterFindUndo.includes('FINDGUARD'), '查找框里的 ⌘Z 撤掉了�
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 
+// ── 10b. 统一重做：块级撤销 → 全局 ⇧⌘Z 回放，中间有改动就必须作废 ──
+// 三条历史（聚焦块 CM、整篇 CM、app 自己的块级/切档栈）共用一条时序：
+// 撤销按「先承载后兜底」，重做按「先兜底后承载」——兜底撤销只在承载历史
+// 见底后发生，最后被撤掉的必然先在它身上重做。
+await page.goto(URL_ARG, { waitUntil: 'load' })
+await page.waitForSelector('#content > .block', { timeout: 15000 })
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(600)
+
+const contentText = () => page.evaluate(() => document.getElementById('content').innerText)
+const firstBlockText = (await page.$eval('#content > .block:not(.gap)', (el) => el.innerText)).trim()
+
+// 编辑档：块把手菜单删掉第一块
+await page.hover('#content > .block:not(.gap)')
+await page.click('#content > .block:not(.gap) .block-handle')
+await page.waitForSelector('.context-menu', { timeout: 5000 })
+await page.locator('.context-menu .context-item', { hasText: '删除本块' }).first().click()
+await page.waitForTimeout(700)
+assert.ok(!(await contentText()).includes(firstBlockText), '删除本块没生效，前置条件不成立')
+
+// 全局 ⌘Z（焦点在正文外）：把删掉的块撤回来
+await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(800)
+assert.ok((await contentText()).includes(firstBlockText), '全局 ⌘Z 没把删掉的块撤回来')
+
+// 全局 ⇧⌘Z：回放删除，块再次消失
+await page.keyboard.press(`${MOD}+Shift+z`)
+await page.waitForTimeout(800)
+assert.ok(!(await contentText()).includes(firstBlockText), '⇧⌘Z 没把删除重放回去')
+
+// 再 ⌘Z 撤一次，然后往块里打字：撤销之后的改动让重做基线失效，
+// ⇧⌘Z 宁可不放也不能拿旧闭包改现在的正文
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(800)
+assert.ok((await contentText()).includes(firstBlockText), '第二次 ⌘Z 没把块撤回来')
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('REDOGONE')
+await page.waitForTimeout(500)
+// 退出聚焦块（⌘⇧Z 的全局路径只在没聚焦块时走），再按重做
+await page.keyboard.press('Escape')
+await page.waitForTimeout(500)
+await page.keyboard.press(`${MOD}+Shift+z`)
+await page.waitForTimeout(800)
+assert.ok(
+  (await contentText()).includes(firstBlockText),
+  '撤销之后打过字，⇧⌘Z 仍回放了失效的重做（把删掉的又删了一遍）',
+)
+
+// ── 10c. 切档快照的撤销 → 重做：回放出去的正文，存盘字节要能跟上 ──
+await page.goto(URL_ARG, { waitUntil: 'load' })
+await page.waitForSelector('#content > .block', { timeout: 15000 })
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(600)
+// 块档打字 → 切源码档：边界上压下切档快照
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('REDOMARK')
+await page.waitForTimeout(600)
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(700)
+assert.ok(await cmHas('REDOMARK'), '块档的改动没带进源码档，前置条件不成立')
+
+// 焦点拉出 CM，全局 ⌘Z → 切档快照还原（REDOMARK 撤掉）
+await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(900)
+assert.equal(await cmHas('REDOMARK'), false, '切档快照 ⌘Z 没把块档的改动撤掉')
+
+// ⇧⌘Z → 兜底重做回放「撤销那一刻」的正文（REDOMARK 回来）
+await page.keyboard.press(`${MOD}+Shift+z`)
+await page.waitForTimeout(900)
+assert.ok(await cmHas('REDOMARK'), '⇧⌘Z 没把切档前的改动放回来')
+
+// 存盘字节：回放出去的正文必须真的能写出去
+const redoneSaved = await saveAndRead()
+assert.ok(redoneSaved.includes('REDOMARK'), '重做后的正文没存出去')
+
 // ── 11. 大文件档：查找要高亮、打字要写进保存的字节 ──
 // 大文件是另一个整篇 CM 承载（.large-doc-host）：正文不进块表，
 // 「某个功能忘了这个承载」曾让查找不画标记、打字不算脏、⌘S 写回原文。

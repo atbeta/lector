@@ -41,6 +41,7 @@ function makeOps(session: DocumentSession) {
     },
     insertImageMarkdownAtCaret: () => {},
     onUndo: () => {},
+    wholeText: () => serialize(session.blocks),
   })
   return { ops, focusCalls }
 }
@@ -328,9 +329,11 @@ describe('mergeBlock', () => {
 })
 
 describe('撤销栈清理', () => {
-  /** 带上 replaceWholeDocument 的 ops：切档快照要靠它才真正压栈。 */
+  /** 带上 replaceWholeDocument / wholeText 的 ops：切档快照与重做基线要靠它们。 */
   function makeOpsWithMode(session: DocumentSession) {
     const restored: string[] = []
+    // wholeText 可由用例中途改写：撤销之后正文又变了 → 重做栈必须作废
+    let text = serialize(session.blocks)
     const ops = createBlockOperations({
       session,
       markDirty: () => {
@@ -347,8 +350,9 @@ describe('撤销栈清理', () => {
       insertImageMarkdownAtCaret: () => {},
       onUndo: () => {},
       replaceWholeDocument: (raw) => restored.push(raw),
+      wholeText: () => text,
     })
-    return { ops, restored }
+    return { ops, restored, setText: (t: string) => { text = t } }
   }
 
   test('clearUndo：两条栈全清（换文档后旧文件的历史绝不能漏进新文档）', () => {
@@ -391,6 +395,153 @@ describe('撤销栈清理', () => {
     ops.discardBlockOps()
     expect(ops.undoBlockOp()).toBe(false)
     expect(ops.undoModeSwitch()).toBe(true)
+    expect(restored).toEqual(['切档前的正文'])
+  })
+})
+
+describe('重做 redoFallback', () => {
+  /** 带上 replaceWholeDocument / wholeText 的 ops，与「撤销栈清理」同一个工厂形状。 */
+  function makeOpsWithMode(session: DocumentSession) {
+    const restored: string[] = []
+    let text = serialize(session.blocks)
+    const ops = createBlockOperations({
+      session,
+      markDirty: () => {
+        session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
+      },
+      render: () => Promise.resolve(),
+      focusBlock: (id) => {
+        session.focusedId = id
+      },
+      forgetBlockViews: () => {},
+      focusAfterStructuralEdit: (id) => {
+        session.focusedId = id
+      },
+      insertImageMarkdownAtCaret: () => {},
+      onUndo: () => {},
+      replaceWholeDocument: (raw) => restored.push(raw),
+      wholeText: () => text,
+    })
+    return { ops, restored, setText: (t: string) => { text = t } }
+  }
+
+  test('勾选任务：撤销 → 重做往返，redo 之后 ⌘Z 又能撤', () => {
+    const s = makeSession(DOC)
+    const { ops } = makeOps(s)
+    const list = s.blocks.find((b) => b.kind === 'list')!
+    ops.toggleTaskItem(list, 1, true)
+    expect(list.raw).toBe('- [ ] 任务\n- [x] 任务')
+    expect(ops.undoBlockOp()).toBe(true)
+    expect(list.raw).toBe('- [ ] 任务\n- [ ] 任务')
+    // 正文没动过，基线对上：重做把勾选放回来
+    expect(ops.redoFallback()).toBe(true)
+    expect(list.raw).toBe('- [ ] 任务\n- [x] 任务')
+    // 重做把撤销闭包塞回了块级栈：再按 ⌘Z 还能撤
+    expect(ops.undoBlockOp()).toBe(true)
+    expect(list.raw).toBe('- [ ] 任务\n- [ ] 任务')
+  })
+
+  test('删除块：撤销 → 重做把同一批块再摘走', () => {
+    const s = makeSession(DOC)
+    const { ops } = makeOps(s)
+    const target = s.blocks.find((b) => b.raw === '第二段')!
+    ops.deleteBlock(target.id)
+    const deleted = serialize(s.blocks)
+    expect(deleted).not.toContain('第二段')
+    ops.undoBlockOp()
+    expect(serialize(s.blocks)).toBe(DOC)
+    expect(ops.redoFallback()).toBe(true)
+    expect(serialize(s.blocks)).toBe(deleted)
+  })
+
+  test('插入段落：撤销 → 重做按原锚点插回同一对块', () => {
+    const s = makeSession(DOC)
+    const { ops } = makeOps(s)
+    const anchor = s.blocks.find((b) => b.raw === '第二段')!
+    ops.insertParagraphAfter(anchor.id)
+    const inserted = serialize(s.blocks)
+    expect(s.focusedId).not.toBeNull()
+    const paraId = s.focusedId!
+    ops.undoBlockOp()
+    expect(serialize(s.blocks)).toBe(DOC)
+    expect(ops.redoFallback()).toBe(true)
+    expect(serialize(s.blocks)).toBe(inserted)
+    expect(s.blocks.some((b) => b.id === paraId)).toBe(true)
+    // 重做复现「插完直接写」的落点
+    expect(s.focusedId).toBe(paraId)
+  })
+
+  test('切档快照：撤销 → 重做回放「撤销那一刻」的正文', () => {
+    const s = makeSession(DOC)
+    const { ops, restored, setText } = makeOpsWithMode(s)
+    setText('切档后被改过的正文')
+    ops.pushModeSwitchUndo('切档前的正文')
+    expect(ops.undoModeSwitch()).toBe(true)
+    expect(restored).toEqual(['切档前的正文'])
+    // 重做的目标不是 before，是撤销那一刻的 wholeText
+    expect(ops.redoFallback()).toBe(true)
+    expect(restored).toEqual(['切档前的正文', '切档后被改过的正文'])
+    // 同一条撤销塞回切档栈：⌘Z 又能撤
+    expect(ops.undoModeSwitch()).toBe(true)
+    expect(restored).toEqual(['切档前的正文', '切档后被改过的正文', '切档前的正文'])
+  })
+
+  test('撤销之后又压了新动作：重做链作废', () => {
+    const s = makeSession(DOC)
+    const { ops } = makeOps(s)
+    const list = s.blocks.find((b) => b.kind === 'list')!
+    ops.toggleTaskItem(list, 1, true)
+    ops.undoBlockOp()
+    // 新动作落地 = 重做链死（通例：new action kills redo）
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    expect(ops.redoFallback()).toBe(false)
+  })
+
+  test('撤销之后正文被改动（基线不符）：重做不许回放', () => {
+    const s = makeSession(DOC)
+    const { ops, restored, setText } = makeOpsWithMode(s)
+    setText('切档后的正文')
+    ops.pushModeSwitchUndo('切档前的正文')
+    expect(ops.undoModeSwitch()).toBe(true)
+    // 模拟「撤销之后又有改动」：打字 / CM 撤销 / 存盘换基线都算，文本比对全覆盖
+    setText('撤销之后又被改过')
+    expect(ops.redoFallback()).toBe(false)
+    // 整条重做链作废：再按也没有可放的
+    expect(ops.redoFallback()).toBe(false)
+    expect(restored).toEqual(['切档前的正文'])
+  })
+
+  test('discardBlockOps：块级重做项随块表一起丢，切档重做项保留', () => {
+    const s = makeSession(DOC)
+    const { ops, restored, setText } = makeOpsWithMode(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    setText('切档后的正文')
+    ops.pushModeSwitchUndo('切档前的正文')
+    // 先撤块级再撤切档：重做栈里块级项在底、切档项在顶
+    expect(ops.undoBlockOp()).toBe(true)
+    expect(ops.undoModeSwitch()).toBe(true)
+    // 块表重建：块级撤销/重做都失效；切档重做只需要 replaceWholeDocument，保留
+    ops.discardBlockOps()
+    expect(ops.redoFallback()).toBe(true)
+    expect(restored).toEqual(['切档前的正文', '切档后的正文'])
+    expect(ops.redoFallback()).toBe(false)
+  })
+
+  test('clearUndo：撤销栈与重做栈一起清（换文档不漏旧历史）', () => {
+    const s = makeSession(DOC)
+    const { ops, restored, setText } = makeOpsWithMode(s)
+    const list = s.blocks.find((b) => b.kind === 'list')!
+    ops.toggleTaskItem(list, 1, true)
+    setText('切档后的正文')
+    ops.pushModeSwitchUndo('切档前的正文')
+    ops.undoBlockOp()
+    ops.undoModeSwitch()
+    ops.clearUndo()
+    expect(ops.undoBlockOp()).toBe(false)
+    expect(ops.undoModeSwitch()).toBe(false)
+    expect(ops.redoFallback()).toBe(false)
     expect(restored).toEqual(['切档前的正文'])
   })
 })

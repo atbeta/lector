@@ -126,7 +126,11 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     const before = block.raw
     editor.operations.setBlockRaw(block, next)
     // 换 src 不经过 CM，得自己进撤销链（同任务勾选/表格写回）
-    editor.operations.pushUndo(t('imageUndoUpload'), () => editor.operations.setBlockRaw(block, before))
+    editor.operations.pushUndo(
+      t('imageUndoUpload'),
+      () => editor.operations.setBlockRaw(block, before),
+      () => editor.operations.setBlockRaw(block, next),
+    )
     void editor.render()
     showToast(t('imageUploaded'))
   }
@@ -145,7 +149,11 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     if (!blockStillLive(block)) return
     const before = block.raw
     editor.operations.setBlockRaw(block, md)
-    editor.operations.pushUndo(t('imageUndoAlt'), () => editor.operations.setBlockRaw(block, before))
+    editor.operations.pushUndo(
+      t('imageUndoAlt'),
+      () => editor.operations.setBlockRaw(block, before),
+      () => editor.operations.setBlockRaw(block, md),
+    )
     void editor.render()
   }
 
@@ -165,7 +173,11 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
         if (!blockStillLive(block)) return
         const before = block.raw
         editor.operations.setBlockRaw(block, md)
-        editor.operations.pushUndo(t('imageUndoReplace'), () => editor.operations.setBlockRaw(block, before))
+        editor.operations.pushUndo(
+          t('imageUndoReplace'),
+          () => editor.operations.setBlockRaw(block, before),
+          () => editor.operations.setBlockRaw(block, md),
+        )
         void editor.render()
         showToast(t('imageReplaced'))
       } catch (err) {

@@ -13,8 +13,8 @@ describe('createUndoStack', () => {
     const order: string[] = []
     stack.push('a', () => order.push('a'))
     stack.push('b', () => order.push('b'))
-    expect(stack.undo()).toBe('b')
-    expect(stack.undo()).toBe('a')
+    expect(stack.undo()?.label).toBe('b')
+    expect(stack.undo()?.label).toBe('a')
     expect(order).toEqual(['b', 'a'])
     expect(stack.undo()).toBeNull()
   })
@@ -25,7 +25,7 @@ describe('createUndoStack', () => {
     for (const k of ['a', 'b', 'c', 'd']) stack.push(k, () => order.push(k))
     expect(stack.size()).toBe(3)
     // 连撤三次拿到 d/c/b，a 已经在栈外
-    expect([stack.undo(), stack.undo(), stack.undo()]).toEqual(['d', 'c', 'b'])
+    expect([stack.undo()?.label, stack.undo()?.label, stack.undo()?.label]).toEqual(['d', 'c', 'b'])
     expect(stack.undo()).toBeNull()
     expect(order).toEqual(['d', 'c', 'b'])
   })
@@ -45,7 +45,29 @@ describe('createUndoStack', () => {
     zero.push('a', () => {})
     zero.push('b', () => {})
     expect(zero.size()).toBe(1)
-    expect(zero.undo()).toBe('b')
+    expect(zero.undo()?.label).toBe('b')
+  })
+
+  test('带重放闭包的项撤销后，返回的记录带着它', () => {
+    const stack = createUndoStack()
+    const log: string[] = []
+    stack.push('a', () => log.push('undo'), () => log.push('redo'))
+    const entry = stack.undo()
+    expect(log).toEqual(['undo'])
+    expect(entry?.label).toBe('a')
+    entry?.redo?.()
+    expect(log).toEqual(['undo', 'redo'])
+    // 原撤销闭包也带回来：重做成功要把它塞回原栈，⌘Z 才能再撤
+    entry?.undo()
+    expect(log).toEqual(['undo', 'redo', 'undo'])
+  })
+
+  test('没给重放闭包的项，记录里 redo 缺席', () => {
+    const stack = createUndoStack()
+    stack.push('a', () => {})
+    const entry = stack.undo()
+    expect(entry?.label).toBe('a')
+    expect(entry && 'redo' in entry).toBe(false)
   })
 
   test('闭包捕获的是它压栈时的对象，不受后续改动影响', () => {

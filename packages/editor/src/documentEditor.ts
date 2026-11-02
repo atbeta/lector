@@ -16,6 +16,7 @@ import {
   type DefinitionSet,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
+import { undo as cmUndo, redo as cmRedo, undoDepth, redoDepth } from '@codemirror/commands'
 import { mountEditor, reusableHistory, type CmHandle } from './cm.ts'
 import type { EditorState } from '@codemirror/state'
 import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions, mdastHasLinkReference } from './mdastHtml.ts'
@@ -95,6 +96,8 @@ export interface DocumentEditor {
   openFind(): void
   /** 全局 ⌘Z：整篇 CM 有历史先走它，否则落到块级操作 / 切档快照。 */
   undo(): boolean
+  /** 全局重做：兜底重做（块级操作 / 切档快照）在先，承载自己的重做历史殿后。 */
+  redo(): boolean
   operations: BlockOperations
   /** 当前是否在源码档（整篇一个 CM）。大纲据此说明「这里不提供大纲」。 */
   isSourceMode(): boolean
@@ -212,6 +215,7 @@ export function createDocumentEditor({
     onDocChanged: () => markDirty(),
     onScroll: () => scheduleRecordPosition(),
     onUndoFallback: () => undoFallback(),
+    onRedoFallback: () => redoFallback(),
   })
 
   const operations = createBlockOperations({
@@ -228,6 +232,8 @@ export function createDocumentEditor({
     getDefinitions: () => sessionDefs(),
     // 切档撤销的落点：把整篇换成给定正文。当前在哪一档就走哪一档的承载。
     replaceWholeDocument: (raw) => restoreWholeDocument(raw),
+    // 重做基线的正文口径：与「保存会写什么」同源（见 documentSurface 的注释）。
+    wholeText: () => surface().saveText(),
   })
 
   // ── 正文的三种承载（见 documentSurface.ts）──
@@ -293,7 +299,10 @@ export function createDocumentEditor({
       // 打断很乱；单次跳转长距离也要滑 1s+。与 findHighlight 同一取舍。
       scrollTo: (id) => blocksEl.get(id)?.scrollIntoView({ behavior: 'auto', block: 'center' }),
     }),
-    undoHistory: () => false,
+    // 聚焦块的 CM 历史：全局 ⌘Z 只在没聚焦块时走到这里（聚焦时块内 keymap 先行），
+    // 那时 cm 为空恒 false；真正用到这条的是右键菜单——菜单撤销与键盘同一份语义。
+    undoHistory: () => !!cm && undoDepth(cm.view.state) > 0 && cmUndo(cm.view),
+    redoHistory: () => !!cm && redoDepth(cm.view.state) > 0 && cmRedo(cm.view),
     restoreWhole: (raw) => {
       let blocks = parseBlocks(raw)
       if (blocks.length === 0) {
@@ -401,6 +410,18 @@ export function createDocumentEditor({
   }
 
   /**
+   * CM 重做历史见底之后往外交的重做（块级操作 / 切档快照）。
+   *
+   * 与撤销的「先承载后兜底」相反，重做是**兜底在前**：兜底撤销只在承载历史
+   * 见底之后才发生，所以最后被撤掉的必然是兜底项，它的重做在时序上最靠后。
+   * 承载里若还有更旧的重做，只能是撤销之后又打过字——那种情况基线比对
+   * 已经把兜底重做栈作废了（见 blockOperations 的 redoBaseline）。
+   */
+  function redoFallback(): boolean {
+    return operations.redoFallback()
+  }
+
+  /**
    * 全局 ⌘Z 的唯一入口（焦点不在任何 CM 里时由快捷键走到这里）。
    *
    * 整篇 CM（源码档 / 大文件档）有自己的历史：焦点跑到侧栏等正文外的
@@ -410,6 +431,16 @@ export function createDocumentEditor({
    */
   function undo(): boolean {
     return surface().undoHistory() || undoFallback()
+  }
+
+  /**
+   * 全局 ⌘⇧Z / Ctrl+Y 的唯一入口（焦点不在任何 CM 里时由快捷键走到这里）。
+   *
+   * 顺序见 redoFallback 的注释：兜底重做先问，承载（整篇 CM / 聚焦块）自己的
+   * 重做历史殿后——按「最后被撤掉的最先重做」排，这是同一条时序的返程。
+   */
+  function redo(): boolean {
+    return redoFallback() || surface().redoHistory()
   }
 
   /** 当前正文的滚动容器：普通档是 #content，整篇 CM（源码档 / 大文件档）是自己的滚动层。 */
@@ -1305,6 +1336,8 @@ export function createDocumentEditor({
     lineNumbers: block.kind === 'code' && getSettings().codeLineNumbers,
         // 块内历史见底后，⌘Z 接着撤块级操作（见 cm.ts 的 Mod-z）
         onUndoFallback: () => undoFallback(),
+        // 块内重做历史见底后，⌘⇧Z / Ctrl+Y 接着放块级 / 切档的重做（见 cm.ts）
+        onRedoFallback: () => redoFallback(),
         // 代码块里不做 HTML→Markdown：那里要的是代码原文
         pasteHtmlAsMarkdown: block.kind !== 'code',
         structuralKeymap: {
@@ -1676,6 +1709,7 @@ export function createDocumentEditor({
     replaceInDocument,
     openFind,
     undo,
+    redo,
     operations,
     isSourceMode: () => sourceEditor.isActive(),
     sourcePlainText: () => (sourceEditor.isActive() ? sourceEditor.text() : null),

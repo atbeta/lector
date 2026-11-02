@@ -1,4 +1,4 @@
-import { defaultKeymap, history, historyField, historyKeymap, undoDepth } from '@codemirror/commands'
+import { defaultKeymap, history, historyField, historyKeymap, undoDepth, redoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { keymap, lineNumbers, EditorView, highlightWhitespace } from '@codemirror/view'
@@ -30,6 +30,11 @@ export interface EditorialConfig {
    * 返回 true 表示真的撤掉了（调用方自己重绘）。
    */
   onUndoFallback?: () => boolean
+  /**
+   * 兜底重做：这份 CM 的重做历史已经空了，块级操作 / 切档快照还有
+   * 可重放的时候调用。返回 true 表示真的重放了（调用方自己重绘）。
+   */
+  onRedoFallback?: () => boolean
   /**
    * 粘贴 HTML 时是否转成 Markdown（默认转）。
    * 代码块里要关掉：那里要的是代码原文，把网页的 `<pre>` 转成一个新围栏
@@ -171,6 +176,19 @@ export function formatSelection(
   else applyWrap(view, '[', undefined, 'url')
 }
 
+/**
+ * 兜底重做的公共入口（Mod-Shift-z / Mod-y 共用）。
+ *
+ * CM 自己的重做栈还有东西就让位——返回 false，historyKeymap 的 redo 接走；
+ * 见底了才推迟到键盘事件走完后调 onRedoFallback。推迟的理由同 Mod-z：
+ * 重放可能拆掉当前聚焦的块或重建块表，中途销毁 CM 会让它在已拆掉的 DOM 上继续跑。
+ */
+function redoFallback(view: EditorView, config: EditorialConfig): boolean {
+  if (redoDepth(view.state) > 0) return false
+  window.setTimeout(() => config.onRedoFallback?.(), 0)
+  return true
+}
+
 function lineNumberExt(on: boolean | undefined): Extension {
   return on ? lineNumbers() : []
 }
@@ -303,6 +321,15 @@ export function mountEditor(
             window.setTimeout(() => config.onUndoFallback?.(), 0)
             return true
           },
+        },
+        {
+          key: 'Mod-Shift-z',
+          run: (view) => redoFallback(view, config),
+        },
+        {
+          // 非 mac 平台的重做多按 Ctrl+Y（historyKeymap 同款键位）；两条都要接管
+          key: 'Mod-y',
+          run: (view) => redoFallback(view, config),
         },
         {
           key: 'Enter',

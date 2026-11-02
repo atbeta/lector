@@ -7,6 +7,9 @@
  *
  * 记闭包而不是记快照：闭包能带上操作发生时的位置和对象身份，
  * 退回去时不必猜「当时它是第几块」。
+ *
+ * 每项还可带一个「怎么重放」的闭包（redo）：撤销把它挪到重做栈，重做再挪回来。
+ * 没有 redo 的项是刻意降级——它的撤销会把整条重做链断开（撤错了比没的撤更糟）。
  */
 
 export interface UndoEntry {
@@ -14,13 +17,15 @@ export interface UndoEntry {
   label: string
   /** 把这次操作退回去。执行前后由调用方负责重新渲染。 */
   undo: () => void
+  /** 把这次操作重放一遍（重做用）。执行前后由调用方负责重新渲染。 */
+  redo?: () => void
 }
 
 export interface UndoStack {
-  /** 压入一次可撤销的操作。 */
-  push(label: string, undo: () => void): void
-  /** 弹出并执行最后一次操作，返回它的 label；栈空时返回 null。 */
-  undo(): string | null
+  /** 压入一次可撤销的操作。redo 是可选的重放闭包，能在撤销后原样再做一遍时给出。 */
+  push(label: string, undo: () => void, redo?: () => void): void
+  /** 弹出并执行最后一次操作，返回它的整条记录；栈空时返回 null。 */
+  undo(): UndoEntry | null
   /** 丢弃全部历史（换文档时用）。 */
   clear(): void
   /** 当前可撤销的次数。 */
@@ -37,15 +42,16 @@ export function createUndoStack(max = 20): UndoStack {
   const limit = Math.max(1, Math.floor(max))
   const entries: UndoEntry[] = []
   return {
-    push(label, undo) {
-      entries.push({ label, undo })
+    push(label, undo, redo) {
+      // exactOptionalPropertyTypes：redo 缺席时整条字段不要挂上去
+      entries.push(redo ? { label, undo, redo } : { label, undo })
       if (entries.length > limit) entries.shift()
     },
     undo() {
       const entry = entries.pop()
       if (!entry) return null
       entry.undo()
-      return entry.label
+      return entry
     },
     clear() {
       entries.length = 0

@@ -20,7 +20,7 @@ import type { createReadingPositionController } from './readingPositionControlle
 interface AppBindingsDeps {
   editor: Pick<
     DocumentEditor,
-    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations' | 'undo'
+    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations' | 'undo' | 'redo'
   >
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
   chrome: Pick<
@@ -184,6 +184,16 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
       // 块级项只在记录它的块表存活期间存在，所以剩下的块级项必然比所有
       // 切档快照新，「先块级后快照」是时序而不是偏好。
       if (editor.undo()) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+      return
+    }
+    // 重做同一条规矩：没有可重放的就把按键还给系统（浏览器自己的 ⌘⇧Z 行为）。
+    if (action.kind === 'redo-block') {
+      // editor.redo() 先走兜底重做（块级 / 切档），再走承载自己的重做历史——
+      // 兜底撤销只在承载历史见底后发生，最后被撤掉的必然先在它身上重做。
+      if (editor.redo()) {
         e.preventDefault()
         e.stopPropagation()
       }
