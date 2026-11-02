@@ -20,6 +20,25 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.39.0 (2026-11-02)
+
+### Added
+
+- feat(editor): insert a paragraph below the focused block
+
+### Fixed
+
+- fix(editor): keep block undo history across focus changes
+- fix(editor): edit source mode as one CodeMirror document
+- fix(editor): leave a quote or list on a second Enter
+- fix(editor): count words from raw when mdast is stale
+- fix(editor): refresh preview after an edit is fully reverted
+
+### Internal
+
+- docs: list the CSS variables and classes custom styles can target
+- docs: add a guide for custom CSS and Mermaid config
+
 ## v0.38.11 (2026-10-31)
 
 ### Fixed
