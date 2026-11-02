@@ -31,10 +31,11 @@ Lector —— 阅读优先的 Markdown 编辑器。AI 编码 Agent 与人类协�
 
 - **Bun + TypeScript**（bun workspaces）。`packages/core` 无 DOM、测试先行：`bun test` 覆盖切片无缝覆盖全文、未编辑保存恒等、脏一块只动一块、CRLF/BOM 还原。
 - 质量门：`bun test` + `bun run typecheck`；改动完成前运行与变更范围匹配的检查。
-- 渲染层回归：`bun run verify:ui`（自动起 Vite 5199 + 自动找浏览器）。覆盖六份：
+- 渲染层回归：`bun run verify:ui`（自动起 Vite 5199 + 自动找浏览器）。覆盖七份：
   `ui-verify`（合成后的对比度/版式/交互）、`refactor-verify`（大纲、阅读位置、复制、预览、入口初始化）、
   `block-indicator-verify`（轨道/把手/聚焦描边）、`outline-image-verify`（大纲命中与图片区）、
-  `statusbar-verify`（状态行字段）、`source-dirty-verify`（源码档脏标记 + 存盘字节）。
+  `statusbar-verify`（状态行字段）、`source-dirty-verify`（源码档脏标记 + 存盘字节）、
+  `source-parse-verify`（源码档期间尾巴解析：不画块 DOM、不把旧块拼进新表）。
   改动界面、层叠或交互后跑一次。
   **没浏览器时它会打印 SKIP 并以 0 退出**——服务器上没有浏览器是常态，不是失败；
   想让它变严格用 `bun run verify:ui -- --strict`，想指定浏览器用 `LECTOR_BROWSER=<exe>`。

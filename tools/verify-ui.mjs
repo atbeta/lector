@@ -30,6 +30,7 @@ const SCRIPTS = [
   ['refactor-verify', 'tools/refactor-verify.mjs'],
   ['block-indicator-verify', 'tools/block-indicator-verify.mjs'],
   ['source-dirty-verify', 'tools/source-dirty-verify.mjs'],
+  ['source-parse-verify', 'tools/source-parse-verify.mjs'],
 ]
 
 /** 只探测一个 host 是不够的：vite 8 默认只绑 IPv6（::1），而 Node 的 fetch 可能

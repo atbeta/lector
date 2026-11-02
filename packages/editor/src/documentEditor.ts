@@ -404,6 +404,9 @@ export function createDocumentEditor({
   function paintFresh(blocks: BlockView[]): BlockView[] {
     const drawn: BlockView[] = []
     if (blocks.length === 0) return drawn
+    // 源码档不画任何块 DOM：切回来时 render() 会统一 reconcile，
+    // 在这里画只会留下没人管的孤儿节点与假 lastPaint。
+    if (sourceEditor.isActive()) return drawn
     const pendingEl = blocksEl.get('pending') ?? null
     const mode = getViewMode()
     const drawBatch = shells.drawThisBatch(blocks.length)
@@ -477,7 +480,9 @@ export function createDocumentEditor({
   function pumpParser(parser: ChunkedParser, generation: number): void {
     const run = () => {
       if (generation !== parseGeneration || activeParser !== parser) return
-      if (parsePaused) {
+      // 源码档期间同样空转（16ms 再探）：块 DOM 不挂、块表可能整篇换掉，
+      // parser 继续步进只会画看不见的 DOM、往表里塞旧文本的块。
+      if (parsePaused || sourceEditor.isActive()) {
         window.setTimeout(run, 16)
         return
       }
@@ -711,6 +716,11 @@ export function createDocumentEditor({
     lastPaint.clear()
     parsedRaw.clear()
     blockHistory.clear()
+    // 块表被整篇替换：在跑的尾巴 parser 会把旧文本的块 append 进来，先停掉。
+    parseGeneration++
+    parsePauseTicket++
+    activeParser = null
+    parsePaused = false
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
@@ -809,6 +819,11 @@ export function createDocumentEditor({
     blockHistory.clear()
     // 块表整篇重建：块级撤销项里的旧块身份失效（同 restoreWholeDocument）。
     operations.discardBlockOps()
+    // 尾巴 parser 也必须停：它还握着旧文本，下一步会把旧块 append 进新表。
+    parseGeneration++
+    parsePauseTicket++
+    activeParser = null
+    parsePaused = false
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
@@ -844,7 +859,9 @@ export function createDocumentEditor({
     // 预渲染 KaTeX：走一次 katex 库加载 + 所有 math 节点并行渲染,之后 renderBlockHtml 同步读 cache。
     // 文档无 math 节点时,这步 0 开销。
     await preRenderMath(session.blocks)
-    if (pauseTicket !== parsePauseTicket || !session.source) return
+    // await 期间可能切进了源码档：那时 #content 只剩整篇 CM，
+    // 这轮把块画进去就是孤儿 DOM（曾经几千个块一次塞进源码档）。
+    if (pauseTicket !== parsePauseTicket || !session.source || sourceEditor.isActive()) return
     // 定义一变，引用它的块 raw 没变也得重画（sameBlockPaint 只看 raw/kind/表面）
     if (setLinkDefinitions(session.blocks)) lastPaint.clear()
     const desired: HTMLElement[] = []
@@ -902,7 +919,9 @@ export function createDocumentEditor({
         }
       }
       scheduleBlockContainment()
-      shells.mountRest(desired, () => paintGen === paintGeneration, unpause)
+      // 中途切进源码档就停挂：那边 #content 只该有整篇 CM，切回来时
+      // render() 会重新 reconcile 全部块。
+      shells.mountRest(desired, () => paintGen === paintGeneration && !sourceEditor.isActive(), unpause)
       return
     }
     // 块很多时只先画首屏，其余分批补（见 paintRestInBatches）
@@ -944,7 +963,8 @@ export function createDocumentEditor({
   ): void {
     let cursor = from
     const step = () => {
-      if (generation !== paintGeneration) {
+      // 同 mountRest：中途切进源码档，剩下的批次不再往 #content 里挂。
+      if (generation !== paintGeneration || sourceEditor.isActive()) {
         onDone()
         return
       }
@@ -966,6 +986,8 @@ export function createDocumentEditor({
 
   /** 只重画一块。聚焦/失焦走这条，避免整篇 render() 先 await 公式再按文档序重画上一块。 */
   function paintBlock(block: BlockView, mode: string = getViewMode()): void {
+    // 源码档块 DOM 不挂：早退且不写 lastPaint，否则回来时以为画过了。
+    if (sourceEditor.isActive()) return
     const el = blocksEl.get(block.id)
     if (!el) return
     const focused = block.id === session.focusedId
@@ -1070,7 +1092,7 @@ export function createDocumentEditor({
    * 块的边界指示器（完整理由见 chrome.css 的「块指示器」段）。两个节点都挂，
    * 由样式按 `html[data-mode]` 决定哪一个上场——**每档只出一样东西**：
    *   - 轨道：只读档。那里没有衬底、没有左边线、也没有把手，边界只有它说。
-   *   - 把手：编辑/源码档。把右键那份块菜单显性化（此前只能靠右键猜出来）。
+   *   - 把手：编辑档。把右键那份块菜单显性化（此前只能靠右键猜出来）。
    * 用样式而不是渲染时判断，切档才不用重渲染整篇块。
    *
    * 每轮渲染重建，不维护第二份「把手表」：renderBlockContent 会 replaceChildren，
@@ -1226,15 +1248,6 @@ export function createDocumentEditor({
       // 靠坐标落点要等这一帧排完，否则 posAtCoords 读到的是空的。
       if (!intent || intent.mode === 'pos') place()
       else requestAnimationFrame(place)
-    } else if (getViewMode() === 'source') {
-      // 源码模式：每块以等宽源码呈现，不走 mdast HTML。
-      // mermaid / 图片的渲染属于预览路径，源码模式不解释。
-      const src = document.createElement('pre')
-      src.className = 'source-view'
-      const code = document.createElement('code')
-      code.textContent = block.raw
-      src.appendChild(code)
-      el.appendChild(src)
     } else {
       const preview = document.createElement('div')
       preview.className = 'preview reading-prose'

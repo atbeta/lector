@@ -45,6 +45,20 @@ export async function openStartupDocument(files: Pick<FileController, 'loadSessi
       }
       files.loadSession('long.md', parts.join(''))
     }
+    // 尾巴解析样例：`?doc=tail`。约 14MB / 八千个 `##` 小节，打开后尾部仍由
+    // 时间片续解析（秒级），用来验「源码档期间尾巴解析不得往块表里塞东西」。
+    // 块数约 3.2 万（标题、段落各带一条缝），低于大文件模式的投影上限（MAX_IR_BLOCKS），留在 IR 档。
+    else if (which === 'tail') {
+      const para =
+        '这一节的内容是一段普通的说明文字，用来把文档撑到时间片解析的量级。' +
+        '正文刻意写得很平，不包含表格、公式或图片，让解析成本只来自篇幅。'.repeat(18) +
+        '\n\n'
+      const parts: string[] = []
+      for (let i = 1; i <= 8000; i++) {
+        parts.push(`## 第 ${i} 节\n\n${para}`)
+      }
+      files.loadSession('tail.md', parts.join(''))
+    }
     // 大文件样例：`?doc=huge`。现场生成 5 万行（约 2MB）——不往仓库里塞大文件。
     // 这一串没有空行、切不开，会撞上"单块巨物"的行数线（MAX_BLOCK_RUN），进大文件模式。
     else if (which === 'huge') {
