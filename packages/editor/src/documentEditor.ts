@@ -93,7 +93,8 @@ export interface DocumentEditor {
   replaceInDocument(find: string, replacement: string): boolean
   openFind(): void
   operations: BlockOperations
-  scrollSourceHeading(id: string): boolean
+  /** 当前是否在源码档（整篇一个 CM）。大纲据此说明「这里不提供大纲」。 */
+  isSourceMode(): boolean
   sourcePlainText(): string | null
 }
 
@@ -669,7 +670,12 @@ export function createDocumentEditor({
     const changed = sourceEditor.changedSinceMount()
     const dirty = sourceEditor.isDirty()
     sourceEditor.destroy()
-    if (!changed) return
+    if (!changed) {
+      // 正文没变，块表沿用——但大纲还停在源码档那句「不提供」上，得重画回来。
+      // 不能只靠 outline.refresh()：它按标题签名判断，签名没变就不会重建。
+      renderOutline()
+      return
+    }
     let blocks = parseBlocks(text)
     if (blocks.length === 0) {
       const { para, gap } = operations.makeEmptyParagraph(0)
@@ -689,23 +695,6 @@ export function createDocumentEditor({
     invalidateBlockIndex()
     // 块表换了，重算脏状态并让大纲跟上（源码档里改的标题到这里才落地）。
     markDirty()
-  }
-
-  function scrollSourceHeading(id: string): boolean {
-    if (!sourceEditor.isActive()) return false
-    const block = session.blocks.find((b) => b.id === id && b.kind === 'heading')
-    if (!block) return false
-    let pos = block.start
-    const text = sourceEditor.text()
-    if (sourceEditor.changedSinceMount()) {
-      // 块表里是切进源码档时的旧位置；正文改过就得在现在的正文里重找。
-      // 块的 raw 带原文行尾（CRLF），CM 里只有 LF，先归一再找。
-      const needle = block.raw.replace(/\r\n?/g, '\n')
-      const at = needle ? text.indexOf(needle) : -1
-      if (at >= 0) pos = at
-    }
-    sourceEditor.reveal(pos)
-    return true
   }
 
   async function render() {
@@ -1560,7 +1549,7 @@ export function createDocumentEditor({
     replaceInDocument,
     openFind,
     operations,
-    scrollSourceHeading,
+    isSourceMode: () => sourceEditor.isActive(),
     sourcePlainText: () => (sourceEditor.isActive() ? sourceEditor.text() : null),
   }
 }

@@ -19,8 +19,8 @@ interface OutlineDeps {
   getBlocks(): readonly BlockView[]
   getBlockElement(id: string): HTMLElement | undefined
   isLargeDocument(): boolean
-  /** 源码档整篇 CM 时，按标题 id 滚到对应原文位置。处理了就返回 true。 */
-  scrollSourceHeading?(id: string): boolean
+  /** 源码档同样是整篇一个 CM、没有块，大纲在那里没有立足点（见 renderOutline）。 */
+  isSourceDocument(): boolean
 }
 
 export function createOutline({
@@ -29,7 +29,7 @@ export function createOutline({
   getBlocks,
   getBlockElement,
   isLargeDocument,
-  scrollSourceHeading,
+  isSourceDocument,
 }: OutlineDeps) {
   /**
    * 大纲签名：标题的 id / 级别 / 文字。变了就说明大纲该重建。
@@ -126,18 +126,35 @@ export function createOutline({
     if (changed) writeCollapsedPref()
   }
 
+  /** 「这里不提供大纲」的说明。留白会让人以为文档没有标题。 */
+  function showUnavailable(message: string): void {
+    sidebar.body.innerHTML = ''
+    outlineRows.clear()
+    outlineNodes.clear()
+    const p = document.createElement('p')
+    p.className = 'outline-empty'
+    p.textContent = message
+    sidebar.body.appendChild(p)
+  }
+
   function renderOutline() {
     headingOffsets = []
     headingOffsetHeight = null
     if (isLargeDocument()) {
       // 大文件不建块，也就没有现成的标题列表。这里明确说明「不可用」，
       // 而不是留一片空白让人以为文档没有标题。
-      sidebar.body.innerHTML = ''
-      const p = document.createElement('p')
-      p.className = 'outline-empty'
-      p.textContent = t('outlineLargeUnavailable')
-      sidebar.body.appendChild(p)
-      return
+      return showUnavailable(t('outlineLargeUnavailable'))
+    }
+    if (isSourceDocument()) {
+      // 源码档不提供大纲，不是「暂时没解析出来」。
+      //
+      // 大纲的每一条都挂在**块**上：块 id 是跳转目标，块顺序是全文档顺序，
+      // 滚动反查靠块的 getBoundingClientRect。源码档里整篇是一个 CodeMirror，
+      // 这些前提全部不成立——硬撑下去只能给出一份错的目录：
+      // 高亮停在切档那一刻的标题不再跟滚动、点条目跳到别处、
+      // 改标题文字大纲也不更新（块表要退出源码档才重解析）。
+      // 三条症状同一个根因，断掉它比逐个打补丁实在。
+      return showUnavailable(t('outlineSourceUnavailable'))
     }
     const headings: OutlineHeading[] = getBlocks()
       .filter((b) => b.kind === 'heading')
@@ -241,10 +258,6 @@ export function createOutline({
 
   /** 跳到某小节：顶部对齐，并留一点呼吸（由 #content 的 scroll-padding-top 提供）。 */
   function jumpToHeading(id: string): void {
-    if (scrollSourceHeading?.(id)) {
-      setActiveHeading(id, { reveal: true })
-      return
-    }
     const el = getBlockElement(id)
     if (!el) return
     // 瞬时跳转：浏览器的 smooth 时长不受控，长距离能滑 1s+，导航要的是立刻到达
@@ -342,13 +355,25 @@ export function createOutline({
 
   let refreshRaf = 0
 
+  /**
+   * 有没有块大纲。没有时签名是个固定值，不随标题变化。
+   *
+   * 必须让签名带上档位：源码档里标题没变（改的是正文别处）时，
+   * 只比标题签名会认为「大纲没变」，退出源码档就不重画——侧栏一直挂着
+   * 那句「源码档不提供大纲」。反过来，若靠清空签名来暗示重建，
+   * 源码档里每敲一个键都会重绘一次侧栏（每次都判成「变了」）。
+   */
+  function outlineUnavailable(): boolean {
+    return isLargeDocument() || isSourceDocument()
+  }
+
   function refresh(): void {
     // 打字时 mdast 要失焦才重解析，标题签名此时不会变；
     // 同一帧里多次 markDirty 只扫一次 heading 即可。
     if (refreshRaf) return
     refreshRaf = requestAnimationFrame(() => {
       refreshRaf = 0
-      const sig = outlineSignature(getBlocks())
+      const sig = outlineUnavailable() ? 'unavailable' : outlineSignature(getBlocks())
       if (sig !== lastOutlineSignature) {
         lastOutlineSignature = sig
         if (sidebar.isOpen()) renderOutline()

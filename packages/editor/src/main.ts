@@ -74,7 +74,7 @@ const outline = createOutline({
   getBlocks: () => editor.getSession().blocks,
   getBlockElement: (id) => editor.getBlockElement(id),
   isLargeDocument: () => editor.isLarge(),
-  scrollSourceHeading: (id) => editor.scrollSourceHeading(id),
+  isSourceDocument: () => editor.isSourceMode(),
 })
 
 const positions = createReadingPositionController({

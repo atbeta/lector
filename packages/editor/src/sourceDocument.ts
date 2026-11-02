@@ -139,17 +139,6 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
     contentEl.querySelector(':scope > .source-doc-host')?.remove()
   }
 
-  function reveal(pos: number): void {
-    const view = cm?.view
-    if (!view) return
-    const at = Math.max(0, Math.min(pos, view.state.doc.length))
-    view.dispatch({
-      selection: { anchor: at },
-      effects: EditorView.scrollIntoView(at, { y: 'start' }),
-    })
-    view.focus()
-  }
-
   return {
     mount,
     destroy,
@@ -161,7 +150,6 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
     markSaved,
     isActive: () => cm !== null,
     getView: () => cm?.view ?? null,
-    reveal,
     revealFind: (hits: FindMatch[], current: number) => cm?.applyFind(hits, current),
     clearFind: () => cm?.clearFind(),
   }
