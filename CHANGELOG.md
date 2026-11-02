@@ -28,6 +28,7 @@ release notes up by that header.
 
 ### Fixed
 
+- fix(editor): keep the shortcut row from being truncated
 - fix(editor): keep block undo history across focus changes
 - fix(editor): edit source mode as one CodeMirror document
 - fix(editor): leave a quote or list on a second Enter
