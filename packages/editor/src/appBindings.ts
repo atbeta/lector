@@ -253,6 +253,15 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpa
       case 'find':
         editor.openFind()
         break
+      case 'insert-paragraph-after': {
+        // 插入会换掉当前聚焦块（focusBlock 销毁旧 CM）。CM 自己那条 Mod-z
+        // 也是这么做的：等这记键盘事件走完再动手，否则被拆掉的 CM 会继续
+        // 在已经不存在的 DOM 上跑。
+        const id = editor.getSession().focusedId
+        if (!id) break
+        window.setTimeout(() => editor.operations.insertParagraphAfter(id), 0)
+        break
+      }
       case 'shortcuts':
         openShortcutsPanel()
         break

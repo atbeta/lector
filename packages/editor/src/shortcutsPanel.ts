@@ -55,6 +55,8 @@ export function shortcutGroups(): ShortcutGroup[] {
       title: t('shortcutGroupEdit'),
       rows: [
         { keys: mod('F'), label: t('findAria') },
+        // 文案复用菜单里的「在下方插入段落」：同一个动作，两处说法一致
+        { keys: modShift('↵'), label: t('menuInsertAfter') },
         { keys: mod('B'), label: t('fmtBold') },
         { keys: mod('I'), label: t('fmtItalic') },
         { keys: mod('K'), label: t('fmtLink') },

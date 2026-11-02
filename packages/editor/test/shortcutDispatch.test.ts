@@ -106,6 +106,16 @@ describe('快捷键分派', () => {
     expect(kind({ mod: true, shift: true, key: '?' })).toBe(null)
   })
 
+  test('⌘⇧↵ 在聚焦块下方插入段落', () => {
+    expect(kind({ mod: true, shift: true, key: 'Enter', focusedBlock: true })).toBe('insert-paragraph-after')
+    // 没有聚焦块就没有插入点：用户没说要在哪儿插，不猜
+    expect(kind({ mod: true, shift: true, key: 'Enter' })).toBe(null)
+    // ⌘↵ 归 CodeMirror（插入新行并缩进），不抢
+    expect(kind({ mod: true, key: 'Enter', focusedBlock: true })).toBe(null)
+    // 单独的 ⇧↵ 不带主修饰键也不是它
+    expect(kind({ shift: true, key: 'Enter', focusedBlock: true })).toBe(null)
+  })
+
   test('defaultPrevented 只挡文档/视图那组，不挡撤销与保存', () => {
     // 聚焦块里的裸 CM 已接管的键（Ctrl+E 行内代码…）冒泡上来必须放行
     expect(kind({ mod: true, key: 'e', defaultPrevented: true })).toBe(null)

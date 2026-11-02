@@ -44,6 +44,7 @@ export type ShortcutAction =
   | { kind: 'ui-zoom'; dir: 1 | -1 | 0 }
   | { kind: 'font-size'; dir: 1 | -1 | 0 }
   | { kind: 'find' }
+  | { kind: 'insert-paragraph-after' }
   | { kind: 'shortcuts' }
   | { kind: 'cycle-mode' }
   | { kind: 'set-mode'; index: 0 | 1 | 2 }
@@ -99,6 +100,16 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
 
   // ⌘F 查找
   if (key === 'f') return { kind: 'find' }
+
+  // ⌘⇧↵ 在当前块下方插入一个段落
+  //
+  // 为什么是 ⌘⇧↵ 而不是 ⌘↵：⌘↵（Mod-Enter）被 CodeMirror 的默认键位
+  // 占着（插入新行并缩进），在聚焦块里会先被 CM 吃掉。⌘⇧↵ 无人绑定，
+  // 也是各编辑器「在下面插一行」的通用约定。
+  //
+  // 锚点是**当前聚焦的块**，不是鼠标位置——插入点跟文档结构走。
+  // 没有聚焦块时不做：用户没说要在哪儿插，猜一个位置会插错地方。
+  if (h.shift && h.focusedBlock && key === 'Enter') return { kind: 'insert-paragraph-after' }
   // ⌘E 循环 read → edit → source → read
   if (!h.shift && key === 'e') return { kind: 'cycle-mode' }
   // ⌘1/2/3 直选档位——循环要按很多次才能到位，直选不用
