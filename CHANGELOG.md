@@ -20,6 +20,13 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## Unreleased
+
+### Fixed
+
+- fix(editor): restore find highlighting in source mode
+- fix(editor): keep undo history across mode switches
+
 ## v0.39.1 (2026-11-02)
 
 ### Fixed
