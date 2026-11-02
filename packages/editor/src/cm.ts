@@ -1,13 +1,14 @@
-import { defaultKeymap, history, historyKeymap, undoDepth } from '@codemirror/commands'
+import { defaultKeymap, history, historyField, historyKeymap, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { keymap, lineNumbers, EditorView, highlightWhitespace } from '@codemirror/view'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
-import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
+import { EditorState, Prec, type Extension } from '@codemirror/state'
 import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
+import { toCmText } from './sourceText.ts'
 import { applyFindHits, clearFindHits, findHitField } from './cmFind.ts'
 import type { FindMatch } from './findMatch.ts'
 
@@ -72,7 +73,9 @@ export interface EditorialConfig {
   onDocChanged?: () => void
   /**
    * 这块上次失焦时留下的状态。文档和 raw 一致才用，撤销栈因此能跨过切块。
-   * 行号、空白、括号配对用隔间装，恢复时按当前设置重配，不动历史。
+   * 恢复时用 fromJSON 只搬正文、选区和历史字段，其余全部按本次挂法的
+   * 扩展重建——直接拿整份旧 EditorState 会把上一次挂载的扩展（旧的
+   * onChange / keymap / 语言闭包）原样接回来，新配置静默失效。
    */
   initialState?: EditorState
   /** 覆盖默认的 markdown 语法（mermaid 块换专用 StreamLanguage 高亮）。 */
@@ -168,10 +171,6 @@ export function formatSelection(
   else applyWrap(view, '[', undefined, 'url')
 }
 
-const lineNumberCompartment = new Compartment()
-const whitespaceCompartment = new Compartment()
-const pairsCompartment = new Compartment()
-
 function lineNumberExt(on: boolean | undefined): Extension {
   return on ? lineNumbers() : []
 }
@@ -184,10 +183,35 @@ function pairsExt(on: boolean): Extension {
   return on ? [closeBrackets(), keymap.of(closeBracketsKeymap)] : []
 }
 
-/** 原文还和这份状态一致，才把撤销栈装回去。外面改过 raw 就丢掉。 */
+/**
+ * 原文还和这份状态一致，才把撤销栈装回去。外面改过 raw 就丢掉。
+ *
+ * 按 CM 的切行口径比（toCmText）：磁盘原文的 CRLF / 混合换行在装载时
+ * 已被规整，直接比字符串会让混合换行文件永远接不回历史。
+ */
 export function reusableHistory(saved: EditorState | undefined, raw: string): EditorState | undefined {
-  if (!saved || saved.doc.toString() !== raw) return undefined
+  if (!saved || !saved.doc.eq(toCmText(raw))) return undefined
   return saved
+}
+
+/**
+ * 把上次留下的 EditorState 搬进本次挂法：正文、选区、撤销历史原样保留，
+ * 其余（keymap、语言、更新监听、查找字段……）全部用本次的 extensions 重建。
+ *
+ * 为什么不能直接用整份旧 state 建 view：状态里冻着上一次挂载的扩展，
+ * onChange / structuralKeymap 这类闭包都还指向旧的那一轮，新配置永远不生效。
+ *
+ * 重建失败（历史字段不在旧状态里、JSON 对不上）就退化成全新状态——
+ * 丢一条撤销记录好过把编辑器挂死（非核心能力可以降级，不能阻塞编辑）。
+ */
+export function remountState(saved: EditorState, doc: string, extensions: Extension): EditorState {
+  try {
+    return EditorState.fromJSON(saved.toJSON({ history: historyField }), { extensions }, {
+      history: historyField,
+    })
+  } catch {
+    return EditorState.create({ doc, extensions })
+  }
 }
 
 export function mountEditor(
@@ -203,7 +227,7 @@ export function mountEditor(
     // 与阅读态同一套 --code-* 变量。
     config.language ?? markdown({ codeLanguages: languages }),
     // 代码块编辑态行号：与阅读态 gutter 同一设置开关（documentEditor 传入）
-    lineNumberCompartment.of(lineNumberExt(config.lineNumbers)),
+    lineNumberExt(config.lineNumbers),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
@@ -242,10 +266,7 @@ export function mountEditor(
       '.cm-selectionMatch': { backgroundColor: 'transparent' },
     }),
   ]
-  extensions.push(
-    pairsCompartment.of(pairsExt(config.autoCharacterPairs)),
-    whitespaceCompartment.of(whitespaceExt(config.showWhitespace)),
-  )
+  extensions.push(pairsExt(config.autoCharacterPairs), whitespaceExt(config.showWhitespace))
   // 行内格式快捷键：⌘B 粗体 / ⌘I 斜体 / ⌘E 行内代码 / ⌘K 链接。
   //
   // 这是「顺手能改」的核心：没有它，读者想加粗一个词就得手打四个星号、
@@ -360,17 +381,10 @@ export function mountEditor(
   const saved = reusableHistory(config.initialState, doc)
   const view = new EditorView({
     parent: host,
-    state: saved ?? EditorState.create({ doc, extensions }),
+    // 复用旧状态时只搬正文 / 选区 / 历史，扩展必须是本次新建的这份——
+    // 旧 state 里冻着旧挂载的闭包，直接拿来建视图等于本次配置白传。
+    state: saved ? remountState(saved, doc, extensions) : EditorState.create({ doc, extensions }),
   })
-  if (saved) {
-    view.dispatch({
-      effects: [
-        lineNumberCompartment.reconfigure(lineNumberExt(config.lineNumbers)),
-        whitespaceCompartment.reconfigure(whitespaceExt(config.showWhitespace)),
-        pairsCompartment.reconfigure(pairsExt(config.autoCharacterPairs)),
-      ],
-    })
-  }
   return {
     view,
     destroy: () => view.destroy(),
