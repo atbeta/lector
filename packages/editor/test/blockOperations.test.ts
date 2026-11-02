@@ -243,6 +243,42 @@ describe('splitBlock', () => {
     expect(ids.includes(emptyPara.id)).toBe(true)
   })
 
+  test('引用块末尾已是空行时，再按回车离开并去掉那行空行', () => {
+    const s = makeSession('> 甲\n\n后文\n')
+    const { ops, focusCalls } = makeOps(s)
+    const quote = s.blocks.find((b) => b.kind === 'blockquote')!
+    expect(ops.splitBlock(quote, fakeView('> 甲'))).toBe(false)
+    expect(ops.splitBlock(quote, fakeView('> 甲\n'))).toBe(true)
+    expect(quote.raw).toBe('> 甲')
+    expect(quote.kind).toBe('blockquote')
+    const qi = s.blocks.findIndex((b) => b.id === quote.id)
+    expect(s.blocks[qi + 2]!.kind).toBe('paragraph')
+    expect(s.blocks[qi + 2]!.raw).toBe('')
+    expect(focusCalls[0]!.id).toBe(s.blocks[qi + 2]!.id)
+    expect(serialize(s.blocks).startsWith('> 甲\n')).toBe(true)
+    expect(serialize(s.blocks)).toContain('后文')
+  })
+
+  test('列表空条目上按回车：去掉记号并在后面开一段', () => {
+    const s = makeSession('- 甲\n\n后文\n')
+    const { ops } = makeOps(s)
+    const list = s.blocks.find((b) => b.kind === 'list')!
+    expect(ops.splitBlock(list, fakeView('- 甲'))).toBe(false)
+    expect(ops.splitBlock(list, fakeView('- 甲\n- '))).toBe(true)
+    expect(list.raw).toBe('- 甲')
+    expect(list.kind).toBe('list')
+    const li = s.blocks.findIndex((b) => b.id === list.id)
+    expect(s.blocks[li + 2]!.raw).toBe('')
+  })
+
+  test('行尾是未闭合围栏时不拆段', () => {
+    const s = makeSession('正文\n')
+    const { ops } = makeOps(s)
+    const para = s.blocks.find((b) => b.kind === 'paragraph')!
+    expect(ops.splitBlock(para, fakeView('```'))).toBe(false)
+    expect(s.blocks.some((b) => b.raw === '')).toBe(false)
+  })
+
   test('非块末 / 非段落标题不分裂', () => {
     const s = makeSession('# 标题\n\n正文\n')
     const { ops, focusCalls } = makeOps(s)

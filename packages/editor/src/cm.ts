@@ -282,7 +282,9 @@ export function mountEditor(
     bind('ArrowDown', keys.ArrowDown)
     bind('ArrowLeft', keys.ArrowLeft)
     bind('ArrowRight', keys.ArrowRight)
-    if (bindings.length) extensions.push(Prec.high(keymap.of(bindings)))
+    // markdown() 自己的 Enter 也是 Prec.high，而且挂得更早，会先续上引用/列表。
+    // 离开引用和列表必须抢在那条前面，否则块末回车永远进不了 splitBlock。
+    if (bindings.length) extensions.push(Prec.highest(keymap.of(bindings)))
   }
   /** 把当前选区（含视口坐标）报给外部；空选区或失焦报 null。 */
   const reportSelection = (view: EditorView): void => {

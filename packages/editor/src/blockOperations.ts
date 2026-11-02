@@ -394,20 +394,50 @@ export function createBlockOperations({
     })
   }
 
-  /** 聚焦段末回车 → 分裂成两段（前段 + 空段）。返回 true 表示已处理。 */
+  /**
+   * 引用 / 列表想再写一行，第一次回车仍留在块里。
+   * 末尾已经是空行，或最后一行只剩引用符 / 列表记号时，再按回车是离开这块，
+   * 到后面新开一段。代码块里的空行是内容，不走这里。
+   */
+  function exitContainerRaw(kind: BlockKind, doc: string): string | null {
+    if (kind !== 'blockquote' && kind !== 'list') return null
+    const nl = doc.lastIndexOf('\n')
+    if (nl < 0) return null
+    const last = doc.slice(nl + 1)
+    const blankLine = last === ''
+    const emptyQuote = kind === 'blockquote' && /^>{1,}\s*$/.test(last)
+    const emptyItem = kind === 'list' && /^(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?$/.test(last)
+    if (!blankLine && !emptyQuote && !emptyItem) return null
+    const kept = doc.slice(0, nl)
+    if (kept.trim() === '') return null
+    return kept
+  }
+
+  /** 聚焦段末回车 → 在后面开一段空段落。段落和标题在块末直接离开；引用和列表要先多出一行空行。 */
   function splitBlock(block: BlockView, view: EditorView): boolean {
     // IME 组合期间的 Enter 是确认候选，不是拆块（同 caretNavigation 的 composition 守卫）
     if (view.composing) return false
     const doc = view.state.doc.toString()
     const pos = view.state.selection.main.head
-    if (block.kind !== 'paragraph' && block.kind !== 'heading') return false
-    if (pos !== doc.length) return false // 只在块末分裂，规避光标映射复杂度
+    if (pos !== doc.length || !view.state.selection.main.empty) return false
+    const exiting = exitContainerRaw(block.kind, doc)
+    if (block.kind !== 'paragraph' && block.kind !== 'heading' && exiting === null) return false
+    // ``` 回车要展开成代码块。那条绑定优先级更低，这里让开。
+    const lineStart = doc.lastIndexOf('\n', Math.max(0, pos - 1)) + 1
+    if (/^\s*```\s*$/.test(doc.slice(lineStart))) return false
     beforeStructuralEdit?.()
     const i = session.blocks.findIndex((b) => b.id === block.id)
     if (i < 0) return false
     // 其后应是空白缝（段落间必有）
     const gap = session.blocks[i + 1]
     if (!gap || gap.kind !== 'unknown' || gap.raw.trim() !== '') return false
+    if (exiting !== null) {
+      block.raw = exiting
+      const roots = reparseRoots(exiting)
+      block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
+      block.kind = kindFromMdast(roots[0]) as BlockKind
+      block.dirty = exiting !== (session.originals.get(block.id) ?? '')
+    }
     const gapRaw = gap.raw || '\n\n'
     const emptyPara: BlockView = {
       id: nextId(),
