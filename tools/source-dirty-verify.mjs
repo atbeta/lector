@@ -75,6 +75,25 @@ assert.equal(inSource.rows, 0, '源码档不该列出大纲条目')
 assert.ok(inSource.note, '源码档的大纲区留白了：用户会以为文档没有标题')
 assert.equal(inSource.active, 0, '源码档不该有高亮的大纲条目')
 
+// ── 1c. 查找：整篇 CM 的能力，源码档不能哑 ──
+// 这里挡的是「能力挂错闸门」：查找高亮曾挂在 largeDocument（性能闸门）上，
+// 源码档没有那个标记 → 计数照常、Enter 照翻，但正文不画标记也不滚过去，
+// 看起来像在查找，实际什么也没发生。
+await page.keyboard.press('Control+f')
+await page.waitForSelector('.find-input', { timeout: 5000 })
+await page.fill('.find-input', 'Markdown')
+await page.waitForTimeout(900)
+const findState = await page.evaluate(() => ({
+  count: document.querySelector('.find-count')?.textContent ?? '',
+  marks: document.querySelectorAll('.source-doc-host .find-hit').length,
+  current: document.querySelectorAll('.source-doc-host .find-hit--current').length,
+}))
+assert.ok(/\d+\/\d+/.test(findState.count), `查找没报命中数：「${findState.count}」`)
+assert.ok(findState.marks > 0, '源码档查找没在正文里画命中标记')
+assert.equal(findState.current, 1, '源码档查找没有标出「当前这一处」')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
 // ── 2. 没动过就存盘：必须字节级等于原文（产品红线） ──
 // 判脏若拿字符串硬比，CRLF / 混合换行的文件在这一步会被判成「改过」，
 // 然后被整篇重写成 LF——字节变了，但界面看不出来。只有比写出去的字节能抓住。
@@ -125,6 +144,37 @@ assert.ok(backRows.rows > 0, `退回块档后大纲没恢复，停在「${backRo
 // 块档里再存一次，字节还得对得上
 const roundTrip = await saveAndRead()
 assert.equal(roundTrip, saved, '从源码档退回块档后，再存盘把原文改了')
+
+// ── 7. 切档不许丢撤销栈 ──
+// 用户在源码档删了东西，切到块档再切回来，⌘Z 仍要能撤回。
+// 断掉的原因有两层：切档 destroy 掉 CM（历史随 EditorState 一起没），
+// 以及 commitSourceView 整篇重解析、块 id 全换（块档的 blockHistory 也失效）。
+//
+// 这里比的是「撤销前后正文长度」：撤销成功 = 内容回来，而非只看按钮有没有反应。
+const cmLen = () =>
+  page.evaluate(() => (document.querySelector('.source-doc-host .cm-content')?.textContent ?? '').length)
+
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(600)
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press('Control+a')
+await page.keyboard.press('Backspace')
+await page.waitForTimeout(500)
+const emptied = await cmLen()
+assert.equal(emptied, 0, `全选删除后正文不是空的：${emptied} 字`)
+
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForTimeout(1200)
+
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(800)
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(700)
+const restored = await cmLen()
+assert.ok(restored > 200, `切档后 ⌘Z 撤不回来（正文仍是 ${restored} 字）`)
 
 assert.deepEqual(errors, [], `控制台有异常：${errors.join(' | ')}`)
 

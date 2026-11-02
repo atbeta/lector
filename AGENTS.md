@@ -18,6 +18,14 @@ Lector —— 阅读优先的 Markdown 编辑器。AI 编码 Agent 与人类协�
 - **壳 = Tauri 2 双端**（macOS + Windows）。壳只做：文件对话框、文件关联、窗口管理、拖放、原子写盘、外部变更监听、以及**执行用户配置的图床上传命令**（上传配置专用；std::process::Command 不过 shell、不传额外环境变量、stdout 首个 http(s) URL 视为结果、失败按「要不要复制」降级本地副本）与**图片字节的临时暂存**（`stage_image` / `discard_staged_image`，落系统临时目录、只允许删自己暂存的文件）。文件 IO 走壳 IPC，Web 层不能读任意路径。
 - Windows 关联文件图标用 NSIS 安装脚本写注册表 `HKCR\<ProgID>\DefaultIcon` 解决（Tauri 官方不支持，自行补丁）。
 - 相对图片只允许已打开文件的目录树内（防路径穿越）；预览不执行 md 里的 HTML/script。
+- **「整篇一份 CM」是源码档和大文件档的共用形态，能力挂 `wholeDocument`，不挂 `largeDocument`。**
+  `largeDocument` 只是性能闸门（几十 MB 下不许逐键 `toString`）；源码档文档才几十 KB，
+  没有这个限制。把能力挂在性能闸门上，源码档就会静默失去那些能力——已经发生过两次
+  （脏标记不翻、查找不出高亮），`onDocChanged` 也是同一个坑的第三个变体。
+  新增「整篇才能做」的能力时，判据一律写 `config.wholeDocument`。
+- **切档不许丢撤销栈。** 源码档的 CM 状态在卸载时留下来（`savedState`），正文没变就接回去；
+  块档同理走 `blockHistory`。`commitSourceView` 会整篇重解析、块 id 全换，若不做这件事，
+  两条撤销栈会同时断掉——用户切个档再按 ⌘Z 就什么也撤不回来。
 
 ## 工程
 
