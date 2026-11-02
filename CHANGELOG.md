@@ -26,6 +26,7 @@ release notes up by that header.
 
 - fix(editor): restore find highlighting in source mode
 - fix(editor): keep undo history across mode switches
+- fix(editor): undo across the block/source boundary in both directions
 
 ## v0.39.1 (2026-11-02)
 
