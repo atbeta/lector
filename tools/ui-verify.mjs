@@ -2659,11 +2659,11 @@ const summary = {
       }
     })
     if (settingsPanel.cards !== 3) note('error', `设置里的快捷键分组应为 3 张卡片，实为 ${settingsPanel.cards}`)
-    if (settingsPanel.rows !== 17) note('error', `设置里的快捷键应为 17 条，实为 ${settingsPanel.rows}`)
+    if (settingsPanel.rows !== 18) note('error', `设置里的快捷键应为 18 条，实为 ${settingsPanel.rows}`)
     if (settingsPanel.columns < 2) note('error', `设置里的快捷键仍是单列长清单：${settingsPanel.columns} 列`)
     if (settingsPanel.misplaced > 0) note('error', `设置里的键帽没有排在功能名右侧：${settingsPanel.misplaced} 行`)
     if (settingsPanel.clipped > 0) note('error', `设置里的快捷键名称被截断：${settingsPanel.clipped} 行`)
-    if (settingsPanel.cards === 3 && settingsPanel.rows === 17 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
+    if (settingsPanel.cards === 3 && settingsPanel.rows === 18 && settingsPanel.columns >= 2 && settingsPanel.misplaced === 0 && settingsPanel.clipped === 0) {
       note('info', `快捷键设置：${settingsPanel.cards} 组 / ${settingsPanel.columns} 列 / ${settingsPanel.rows} 条，键帽右对齐且无截断`)
     }
     await page.keyboard.press('Escape')
