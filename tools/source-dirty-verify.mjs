@@ -447,6 +447,54 @@ const hugeOriginal =
 const hugeSaved = await saveAndRead()
 assert.equal(hugeSaved, `HUGEMARK\n${hugeOriginal}`, '大文件存盘写出去的不是「文首标记 + 原文」')
 
+// ── 12. 切档回来没动的块：DOM 沿用、块内 CM 撤销历史不接断 ──
+// 块 id 是起止偏移 span：只在文末加字时，前面的块重解析后还是同一个 id。
+// replaceBlockTable 之前所有按 id 记的账都被一把清掉——元素重建、
+// 聚焦块的 CM 历史丢失，⌘Z 只能退到切档快照（整块内容没了）。
+// 判据：KEEPTAG 只在块内撤销时消失，TAILMARK 必须还在——若走的快照
+// 还原（旧行为），两处标记会一起没。
+await page.goto(URL_ARG, { waitUntil: 'load' })
+await page.waitForSelector('#content > .block', { timeout: 15000 })
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(600)
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('KEEPTAG')
+await page.waitForTimeout(500)
+await page.evaluate(() => {
+  window.__keptEl = document.querySelector('#content > .block[data-kind="paragraph"]')
+})
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(600)
+// 只在文末改：第一块的 span 不受影响
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press(DOC_END)
+await page.keyboard.type('\n\nTAILMARK')
+await page.waitForTimeout(500)
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(900)
+
+const keptEl = await page.evaluate(
+  () => document.querySelector('#content > .block[data-kind="paragraph"]') === window.__keptEl,
+)
+assert.ok(keptEl, '没动过的块回块档后 DOM 被重建了（id 沿用的元素没接回来）')
+const tripText = await page.evaluate(() => document.getElementById('content').innerText)
+assert.ok(tripText.includes('KEEPTAG'), 'KEEPTAG 在往返中丢了')
+assert.ok(tripText.includes('TAILMARK'), 'TAILMARK 在往返中丢了')
+
+// 重新聚焦这块：CM 状态从 blockHistory 接回，⌘Z 只撤这块里的输入
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(800)
+const afterUndo = await page.evaluate(() => document.getElementById('content').innerText)
+assert.ok(!afterUndo.includes('KEEPTAG'), '块内 ⌘Z 没把 KEEPTAG 撤掉')
+assert.ok(afterUndo.includes('TAILMARK'), '⌘Z 走了整篇快照：块内撤销历史没接上，把 TAILMARK 也撤没了')
+
 assert.deepEqual(errors, [], `控制台有异常：${errors.join(' | ')}`)
 
 console.log('源码档脏标记 / 存盘回归：通过')

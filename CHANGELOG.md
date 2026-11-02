@@ -22,6 +22,10 @@ release notes up by that header.
 
 ## Unreleased
 
+### Added
+
+- feat(editor): redo block ops and mode-switch snapshots
+
 ### Fixed
 
 - fix(editor): stop undo stacks from leaking into the next opened document
@@ -32,10 +36,18 @@ release notes up by that header.
 - fix(core): preserve original line endings when line counts change on save
 - fix(editor): reset block baselines when saving in source mode
 - fix(editor): skip stale image writes after the document changed mid-operation
+- fix(editor): stop the tail parser while source mode is up
+- fix(editor): move the disk baseline when saving in block mode
 
 ### Improved
 
 - perf(editor): cap whole-document undo snapshots at 1 MB of text
+- perf(editor): keep unchanged blocks' DOM, paint and undo history across re-parses
+
+### Internal
+
+- refactor(editor): remove the per-block source mode leftovers
+- refactor(editor): route document text through one DocumentSurface
 
 ## v0.39.2 (2026-11-02)
 

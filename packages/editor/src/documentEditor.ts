@@ -309,27 +309,13 @@ export function createDocumentEditor({
         const { para, gap } = operations.makeEmptyParagraph(0)
         blocks = [para, gap]
       }
+      // 元素全部摘下但不丢 map：同 span 同字节的块由绘制 reconcile 按序挂回
+      // 并跳过重画（sameBlockPaint）。留着连接会踩到一个边角——同一块在新
+      // 表里可能换下标（前缀同字节长、块数不同），那时 DOM 顺序会错。
       for (const el of blocksEl.values()) el.remove()
-      blocksEl.clear()
-      lastPaint.clear()
-      parsedRaw.clear()
-      blockHistory.clear()
-      // 块表被整篇替换：在跑的尾巴 parser 会把旧文本的块 append 进来，先停掉。
-      parseGeneration++
-      parsePauseTicket++
-      activeParser = null
-      parsePaused = false
-      session.blocks = blocks
-      session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
-      for (const b of session.blocks) b.dirty = false
-      // 块表已整体换掉：块级撤销项记着的旧块身份全部失效，留在栈里会撤错对象。
-      operations.discardBlockOps()
-      session.focusedId = null
-      containStale = true
-      invalidateBlockIndex()
-      // 块的 originals 被对齐成快照文本，逐块 dirty 全是 false——但快照与磁盘
-      // 原文未必一致（存盘后按 ⌘Z 正是要回到「与磁盘不同」的状态）。不重算
-      // structuralDirty 的话界面显示旧内容、脏标记却是灭的：⌘S 静默空转。
+      replaceBlockTable(blocks)
+      // 快照与磁盘原文未必一致（存盘后按 ⌘Z 正是要回到「与磁盘不同」的状态）。
+      // 不重算 structuralDirty 的话界面显示旧内容、脏标记却是灭的：⌘S 静默空转。
       session.structuralDirty = raw !== (session.source?.text ?? '')
       markDirty()
       void render()
@@ -931,6 +917,88 @@ export function createDocumentEditor({
     renderOutline()
   }
 
+  /**
+   * 换一张块表，尽量留住旧表按 id 记的账。
+   *
+   * 对齐靠 raw，不靠 id：span id（b<start>:<end>）只在整篇解析时赋值，
+   * 块内改过的块 id 是过期的，后面的块还会跟着位移——按 id 对，一次块内
+   * 编辑就能让整张表对不上。改成首尾按 raw 逐块对齐（同 restoreLineEndings
+   * 的思路），对上的块**把旧 id 挪到新块上**——blocksEl / lastPaint /
+   * parsedRaw / blockHistory / originals 这些按 id 记的账自动接上：
+   * 元素不用重建、绘制签名命中不用重画、留存的块内 CM 历史也能续命。
+   * 中间对不上的整段视为「变了」，保守对齐，宁可少接也不错接。
+   *
+   * 块级撤销项还是只能全丢：它们的闭包记的是旧块**对象**，id 对上也没用。
+   */
+  let transplantSeq = 0
+  function replaceBlockTable(blocks: BlockView[]): void {
+    const oldBlocks = session.blocks
+    let head = 0
+    while (head < oldBlocks.length && head < blocks.length && oldBlocks[head]!.raw === blocks[head]!.raw) head++
+    let tail = 0
+    while (
+      tail < oldBlocks.length - head &&
+      tail < blocks.length - head &&
+      oldBlocks[oldBlocks.length - 1 - tail]!.raw === blocks[blocks.length - 1 - tail]!.raw
+    ) {
+      tail++
+    }
+    const prevAt = new Array<BlockView | undefined>(blocks.length)
+    for (let i = 0; i < head; i++) {
+      blocks[i]!.id = oldBlocks[i]!.id
+      prevAt[i] = oldBlocks[i]
+    }
+    for (let j = 0; j < tail; j++) {
+      blocks[blocks.length - 1 - j]!.id = oldBlocks[oldBlocks.length - 1 - j]!.id
+      prevAt[blocks.length - 1 - j] = oldBlocks[oldBlocks.length - 1 - j]
+    }
+    // 沿用下来的旧 id 不能再给中部新块撞上：旧 id 是过期 span，parse 新算
+    // 出来的 span id 可能恰好同一个——撞了给新块换一个，那份账不属于它。
+    // 反过来，中部新块的 span id 也可能撞上旧表没对上的块：那份账同样不属于
+    // 它，先清干净再接，免得读到别块的绘制签名与 CM 历史。
+    const oldIds = new Set(oldBlocks.map((b) => b.id))
+    const kept = new Set<string>()
+    for (let i = 0; i < head; i++) kept.add(blocks[i]!.id)
+    for (let j = 0; j < tail; j++) kept.add(blocks[blocks.length - 1 - j]!.id)
+    for (let i = head; i < blocks.length - tail; i++) {
+      const id = blocks[i]!.id
+      if (kept.has(id)) {
+        blocks[i]!.id = `t${transplantSeq++}`
+      } else if (oldIds.has(id)) {
+        blocksEl.get(id)?.remove()
+        blocksEl.delete(id)
+        lastPaint.delete(id)
+        parsedRaw.delete(id)
+        blockHistory.delete(id)
+      }
+    }
+    const nextIds = new Set(blocks.map((b) => b.id))
+    // 新表里没有的 id：名下所有按 id 记的账作废（元素本体由绘制 reconcile 清）。
+    for (const id of blockHistory.keys()) if (!nextIds.has(id)) blockHistory.delete(id)
+    for (const id of parsedRaw.keys()) if (!nextIds.has(id)) parsedRaw.delete(id)
+    const originals = new Map<string, string>()
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i]!
+      // 对上的块：保存基线沿用旧值（本来就是同一份磁盘原文的账本），dirty
+      // 跟着基线重算——重解析不该把「这块本来就改过」洗成干净。
+      const baseline = prevAt[i] ? (session.originals.get(prevAt[i]!.id) ?? b.raw) : b.raw
+      originals.set(b.id, baseline)
+      b.dirty = b.raw !== baseline
+    }
+    // 在跑的尾巴 parser 握着旧文本，下一步会把旧块 append 进新表：先停。
+    parseGeneration++
+    parsePauseTicket++
+    activeParser = null
+    parsePaused = false
+    session.blocks = blocks
+    session.originals = originals
+    // 新表上任何块级撤销项指的都是旧块对象：丢（闭包记的是对象，不是 id）。
+    operations.discardBlockOps()
+    session.focusedId = null
+    containStale = true
+    invalidateBlockIndex()
+  }
+
   /** 离开源码档。全文没变就沿用原来的块；变了才按整篇重解析。 */
   function commitSourceView(): void {
     if (!sourceEditor.isActive() || !session.source) return
@@ -953,25 +1021,10 @@ export function createDocumentEditor({
       const { para, gap } = operations.makeEmptyParagraph(0)
       blocks = [para, gap]
     }
-    for (const el of blocksEl.values()) el.remove()
-    blocksEl.clear()
-    lastPaint.clear()
-    parsedRaw.clear()
-    blockHistory.clear()
-    // 块表整篇重建：块级撤销项里的旧块身份失效（同 restoreWholeDocument）。
-    operations.discardBlockOps()
-    // 尾巴 parser 也必须停：它还握着旧文本，下一步会把旧块 append 进新表。
-    parseGeneration++
-    parsePauseTicket++
-    activeParser = null
-    parsePaused = false
-    session.blocks = blocks
-    session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
-    for (const b of session.blocks) b.dirty = false
+    // 块元素在进源码档时已从 DOM 摘下（ensureSourceView），map 还留着：
+    // 同 span 同字节的块会沿旧 id 把元素、绘制与 CM 历史都接回去。
+    replaceBlockTable(blocks)
     session.structuralDirty = dirty
-    session.focusedId = null
-    containStale = true
-    invalidateBlockIndex()
     // 块表已换：块档新一段从这份正文算起。
     modeSessionStart = text
     // 块表换了，重算脏状态并让大纲跟上（源码档里改的标题到这里才落地）。
