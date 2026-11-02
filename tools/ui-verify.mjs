@@ -342,6 +342,9 @@ if (!browser) exitSkipped('渲染层验证', process.argv.includes('--strict'))
 const page = await browser.newPage({
   viewport: { width: 1200, height: 820 },
   deviceScaleFactor: 2,
+  // 钉住界面语言：断言里有大量中文标签，跟着运行机器的 locale 飘会让这条检查时红时绿
+  // （简体中文系统上过、CI 的 C locale 上挂在「图片区没有本地副本 / 图床两组标题」）。
+  locale: 'zh-CN',
   // 复制相关断言要读回剪贴板
   permissions: ['clipboard-read', 'clipboard-write'],
 })
@@ -381,6 +384,7 @@ const dark = await measure('dark')
 const winContext = await browser.newContext({
   viewport: { width: 1200, height: 820 },
   deviceScaleFactor: 2,
+  locale: 'zh-CN',
   userAgent:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
 })
