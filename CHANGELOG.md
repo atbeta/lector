@@ -20,6 +20,23 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## Unreleased
+
+### Fixed
+
+- fix(editor): stop undo stacks from leaking into the next opened document
+- fix(editor): keep the dirty flag on after undoing past a save point
+- fix(editor): undo in source mode applies the newest edit, not an older snapshot
+- fix(editor): leave Cmd/Ctrl+Z to text fields like the find bar
+- fix(editor): keep fresh editor config when reusing a block's undo state
+- fix(core): preserve original line endings when line counts change on save
+- fix(editor): reset block baselines when saving in source mode
+- fix(editor): skip stale image writes after the document changed mid-operation
+
+### Improved
+
+- perf(editor): cap whole-document undo snapshots at 1 MB of text
+
 ## v0.39.2 (2026-11-02)
 
 ### Fixed
