@@ -188,6 +188,12 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpa
   // 全局快捷键的判定表在 shortcutDispatch.ts（纯的，可单测）。这里只做两件事：
   // 把事件与编辑器状态翻译成 hints，执行返回的动作。聚焦块里的裸 CM 会 preventDefault
   // 自己认识的键（Ctrl+E 行内代码、Ctrl+B 粗体…），表里靠 defaultPrevented 让位。
+  /** 当前焦点是否落在某个 CodeMirror 的编辑面里（聚焦块 / 源码档 / 大文件档）。 */
+  function focusedInEditor(): boolean {
+    const active = document.activeElement
+    return active instanceof HTMLElement && active.closest('.cm-editor') !== null
+  }
+
   window.addEventListener('keydown', (e) => {
     const action = resolveShortcut({
       mod: e.metaKey || e.ctrlKey,
@@ -195,13 +201,18 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpa
       key: e.key,
       defaultPrevented: e.defaultPrevented,
       focusedBlock: editor.getSession().focusedId !== null,
-      editorMounted: editor.getCmView() !== null,
+      // 判「键盘现在归不归编辑器」，而不是「编辑器在不在」。
+      // 用 existence 会让焦点在别处（点过侧栏、点过空白）时 ⌘Z 变成死键：
+      // CM 的 keymap 收不到键（没聚焦），全局又因为「编辑器存在」而让位。
+      editorMounted: editor.getCmView() !== null && focusedInEditor(),
       hasSource: editor.getSession().source !== null,
     })
     if (!action) return
     // 块级撤销是唯一可能「什么都没撤销」的动作：只有真的撤销了才拦事件。
     if (action.kind === 'undo-block') {
-      if (editor.operations.undoBlockOp()) {
+      // 先块级（删块 / 插段 / 勾任务），再切档（换过编辑面之后的那一整段输入）。
+      // 顺序不能反：块级操作是更近的那一步，用户按下 ⌘Z 想先退掉它。
+      if (editor.operations.undoBlockOp() || editor.operations.undoModeSwitch()) {
         e.preventDefault()
         e.stopPropagation()
       }

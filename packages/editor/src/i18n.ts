@@ -305,6 +305,7 @@ export const zh = {
   // 阅读导航轨与表格编辑
   menuEditTable: '编辑表格…',
   menuUndoTable: '已还原表格修改',
+  menuUndoModeSwitch: '已还原切档前的正文',
   tableTitle: '编辑表格',
   tableEditSource: '编辑源码',
   tableAddRow: '添加行',
@@ -628,6 +629,7 @@ const en: Record<keyof typeof zh, string> = {
   // Reading rail and table editor
   menuEditTable: 'Edit table…',
   menuUndoTable: 'Table edit reverted',
+  menuUndoModeSwitch: 'Text from before the mode switch restored',
   tableTitle: 'Edit table',
   tableEditSource: 'Edit source',
   tableAddRow: 'Add row',

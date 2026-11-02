@@ -208,6 +208,7 @@ export function createDocumentEditor({
     contentEl,
     onDocChanged: () => markDirty(),
     onScroll: () => scheduleRecordPosition(),
+    onUndoFallback: () => undoFallback(),
   })
 
   const operations = createBlockOperations({
@@ -222,7 +223,19 @@ export function createDocumentEditor({
     // 拆块 / 插图会往块表里塞 end 为 0 的新块。解析没完时先排空，避免把占位块的尾巴算成整篇。
     beforeStructuralEdit: () => flushParse(),
     getDefinitions: () => sessionDefs(),
+    // 切档撤销的落点：把整篇换成给定正文。当前在哪一档就走哪一档的承载。
+    replaceWholeDocument: (raw) => restoreWholeDocument(raw),
   })
+
+  /**
+   * CM 历史见底之后往外交的撤销。
+   *
+   * 先块级（删块 / 插段 / 勾任务），再切档（换过编辑面之后的那一整段输入）。
+   * 顺序不能反：块级操作是更近的那一步，用户按下 ⌘Z 想先退掉它。
+   */
+  function undoFallback(): boolean {
+    return operations.undoBlockOp() || operations.undoModeSwitch()
+  }
 
   /** 当前正文的滚动容器：普通档是 #content，大文件档是 CM 自己的滚动层。 */
   function activeScroller(): HTMLElement | null {
@@ -572,6 +585,10 @@ export function createDocumentEditor({
       session.dirty = false
       session.structuralDirty = false
     }
+    // 新文档的块档编辑会话从这里开始。这里必须记**实际正文**而不是 null：
+    // 记 null 等于「这段会话没有起点」，之后第一次切档会因为无从比较而漏掉撤销项
+    // （实测表现：块档里改了字，切到源码档按 ⌘Z 撤不回来）。
+    modeSessionStart = session.source.text
     setDocumentTitle(path)
     shells.reset()
     invalidateBlockIndex()
@@ -647,10 +664,77 @@ export function createDocumentEditor({
   /** 正在分批补画的文档版本。换文档时递增，旧批次由此失效。 */
   let paintGeneration = 0
 
+  /**
+   * 把整篇换成给定正文——切档撤销的落点。
+   *
+   * 两条承载都要照顾：当前在整篇 CM 里就直接换内容；在块档里就重解析成块。
+   * 换完立刻重算脏状态，状态行与保存按钮要跟着动。
+   */
+  function restoreWholeDocument(raw: string): void {
+    if (sourceEditor.isActive()) {
+      // 还在源码档：就地换内容，别卸载重挂（那会连撤销栈一起换掉）。
+      sourceEditor.replaceAll(raw)
+      markDirty()
+      return
+    }
+    if (large.isActive()) return
+    let blocks = parseBlocks(raw)
+    if (blocks.length === 0) {
+      const { para, gap } = operations.makeEmptyParagraph(0)
+      blocks = [para, gap]
+    }
+    for (const el of blocksEl.values()) el.remove()
+    blocksEl.clear()
+    lastPaint.clear()
+    parsedRaw.clear()
+    blockHistory.clear()
+    session.blocks = blocks
+    session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
+    for (const b of session.blocks) b.dirty = false
+    session.focusedId = null
+    containStale = true
+    invalidateBlockIndex()
+    markDirty()
+    void render()
+  }
+
+  /**
+   * 当前编辑面（块档 / 源码档）**进入时**的整篇正文。
+   *
+   * 两种档各自是一段独立的编辑会话：历史住在各自的 EditorState 里，互不相通。
+   * 所以在边界上记下「进来时是什么样」，离开时若变了就压一条还原到这里的撤销项。
+   * 记进入态而不是记离开态——离开态已经含着这次编辑，撤回去等于没撤。
+   */
+  let modeSessionStart: string | null = null
+
+  /** 当前编辑面的整篇正文（不分档，统一口径）。 */
+  function sessionText(): string {
+    if (large.isActive()) return session.source?.text ?? ''
+    if (sourceEditor.isActive()) return sourceEditor.editedText()
+    return serialize(session.blocks)
+  }
+
+  /**
+   * 结算当前编辑会话：这一段里改过就压一条「还原到进来时」的撤销。
+   *
+   * 必须在**还停在这一档**的时候调用（承载还在，才取得到整篇正文）。
+   * 之后把基线挪到当前正文，下一段会话从这里算起。
+   */
+  function settleModeSession(): void {
+    const now = sessionText()
+    if (modeSessionStart !== null && modeSessionStart !== now) {
+      operations.pushModeSwitchUndo(modeSessionStart)
+    }
+    modeSessionStart = now
+  }
+
   /** 源码档：拆掉块 DOM，挂上整篇 CM。块对象先留着，没改字切回去还能用。 */
   function ensureSourceView(): void {
     if (sourceEditor.isActive()) return
     finalizeFocused()
+    // 块档这一段到此为止：改过就先记一条，切过去后按 ⌘Z 能退回这里。
+    // 结算必须在拆块之前——块表还在，整篇正文才取得准。
+    settleModeSession()
     destroyBlockEditor(true)
     session.focusedId = null
     shells.reset()
@@ -658,6 +742,8 @@ export function createDocumentEditor({
     const text = session.dirty ? serialize(session.blocks) : (session.source?.text ?? '')
     // 判脏的基准是磁盘原文，不是刚挂上去的那份：源码档里挂的可能是块拼出来的脏文本。
     sourceEditor.mount(text, session.source?.text ?? '')
+    // 源码档这一段从挂上去的正文算起。
+    modeSessionStart = text
     renderOutline()
   }
 
@@ -669,6 +755,8 @@ export function createDocumentEditor({
     const text = sourceEditor.editedText()
     const changed = sourceEditor.changedSinceMount()
     const dirty = sourceEditor.isDirty()
+    // 源码档这一段到此为止：必须在 destroy 之前结算，承载还在才取得到正文。
+    settleModeSession()
     sourceEditor.destroy()
     if (!changed) {
       // 正文没变，块表沿用——但大纲还停在源码档那句「不提供」上，得重画回来。
@@ -693,6 +781,8 @@ export function createDocumentEditor({
     session.focusedId = null
     containStale = true
     invalidateBlockIndex()
+    // 块表已换：块档新一段从这份正文算起。
+    modeSessionStart = text
     // 块表换了，重算脏状态并让大纲跟上（源码档里改的标题到这里才落地）。
     markDirty()
   }
@@ -1047,7 +1137,7 @@ export function createDocumentEditor({
     // 行号只给代码块：段落块挂 gutter 没有意义
     lineNumbers: block.kind === 'code' && getSettings().codeLineNumbers,
         // 块内历史见底后，⌘Z 接着撤块级操作（见 cm.ts 的 Mod-z）
-        onUndoFallback: () => operations.undoBlockOp(),
+        onUndoFallback: () => undoFallback(),
         // 代码块里不做 HTML→Markdown：那里要的是代码原文
         pasteHtmlAsMarkdown: block.kind !== 'code',
         structuralKeymap: {

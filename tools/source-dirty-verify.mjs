@@ -176,6 +176,50 @@ await page.waitForTimeout(700)
 const restored = await cmLen()
 assert.ok(restored > 200, `切档后 ⌘Z 撤不回来（正文仍是 ${restored} 字）`)
 
+// ── 8. 跨档撤销：两个方向都要能撤 ──
+// 撤销历史住在各自的 EditorState 里，聚焦块和整篇 CM 互不相通。
+// 所以「切档后还能⌘Z」只能靠在边界上留整篇快照，见 pushModeSwitchUndo。
+const cmHas = async (mark) =>
+  page.evaluate((m) => (document.querySelector('.source-doc-host .cm-content')?.textContent ?? '').includes(m), mark)
+
+// 8a. 块档改 → 切源码档 → ⌘Z
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForTimeout(1100)
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('BLKMARK')
+await page.waitForTimeout(600)
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(800)
+assert.ok(await cmHas('BLKMARK'), '块档的改动没带进源码档')
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(900)
+assert.equal(await cmHas('BLKMARK'), false, '块档改的东西，切到源码档后 ⌘Z 撤不掉')
+
+// 8b. 源码档改 → 切块档 → ⌘Z
+await page.keyboard.press('Control+Home')
+await page.keyboard.type('SRCMARK ')
+await page.waitForTimeout(600)
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForTimeout(1200)
+assert.ok(
+  (await page.evaluate(() => document.getElementById('content').innerText)).includes('SRCMARK'),
+  '源码档的改动没带回块档',
+)
+// 焦点在正文外也要能撤（⌘Z 的守卫看的是「焦点在不在编辑器里」，不是「编辑器在不在」）
+await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+await page.waitForTimeout(300)
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(900)
+assert.equal(
+  (await page.evaluate(() => document.getElementById('content').innerText)).includes('SRCMARK'),
+  false,
+  '源码档改的东西，切回块档后 ⌘Z 撤不掉',
+)
+
 assert.deepEqual(errors, [], `控制台有异常：${errors.join(' | ')}`)
 
 console.log('源码档脏标记 / 存盘回归：通过')

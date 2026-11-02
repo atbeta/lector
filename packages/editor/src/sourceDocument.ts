@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view'
+import { Transaction } from '@codemirror/state'
 import type { EditorState, Text } from '@codemirror/state'
 import { restoreLineEndings } from '@lector/core'
 import { mountEditor, type CmHandle } from './cm.ts'
@@ -11,6 +12,13 @@ interface SourceDocumentDeps {
   contentEl: HTMLElement
   onDocChanged(): void
   onScroll(): void
+  /**
+   * CM 自己的历史见底时往外交（块级撤销 / 切档撤销）。
+   *
+   * 整篇 CM 的撤销链只有它自己那份 EditorState：切档前在别的编辑面里做的改动，
+   * 它一无所知。历史走完还没撤到东西，就轮到边界上存的那条快照（见 undoModeSwitch）。
+   */
+  onUndoFallback(): boolean
 }
 
 /**
@@ -21,7 +29,12 @@ interface SourceDocumentDeps {
  * 差别只在适用面——大文件是「块 IR 装不下」的降级；源码档是普通文档主动切过来看原文。
  * 所以这里保留 Markdown 高亮和阅读字号，不锁死档位，也不挂大文件提示条。
  */
-export function createSourceEditor({ contentEl, onDocChanged, onScroll }: SourceDocumentDeps) {
+export function createSourceEditor({
+  contentEl,
+  onDocChanged,
+  onScroll,
+  onUndoFallback,
+}: SourceDocumentDeps) {
   let cm: CmHandle | null = null
   /** 挂上编辑器时的全文。没改过离开源码档就不必重解析块。 */
   let loaded = ''
@@ -71,6 +84,7 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
         wholeDocument: true,
         // 正文没变过就接回上次的撤销栈（见 savedState）。
         ...(savedState ? { initialState: savedState } : {}),
+        onUndoFallback,
         onDocChanged,
         onSelectionChange: (sel) => {
           if (!sel || !cm) {
@@ -95,6 +109,31 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
 
   function text(): string {
     return cm ? cm.view.state.doc.toString() : loaded
+  }
+
+  /**
+   * 用整篇正文替换编辑器内容（撤销「切档前那一版」用）。
+   *
+   * 不进撤销链：这一下本身就是「撤销」的结果，再让它可撤销会变成
+   * 撤一次多一步的套娃。
+   */
+  function replaceAll(raw: string): void {
+    if (!cm) return
+    const view = cm.view
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: raw.replace(/\r\n?/g, '\n') },
+      annotations: Transaction.addToHistory.of(false),
+    })
+  }
+
+  /**
+   * 挂上编辑器时的那份正文（原文形态，带原行尾）。
+   *
+   * 「这次编辑是从哪开始的」——切档时用它压一条撤销项：用户在源码档里改了一堆，
+   * 离开后按 ⌘Z 应该回到刚进源码档的样子，而不是回到某个中间态。
+   */
+  function mountedText(): string {
+    return loaded
   }
 
   /**
@@ -159,6 +198,8 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
     mount,
     destroy,
     text,
+    mountedText,
+    replaceAll,
     isDirty,
     changedSinceMount,
     editedText,

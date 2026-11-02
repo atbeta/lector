@@ -29,6 +29,13 @@ interface BlockOperationsDeps {
   beforeStructuralEdit?: () => void
   /** 整篇定义集。单块重解析不带它时，引用链接和脚注会退化成字面量。 */
   getDefinitions?: () => DefinitionSet
+  /**
+   * 把整篇正文换掉（切档撤销用）。
+   *
+   * 块表和整篇 CM 是两种承载，只有 documentEditor 知道当前该走哪一条，
+   * 所以这里只要一个「把文档变成这段正文」的黑盒。
+   */
+  replaceWholeDocument?: (raw: string) => void
 }
 
 export function createBlockOperations({
@@ -42,6 +49,7 @@ export function createBlockOperations({
   onUndo,
   beforeStructuralEdit,
   getDefinitions,
+  replaceWholeDocument,
 }: BlockOperationsDeps) {
   function reparseRoots(raw: string): unknown[] {
     return parseBlockRoots(raw, getDefinitions?.())
@@ -181,6 +189,19 @@ export function createBlockOperations({
   const BLOCK_UNDO_MAX = 20
   const blockUndoStack = createUndoStack(BLOCK_UNDO_MAX)
 
+  /**
+   * 切档撤销栈：一条记录 = 「把整篇还原成切档前的那段正文」。
+   *
+   * 为什么不能只靠 CodeMirror 的历史：历史住在**某一份 EditorState** 里。
+   * 聚焦块有自己的一份，源码档有自己的一份，两不相通——在 A 里改的字，
+   * B 那份历史根本没见过。所以「切档后还能⌘Z」不可能从 CM 那里要来，
+   * 只能在边界上自己存一份整篇快照。
+   *
+   * 颗粒度刻意做成「一次切档 = 一步撤销」：切档是个明确的心智边界，
+   * 用户按 ⌘Z 期望的是「回到刚才那样」，而不是逐字倒放另一档里的输入。
+   */
+  const modeUndoStack = createUndoStack(BLOCK_UNDO_MAX)
+
   /** 把一批块插回原位（撤销删除用）。 */
   function restoreBlocks(at: number, blocks: BlockView[]): void {
     beforeStructuralEdit?.()
@@ -210,6 +231,24 @@ export function createBlockOperations({
       return false
     })
     return removed
+  }
+
+  /**
+   * 记下「切档前的整篇正文」，供切档后 ⌘Z 还原。
+   *
+   * @param before 切档前的整篇正文（原文形态）
+   */
+  function pushModeSwitchUndo(before: string): void {
+    if (!replaceWholeDocument) return
+    modeUndoStack.push(t('menuUndoModeSwitch'), () => replaceWholeDocument(before))
+  }
+
+  /** 弹一条切档撤销；没有就返回 false，让 ⌘Z 回到正常路径。 */
+  function undoModeSwitch(): boolean {
+    const label = modeUndoStack.undo()
+    if (label === null) return false
+    onUndo(label)
+    return true
   }
 
   /** 弹一次撤销并重绘；没有可撤的就返回 false，让 ⌘Z 回到正常路径。 */
@@ -586,6 +625,8 @@ export function createBlockOperations({
     toggleTaskItem,
     openTableForBlock,
     undoBlockOp,
+    pushModeSwitchUndo,
+    undoModeSwitch,
     splitBlock,
     mergeBlock,
     appendImageParagraph,
