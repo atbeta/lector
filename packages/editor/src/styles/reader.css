@@ -630,6 +630,18 @@ html[data-mode='read'] .mermaid-diagram {
   font-variant: normal;
   font-variant-numeric: normal;
 }
+/* 时序图的生命线，以及销毁标记那条叉，mermaid 写死成 #999 / #000，
+   主题变量改不到。暗底上黑线会消失。 */
+html[data-theme='dark'] .mermaid-svg .actor-line,
+html[data-theme='dark'] .lightbox .actor-line {
+  stroke: rgb(var(--muted-foreground)) !important;
+}
+html[data-theme='dark'] .mermaid-svg svg [stroke='#000000'],
+html[data-theme='dark'] .mermaid-svg svg [stroke='#000'],
+html[data-theme='dark'] .lightbox svg [stroke='#000000'],
+html[data-theme='dark'] .lightbox svg [stroke='#000'] {
+  stroke: rgb(var(--muted-foreground));
+}
 
 /* 聚焦块的实时预览面板：源码在上、图在下，与代码卡同一张卡的语言。 */
 .mermaid-live {

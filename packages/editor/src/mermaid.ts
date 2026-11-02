@@ -105,7 +105,7 @@ function mixColor(a: string, b: string, ratio: number): string {
   return `rgb(${ch(0)}, ${ch(1)}, ${ch(2)})`
 }
 
-function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
+function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string | boolean> {
   const dark = theme === 'dark'
   const t = (name: string, fb: string): string => cssRgbToken(name, fb)
   const card = t('--card', dark ? '#202020' : '#ffffff')
@@ -135,27 +135,47 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
     '--font-sans',
     'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   )
+  // 覆盖方案：走 mermaid 的 base 主题，不走它的 dark 主题。
+  // dark 主题的 updateColors() 会无条件改写 lineColor / 箭头 / 时序文字，
+  // 并把饼图描边、刻度标签、序号写成黑色。我们后写的变量盖不完这些派生色，
+  // 暗底上就剩「线是灰的、字是黑的」。base 主题只在字段空着时才补色（||），
+  // 下面这张表给出的值会留下来。暗色只多一个 darkMode，让行条纹往暗处走。
+  // 用户设置里的 themeVariables 仍盖在这张表上（见 themeParts）。
   return {
+    darkMode: dark,
     background: card,
     fontFamily,
+    mainContrastColor: ink,
     // 流程图 / 状态图 / 大部分图
     primaryColor: nodeTint,
     primaryBorderColor: diagramAccent,
     primaryTextColor: ink,
+    secondaryTextColor: ink,
+    tertiaryTextColor: ink,
+    nodeTextColor: ink,
     lineColor: line,
+    defaultLinkColor: line,
+    arrowheadColor: line,
     textColor: ink,
     nodeBorder: diagramAccent,
     mainBkg: nodeTint,
     secondaryColor: secondary,
+    secondaryBorderColor: diagramAccent,
     tertiaryColor: tertiary,
+    tertiaryBorderColor: border,
+    border1: line,
+    border2: border,
     clusterBkg: clusterTint,
     clusterBorder: border,
     edgeLabelBackground: card,
+    labelBackground: card,
+    labelColor: ink,
     titleColor: ink,
-    // 时序图
+    // 时序图。序号默认是黑字，暗底上会消失。
     actorBkg: nodeTint,
     actorBorder: diagramAccent,
     actorTextColor: ink,
+    actorLineColor: line,
     signalColor: line,
     signalTextColor: ink,
     labelBoxBkgColor: card,
@@ -167,9 +187,42 @@ function themeVariablesFor(theme: 'light' | 'dark'): Record<string, string> {
     noteTextColor: ink,
     activationBkgColor: clusterTint,
     activationBorderColor: diagramAccent,
-    // 类图
+    sequenceNumberColor: card,
+    // 甘特 / 分区。暗色主题里分区底和网格是浅米色、任务字是深色。
+    sectionBkgColor: clusterTint,
+    sectionBkgColor2: nodeTint,
+    altSectionBkgColor: card,
+    excludeBkgColor: mixColor(card, ink, dark ? 0.08 : 0.04),
+    gridColor: border,
+    vertLineColor: line,
+    taskTextColor: ink,
+    taskTextLightColor: ink,
+    taskTextOutsideColor: ink,
+    taskTextDarkColor: ink,
+    taskTextClickableColor: diagramAccent,
+    // 饼图 / 刻度。暗色主题把标签和描边写成黑色。
+    scaleLabelColor: ink,
+    pieTitleTextColor: ink,
+    pieSectionTextColor: ink,
+    pieLegendTextColor: ink,
+    pieStrokeColor: line,
+    pieOuterStrokeColor: line,
+    // 类图 / 需求图
     classText: ink,
+    requirementBackground: nodeTint,
+    requirementBorderColor: diagramAccent,
+    requirementTextColor: ink,
+    relationColor: line,
+    relationLabelColor: ink,
   }
+}
+
+/** 我们交给 mermaid.initialize 的主题。base + 上面那张表，而不是内置 dark。 */
+export function mermaidBuiltinTheme(theme: 'light' | 'dark'): {
+  theme: 'base'
+  themeVariables: Record<string, string | boolean>
+} {
+  return { theme: 'base', themeVariables: themeVariablesFor(theme) }
 }
 
 /** 导出图用的字体：Inter 后面跟上系统里的中文字体，SVG 当图片画进画布时中文才不会丢。 */
@@ -193,12 +246,14 @@ export function forceTextLabels(config: Record<string, unknown>): Record<string,
 }
 
 function themeParts(theme: 'light' | 'dark'): {
-  next: 'dark' | 'default'
-  baseVars: Record<string, string>
+  next: 'base'
+  baseVars: Record<string, string | boolean>
   user: { config: Record<string, unknown>; signature: string }
   key: string
 } {
-  const next = theme === 'dark' ? 'dark' : 'default'
+  // 永远从 base 起笔。内置 dark 会在 updateColors 里改写线条和文字，盖不干净。
+  // 用户若在设置里指定了 theme，merge 时会换成那一个。
+  const next = 'base' as const
   const vars = themeVariablesFor(theme)
   const user = effectiveUserConfig()
   // 用户挑了 mermaid 内置主题 → **我们的调色板让位**。
@@ -210,8 +265,8 @@ function themeParts(theme: 'light' | 'dark'): {
   //   - 字体：图里的字要和界面一致，那是全局观感，不属于「主题」这一层。
   const userTheme = typeof user.config.theme === 'string' && user.config.theme.trim() !== ''
   const userVars = typeof user.config.themeVariables === 'object' && user.config.themeVariables !== null
-  const baseVars: Record<string, string> =
-    userTheme && !userVars ? { fontFamily: vars.fontFamily ?? '' } : vars
+  const baseVars: Record<string, string | boolean> =
+    userTheme && !userVars ? { fontFamily: String(vars.fontFamily ?? '') } : vars
   // 判重键里必须带上纸墨本身：阅读主题（纸 / 米黄 / 书）会改 --card / --foreground，
   // 只按 light/dark 判重的话，换成米黄纸面之后图还是旧的白底。
   // 也要带上用户配置：配置一变就得重新 initialize，否则新配置要等下次切主题才生效。
@@ -240,7 +295,7 @@ function applyTheme(mermaid: Mermaid, theme: 'light' | 'dark'): void {
 
 function initializeForExport(mermaid: Mermaid, theme: 'light' | 'dark'): void {
   const { next, baseVars, user } = themeParts(theme)
-  const vars = { ...baseVars, fontFamily: mermaidExportFontStack(baseVars.fontFamily ?? '') }
+  const vars = { ...baseVars, fontFamily: mermaidExportFontStack(String(baseVars.fontFamily ?? '')) }
   mermaid.initialize(
     forceTextLabels(
       mergeMermaidConfig(
