@@ -2024,7 +2024,7 @@ const summary = {
     // 查询词从当前文档里取（这段跑在哪个文档上不该是断言的隐含前提），
     // 取一个字保证至少有一处命中，多数字在正文里都会出现多于一处的。
     const query = await page.evaluate(() => {
-      const el = document.querySelector('#content .block .reading-prose, #content .block .source-view')
+      const el = document.querySelector('#content .block .reading-prose')
       return (el?.textContent ?? '').replace(/\s+/g, '').slice(0, 1)
     })
     await page.fill('.find-bar input', query)

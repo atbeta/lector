@@ -135,7 +135,7 @@ assert.equal(
 await page.click('.mode-opt[data-mode="source"]')
 await page.waitForSelector('#content .source-doc-host .cm-content', { timeout: 5000 })
 assert.equal(await page.locator('#content .block-rail').count(), 0, '源码档不该再按块铺轨道')
-assert.equal(await page.locator('#content .source-view').count(), 0, '源码档不该再是每块一个 pre')
+assert.equal(await page.locator('#content > .block').count(), 0, '源码档正文里不该还有块 DOM')
 if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/source-hover.png` })
 await page.click('.mode-opt[data-mode="edit"]')
 await page.waitForSelector('#content .preview', { timeout: 5000 })

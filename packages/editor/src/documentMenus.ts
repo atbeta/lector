@@ -7,7 +7,6 @@ import { showContextMenu, hideContextMenu, isContextMenuOpenFor, type ContextMen
 import { resolveMenuDecision, withSelectionActions } from './menuTarget.ts'
 import { t } from './i18n.ts'
 import { mod, modShift } from './keys.ts'
-import type { SourceSpanEditor } from './sourceSelection.ts'
 import type { DocumentEditor } from './documentEditor.ts'
 import type { FileController } from './fileController.ts'
 import type { ViewMode } from './editorChrome.ts'
@@ -20,7 +19,6 @@ export function createDocumentMenus({
   insertImageAtCaret,
   contentEl,
   getViewMode,
-  sourceSpans,
   exportPdf,
 }: {
   editor: Pick<DocumentEditor, 'getSession' | 'getCmView' | 'allRawText' | 'openFind' | 'operations'>
@@ -32,8 +30,6 @@ export function createDocumentMenus({
   insertImageAtCaret: () => void
   contentEl: HTMLElement
   getViewMode: () => ViewMode
-  /** 源码档跨块选区的换算入口。「删除选中的文字」靠它判断给不给、点了怎么删（见 sourceSelection）。 */
-  sourceSpans: SourceSpanEditor
   /** 导出 PDF：实现在 editorChrome，菜单只负责把它挂进「更多文件操作」。 */
   exportPdf: () => Promise<void>
 }) {
@@ -297,13 +293,9 @@ export function createDocumentMenus({
   /**
    * 正文里已选中文字时，把选区动作插到菜单最前。
    *
-   * 阅读、编辑、源码同一顺序：先「复制选中的文字」，源码档能换算回原文区间时
-   * 紧跟着「删除选中的文字」，再才是复制本块 / 插入段落。选区是右键当下的对象，
-   * 埋在菜单末尾等于没给。
-   *
-   * 删除只有源码档能给：跨块选区得先换算回原文区间才动得了，预览档渲染出来的是
-   * mdast 结果、映不回偏移（见 sourceSelection），硬给就是删错地方。换算不出来
-   * 就不给这一项——少一个入口好过给一条会删错的。
+   * 阅读、编辑、源码同一顺序：先「复制选中的文字」，再才是复制本块 / 插入段落。
+   * 选区是右键当下的对象，埋在菜单末尾等于没给。
+   * 源码档的选区删除不归菜单管：整篇 CM 自带原生的剪切/删除语义。
    */
   function appendSelectionItems(items: ContextMenuItem[]): void {
     const text = window.getSelection()?.toString() ?? ''
@@ -315,16 +307,6 @@ export function createDocumentMenus({
         run: () => void copyText(text, t('menuCopied')),
       },
     ]
-    if (sourceSpans.canReplace()) {
-      actions.push({
-        label: t('menuDeleteSelection'),
-        danger: true,
-        // 菜单是阅读档与编辑档共用的入口，而这一项改文档：标上才可能被 forMode 摘掉。
-        // 眼下走不到（它只在源码档出现，且插在 forMode 之后），但规矩是「会改文档就标」。
-        mutates: true,
-        run: () => sourceSpans.replace(''),
-      })
-    }
     const next = withSelectionActions(items, actions)
     items.splice(0, items.length, ...next)
   }

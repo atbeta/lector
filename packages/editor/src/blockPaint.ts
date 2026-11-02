@@ -1,6 +1,6 @@
 /** 上一轮块真正画进 DOM 的形态：用来决定这次 render 能不能跳过这块。 */
 
-export type BlockPaintSurface = 'cm' | 'source' | 'preview'
+export type BlockPaintSurface = 'cm' | 'preview'
 
 export interface BlockPaint {
   raw: string
@@ -13,12 +13,11 @@ export interface BlockPaint {
  *
  * 阅读档和编辑档的**未聚焦**块都是同一份预览 DOM，不能把 data-mode 当成
  * 重绘条件——否则「点一块进编辑」或「带着焦点切回阅读」会把整篇 mermaid /
- * 图拆掉重画，卡的就是这一下。只有源码档（每块等宽原文）和聚焦（挂 CM）
- * 才是另一种表面。
+ * 图拆掉重画，卡的就是这一下。只有聚焦（挂 CM）才是另一种表面；
+ * 源码档是整篇一个 CM，不走块绘制。
  */
 export function blockPaintSurface(mode: string, focused: boolean): BlockPaintSurface {
   if (focused) return 'cm'
-  if (mode === 'source') return 'source'
   return 'preview'
 }
 

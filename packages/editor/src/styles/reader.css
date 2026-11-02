@@ -705,46 +705,6 @@ html[data-mode='read'] .mermaid-diagram {
    所以光标是「可点」而不是「可放大」——放大只是菜单里的一项 */
 .reading-prose img { cursor: pointer; }
 
-/* ───────────── 源码模式：整篇以等宽源码呈现 ─────────────
- * 关键取舍：**不画卡片**。
- * 初版每块一个白底圆角块，看起来像「一列卡片」——但用户要读的是一篇文档的
- * 原文，卡片会把连续的行切成一块块，行与行之间还夹着不属于文档的边距。
- * 现在块之间只有留白：源码模式 = 一篇等宽排版的文本，悬停时左侧浮出一条
- * 发丝线表示「这段可以点进去改」。
- *
- * pre-wrap 保留块内换行；overflow-x:auto 兜住超长行。 */
-.source-view {
-  margin: 0;
-  padding: 3px 10px;
-  background: transparent;
-  border: 0;
-  border-left: 2px solid transparent;
-  border-radius: 0;
-  overflow-x: auto;
-  font-family: var(--font-mono);
-  /* 字号与行高跟阅读/编辑态完全一致。
-     源码档和编辑档是同一份文本的两种呈现，点进块里字号忽然变一下，
-     读的人会以为自己点错了东西；而源码本身是拿来读的，不是缩略图。 */
-  font-size: var(--reading-font-size);
-  line-height: var(--reading-line-height);
-  color: rgb(var(--foreground));
-  white-space: pre-wrap;
-  word-break: break-word;
-  cursor: text;
-  transition: background var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard);
-}
-.source-view:hover {
-  background: var(--block-hover-bg);
-  border-left-color: rgb(var(--border-strong) / 0.5);
-}
-.source-view code {
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-}
-
 /* ───────────── KaTeX 数学公式 ─────────────
  * KaTeX 本身的样式从 katex/dist/katex.min.css 加载(进 :where(.katex) 作用域,
  * 不会泄露到公式以外)。这里只调校讲/预览列里的布局与间距。

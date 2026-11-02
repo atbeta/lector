@@ -10,7 +10,6 @@ import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import { resolveShortcut } from './shortcutDispatch.ts'
 import type { DocumentEditor } from './documentEditor.ts'
-import { isForeignEditable, sourceKeyAction, type SourceSpanEditor } from './sourceSelection.ts'
 import type { FileController } from './fileController.ts'
 import type { EditorChrome } from './editorChrome.ts'
 import type { createOutline } from './outline.ts'
@@ -37,69 +36,11 @@ interface AppBindingsDeps {
   outline: Pick<ReturnType<typeof createOutline>, 'toggleOutline' | 'updateActiveHeading'>
   /** 块把手要唤出块菜单，而菜单内容住在 documentMenus 里（不复制一份）。 */
   menus: Pick<DocumentMenus, 'openBlockMenu'>
-  /** 源码档跨块选区的换算入口：键盘、剪贴板与右键菜单共用一份（见 sourceSelection）。 */
-  sourceSpans: SourceSpanEditor
   /** 原生「编辑 → 插入图片」：落在光标处（没聚焦块则文末）。 */
   insertImageAtCaret: () => void
 }
 
-export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpans, insertImageAtCaret }: AppBindingsDeps): void {
-  // 源码档的跨块选区活在浏览器选区里，删除键只接在聚焦块的编辑器上，所以原先按了没反应。
-  // 捕获阶段处理：若等事件落到聚焦块，那一个编辑器会先删掉自己的一个字符。
-  //
-  // 「选区 ↔ 原文区间」的具体换算住在 sourceSelection 的 sourceSpans 里——
-  // 右键菜单的「删除选中的文字」走的是同一份，两边不会各删各的。
-
-  window.addEventListener(
-    'keydown',
-    (e) => {
-      const action = sourceKeyAction(e)
-      if (action.kind !== 'replace' || isForeignEditable(e.target)) return
-      if (!sourceSpans.replace(action.text)) return
-      e.preventDefault()
-      e.stopPropagation()
-    },
-    true,
-  )
-
-  window.addEventListener(
-    'copy',
-    (e) => {
-      const mapped = sourceSpans.span('read')
-      if (!mapped || !e.clipboardData) return
-      e.preventDefault()
-      e.stopPropagation()
-      e.clipboardData.setData('text/plain', mapped.text)
-    },
-    true,
-  )
-
-  window.addEventListener(
-    'cut',
-    (e) => {
-      const mapped = sourceSpans.span('commit')
-      if (!mapped || !e.clipboardData) return
-      e.preventDefault()
-      e.stopPropagation()
-      e.clipboardData.setData('text/plain', mapped.text)
-      sourceSpans.replace('')
-    },
-    true,
-  )
-
-  window.addEventListener(
-    'paste',
-    (e) => {
-      if (e.defaultPrevented || isForeignEditable(e.target)) return
-      const text = e.clipboardData?.getData('text/plain') ?? ''
-      if (!text) return
-      if (!sourceSpans.replace(text)) return
-      e.preventDefault()
-      e.stopPropagation()
-    },
-    true,
-  )
-
+export function bindAppEvents({ editor, files, chrome, outline, menus, insertImageAtCaret }: AppBindingsDeps): void {
   chrome.elements.contentEl.addEventListener('click', (e) => {
     // 块把手：它只负责唤出块菜单，**不聚焦、不进入编辑**——
     // 「点块正文」才是进来改，「点把手」是管理这一块，两件事不能混成一个动作。

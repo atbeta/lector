@@ -58,7 +58,8 @@ Body copy sits in `.reading-prose`. Each block is `#content > .block` with `data
 | `#titlebar` `#content` `#statusbar` `.sidebar` | Title bar, scrolling body, status row, outline sidebar |
 | `.mode-opt` | Read / Edit / Source switch |
 | `.block` `.block.focused` `.block-rail` `.block-handle` | A block, the block being edited, the read-mode rule, the edit-mode handle |
-| `.source-view` `.cm-host` | A block in source mode, the focused editor |
+| `#content.source-doc` `.source-doc-host` | Source mode: one whole-document editor in the body |
+| `.cm-host` | The focused block's editor |
 | `.reading-prose h1` … `h6` | Headings |
 | `.reading-prose p` `a` `hr` `ul` `ol` `li` | Paragraphs, links, rules, lists |
 | `.reading-prose blockquote` | Quotes |

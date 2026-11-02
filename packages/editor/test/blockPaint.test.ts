@@ -16,14 +16,14 @@ test('改 raw / 表面 / kind 都要重绘', () => {
   const prev = snap()
   expect(sameBlockPaint(prev, snap({ raw: '- [x] 任务\n' }))).toBe(false)
   expect(sameBlockPaint(prev, snap({ surface: 'cm' }))).toBe(false)
-  expect(sameBlockPaint(prev, snap({ surface: 'source' }))).toBe(false)
   expect(sameBlockPaint(prev, snap({ kind: 'paragraph' }))).toBe(false)
 })
 
 test('阅读档与编辑档的未聚焦预览是同一种表面', () => {
   expect(blockPaintSurface('read', false)).toBe('preview')
   expect(blockPaintSurface('edit', false)).toBe('preview')
-  expect(blockPaintSurface('source', false)).toBe('source')
+  // 源码档是整篇一个 CM，不走块绘制；传进来也只当预览面（不可达分支）。
+  expect(blockPaintSurface('source', false)).toBe('preview')
   expect(blockPaintSurface('edit', true)).toBe('cm')
   expect(blockPaintSurface('read', true)).toBe('cm')
 })

@@ -178,7 +178,7 @@ export const zh = {
   menuCut: '剪切',
   menuCopy: '复制',
   menuCopySelection: '复制选中的文字',
-  menuDeleteSelection: '删除选中的文字',
+
   menuPaste: '粘贴',
   menuSelectAll: '全选',
   menuPasteFailed: '粘贴失败，请用 ⌘V',
@@ -227,7 +227,7 @@ export const zh = {
   menuNeedDiskFile: '文件尚未保存到磁盘',
   menuCopied: '已复制',
   menuUndoBlock: '已恢复删除的块',
-  menuUndoSelection: '已恢复删除的文字',
+
   menuUndoInsert: '已撤掉插入的段落',
   menuUndoCheck: '已还原任务状态',
   codeCopy: '复制',
@@ -504,7 +504,7 @@ const en: Record<keyof typeof zh, string> = {
   menuCut: 'Cut',
   menuCopy: 'Copy',
   menuCopySelection: 'Copy selection',
-  menuDeleteSelection: 'Delete selection',
+
   menuPaste: 'Paste',
   menuSelectAll: 'Select all',
   menuPasteFailed: 'Paste failed, use Cmd+V',
@@ -553,7 +553,7 @@ const en: Record<keyof typeof zh, string> = {
   menuNeedDiskFile: 'File is not saved to disk yet',
   menuCopied: 'Copied',
   menuUndoBlock: 'Deleted block restored',
-  menuUndoSelection: 'Deleted text restored',
+
   menuUndoInsert: 'Inserted paragraph removed',
   menuUndoCheck: 'Task state restored',
   codeCopy: 'Copy',

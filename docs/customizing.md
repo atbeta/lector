@@ -58,7 +58,8 @@
 | `#titlebar` `#content` `#statusbar` `.sidebar` | 顶栏、正文滚动区、状态行、大纲侧栏 |
 | `.mode-opt` | 阅读 / 编辑 / 源码切换 |
 | `.block` `.block.focused` `.block-rail` `.block-handle` | 块、正在编辑的块、阅读档竖线、编辑档把手 |
-| `.source-view` `.cm-host` | 源码档的块、聚焦后的编辑器 |
+| `#content.source-doc` `.source-doc-host` | 源码档：整篇一个编辑器挂在正文区 |
+| `.cm-host` | 聚焦块的编辑器 |
 | `.reading-prose h1` … `h6` | 标题 |
 | `.reading-prose p` `a` `hr` `ul` `ol` `li` | 段落、链接、分隔线、列表 |
 | `.reading-prose blockquote` | 引用 |
