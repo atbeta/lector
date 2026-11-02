@@ -59,6 +59,22 @@ assert.equal(clean.dot, 'none', '刚切进源码档脏点就亮着')
 assert.equal(clean.saveDisabled, true, '没有改动时保存按钮该是禁用的')
 assert.ok(clean.status.includes('已保存'), `干净文档的状态行不该是「${clean.status}」`)
 
+// ── 1b. 源码档不提供大纲：既不留白，也不摆一份假的 ──
+// 大纲每一条都挂在块上（块 id 是跳转目标、块顺序是全文档顺序、滚动反查量块的位置），
+// 源码档里整篇是一个 CM，这些前提都不成立。硬撑着只会有三种错：
+// 高亮停在切档那一刻、点条目跳到别处、改标题文字大纲不更新。
+const outline = () =>
+  page.evaluate(() => ({
+    rows: document.querySelectorAll('.sidebar-body .outline-row').length,
+    note: document.querySelector('.sidebar-body .outline-empty')?.textContent ?? null,
+    active: document.querySelectorAll('.sidebar-body .outline-row[aria-current="true"]').length,
+  }))
+
+const inSource = await outline()
+assert.equal(inSource.rows, 0, '源码档不该列出大纲条目')
+assert.ok(inSource.note, '源码档的大纲区留白了：用户会以为文档没有标题')
+assert.equal(inSource.active, 0, '源码档不该有高亮的大纲条目')
+
 // ── 2. 没动过就存盘：必须字节级等于原文（产品红线） ──
 // 判脏若拿字符串硬比，CRLF / 混合换行的文件在这一步会被判成「改过」，
 // 然后被整篇重写成 LF——字节变了，但界面看不出来。只有比写出去的字节能抓住。
@@ -101,6 +117,11 @@ await page.waitForSelector('#content > .block', { timeout: 5000 })
 await page.waitForTimeout(500)
 const blockText = await page.evaluate(() => document.getElementById('content').innerText)
 assert.ok(blockText.includes(MARK), '回到块档后改动没了：源码档的正文没交回块表')
+
+// 大纲要跟着回到标题列表。commitSourceView 在正文没变时会提前返回，
+// 少了这里的重画，收起的说明文字就会一直挂着。
+const backRows = await outline()
+assert.ok(backRows.rows > 0, `退回块档后大纲没恢复，停在「${backRows.note ?? ''}」`)
 // 块档里再存一次，字节还得对得上
 const roundTrip = await saveAndRead()
 assert.equal(roundTrip, saved, '从源码档退回块档后，再存盘把原文改了')

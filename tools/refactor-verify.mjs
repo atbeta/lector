@@ -45,6 +45,7 @@ const mountPreferenceOutline = async () => {
     getBlocks: () => blocks,
     getBlockElement: () => undefined,
     isLargeDocument: () => false,
+    isSourceDocument: () => false,
   })
   inst.readCollapsedPref()
   inst.renderOutline()
@@ -307,6 +308,7 @@ const mountPreferenceOutline = async () => {
           getBlocks: () => blocks,
           getBlockElement: (id) => els.get(id),
           isLargeDocument: () => false,
+          isSourceDocument: () => false,
         })
         document.body.append(body, content)
         return { inst, body }
