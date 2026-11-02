@@ -840,34 +840,27 @@ const summary = {
     await page.evaluate(() => document.querySelector('.mode-opt[data-mode="source"]')?.click())
     await page.waitForTimeout(600)
     const src = await page.evaluate(() => {
-      const s = document.querySelector('.source-view')
+      const s = document.querySelector('.source-doc-host .cm-content')
       return {
         size: s ? getComputedStyle(s).fontSize : null,
         reading: getComputedStyle(document.documentElement).getPropertyValue('--reading-font-size').trim(),
         tables: document.querySelectorAll('.reading-prose table').length,
+        blankLine: [...document.querySelectorAll('.source-doc-host .cm-line')].some((l) => l.textContent === ''),
       }
     })
     if (src.size !== src.reading) {
       note('error', `源码档字号 ${src.size} 与阅读字号 ${src.reading} 不一致（同一份文本的两种呈现，字号不该跳）`)
     }
     if (src.tables > 0) note('error', `源码档里仍有 ${src.tables} 个块渲染成了表格（源码档应当全是源码）`)
-    const clicked = await page.evaluate(async () => {
-      const blk = [...document.querySelectorAll('#content .block')].find((b) => b.dataset.kind === 'table')
-      if (!blk) return { missing: true }
-      blk.click()
-      await new Promise((r) => setTimeout(r, 500))
-      return {
-        editor: !!document.querySelector('.table-editor-card'),
-        cm: document.querySelectorAll('.cm-host').length,
-      }
-    })
-    if (!clicked.missing && (clicked.editor || clicked.cm !== 1)) {
-      note(
-        'error',
-        `源码档点表格：网格面板${clicked.editor ? '弹出了' : '没弹'}，块内编辑器 ${clicked.cm} 个（期望：无面板 + 1 个编辑器）`,
-      )
-    } else if (!clicked.missing) {
-      note('info', '源码档：点表格进块内源码编辑，没有弹网格面板')
+    if (!src.blankLine) note('error', '源码档正文里没有空行：块间换行被吃掉了')
+    const clicked = await page.evaluate(() => ({
+      editor: !!document.querySelector('.table-editor-card'),
+      cm: document.querySelectorAll('.source-doc-host .cm-editor').length,
+    }))
+    if (clicked.editor || clicked.cm !== 1) {
+      note('error', `源码档应是一整篇编辑器、没有表格面板（面板 ${clicked.editor}，编辑器 ${clicked.cm}）`)
+    } else {
+      note('info', '源码档：整篇一个编辑器，没有表格面板')
     }
     await page.keyboard.press('Escape')
     // 后面的交互都假设处于可编辑状态
@@ -1269,83 +1262,26 @@ const summary = {
     )
     await setMode('edit')
 
-    // ── 源码档：选中文字右键要能删 ──
-    //
-    // 跨块选区活在浏览器选区里，删除键走 appBindings 的换算；右键菜单是同一件事的
-    // 另一个入口，不给就成了「⌫ 能删、菜单里删不掉」。判据按**行为**（删完正文确实
-    // 短了、⌘Z 又回来），不按文案——这个页面没钉 locale，按中文标签找会永远假红。
+    // ── 源码档：整篇一份编辑器。删几个字再撤销，历史跨过原来的块界。
     {
       await setMode('source')
-      // 块正文：源码档读 .source-view，删完光标块会挂上编辑器，那一块改读 .cm-content。
-      // 两边都得算，否则「删完短了多少」会被挂编辑器这件事本身干扰。
-      const bodyText = () =>
-        page.evaluate(() =>
-          [...document.querySelectorAll('#content .block:not(.gap)')]
-            .map((b) => b.querySelector('.source-view > code')?.textContent ?? b.querySelector('.cm-content')?.textContent ?? '')
-            .join('\n'),
-        )
-      const before = await bodyText()
-      const probe = await page.evaluate(() => {
-        const lastText = (el) => {
-          const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-          let last = null
-          while (w.nextNode()) last = w.currentNode
-          return last
-        }
-        const codes = [...document.querySelectorAll('#content .block[data-block-id] > .source-view > code')]
-        const pair = codes.filter((c) => c.textContent && lastText(c))
-        if (pair.length < 2) return null
-        const [a, b] = pair
-        const bLast = lastText(b)
-        const r = document.createRange()
-        r.setStart(a, 0)
-        r.setEnd(bLast, Math.min(3, bLast.textContent.length))
-        const sel = window.getSelection()
-        sel.removeAllRanges()
-        sel.addRange(r)
-        b.scrollIntoView({ block: 'center' })
-        const box = b.getBoundingClientRect()
-        return {
-          text: sel.toString(),
-          // 落点取第二块的头几个字：那一段必然落在选区里，右键才不会顺手把选区收掉
-          x: Math.round(box.left + 6),
-          y: Math.round(box.top + Math.min(box.height - 2, 10)),
-        }
-      })
-      if (!probe || probe.text.length < 2) {
-        note('warn', '源码档里取不到跨块的可选文本，「删除选中的文字」这条没验到')
-      } else {
-        await page.waitForTimeout(250)
-        await page.mouse.click(probe.x, probe.y, { button: 'right' })
-        await page.waitForTimeout(250)
-        const kept = await page.evaluate(() => window.getSelection()?.toString() ?? '')
-        const withSel = await menuItems()
-        // 两种语言都写进正则：这个页面的文案随机器语言变（见 1040 行那条）
-        const copyAt = withSel.findIndex((l) => /复制选中的文字|Copy selection/i.test(l))
-        const delAt = withSel.findIndex((l) => /删除选中的文字|Delete selection/i.test(l))
-        if (kept !== probe.text) {
-          note('warn', `右键把选区收掉了（${probe.text.length} → ${kept.length} 字）：落点没落在选区里，这条没验到`)
-        } else if (copyAt !== 0 || delAt !== 1) {
-          note(
-            'error',
-            `源码档选区动作没排在最前（复制 ${copyAt}，删除 ${delAt}）：${JSON.stringify(withSel)}`,
-          )
-        } else {
-          await page.locator('.context-menu .context-item').nth(delAt).click()
-          await page.waitForTimeout(350)
-          const afterDel = await bodyText()
-          if (afterDel.length >= before.length) {
-            note('error', `点了「删除选中的文字」，正文没有变短（${before.length} → ${afterDel.length}）`)
-          }
-          await page.keyboard.press(`${MOD}+z`)
-          await page.waitForTimeout(400)
-          const afterUndo = await bodyText()
-          if (afterUndo !== before) {
-            note('error', `⌘Z 没恢复选区删除（${before.length} → ${afterDel.length} → ${afterUndo.length}）`)
-          }
-          note('info', `源码档选区菜单 ${withSel.length} 项，删除 ${before.length}→${afterDel.length}，⌘Z → ${afterUndo.length}`)
-        }
-      }
+      await page.waitForSelector('#content .source-doc-host .cm-content', { timeout: 3000 })
+      const sourceText = () => page.locator('#content .source-doc-host .cm-content').innerText()
+      const before = await sourceText()
+      const hasBlank = await page.evaluate(() =>
+        [...document.querySelectorAll('#content .source-doc-host .cm-line')].some((l) => l.textContent === ''),
+      )
+      if (!hasBlank) note('error', '源码档选区检查时正文没有空行')
+      await page.locator('#content .source-doc-host .cm-content').click()
+      await page.keyboard.press(`${MOD}+End`)
+      await page.keyboard.type('ZQ')
+      const added = await sourceText()
+      if (!added.endsWith('ZQ') && !added.includes('ZQ')) note('error', '源码档末尾打的字没有进编辑器')
+      await page.keyboard.press(`${MOD}+z`)
+      await page.waitForTimeout(150)
+      const undone = await sourceText()
+      if (undone.includes('ZQ')) note('error', '源码档撤销没有收回刚打的字')
+      else note('info', '源码档：空行还在，末尾打字后一次撤销能收回')
       await page.keyboard.press('Escape')
       await page.waitForTimeout(200)
       await page.evaluate(() => window.getSelection()?.removeAllRanges())
@@ -2820,28 +2756,26 @@ const summary = {
     await page.goto(`${URL_ARG}?doc=${encodeURIComponent('/samples/sample.md')}`, { waitUntil: 'load' })
     await page.waitForSelector('#content .block', { timeout: 10000 })
     await page.keyboard.press(`${MOD}+3`) // 源码档
-    await page.waitForTimeout(400)
-    await page.evaluate(() => {
-      const code = document.querySelector('.source-view code')
-      if (!code) return
-      const range = document.createRange()
-      range.selectNodeContents(code)
-      const sel = getSelection()
-      sel?.removeAllRanges()
-      sel?.addRange(range)
-    })
-    const srcBox = await page.locator('.source-view').first().boundingBox()
-    await page.mouse.click(srcBox.x + 12, srcBox.y + 8, { button: 'right' })
+    await page.waitForSelector('#content .source-doc-host .cm-content', { timeout: 3000 })
+    await page.locator('#content .source-doc-host .cm-content').click()
+    await page.keyboard.press(`${MOD}+a`)
+    const srcBox = await page.locator('#content .source-doc-host .cm-content').boundingBox()
+    if (!srcBox) note('error', '源码档编辑器没有布局盒子，右键复制没验到')
+    else await page.mouse.click(srcBox.x + 24, srcBox.y + 16, { button: 'right' })
     await page.waitForTimeout(250)
     const srcItems = await page.evaluate(() =>
       [...document.querySelectorAll('.context-item')].map((b) => b.textContent ?? ''),
     )
     if (srcItems.some((s) => s.includes('HTML')))
       note('error', `源码档菜单不该有「复制为 HTML」（没有渲染结果）：${srcItems.join(' / ')}`)
-    await page.locator('.context-item', { hasText: '复制为纯文本' }).first().click()
-    await page.waitForTimeout(250)
-    const clipped = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''))
-    if (!clipped) note('error', '源码档「复制为纯文本」复制到空内容（应复制选区或源码本身）')
+    const copyItem = page.locator('.context-item', { hasText: /^复制|^Copy/ }).first()
+    if ((await copyItem.count()) === 0) note('error', `源码档右键没有复制：${srcItems.join(' / ')}`)
+    else {
+      await copyItem.click()
+      await page.waitForTimeout(250)
+      const clipped = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''))
+      if (!clipped) note('error', '源码档复制选区得到空内容')
+    }
     await page.keyboard.press('Escape')
     await page.waitForTimeout(150)
   }

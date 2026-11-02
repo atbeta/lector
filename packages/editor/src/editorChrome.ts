@@ -1,4 +1,4 @@
-import { countBlocks, formatCount, readingMinutes } from '@lector/core'
+import { countBlocks, countWordsApprox, formatCount, readingMinutes } from '@lector/core'
 import { bindTitlebar, shellSupportsPdfExport, exportPdf, savePdfDialog, exportPdfTo, detectEnv } from '@lector/shell-web'
 import { baseName } from './paths.ts'
 import { iconSvg } from './icons.ts'
@@ -15,7 +15,7 @@ import type { DocumentSession } from './documentSession.ts'
 //
 // read:   只读预览。点块不进编辑；mermaid / 图片点开放大。
 // edit:   预览 + 点块就地编辑（改哪块点哪块）。这是「顺手能改」的主路径。
-// source: 全篇等宽源码，点块进该块的源码编辑。通读原文 / 批量改格式用。
+// source: 全篇一个等宽 CodeMirror，看到的就是会写回磁盘的原文。
 //
 // 三档**常驻**在顶栏右侧的分段控件里，当前档一眼可见。
 // 旧版是一个三态循环按钮，按钮上画的是「下一个模式」的图标，用户永远要猜
@@ -38,15 +38,47 @@ function nextViewMode(m: ViewMode): ViewMode {
   return VIEW_MODES[(VIEW_MODES.indexOf(m) + 1) % VIEW_MODES.length]!
 }
 
+/** 源码档整篇文本的状态行。不走 mdast：打字时不能整篇重解析。 */
+function liveSourceStats(text: string): { words: number; chars: number; lines: number } {
+  let newlines = 0
+  let chars = 0
+  for (const ch of text) {
+    chars++
+    if (ch === '\n') newlines++
+  }
+  return {
+    words: countWordsApprox(text),
+    chars,
+    lines: text.length === 0 ? 0 : newlines + 1,
+  }
+}
+
+function liveHeadingCount(text: string): number {
+  let n = 0
+  for (const line of text.split('\n')) {
+    if (/^#{1,6}[ \t]/.test(line)) n++
+  }
+  return n
+}
+
 interface EditorChromeDeps {
   getSession(): Readonly<DocumentSession>
   isLarge(): boolean
   getLargeInfo(): { bytes: number; totalLines: number; words: number | null }
   defocus(): void
   render(): Promise<void>
+  /** 源码档整篇 CM 的当前文本。不在源码档时是 null，状态行继续按块算。 */
+  sourcePlainText(): string | null
 }
 
-export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus, render }: EditorChromeDeps) {
+export function createEditorChrome({
+  getSession,
+  isLarge,
+  getLargeInfo,
+  defocus,
+  render,
+  sourcePlainText,
+}: EditorChromeDeps) {
   const contentEl = document.getElementById('content')!
   const dirtyDot = document.getElementById('dirty-dot')!
   const fileNameEl = document.getElementById('file-name')!
@@ -315,8 +347,9 @@ export function createEditorChrome({ getSession, isLarge, getLargeInfo, defocus,
       renderZoomItem()
       return
     }
-    const stats = countBlocks(blocks)
-    const sections = blocks.filter((b) => b.kind === 'heading').length
+    const live = sourcePlainText()
+    const stats = live === null ? countBlocks(blocks) : liveSourceStats(live)
+    const sections = live === null ? blocks.filter((b) => b.kind === 'heading').length : liveHeadingCount(live)
     const minutes = readingMinutes(stats)
 
     statusRight.replaceChildren()

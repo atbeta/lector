@@ -19,9 +19,18 @@ interface OutlineDeps {
   getBlocks(): readonly BlockView[]
   getBlockElement(id: string): HTMLElement | undefined
   isLargeDocument(): boolean
+  /** 源码档整篇 CM 时，按标题 id 滚到对应原文位置。处理了就返回 true。 */
+  scrollSourceHeading?(id: string): boolean
 }
 
-export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, isLargeDocument }: OutlineDeps) {
+export function createOutline({
+  sidebar,
+  contentEl,
+  getBlocks,
+  getBlockElement,
+  isLargeDocument,
+  scrollSourceHeading,
+}: OutlineDeps) {
   /**
    * 大纲签名：标题的 id / 级别 / 文字。变了就说明大纲该重建。
    * 紧挨着侧栏声明放：这个变量在模块初始化期就可能被读到，声明位置不能再往下挪。
@@ -232,6 +241,10 @@ export function createOutline({ sidebar, contentEl, getBlocks, getBlockElement, 
 
   /** 跳到某小节：顶部对齐，并留一点呼吸（由 #content 的 scroll-padding-top 提供）。 */
   function jumpToHeading(id: string): void {
+    if (scrollSourceHeading?.(id)) {
+      setActiveHeading(id, { reveal: true })
+      return
+    }
     const el = getBlockElement(id)
     if (!el) return
     // 瞬时跳转：浏览器的 smooth 时长不受控，长距离能滑 1s+，导航要的是立刻到达

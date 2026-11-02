@@ -658,6 +658,41 @@ html.large-file .mode-switch { display: none; }
   margin-inline: auto;
 }
 
+/* 源码档：同样是整篇一个 CM，但字号行高跟阅读档对齐，等宽只换字体。
+   空行是文本里的换行，不再靠块间缝留白。 */
+#content.source-doc {
+  overflow: hidden;
+  padding: 0;
+}
+.source-doc-host {
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-mono);
+  font-size: var(--reading-font-size);
+  line-height: var(--reading-line-height);
+  color: rgb(var(--foreground));
+}
+.source-doc-host .cm-editor {
+  height: 100%;
+  background: transparent;
+}
+.source-doc-host .cm-scroller {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: var(--content-pad-top, 30px) max(32px, calc((100% - var(--reading-max-w, 72ch)) / 2)) 18vh;
+}
+.source-doc-host .cm-content {
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: rgb(var(--foreground));
+}
+.source-doc-host .cm-gutters {
+  background: transparent;
+  border: none;
+  color: rgb(var(--muted-foreground));
+}
+
 
 /* ───────────── 减少动态 ─────────────
  * 系统开了「减少动态效果」就把全部入场/过渡压到近乎瞬时。阅读器是长时间注视的

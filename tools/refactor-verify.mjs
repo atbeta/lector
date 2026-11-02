@@ -162,7 +162,7 @@ const mountPreferenceOutline = async () => {
 
   try {
     await page.click('.mode-opt[data-mode="source"]')
-    await page.waitForSelector('#content .source-view', { timeout: 10000 })
+    await page.waitForSelector('#content .source-doc-host .cm-content', { timeout: 10000 })
     await page.click('.mode-opt[data-mode="read"]')
     await page.waitForSelector('#content .preview', { timeout: 10000 })
     const rows = await page.$$('.outline-row')

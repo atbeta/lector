@@ -56,6 +56,7 @@ const chrome: EditorChrome = createEditorChrome({
   getLargeInfo: () => editor.getLargeInfo(),
   defocus: () => editor.defocus(),
   render: () => editor.render(),
+  sourcePlainText: () => editor.sourcePlainText(),
 })
 const contentEl = chrome.elements.contentEl
 
@@ -73,6 +74,7 @@ const outline = createOutline({
   getBlocks: () => editor.getSession().blocks,
   getBlockElement: (id) => editor.getBlockElement(id),
   isLargeDocument: () => editor.isLarge(),
+  scrollSourceHeading: (id) => editor.scrollSourceHeading(id),
 })
 
 const positions = createReadingPositionController({

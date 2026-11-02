@@ -41,6 +41,7 @@ import { createDocumentSession, type DocumentSession } from './documentSession.t
 import { type CaretIntent, placeCaret, caretX, atVisualVerticalEdge, atHorizontalEdge } from './caretNavigation.ts'
 import { createBlockOperations, type BlockOperations } from './blockOperations.ts'
 import { createLargeDocument } from './largeDocument.ts'
+import { createSourceEditor } from './sourceDocument.ts'
 import { coveredEndBeforePending } from './pendingCover.ts'
 import { createOffscreenShells } from './offscreenShells.ts'
 import type { ViewMode } from './editorChrome.ts'
@@ -89,6 +90,8 @@ export interface DocumentEditor {
   replaceInDocument(find: string, replacement: string): boolean
   openFind(): void
   operations: BlockOperations
+  scrollSourceHeading(id: string): boolean
+  sourcePlainText(): string | null
 }
 
 export function createDocumentEditor({
@@ -189,6 +192,12 @@ export function createDocumentEditor({
     onWordsReady: () => onStatus?.(),
   })
 
+  const sourceEditor = createSourceEditor({
+    contentEl,
+    onDocChanged: () => markDirty(),
+    onScroll: () => scheduleRecordPosition(),
+  })
+
   const operations = createBlockOperations({
     session,
     markDirty: () => markDirty(),
@@ -206,6 +215,7 @@ export function createDocumentEditor({
   /** 当前正文的滚动容器：普通档是 #content，大文件档是 CM 自己的滚动层。 */
   function activeScroller(): HTMLElement | null {
     if (large.isActive()) return large.getView()?.scrollDOM ?? null
+    if (sourceEditor.isActive()) return sourceEditor.getView()?.scrollDOM ?? null
     return contentEl
   }
 
@@ -250,7 +260,13 @@ export function createDocumentEditor({
     // 大纲不重建就会指着一批不存在的块——表现为高亮消失、点击无反应。
     // 段落打字只改 raw，签名不会变，不必每键扫 50 个标题。
     if (!opts?.fromTyping || outlineNeedsRefresh(opts.kind, false)) beforeDirty()
-    session.dirty = large.isActive() ? large.isDirty() : sessionIsDirty(session.blocks, session.structuralDirty)
+    if (sourceEditor.isActive() && session.source) {
+      // 源码档的正文在整篇 CM 里，块上的 dirty 还是切进来之前的。
+      session.dirty = sourceEditor.text() !== session.source.text
+      session.structuralDirty = session.dirty
+    } else {
+      session.dirty = large.isActive() ? large.isDirty() : sessionIsDirty(session.blocks, session.structuralDirty)
+    }
     // 显隐交给样式（html.dirty .dirty-dot），这里只翻一个类，避免两处真相
     document.documentElement.classList.toggle('dirty', session.dirty)
     onDirty()
@@ -490,6 +506,7 @@ export function createDocumentEditor({
       cm.destroy()
       cm = null
     }
+    sourceEditor.destroy()
     large.destroy()
     session.focusedId = null
     paintGeneration++
@@ -502,7 +519,7 @@ export function createDocumentEditor({
     liveText.clear()
     containGen++
     containStale = true
-    contentEl.classList.remove('large-doc', 'blocks-cv')
+    contentEl.classList.remove('large-doc', 'source-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
     session.source = createSourceDocument(path, raw, mtimeMs)
     // 换文档 = 另一次保存生命周期：「保存中 / 已保存时间」都属于上一篇
@@ -618,10 +635,71 @@ export function createDocumentEditor({
   /** 正在分批补画的文档版本。换文档时递增，旧批次由此失效。 */
   let paintGeneration = 0
 
+  /** 源码档：拆掉块 DOM，挂上整篇 CM。块对象先留着，没改字切回去还能用。 */
+  function ensureSourceView(): void {
+    if (sourceEditor.isActive()) return
+    finalizeFocused()
+    if (cm) {
+      cm.destroy()
+      cm = null
+    }
+    session.focusedId = null
+    shells.reset()
+    for (const el of blocksEl.values()) el.remove()
+    const text = session.dirty ? serialize(session.blocks) : (session.source?.text ?? '')
+    sourceEditor.mount(text)
+    renderOutline()
+  }
+
+  /** 离开源码档。全文没变就沿用原来的块；变了才按整篇重解析。 */
+  function commitSourceView(): void {
+    if (!sourceEditor.isActive() || !session.source) return
+    const text = sourceEditor.text()
+    const changed = text !== sourceEditor.loadedText()
+    sourceEditor.destroy()
+    if (!changed) return
+    let blocks = parseBlocks(text)
+    if (blocks.length === 0) {
+      const { para, gap } = operations.makeEmptyParagraph(0)
+      blocks = [para, gap]
+    }
+    for (const el of blocksEl.values()) el.remove()
+    blocksEl.clear()
+    lastPaint.clear()
+    parsedRaw.clear()
+    session.blocks = blocks
+    session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
+    for (const b of session.blocks) b.dirty = false
+    session.structuralDirty = text !== session.source.text
+    session.focusedId = null
+    containStale = true
+    invalidateBlockIndex()
+  }
+
+  function scrollSourceHeading(id: string): boolean {
+    if (!sourceEditor.isActive()) return false
+    const block = session.blocks.find((b) => b.id === id && b.kind === 'heading')
+    if (!block) return false
+    let pos = block.start
+    const text = sourceEditor.text()
+    if (text !== sourceEditor.loadedText()) {
+      const at = block.raw ? text.indexOf(block.raw) : -1
+      if (at >= 0) pos = at
+    }
+    sourceEditor.reveal(pos)
+    return true
+  }
+
   async function render() {
     // 大文件没有块：正文区由 mountLargeDocument 挂的整篇 CM 占据，
     // 任何走块渲染的路径（切档、markDirty 之后等）都必须绕开，否则会把 CM 清掉。
     if (large.isActive()) return
+    // 源码档同样是整篇一个 CM。切进来才挂，切走才把文本交回块表。
+    if (session.source && getViewMode() === 'source') {
+      ensureSourceView()
+      return
+    }
+    if (sourceEditor.isActive()) commitSourceView()
     // 没打开文档时 contentEl 归空态/加载态管（loadState.ts），这里没有块可渲染。
     // 不设防的话 applyKeyedChildren(contentEl, []) 会把空态 UI 整个抹掉——
     // 实际发生过：启动时主题从系统预判切到设置值触发 mermaid 重画（main.ts 的
@@ -1157,6 +1235,16 @@ export function createDocumentEditor({
   }
 
   function insertImageMarkdownAtCaret(md: string) {
+    const sourceView = sourceEditor.getView()
+    if (sourceEditor.isActive() && sourceView) {
+      const pos = sourceView.state.selection.main.head
+      sourceView.dispatch({
+        changes: { from: pos, insert: md },
+        selection: { anchor: pos + md.length },
+        scrollIntoView: true,
+      })
+      return
+    }
     // 大文件：正文就是一个整篇 CM，插到它的光标处
     const largeView = large.getView()
     if (large.isActive() && largeView) {
@@ -1187,6 +1275,13 @@ export function createDocumentEditor({
    * CM 路径走 dispatch（光标、撤销链、脏标记都走既有监听）；块路径复用 setBlockRaw。
    */
   function replaceInDocument(find: string, replacement: string): boolean {
+    const sourceView = sourceEditor.getView()
+    if (sourceEditor.isActive() && sourceView) {
+      const at = sourceView.state.doc.toString().indexOf(find)
+      if (at < 0) return false
+      sourceView.dispatch({ changes: { from: at, to: at + find.length, insert: replacement } })
+      return true
+    }
     const largeView = large.getView()
     if (large.isActive() && largeView) {
       const at = largeView.state.doc.toString().indexOf(find)
@@ -1214,6 +1309,21 @@ export function createDocumentEditor({
       return
     }
     // 大文件不建块：走整篇 CM 的源码查找（装饰 + 上一个/下一个），不做替换。
+    if (sourceEditor.isActive()) {
+      const view = sourceEditor.getView()
+      if (!view) return
+      findBar({
+        getBlocks: () => [],
+        replaceInBlock: () => {},
+        scrollTo: () => {},
+        sourceFind: {
+          getDoc: () => view.state.doc,
+          reveal: (hits, current) => sourceEditor.revealFind(hits, current),
+          clear: () => sourceEditor.clearFind(),
+        },
+      })
+      return
+    }
     if (large.isActive()) {
       const view = large.getView()
       if (!view) {
@@ -1257,6 +1367,7 @@ export function createDocumentEditor({
   /** 当前会把什么写回磁盘——与状态行的字数取自同一份文本。 */
   function allRawText(): string {
     if (large.isActive()) return large.largeText()
+    if (sourceEditor.isActive()) return sourceEditor.text()
     return session.blocks.map((b) => b.raw).join('')
   }
 
@@ -1266,6 +1377,10 @@ export function createDocumentEditor({
     // 大文件：未编辑时直接写回原文——CM 会把 CRLF / 混合换行规整成 LF，从 CM 取全文
     // 会在"打开后原样保存"这一路径上改写换行字节（撞产品红线）。编辑过才用 CM 的文本。
     if (large.isActive()) return large.isDirty() ? large.largeText() : src.text
+    if (sourceEditor.isActive()) {
+      const text = sourceEditor.text()
+      return text !== src.text ? text : src.text
+    }
     finalizeFocused()
     return serialize(session.blocks)
   }
@@ -1284,6 +1399,13 @@ export function createDocumentEditor({
       // 这条基线就是 session.source.text，未编辑保存写回原文靠它。
       large.markSaved()
       session.source!.text = normalized
+    } else if (sourceEditor.isActive()) {
+      // 编辑器留着。块表要等离开源码档再按全文重解析，这里只换磁盘基线。
+      session.source!.text = normalized
+      session.blocks.forEach((b) => {
+        b.dirty = false
+      })
+      session.structuralDirty = false
     } else {
       session.blocks.forEach((b) => {
         session.originals.set(b.id, b.raw)
@@ -1294,7 +1416,7 @@ export function createDocumentEditor({
     if (typeof mtimeMs === 'number') {
       session.source!.mtimeMs = mtimeMs
     }
-    if (!large.isActive()) {
+    if (!large.isActive() && !sourceEditor.isActive()) {
       if (cm && session.focusedId) {
         // ⌘S 不拆正在编辑的块：打字时 raw 已实时同步（syncBlockText），模型即最新。
         // 把 lastPaint 对齐到当前形态，下面 render() 就会跳过这块的重画——
@@ -1342,6 +1464,7 @@ export function createDocumentEditor({
     invalidateBlockIndex()
     large.destroy()
     large.deactivate()
+    sourceEditor.destroy()
     lastPaint.clear()
     parsedRaw.clear()
     session.source = null
@@ -1355,7 +1478,7 @@ export function createDocumentEditor({
     large.clearLargeFileBar()
     containGen++
     containStale = true
-    contentEl.classList.remove('large-doc', 'blocks-cv')
+    contentEl.classList.remove('large-doc', 'source-doc', 'blocks-cv')
     document.documentElement.classList.remove('large-file')
   }
 
@@ -1377,7 +1500,7 @@ export function createDocumentEditor({
   }
 
   function getCmView(): EditorView | null {
-    return cm?.view ?? null
+    return sourceEditor.getView() ?? cm?.view ?? null
   }
 
   function isLarge(): boolean {
@@ -1419,5 +1542,7 @@ export function createDocumentEditor({
     replaceInDocument,
     openFind,
     operations,
+    scrollSourceHeading,
+    sourcePlainText: () => (sourceEditor.isActive() ? sourceEditor.text() : null),
   }
 }

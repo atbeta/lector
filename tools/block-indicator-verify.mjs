@@ -124,37 +124,27 @@ assert.notEqual(focused, 'none', '聚焦块应当有一圈描边')
 assert.equal(await railDisplay('#content > .block.focused'), 'none', '编辑档聚焦后也不该冒出轨道')
 if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/edit-focused.png` })
 
-// ── 5b. 源码档：只有把手。.source-view 自己就有悬停左边线，
-//        再叠一条轨道就是两条几乎一样的竖线并排（曾经真的这样上过屏）──
-await page.click('.mode-opt[data-mode="source"]')
-await page.waitForTimeout(200)
-const para = page.locator('#content > .block[data-kind="paragraph"]').first()
-await para.hover()
-await page.waitForTimeout(400)
-assert.equal(
-  await para.locator('.source-view').evaluate((el) => getComputedStyle(el).borderLeftColor),
-  'rgba(140, 136, 128, 0.5)',
-  '源码档的悬停左边线本来就该在（它是既有约定，不是要被删掉的东西）',
-)
-assert.equal(
-  await para.locator('.block-rail').evaluate((el) => getComputedStyle(el).display),
-  'none',
-  '源码档不该再冒出第二条竖线',
-)
-assert.equal(
-  await para.locator('.block-handle').evaluate((el) => Number(getComputedStyle(el).opacity)),
-  1,
-  '源码档悬停应当出现把手',
-)
-if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/source-hover.png` })
-await page.click('.mode-opt[data-mode="edit"]')
-await page.waitForTimeout(100)
-
 // 聚焦块上的指示器不能被 CodeMirror 的挂载清掉（这是最容易漏的一条）
 assert.equal(
   await page.$$eval('#content > .block.focused > .block-rail', (bs) => bs.length),
   1,
   '聚焦后轨道不能被重渲染清掉',
+)
+
+// ── 5b. 源码档是整篇一个 CM，不再按块铺轨道和把手 ──
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('#content .source-doc-host .cm-content', { timeout: 5000 })
+assert.equal(await page.locator('#content .block-rail').count(), 0, '源码档不该再按块铺轨道')
+assert.equal(await page.locator('#content .source-view').count(), 0, '源码档不该再是每块一个 pre')
+if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/source-hover.png` })
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content .preview', { timeout: 5000 })
+await page.click(`${target} .preview`)
+await page.waitForSelector('#content > .block.focused', { timeout: 5000 })
+assert.equal(
+  await page.$$eval('#content > .block.focused > .block-rail', (bs) => bs.length),
+  1,
+  '切回编辑档再聚焦，轨道还在',
 )
 
 // ── 6. 换文件不留幽灵把手 ──
