@@ -88,6 +88,7 @@ const recovery = createRecoveryController({
   isLarge: () => editor.isLarge(),
   loadSession: (path, raw, mtimeMs) => files.loadSession(path, raw, mtimeMs),
   markStructuralDirty: () => editor.markStructuralDirty(),
+  getDraftText: () => editor.draftText(),
 })
 
 const editor: DocumentEditor = createDocumentEditor({

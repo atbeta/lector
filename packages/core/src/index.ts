@@ -1,5 +1,5 @@
 export type { BlockKind, BlockView, EditorSession, NewlineStyle, SourceDocument } from './types.ts'
-export { applyEncoding, createSourceDocument, detectNewline } from './encoding.ts'
+export { applyEncoding, createSourceDocument, detectNewline, restoreLineEndings } from './encoding.ts'
 export {
   parseBlocks,
   parseOne,

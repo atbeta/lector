@@ -43,6 +43,33 @@ export function createSourceDocument(path: string, raw: string, mtimeMs: number)
 }
 
 /**
+ * 把编辑后的正文按原文的行尾还原。
+ *
+ * 为什么需要它：CodeMirror 里的文档只有 LF 形态，磁盘原文的 CRLF / 混合换行
+ * 在装载时就没了。直接写回 CM 的正文，会让没动过的行也换掉行尾——撞产品红线
+ * 「未改过的块保存时必须与原文字节级一致」。
+ *
+ * 行数一致时按行号还原；行数变了就还原不了（多出来的行不知道该配哪个行尾），
+ * 这时用 CM 的形态（LF）交出去。
+ */
+export function restoreLineEndings(edited: string, original: string): string {
+  const originalLines = original.split(/\r\n?|\n/)
+  const editedLines = edited.split('\n')
+  if (originalLines.length !== editedLines.length) return edited
+  // 原文每一行后面的行尾（最后一行没有行尾）。
+  const ends: string[] = []
+  const re = /\r\n?|\n/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(original)) !== null) ends.push(m[0])
+  let out = ''
+  for (let i = 0; i < editedLines.length; i++) {
+    out += editedLines[i]
+    if (i < ends.length) out += ends[i]
+  }
+  return out
+}
+
+/**
  * 把内存正文还原为磁盘字节文本。
  * mixed：调用方传入的已是原文切片拼接，只补 BOM。
  */

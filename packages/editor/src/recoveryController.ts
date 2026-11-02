@@ -1,4 +1,4 @@
-import { applyEncoding, serialize } from '@lector/core'
+import { applyEncoding } from '@lector/core'
 import { getSettings } from './settings.ts'
 import { readRecovery, rememberRecovery, forgetRecovery, type Recovery } from './recovery.ts'
 import { showToast } from './feedback.ts'
@@ -10,9 +10,17 @@ interface RecoveryDeps {
   isLarge(): boolean
   loadSession(path: string, raw: string, mtimeMs?: number): void
   markStructuralDirty(): void
+  /** 草稿要记的正文。与「保存会写什么」同源——源码档里正文在整篇 CM 里，块表是旧的。 */
+  getDraftText(): string
 }
 
-export function createRecoveryController({ getSession, isLarge, loadSession, markStructuralDirty }: RecoveryDeps) {
+export function createRecoveryController({
+  getSession,
+  isLarge,
+  loadSession,
+  markStructuralDirty,
+  getDraftText,
+}: RecoveryDeps) {
   /**
    * ── 未保存内容恢复 ──
    *
@@ -41,7 +49,7 @@ export function createRecoveryController({ getSession, isLarge, loadSession, mar
       // （serialize([]) 会得到空串，真存下去就是一条"文件变空了"的假草稿）。
       if (isLarge()) return
       if (!getSession().dirty || !src || !isRecoverable(src.path)) return
-      rememberRecovery(src.path, applyEncoding(src, serialize(getSession().blocks)))
+      rememberRecovery(src.path, applyEncoding(src, getDraftText()))
     }, 1200)
   }
 

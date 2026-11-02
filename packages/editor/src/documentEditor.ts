@@ -80,6 +80,8 @@ export interface DocumentEditor {
   markStructuralDirty(): void
   allRawText(): string
   getNormalizedText(): string
+  /** 恢复草稿要记的正文。与「保存会写什么」同源。 */
+  draftText(): string
   retargetSource(path: string): void
   markSaved(normalized: string, mtimeMs: number | undefined): void
   setSaving(on: boolean): void
@@ -270,8 +272,10 @@ export function createDocumentEditor({
     // 段落打字只改 raw，签名不会变，不必每键扫 50 个标题。
     if (!opts?.fromTyping || outlineNeedsRefresh(opts.kind, false)) beforeDirty()
     if (sourceEditor.isActive() && session.source) {
-      // 源码档的正文在整篇 CM 里，块上的 dirty 还是切进来之前的。
-      session.dirty = sourceEditor.text() !== session.source.text
+      // 源码档的正文在整篇 CM 里，块上的 dirty 还是切进来之前的：
+      // 脏不脏看整篇 CM 与磁盘原文的差（按 CM 的换行口径比，
+      // 否则 CRLF 文件一进源码档就被判成改过）。
+      session.dirty = sourceEditor.isDirty()
       session.structuralDirty = session.dirty
     } else {
       session.dirty = large.isActive() ? large.isDirty() : sessionIsDirty(session.blocks, session.structuralDirty)
@@ -651,15 +655,19 @@ export function createDocumentEditor({
     shells.reset()
     for (const el of blocksEl.values()) el.remove()
     const text = session.dirty ? serialize(session.blocks) : (session.source?.text ?? '')
-    sourceEditor.mount(text)
+    // 判脏的基准是磁盘原文，不是刚挂上去的那份：源码档里挂的可能是块拼出来的脏文本。
+    sourceEditor.mount(text, session.source?.text ?? '')
     renderOutline()
   }
 
   /** 离开源码档。全文没变就沿用原来的块；变了才按整篇重解析。 */
   function commitSourceView(): void {
     if (!sourceEditor.isActive() || !session.source) return
-    const text = sourceEditor.text()
-    const changed = text !== sourceEditor.loadedText()
+    // 行尾按磁盘原文还原：CM 里只有 LF，直接拿它重解析块，
+    // 混合换行的文件会整篇改字节（撞产品红线）。
+    const text = sourceEditor.editedText()
+    const changed = sourceEditor.changedSinceMount()
+    const dirty = sourceEditor.isDirty()
     sourceEditor.destroy()
     if (!changed) return
     let blocks = parseBlocks(text)
@@ -675,10 +683,12 @@ export function createDocumentEditor({
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
-    session.structuralDirty = text !== session.source.text
+    session.structuralDirty = dirty
     session.focusedId = null
     containStale = true
     invalidateBlockIndex()
+    // 块表换了，重算脏状态并让大纲跟上（源码档里改的标题到这里才落地）。
+    markDirty()
   }
 
   function scrollSourceHeading(id: string): boolean {
@@ -687,8 +697,11 @@ export function createDocumentEditor({
     if (!block) return false
     let pos = block.start
     const text = sourceEditor.text()
-    if (text !== sourceEditor.loadedText()) {
-      const at = block.raw ? text.indexOf(block.raw) : -1
+    if (sourceEditor.changedSinceMount()) {
+      // 块表里是切进源码档时的旧位置；正文改过就得在现在的正文里重找。
+      // 块的 raw 带原文行尾（CRLF），CM 里只有 LF，先归一再找。
+      const needle = block.raw.replace(/\r\n?/g, '\n')
+      const at = needle ? text.indexOf(needle) : -1
       if (at >= 0) pos = at
     }
     sourceEditor.reveal(pos)
@@ -1368,6 +1381,17 @@ export function createDocumentEditor({
     return session.blocks.map((b) => b.raw).join('')
   }
 
+  /**
+   * 恢复草稿要记的正文。
+   *
+   * 与「保存会写什么」同源：源码档里正文在整篇 CM 里，块表是切进来之前的旧内容，
+   * 拿块表拼草稿会把用户在源码档里的改动丢掉。
+   */
+  function draftText(): string {
+    if (sourceEditor.isActive()) return sourceEditor.saveText()
+    return serialize(session.blocks)
+  }
+
   function getNormalizedText(): string {
     const src = session.source
     if (!src) return ''
@@ -1375,8 +1399,8 @@ export function createDocumentEditor({
     // 会在"打开后原样保存"这一路径上改写换行字节（撞产品红线）。编辑过才用 CM 的文本。
     if (large.isActive()) return large.isDirty() ? large.largeText() : src.text
     if (sourceEditor.isActive()) {
-      const text = sourceEditor.text()
-      return text !== src.text ? text : src.text
+      // 没改过就写回磁盘原文（字节级一致）；改过才写当前正文（行尾按原文还原）。
+      return sourceEditor.saveText()
     }
     finalizeFocused()
     return serialize(session.blocks)
@@ -1399,6 +1423,7 @@ export function createDocumentEditor({
     } else if (sourceEditor.isActive()) {
       // 编辑器留着。块表要等离开源码档再按全文重解析，这里只换磁盘基线。
       session.source!.text = normalized
+      sourceEditor.markSaved(normalized)
       session.blocks.forEach((b) => {
         b.dirty = false
       })
@@ -1523,6 +1548,7 @@ export function createDocumentEditor({
     markStructuralDirty,
     allRawText,
     getNormalizedText,
+    draftText,
     retargetSource,
     markSaved,
     setSaving,

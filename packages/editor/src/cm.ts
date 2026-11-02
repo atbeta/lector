@@ -50,7 +50,12 @@ export interface EditorialConfig {
    * 需要全文时（保存）调用方自己从 view.state.doc.toString() 取一次。
    */
   largeDocument?: boolean
-  /** 配合 largeDocument：变更通知（不含文本）。 */
+  /**
+   * 变更通知（不含文本）。
+   *
+   * 给了它就说明调用方要的是「变了」这个信号，不是整篇文本——整篇 toString 是
+   * O(n) 复制，逐键调用会卡死。大文件与源码档都是整篇一份 CM，都走这条。
+   */
   onDocChanged?: () => void
   /**
    * 这块上次失焦时留下的状态。文档和 raw 一致才用，撤销栈因此能跨过切块。
@@ -192,9 +197,11 @@ export function mountEditor(
     syntaxHigh,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        // 大文件不把整篇 toString（那是 O(n) 复制，逐键调用会卡死）；只报「变了」
-        if (config.largeDocument) config.onDocChanged?.()
-        else onChange(update.state.doc.toString())
+        // 谁给了 onDocChanged 谁就只要「变了」这个信号：整篇 toString 是 O(n) 复制，
+        // 逐键调用会卡死（大文件、源码档都是整篇一份 CM）。
+        if (config.onDocChanged) config.onDocChanged()
+        // largeDocument 模式下不给全文：那条路的前提就是逐键不复制整篇。
+        else if (!config.largeDocument) onChange(update.state.doc.toString())
       }
       if (config.onSelectionChange && (update.selectionSet || update.docChanged || update.focusChanged)) {
         reportSelection(update.view)
