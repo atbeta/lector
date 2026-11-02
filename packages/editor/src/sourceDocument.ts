@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view'
-import type { Text } from '@codemirror/state'
+import type { EditorState, Text } from '@codemirror/state'
 import { restoreLineEndings } from '@lector/core'
 import { mountEditor, type CmHandle } from './cm.ts'
 import { toCmText } from './sourceText.ts'
@@ -31,6 +31,14 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
   let diskRaw = ''
   /** 挂上时的正文（CM 口径）。用来判「进了源码档之后改过没有」。 */
   let mounted: Text | null = null
+  /**
+   * 上一次卸载时留下的状态（撤销栈就在里面）。
+   *
+   * 切档会 destroy 掉 CM，历史跟着走。用户的心智是「我刚删了东西，切个档
+   * 再按 ⌘Z 应该能撤回」——所以只要正文没被别人改动过，就把这份状态接回去，
+   * 和块档的 blockHistory 是同一套做法。
+   */
+  let savedState: EditorState | null = null
 
   /**
    * 挂上整篇编辑器。
@@ -61,6 +69,8 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
         lineNumbers: true,
         // 整篇一份 CM：查找高亮这类「整篇才做得了」的能力挂这个标记。
         wholeDocument: true,
+        // 正文没变过就接回上次的撤销栈（见 savedState）。
+        ...(savedState ? { initialState: savedState } : {}),
         onDocChanged,
         onSelectionChange: (sel) => {
           if (!sel || !cm) {
@@ -133,6 +143,10 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
   }
 
   function destroy(): void {
+    // 先收下状态再拆：撤销栈只存在于这份 EditorState 里。
+    // 记的是「卸载那一刻的正文」，下次挂载若还是同一份正文才接得回去
+    // （正文被别人改过却接回旧历史，撤销会跳到不存在的文本上）。
+    if (cm) savedState = cm.view.state
     cm?.destroy()
     cm = null
     disk = null
