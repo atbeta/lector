@@ -175,8 +175,24 @@ jobs:
             fi
             exit 1
           fi
-          xcrun stapler staple "$APP"
-          xcrun stapler validate "$APP"
+          # staple/validate 要连苹果的票据服务（api.apple-cloudkit.com）。公证成功之后
+          # 这一步仍会偶发 NSURLErrorDomain -1005 / Error 68，纯粹是访问那个接口时断网
+          # （v0.39.0、v0.39.1 连续两版都撞上，不是代码问题）。重试几次就好，
+          # 别让一次断网把已经公证好的产物判死。
+          retry() {
+            local n=0
+            until "$@"; do
+              n=$((n + 1))
+              if [ "$n" -ge 5 ]; then
+                echo "✗ 重试 $n 次仍失败：$*" >&2
+                return 1
+              fi
+              echo "⚠️ 第 $n 次失败（$*），15s 后重试"
+              sleep 15
+            done
+          }
+          retry xcrun stapler staple "$APP"
+          retry xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose=4 "$APP" \
             || echo "⚠️ spctl 在 CI 里偶发失败，stapler validate 已通过"
 
@@ -207,10 +223,23 @@ jobs:
             fi
             exit 1
           fi
-          xcrun stapler staple "$DMG"
+          # 同上：公证已 accepted，这里只差把票据钉进文件，断网就重试。
+          retry() {
+            local n=0
+            until "$@"; do
+              n=$((n + 1))
+              if [ "$n" -ge 5 ]; then
+                echo "✗ 重试 $n 次仍失败：$*" >&2
+                return 1
+              fi
+              echo "⚠️ 第 $n 次失败（$*），15s 后重试"
+              sleep 15
+            done
+          }
+          retry xcrun stapler staple "$DMG"
           # DMG 无自身代码签名（hdiutil 产物特性），spctl primary-signature 必然 rejected。
           # Gatekeeper 对 DMG 走公证票据，正确验证是 stapler validate。
-          xcrun stapler validate "$DMG"
+          retry xcrun stapler validate "$DMG"
           mv "$STAGE/Lector.zip" "$ZIP"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           ls -l "$STAGE"
