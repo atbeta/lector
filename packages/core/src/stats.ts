@@ -61,20 +61,36 @@ export interface BlockStats {
   newlines: number
 }
 
-const blockStatsCache = new WeakMap<object, { raw: string; stats: BlockStats }>()
+const blockStatsCache = new WeakMap<object, { raw: string; trustMdast: boolean; stats: BlockStats }>()
 
-/** 一块的统计。同一块对象 raw 没变就直接命中缓存，不重新解析。 */
+/**
+ * 树和 raw 已经分家，但 dirty 仍是 false。
+ * 删回磁盘原文时就会这样：dirty 回到 false，mdast 还是加字那一版。
+ * 统计若再信这棵树，字数会停在删除之前，而且按 raw 缓存后失焦重解析也刷不掉。
+ */
+const mdastStale = new WeakSet<object>()
+
+export function markMdastStale(block: object): void {
+  mdastStale.add(block)
+}
+
+export function markMdastFresh(block: object): void {
+  mdastStale.delete(block)
+}
+
+/** 一块的统计。同一块对象 raw 和「信不信树」都没变，就直接命中缓存。 */
 export function blockStats(block: StatsBlock): BlockStats {
+  const trustMdast = !block.dirty && !!block.mdast && !mdastStale.has(block)
   const cached = blockStatsCache.get(block)
-  if (cached && cached.raw === block.raw) return cached.stats
+  if (cached && cached.raw === block.raw && cached.trustMdast === trustMdast) return cached.stats
   const trees = Array.isArray(block.mdast) ? block.mdast : [block.mdast]
-  const rendered = !block.dirty && block.mdast ? renderedFromNodes(trees) : renderedFromNodes(parseBlockRoots(block.raw))
+  const rendered = trustMdast ? renderedFromNodes(trees) : renderedFromNodes(parseBlockRoots(block.raw))
   const stats: BlockStats = {
     words: rendered === '' ? 0 : statsFrom(rendered, 0, 0).words,
     chars: countCodePoints(block.raw),
     newlines: countNewlines(block.raw),
   }
-  blockStatsCache.set(block, { raw: block.raw, stats })
+  blockStatsCache.set(block, { raw: block.raw, trustMdast, stats })
   return stats
 }
 
@@ -191,11 +207,11 @@ export function countWordsApprox(text: string): number {
 /**
  * 按块增量统计——状态行的常规路径。
  *
- * 编辑器按块持有 mdast（BlockView），非 dirty 块的树与 raw 一致，直接遍历
- * （零解析）；dirty 块的 mdast 是旧的（打字中 syncBlockText 只更新 raw，
- * 失焦 finalizeFocused 才重解析），必须从 raw 现算——一块很小，亚毫秒。
- * 缓存挂在块对象上（blockStats）：raw 没变直接命中。块对象重建（换文档、重解析）
- * 时缓存自然失效，不需要容量上限。
+ * 编辑器按块持有 mdast（BlockView）。树和 raw 一致时直接遍历（零解析）。
+ * dirty，或调用方标了 markMdastStale（删回原文后 dirty 已是 false、树仍旧），
+ * 都从 raw 现算——一块很小，亚毫秒。
+ * 缓存挂在块对象上（blockStats）：raw 与「信不信树」都没变才命中。块对象重建
+ * （换文档、重解析）时缓存自然失效，不需要容量上限。
  */
 export function countBlocks(blocks: StatsBlock[]): DocStats {
   if (blocks.length === 0) return { words: 0, chars: 0, lines: 0 }

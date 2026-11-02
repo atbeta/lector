@@ -8,6 +8,8 @@ import {
   createChunkedParser,
   definitionsFromBlocks,
   finalizeChunkedBlocks,
+  markMdastFresh,
+  markMdastStale,
   type ChunkedParser,
   type ChunkStepResult,
   type BlockView,
@@ -1037,10 +1039,13 @@ export function createDocumentEditor({
    * 改 raw 之前先记住这棵树的来源，否则删回原文后就分不清树过没过期。
    */
   function syncBlockText(block: BlockView, text: string): void {
-    parsedSource(parsedRaw, block.id, block.raw)
+    const from = parsedSource(parsedRaw, block.id, block.raw)
     const original = session.originals.get(block.id) ?? block.raw
     block.raw = text
     block.dirty = text !== original
+    // 删回磁盘原文时 dirty 变 false，树却还是加字那一版。状态行不能再信这棵树。
+    if (from !== text) markMdastStale(block)
+    else markMdastFresh(block)
     markDirty({ fromTyping: true, kind: block.kind })
   }
 
@@ -1049,6 +1054,7 @@ export function createDocumentEditor({
     block.mdast = next.mdast
     block.kind = next.kind
     parsedRaw.set(block.id, text)
+    markMdastFresh(block)
   }
 
   function finalizeFocused() {

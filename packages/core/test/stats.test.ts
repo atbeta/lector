@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { blockStats, countBlocks, countText, countWordsApprox, formatCount, readingMinutes } from '../src/stats.ts'
-import { parseBlocks } from '../src/parse.ts'
+import { markMdastStale, parseBlocks } from '../src/index.ts'
 
 describe('文档统计', () => {
   test('空文档', () => {
@@ -118,6 +118,19 @@ describe('按块增量统计', () => {
     b0.raw = '全新的内容 hello'
     b0.dirty = true
     expect(countBlocks(blocks)).toEqual(countText('全新的内容 hello'))
+  })
+
+  test('删回原文后 dirty 为 false，仍不把加字那版树算进字数', () => {
+    const blocks = parseBlocks('顺眼')
+    const b0 = blocks[0]!
+    const fresh = blockStats(b0).words
+    b0.raw = '顺ZZTEST眼'
+    b0.dirty = true
+    blockStats(b0)
+    b0.raw = '顺眼'
+    b0.dirty = false
+    markMdastStale(b0)
+    expect(blockStats(b0).words).toBe(fresh)
   })
 
   test('逐块相加与整篇一致（词数可加）', () => {

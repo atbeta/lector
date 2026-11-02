@@ -20,6 +20,8 @@ export {
 export { normalizeBlockRaw, serialize } from './serialize.ts'
 export {
   blockStats,
+  markMdastFresh,
+  markMdastStale,
   countBlocks,
   countText,
   countWordsApprox,
