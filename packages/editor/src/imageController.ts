@@ -43,7 +43,7 @@ import type { DocumentEditor } from './documentEditor.ts'
 
 export type ImageInsertRef = { type: 'caret' } | { type: 'afterBlock'; blockId: string }
 
-export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret' | 'replaceInDocument'> }) {
+export function createImageController({ editor }: { editor: Pick<DocumentEditor, 'getSession' | 'focusBlock' | 'render' | 'operations' | 'insertImageMarkdownAtCaret' | 'replaceInDocument' | 'isSourceMode'> }) {
   /** 图片上的菜单。 */
   /**
    * 图片在正文里的归属：哪个块、块内第几张 Markdown 图。
@@ -95,6 +95,20 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
     return { url: null, error: res?.error ?? 'unknown' }
   }
 
+  /**
+   * 异步图片操作落地前的存活检查。
+   *
+   * 上传命令 / 文件选择 / alt 输入框都可能要数秒，期间用户可能切到源码档
+   * （块表藏起来，写回会被离开时的重解析吞掉），或打开 / 重载了文档
+   * （块对象已经脱离会话）。这时既不能改 raw，更不能往撤销栈里推一条
+   * 指着旧文档的项——宁可这一步丢掉，也不能写错文档。
+   */
+  function blockStillLive(block: BlockView): boolean {
+    if (editor.getSession().blocks.includes(block) && !editor.isSourceMode()) return true
+    showToast(t('imageDocChanged'))
+    return false
+  }
+
   /** 手动上传：把这张图的本地文件传上去，用返回的 URL 替换它的地址。
    *  这是「不自动上传也能上传」的那条路——与设置里的自动上传开关无关。 */
   async function uploadImageAt(block: BlockView, index: number, absPath: string): Promise<void> {
@@ -108,6 +122,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       showToast(t('imageFailed'))
       return
     }
+    if (!blockStillLive(block)) return
     const before = block.raw
     editor.operations.setBlockRaw(block, next)
     // 换 src 不经过 CM，得自己进撤销链（同任务勾选/表格写回）
@@ -127,6 +142,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
       showToast(t('imageFailed'))
       return
     }
+    if (!blockStillLive(block)) return
     const before = block.raw
     editor.operations.setBlockRaw(block, md)
     editor.operations.pushUndo(t('imageUndoAlt'), () => editor.operations.setBlockRaw(block, before))
@@ -146,6 +162,7 @@ export function createImageController({ editor }: { editor: Pick<DocumentEditor,
           showToast(t('imageFailed'))
           return
         }
+        if (!blockStillLive(block)) return
         const before = block.raw
         editor.operations.setBlockRaw(block, md)
         editor.operations.pushUndo(t('imageUndoReplace'), () => editor.operations.setBlockRaw(block, before))
