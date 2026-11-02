@@ -23,6 +23,12 @@ Lector —— 阅读优先的 Markdown 编辑器。AI 编码 Agent 与人类协�
   没有这个限制。把能力挂在性能闸门上，源码档就会静默失去那些能力——已经发生过两次
   （脏标记不翻、查找不出高亮），`onDocChanged` 也是同一个坑的第三个变体。
   新增「整篇才能做」的能力时，判据一律写 `config.wholeDocument`。
+- **读/写正文的功能一律走 `DocumentSurface`（packages/editor/src/documentSurface.ts）。**
+  正文有三个承载：块表、源码档的整篇 CM、大文件档的整篇 CM。0.39.x 的脏标记、查找、
+  草稿、图片写回那批 bug 全是同一个形状——某个功能忘了其中一个承载。
+  新能力要在 `DocumentSurface` 上加方法，三个承载必须各自给出实现；
+  功能代码里不许再新写 `sourceEditor.isActive()` / `large.isActive()` 分支
+  （生命周期守卫——挂载、卸载、渲染分派——除外，那本来就只跟一个承载说话）。
 - **切档不许丢撤销栈。** 源码档的 CM 状态在卸载时留下来（`savedState`），正文没变就接回去；
   块档同理走 `blockHistory`。`commitSourceView` 会整篇重解析、块 id 全换，若不做这件事，
   两条撤销栈会同时断掉——用户切个档再按 ⌘Z 就什么也撤不回来。
