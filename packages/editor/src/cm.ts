@@ -5,7 +5,7 @@ import { keymap, lineNumbers, EditorView, highlightWhitespace } from '@codemirro
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
-import { Prec, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
 import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
 import { applyLargeFind, clearLargeFind, largeFindField } from './cmFind.ts'
@@ -52,6 +52,11 @@ export interface EditorialConfig {
   largeDocument?: boolean
   /** 配合 largeDocument：变更通知（不含文本）。 */
   onDocChanged?: () => void
+  /**
+   * 这块上次失焦时留下的状态。文档和 raw 一致才用，撤销栈因此能跨过切块。
+   * 行号、空白、括号配对用隔间装，恢复时按当前设置重配，不动历史。
+   */
+  initialState?: EditorState
   /** 覆盖默认的 markdown 语法（mermaid 块换专用 StreamLanguage 高亮）。 */
   language?: Extension
 }
@@ -145,6 +150,28 @@ export function formatSelection(
   else applyWrap(view, '[', undefined, 'url')
 }
 
+const lineNumberCompartment = new Compartment()
+const whitespaceCompartment = new Compartment()
+const pairsCompartment = new Compartment()
+
+function lineNumberExt(on: boolean | undefined): Extension {
+  return on ? lineNumbers() : []
+}
+
+function whitespaceExt(on: boolean): Extension {
+  return on ? highlightWhitespace() : []
+}
+
+function pairsExt(on: boolean): Extension {
+  return on ? [closeBrackets(), keymap.of(closeBracketsKeymap)] : []
+}
+
+/** 原文还和这份状态一致，才把撤销栈装回去。外面改过 raw 就丢掉。 */
+export function reusableHistory(saved: EditorState | undefined, raw: string): EditorState | undefined {
+  if (!saved || saved.doc.toString() !== raw) return undefined
+  return saved
+}
+
 export function mountEditor(
   host: HTMLElement,
   doc: string,
@@ -158,7 +185,7 @@ export function mountEditor(
     // 与阅读态同一套 --code-* 变量。
     config.language ?? markdown({ codeLanguages: languages }),
     // 代码块编辑态行号：与阅读态 gutter 同一设置开关（documentEditor 传入）
-    ...(config.lineNumbers ? [lineNumbers()] : []),
+    lineNumberCompartment.of(lineNumberExt(config.lineNumbers)),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
@@ -195,12 +222,10 @@ export function mountEditor(
       '.cm-selectionMatch': { backgroundColor: 'transparent' },
     }),
   ]
-  if (config.autoCharacterPairs) {
-    extensions.push(closeBrackets(), keymap.of(closeBracketsKeymap))
-  }
-  if (config.showWhitespace) {
-    extensions.push(highlightWhitespace())
-  }
+  extensions.push(
+    pairsCompartment.of(pairsExt(config.autoCharacterPairs)),
+    whitespaceCompartment.of(whitespaceExt(config.showWhitespace)),
+  )
   // 行内格式快捷键：⌘B 粗体 / ⌘I 斜体 / ⌘E 行内代码 / ⌘K 链接。
   //
   // 这是「顺手能改」的核心：没有它，读者想加粗一个词就得手打四个星号、
@@ -309,7 +334,20 @@ export function mountEditor(
     })
   }
 
-  const view = new EditorView({ parent: host, doc, extensions })
+  const saved = reusableHistory(config.initialState, doc)
+  const view = new EditorView({
+    parent: host,
+    state: saved ?? EditorState.create({ doc, extensions }),
+  })
+  if (saved) {
+    view.dispatch({
+      effects: [
+        lineNumberCompartment.reconfigure(lineNumberExt(config.lineNumbers)),
+        whitespaceCompartment.reconfigure(whitespaceExt(config.showWhitespace)),
+        pairsCompartment.reconfigure(pairsExt(config.autoCharacterPairs)),
+      ],
+    })
+  }
   return {
     view,
     destroy: () => view.destroy(),

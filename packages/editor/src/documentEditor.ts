@@ -16,7 +16,8 @@ import {
   type DefinitionSet,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
-import { mountEditor, type CmHandle } from './cm.ts'
+import { mountEditor, reusableHistory, type CmHandle } from './cm.ts'
+import type { EditorState } from '@codemirror/state'
 import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions, mdastHasLinkReference } from './mdastHtml.ts'
 import { iconSvg } from './icons.ts'
 import { mermaidLanguage } from './mermaidLanguage.ts'
@@ -123,6 +124,14 @@ export function createDocumentEditor({
    */
   const parsedRaw = new Map<string, string>()
   let cm: CmHandle | null = null
+  /** 每块上次失焦时的 CM 状态。切走再回来，撤销栈还在。 */
+  const blockHistory = new Map<string, EditorState>()
+
+  function destroyBlockEditor(keepHistory: boolean): void {
+    if (keepHistory && cm && session.focusedId) blockHistory.set(session.focusedId, cm.view.state)
+    cm?.destroy()
+    cm = null
+  }
   const liveText = new Map<string, string>()
   /** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
   let pendingEmptyFocus: string | null = null
@@ -502,10 +511,8 @@ export function createDocumentEditor({
     // 换文档先关掉查找栏：它属于上一篇——留着会拿旧查询去搜新文档，
     // 高亮还要等下一次 refresh 才重画，中间那一眼是自相矛盾的。
     closeFindBar()
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(false)
+    blockHistory.clear()
     sourceEditor.destroy()
     large.destroy()
     session.focusedId = null
@@ -639,10 +646,7 @@ export function createDocumentEditor({
   function ensureSourceView(): void {
     if (sourceEditor.isActive()) return
     finalizeFocused()
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(true)
     session.focusedId = null
     shells.reset()
     for (const el of blocksEl.values()) el.remove()
@@ -667,6 +671,7 @@ export function createDocumentEditor({
     blocksEl.clear()
     lastPaint.clear()
     parsedRaw.clear()
+    blockHistory.clear()
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
@@ -1024,6 +1029,10 @@ export function createDocumentEditor({
     const focus = block.id === session.focusedId
     el.replaceChildren()
     if (focus) {
+      // 重画这块时旧视图还在：先收下状态再拆，撤销栈不会因为重挂载丢掉。
+      if (cm) destroyBlockEditor(true)
+      const history = reusableHistory(blockHistory.get(block.id), block.raw)
+      if (!history) blockHistory.delete(block.id)
       const host = document.createElement('div')
       host.className = 'cm-host'
       applyBlockMeta(host, block)
@@ -1060,6 +1069,7 @@ export function createDocumentEditor({
           ...config,
           // mermaid 块换专用语法高亮（围栏 + 图类型 + 箭头 + 注释）
           ...(mermaid ? { language: mermaidLanguage } : {}),
+          ...(history ? { initialState: history } : {}),
           // 选中文字 → 浮出格式浮条；空选区/失焦 → 收起。
           // 位置由 CM 自己算（coordsAtPos），浮条只负责摆和点。
           onSelectionChange: (sel) => {
@@ -1164,10 +1174,7 @@ export function createDocumentEditor({
     if (!next || !isFocusableBlock(next)) return
     const prevId = session.focusedId
     finalizeFocused()
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(true)
     destroyMermaidPanel()
     session.focusedId = id
     caretIntent = intent ?? null
@@ -1189,10 +1196,7 @@ export function createDocumentEditor({
   function defocus() {
     const prevId = session.focusedId
     finalizeFocused()
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(true)
     destroyMermaidPanel()
     session.focusedId = null
     if (prevId) {
@@ -1213,12 +1217,10 @@ export function createDocumentEditor({
       // paintBlock 会以为画过了，新元素就一直是空的。
       lastPaint.delete(r.id)
       parsedRaw.delete(r.id)
+      blockHistory.delete(r.id)
     }
     if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
-      if (cm) {
-        cm.destroy()
-        cm = null
-      }
+      destroyBlockEditor(false)
       session.focusedId = null
     }
   }
@@ -1226,10 +1228,7 @@ export function createDocumentEditor({
   function focusAfterStructuralEdit(id: string | null, intent?: CaretIntent): void {
     if (intent !== undefined) caretIntent = intent
     session.focusedId = id
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(true)
     markDirty()
     void render()
   }
@@ -1351,11 +1350,9 @@ export function createDocumentEditor({
         b.raw = replaceFind(b.raw, from, to, opts, all)
         b.dirty = true
         reparseBlock(b, b.raw)
+        blockHistory.delete(id)
         markDirty()
-        if (session.focusedId === id && cm) {
-          cm.destroy()
-          cm = null
-        }
+        if (session.focusedId === id && cm) destroyBlockEditor(false)
         render()
       },
       // 瞬时跳转：refresh() 会对多个命中块连续 scrollTo，smooth 动画互相
@@ -1430,10 +1427,7 @@ export function createDocumentEditor({
           })
         }
       } else {
-        if (cm) {
-          cm.destroy()
-          cm = null
-        }
+        destroyBlockEditor(false)
         session.focusedId = null
       }
       render()
@@ -1450,10 +1444,8 @@ export function createDocumentEditor({
   function resetDocument(): void {
     // 关文档也关查找栏：否则它会浮在空态上，还留着上一篇的查询与命中标记。
     closeFindBar()
-    if (cm) {
-      cm.destroy()
-      cm = null
-    }
+    destroyBlockEditor(false)
+    blockHistory.clear()
     // 与 loadSession 对齐：旧时间片不能再往已经清空的会话里追加块。
     paintGeneration++
     parseGeneration++
