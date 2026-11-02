@@ -336,8 +336,8 @@ export function createDocumentEditor({
     saveText: () => sourceEditor.saveText(),
     isDirty: () => sourceEditor.isDirty(),
     markSaved: (normalized) => {
-      // 编辑器留着。块表要等离开源码档再按全文重解析，这里只换磁盘基线。
-      session.source!.text = normalized
+      // 编辑器留着。块表要等离开源码档再按全文重解析，这里只换编辑器自己的基线
+      // （磁盘基线 session.source.text 已在 markSaved 公共部分挪过）。
       sourceEditor.markSaved(normalized)
       session.blocks.forEach((b) => {
         // originals 也要跟着磁盘基线走：只清 dirty 不换基线的话，之后把块
@@ -368,9 +368,8 @@ export function createDocumentEditor({
     isDirty: () => large.isDirty(),
     markSaved: (normalized) => {
       // 保存成功：把 CM 的当前全文记为新的基线（含换行归一，因为 applyEncoding 另存了磁盘形态）——
-      // 这条基线就是 session.source.text，未编辑保存写回原文靠它。
+      // session.source.text 那条磁盘基线已在 markSaved 公共部分挪过，未编辑保存写回原文靠它。
       large.markSaved()
-      session.source!.text = normalized
     },
     revealFind: (hits, current) => large.revealFind(hits, current),
     clearFind: () => large.clearFind(),
@@ -1545,7 +1544,11 @@ export function createDocumentEditor({
   function markSaved(normalized: string, mtimeMs: number | undefined): void {
     session.saving = false
     session.savedAt = Date.now()
-    // 基线怎么换是承载自己的事：块表对 originals、整篇 CM 对各自的 disk 基准。
+    // source.text 是所有承载共用的磁盘基线：源码档挂载的正文与判脏基准、
+    // restoreWhole 的脏判据、未编辑原样保存，都拿它当「磁盘上是什么」。
+    // 存盘成功，无论当前是哪个承载，都得把它挪到新正文。
+    if (session.source) session.source.text = normalized
+    // 其余基线是承载自己的事：块表对 originals、整篇 CM 对各自的 disk 基准。
     surface().markSaved(normalized)
     if (typeof mtimeMs === 'number') {
       session.source!.mtimeMs = mtimeMs

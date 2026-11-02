@@ -53,6 +53,47 @@ async function saveAndRead() {
 await page.goto(URL_ARG, { waitUntil: 'load' })
 await page.waitForSelector('#content > .block', { timeout: 15000 })
 
+// ── 0. 块档存盘后切源码档：源码档的正文必须是刚存下去的那份 ──
+// 块档 ⌘S 曾不把 session.source.text 挪到新正文——切进源码档挂的是保存前的
+// 旧文本；在那里打字再存，刚保存的块档编辑会被静默丢掉。
+// 放在最前面跑：后面各节的切档会污染这份前提。
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(400)
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('SAVEDMARK')
+await page.waitForTimeout(500)
+const withSaved = await saveAndRead()
+assert.ok(withSaved.includes('SAVEDMARK'), 'SAVEDMARK 没存出去，本节前 置条件不成立')
+await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(600)
+// SAVEDMARK 在文首段落里，一定落在 CM 渲染出的视口行内——这里读 .cm-content
+// 文本就够；真正的正文字节比对在下面的存盘断言里做。
+const srcDocHas = (mark) =>
+  page.evaluate(
+    (m) => (document.querySelector('.source-doc-host .cm-content')?.textContent ?? '').includes(m),
+    mark,
+  )
+assert.ok(await srcDocHas('SAVEDMARK'), '块档存盘后切源码档：源码档挂的是保存前的旧文本')
+
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press(DOC_HOME)
+await page.keyboard.type('SRCAFTER ')
+await page.waitForTimeout(500)
+const afterSrc = await saveAndRead()
+assert.ok(afterSrc.includes('SAVEDMARK'), '源码档存盘丢了刚保存的块档编辑（SAVEDMARK 不在字节里）')
+assert.ok(afterSrc.includes('SRCAFTER'), 'SRCAFTER 没存出去')
+
+// 回块档，把 §1 的原定流程还回去（§1 会自己切进源码档）。
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(500)
+
 // ── 1. 切进源码档：干净的文档不该一进来就是脏的 ──
 await page.click('.mode-opt[data-mode="source"]')
 await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
@@ -228,6 +269,9 @@ assert.equal(
 // ── 9. 存盘后的跨档撤销：正文要回退，脏标记必须亮起来 ──
 // 挡的是 restoreWholeDocument 的一个洞：切档快照落回块档时把每个块都标成
 // 干净却没重算 structuralDirty——内容确实回去了，脏标记却灭着，⌘S 静默空转。
+// 这一节曾经靠前面各节留下的状态碰巧通过：换成全新加载，单独成立。
+await page.goto(URL_ARG, { waitUntil: 'load' })
+await page.waitForSelector('#content > .block', { timeout: 15000 })
 await page.click('.mode-opt[data-mode="edit"]')
 await page.waitForSelector('#content > .block', { timeout: 5000 })
 await page.waitForTimeout(1100)
@@ -279,6 +323,45 @@ const afterFindUndo = await saveAndRead()
 assert.ok(afterFindUndo.includes('FINDGUARD'), '查找框里的 ⌘Z 撤掉了正文')
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
+
+// ── 11. 大文件档：查找要高亮、打字要写进保存的字节 ──
+// 大文件是另一个整篇 CM 承载（.large-doc-host）：正文不进块表，
+// 「某个功能忘了这个承载」曾让查找不画标记、打字不算脏、⌘S 写回原文。
+const hugeUrl = `${URL_ARG.split('?')[0].replace(/\/?$/, '/')}?doc=huge`
+await page.goto(hugeUrl, { waitUntil: 'load' })
+await page.waitForSelector('.large-doc-host .cm-content', { timeout: 15000 })
+await page.waitForTimeout(800)
+
+// 查找高亮：命中标记与当前项都得画出来
+await page.keyboard.press(`${MOD}+f`)
+await page.waitForSelector('.find-input', { timeout: 5000 })
+await page.fill('.find-input', '大文件压测')
+await page.waitForTimeout(900)
+const hugeFind = await page.evaluate(() => ({
+  count: document.querySelector('.find-count')?.textContent ?? '',
+  marks: document.querySelectorAll('.large-doc-host .find-hit').length,
+  current: document.querySelectorAll('.large-doc-host .find-hit--current').length,
+}))
+assert.ok(/\d+\/\d+/.test(hugeFind.count), `大文件查找没报命中数：「${hugeFind.count}」`)
+assert.ok(hugeFind.marks > 0, '大文件查找没在正文里画命中标记')
+assert.equal(hugeFind.current, 1, '大文件查找没有标出「当前这一处」')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
+// 打字 → 脏标记翻 → ⌘S 写出去的是「标记 + 原文」
+await page.click('.large-doc-host .cm-content')
+await page.keyboard.press(DOC_HOME)
+await page.keyboard.type('HUGEMARK')
+await page.keyboard.press('Enter')
+await page.waitForTimeout(600)
+const hugeDirty = await signals()
+assert.equal(hugeDirty.dirty, true, '大文件里打字后 html.dirty 没翻')
+
+// 与 startupDocument.ts 里 ?doc=huge 的生成逻辑逐字一致（不读 .cm-line，CM 只渲染视口）
+const hugeOriginal =
+  '# 大文件压测\n\n' + '- 这是一行用于压测的正文内容，重复出现以撑大文件体积。\n'.repeat(50_000)
+const hugeSaved = await saveAndRead()
+assert.equal(hugeSaved, `HUGEMARK\n${hugeOriginal}`, '大文件存盘写出去的不是「文首标记 + 原文」')
 
 assert.deepEqual(errors, [], `控制台有异常：${errors.join(' | ')}`)
 
