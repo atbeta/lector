@@ -25,6 +25,7 @@ release notes up by that header.
 ### Fixed
 
 - fix(editor): mark the document dirty when typing in source mode
+- fix(editor): drop the outline in source mode instead of showing a stale one
 
 ## v0.39.0 (2026-11-02)
 
