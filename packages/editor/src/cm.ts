@@ -8,7 +8,7 @@ import { tags } from '@lezer/highlight'
 import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state'
 import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
-import { applyLargeFind, clearLargeFind, largeFindField } from './cmFind.ts'
+import { applyFindHits, clearFindHits, findHitField } from './cmFind.ts'
 import type { FindMatch } from './findMatch.ts'
 
 export interface EditorialConfig {
@@ -48,8 +48,21 @@ export interface EditorialConfig {
    * 大文件模式：文档可能几十 MB，逐键 `doc.toString()` 复制整篇会直接卡死。
    * 打开后 onChange 不再收到文本，只在每次变更时触发 onDocChanged（无参）；
    * 需要全文时（保存）调用方自己从 view.state.doc.toString() 取一次。
+   *
+   * 这是**性能**开关，不是「整篇一份 CM」的同义词——源码档也是整篇一份，
+   * 但文档只有几十 KB，不该跟着一起关掉能力。能力见 wholeDocument。
    */
   largeDocument?: boolean
+  /**
+   * 这份 CM 里放的是**整个文档**，不是某一个块。
+   *
+   * 大文件档和源码档都是这样。整篇才能做的能力（查找高亮、跳到命中处）
+   * 挂这个标记，而不是挂 largeDocument——后者是性能闸门，源码档不该被它连坐。
+   *
+   * 判据刻意不用「有 onDocChanged」：那是通知方式的选择，与这里无关，
+   * 两者混在一起就会重演「源码档静默失去能力」。
+   */
+  wholeDocument?: boolean
   /**
    * 变更通知（不含文本）。
    *
@@ -210,7 +223,7 @@ export function mountEditor(
     EditorView.domEventHandlers({
       paste: (event, view) => pasteAsMarkdown(event, view, config.pasteHtmlAsMarkdown !== false),
     }),
-    ...(config.largeDocument ? [largeFindField] : []),
+    ...(config.wholeDocument ? [findHitField] : []),
     EditorView.theme({
       '&': {
         fontSize: 'inherit',
@@ -271,9 +284,10 @@ export function mountEditor(
         {
           key: 'Enter',
           run: (view) => {
-            // 大文件：围栏展开要拿整篇文本（doc.toString()），几十 MB 下每次回车
-            // 都是一次全量复制。大文件模式不做这个便利，交给普通换行。
-            if (config.largeDocument) return false
+            // 整篇 CM 不做这个便利：它靠重写整篇（changes from 0 to length）实现，
+            // 大文件是几十 MB 的全量复制；源码档里更是把用户刚排好的原文重洗一遍
+            // ——源码档的意义就是「所见即磁盘」，不该被自动改写。两边都交给普通换行。
+            if (config.largeDocument || config.wholeDocument) return false
             // ``` 之后回车 → 展开成代码块（光标进块内）。返回 false 时
             // 交给 lang-markdown 的列表续行等默认行为。
             const { state } = view
@@ -359,10 +373,10 @@ export function mountEditor(
     view,
     destroy: () => view.destroy(),
     applyFind: (hits, current) => {
-      if (config.largeDocument) applyLargeFind(view, hits, current)
+      if (config.wholeDocument) applyFindHits(view, hits, current)
     },
     clearFind: () => {
-      if (config.largeDocument) clearLargeFind(view)
+      if (config.wholeDocument) clearFindHits(view)
     },
   }
 }

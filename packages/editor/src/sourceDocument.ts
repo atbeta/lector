@@ -59,6 +59,8 @@ export function createSourceEditor({ contentEl, onDocChanged, onScroll }: Source
         showWhitespace: getSettings().showWhitespace,
         pasteHtmlAsMarkdown: true,
         lineNumbers: true,
+        // 整篇一份 CM：查找高亮这类「整篇才做得了」的能力挂这个标记。
+        wholeDocument: true,
         onDocChanged,
         onSelectionChange: (sel) => {
           if (!sel || !cm) {

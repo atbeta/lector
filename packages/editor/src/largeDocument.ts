@@ -212,6 +212,7 @@ export function createLargeDocument({ contentEl, getSourceText, onDirty, onScrol
         showWhitespace: getSettings().showWhitespace,
         pasteHtmlAsMarkdown: true,
         largeDocument: true,
+        wholeDocument: true,
         onDocChanged: () => {
           largeDirty = true
           onDirty()
