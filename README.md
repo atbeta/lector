@@ -11,6 +11,7 @@
 [English](README.en.md) ·
 [Releases](https://github.com/atbeta/lector/releases) ·
 [更新日志](CHANGELOG.md) ·
+[自定义样式](docs/customizing.md) ·
 [参与贡献](AGENTS.md)
 
 ## 精致
@@ -41,7 +42,8 @@
 阅读位置记忆按滚动偏移 + 文档长度记录；占位块在视口上方换成真实高度时用滚动锚定补偿，
 不让画面被拽走。状态栏三个数字可点击。界面缩放走 WebView 原生 zoom，不打 CSS zoom 到
 `<html>`（避免破坏 100vh 骨架）。md 里的 HTML / script 不渲染也不执行；自定义 CSS 原样
-注入、排在所有内置样式之后，能覆盖任何一条规则。
+注入、排在所有内置样式之后，能覆盖任何一条规则。怎么写、Mermaid 配置怎么盖、写错时
+怎么兜底，见 [自定义样式](docs/customizing.md)。
 
 ## 极速
 

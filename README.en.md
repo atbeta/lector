@@ -12,6 +12,7 @@ Three things get the time: refinement, speed, and features. Each below.
 [中文](README.md) ·
 [Releases](https://github.com/atbeta/lector/releases) ·
 [Changelog](CHANGELOG.md) ·
+[Customizing](docs/customizing.en.md) ·
 [Contributing](AGENTS.md)
 
 ## Refinement
@@ -50,7 +51,8 @@ so the view is not yanked. Three status-bar readouts are clickable. UI zoom uses
 the WebView's native zoom rather than a CSS `zoom` on `<html>` (which would break
 the 100vh skeleton). HTML / script inside a document is neither rendered nor
 executed; custom CSS is injected verbatim, after all built-in styles, so it can
-override any rule.
+override any rule. What to write, how Mermaid config overlays, and what happens
+when the JSON is invalid: [Customizing](docs/customizing.en.md).
 
 ## Speed
 
