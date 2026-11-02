@@ -3,16 +3,13 @@ import {
   adjacentFocusableId,
   isFocusableBlock,
   isWhitespaceGap,
-  kindFromMdast,
   parseBlocks,
-  parseBlockRoots,
   serialize,
   createChunkedParser,
   definitionsFromBlocks,
   finalizeChunkedBlocks,
   type ChunkedParser,
   type ChunkStepResult,
-  type BlockKind,
   type BlockView,
   type DefinitionSet,
 } from '@lector/core'
@@ -33,6 +30,7 @@ import { showSvgInLightbox } from './lightbox.ts'
 import { closeSelectionBubble, openSelectionBubble } from './selectionBubble.ts'
 import { applyKeyedChildren } from './reconcile.ts'
 import { blockPaintSurface, sameBlockPaint, type BlockPaint } from './blockPaint.ts'
+import { mdastForEditedBlock, mdastNeedsReparse, parsedSource } from './mdastSync.ts'
 import { scrollAnchorDelta, shouldAdjustScrollAnchor } from './scrollAnchor.ts'
 import { tableScrollsInColumn } from './wideTable.ts'
 import { sessionIsDirty } from './sessionDirty.ts'
@@ -114,6 +112,11 @@ export function createDocumentEditor({
    * 「点一块」或「切回阅读」拆掉整篇 mermaid 和图。raw / kind / 表面没变就跳过。
    */
   const lastPaint = new Map<string, BlockPaint>()
+  /**
+   * 每块 mdast 是从哪段原文解析的。
+   * dirty 不能当这个信号：改完又改回磁盘原文时 dirty 是 false，树还是中间那一版。
+   */
+  const parsedRaw = new Map<string, string>()
   let cm: CmHandle | null = null
   const liveText = new Map<string, string>()
   /** 空文档合成出的那个空段落的 id：渲染落地后要进编辑档并聚焦它（见 loadSession）。 */
@@ -277,6 +280,7 @@ export function createDocumentEditor({
     el.remove()
     blocksEl.delete(block.id)
     lastPaint.delete(block.id)
+    parsedRaw.delete(block.id)
   }
 
   /** 把一步解析结果写进块表。返回需要画出来的新块。 */
@@ -492,6 +496,7 @@ export function createDocumentEditor({
     activeParser = null
     blocksEl.clear()
     lastPaint.clear()
+    parsedRaw.clear()
     liveText.clear()
     containGen++
     containStale = true
@@ -648,6 +653,7 @@ export function createDocumentEditor({
         el.remove()
         blocksEl.delete(id)
         lastPaint.delete(id)
+        parsedRaw.delete(id)
         containStale = true // 少了一块，下面的东西整体上移，也要重量
       }
     }
@@ -1028,12 +1034,21 @@ export function createDocumentEditor({
    *   - 状态行的字数/小节数读的是块文本，失焦才同步等于「打字时数字不动」；
    *   - 「保存」按钮的可用性也读脏状态——打了半屏字按钮还是灰的，会被读成没响应。
    * 解析（mdast / kind）仍然留给失焦：那一步贵，且打字过程中没人需要新的大纲。
+   * 改 raw 之前先记住这棵树的来源，否则删回原文后就分不清树过没过期。
    */
   function syncBlockText(block: BlockView, text: string): void {
+    parsedSource(parsedRaw, block.id, block.raw)
     const original = session.originals.get(block.id) ?? block.raw
     block.raw = text
     block.dirty = text !== original
     markDirty({ fromTyping: true, kind: block.kind })
+  }
+
+  function reparseBlock(block: BlockView, text: string): void {
+    const next = mdastForEditedBlock(text, sessionDefs())
+    block.mdast = next.mdast
+    block.kind = next.kind
+    parsedRaw.set(block.id, text)
   }
 
   function finalizeFocused() {
@@ -1043,13 +1058,13 @@ export function createDocumentEditor({
     if (!block) return
     const text = cm.view.state.doc.toString()
     const original = session.originals.get(block.id) ?? block.raw
+    // syncBlockText 可能已经把 raw 改成编辑器里的文本。来源要在那之前记下。
+    const from = parsedSource(parsedRaw, block.id, block.raw)
     block.raw = text
     block.dirty = text !== original
-    if (block.dirty) {
-      const roots = parseBlockRoots(text, sessionDefs())
-      block.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
-      block.kind = kindFromMdast(roots[0]) as BlockKind
-    }
+    // 只在树落后于当前原文时重解析。dirty 回答不了这件事：删回磁盘原文后它是 false。
+    // 原文没变则不动，details 的 html 降级树要留在原地。
+    if (mdastNeedsReparse(from, text)) reparseBlock(block, text)
     markDirty()
   }
 
@@ -1113,6 +1128,7 @@ export function createDocumentEditor({
       // 元素已经拆掉。留下绘制缓存的话，撤销把同一 id 插回来时
       // paintBlock 会以为画过了，新元素就一直是空的。
       lastPaint.delete(r.id)
+      parsedRaw.delete(r.id)
     }
     if (session.focusedId && removed.some((r) => r.id === session.focusedId)) {
       if (cm) {
@@ -1218,9 +1234,7 @@ export function createDocumentEditor({
         // 统一替换器：与计数、高亮共用同一套匹配规则（字符串 / 全词 / 正则）
         b.raw = replaceFind(b.raw, from, to, opts, all)
         b.dirty = true
-        const roots = parseBlockRoots(b.raw, sessionDefs())
-        b.mdast = roots.length <= 1 ? (roots[0] ?? null) : roots
-        b.kind = kindFromMdast(roots[0]) as BlockKind
+        reparseBlock(b, b.raw)
         markDirty()
         if (session.focusedId === id && cm) {
           cm.destroy()
@@ -1323,6 +1337,7 @@ export function createDocumentEditor({
     large.destroy()
     large.deactivate()
     lastPaint.clear()
+    parsedRaw.clear()
     session.source = null
     session.focusedId = null
     session.dirty = false

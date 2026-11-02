@@ -3019,6 +3019,73 @@ const summary = {
     }
   }
 }
+// ── 加字再删回原文：点空白后预览必须回到删除前 ──
+//
+// 失焦重解析曾经只看 dirty。加了字再删回去时 dirty 回到 false，
+// mdast 仍是加字那一版，预览就停在删除之前。
+{
+  await page.setViewportSize({ width: 1200, height: 820 })
+  await page.goto(URL_ARG, { waitUntil: 'networkidle' })
+  await page.waitForSelector('#content .block', { timeout: 10000 })
+  await page.evaluate(() => document.querySelector('.mode-opt[data-mode="edit"]')?.click())
+  await page.waitForTimeout(300)
+  const marker = 'ZQMARK'
+  const para = page.locator('#content .block[data-kind="paragraph"]').filter({ hasText: '第二段，用于测试' }).first()
+  const before = (await para.locator('.preview').innerText()).replace(/\s+/g, ' ').trim()
+  // 点块后 CM 要等一帧才拿到焦点。不等的话 Backspace 打在页面上，
+  // 正文没删掉，预览断言会误报成「失焦没重绘」。
+  const focusEditor = async () => {
+    await para.click()
+    await page.waitForSelector('#content .cm-content', { timeout: 3000 })
+    const focused = await page
+      .waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!focused) note('error', '加字回删：点击段落后焦点没进编辑器')
+    return focused
+  }
+  const leaveBlock = async () => {
+    const box = await page.locator('#content').boundingBox()
+    if (!box) {
+      note('error', '加字回删：找不到正文区域，点不了空白')
+      return false
+    }
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height - 8)
+    const left = await page
+      .waitForFunction(() => !document.querySelector('#content .cm-content'), null, { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false)
+    if (!left) note('error', '加字回删：点空白后编辑器还在，预览没有交还')
+    return left
+  }
+  if (!(await focusEditor())) {
+    note('error', '加字回删：进不了编辑，后面的断言跳过')
+  } else {
+    await page.keyboard.press(`${MOD}+End`)
+    await page.keyboard.type(marker)
+    if (!(await leaveBlock())) {
+      note('error', '加字回删：第一次失焦失败，后面的断言跳过')
+    } else {
+      const added = (await para.locator('.preview').innerText()).replace(/\s+/g, ' ')
+      if (!added.includes(marker)) note('error', `加字失焦后预览没有更新：${added}`)
+      if (!(await focusEditor())) {
+        note('error', '加字回删：第二次没能回到这段里')
+      } else {
+        await page.keyboard.press(`${MOD}+End`)
+        for (let i = 0; i < marker.length; i++) await page.keyboard.press('Backspace')
+        const cmText = (await page.locator('#content .cm-content').innerText()).replace(/\s+/g, ' ')
+        if (cmText.includes(marker)) note('error', `删字没有进编辑器，不能拿来判断预览：${cmText}`)
+        if (await leaveBlock()) {
+          const after = (await para.locator('.preview').innerText()).replace(/\s+/g, ' ').trim()
+          if (after.includes(marker)) note('error', `删回原文再点空白，预览仍停在删除前：${after}`)
+          else if (after !== before) note('error', `删回原文后预览和原来不一致：${JSON.stringify(after)} vs ${JSON.stringify(before)}`)
+          else note('info', '加字再删回原文，点空白后预览回到删除前')
+        }
+      }
+    }
+  }
+}
+
 // info 是「量到了什么」的播报，不是问题；混进 warn 计数会让人以为有一堆毛病
 const order = { error: 0, warn: 1, info: 2 }
 findings.sort((a, b) => order[a.level] - order[b.level])
