@@ -15,6 +15,7 @@ function hints(over: Partial<ShortcutHints> = {}): ShortcutHints {
     defaultPrevented: false,
     focusedBlock: false,
     editorMounted: false,
+    focusInTextField: false,
     hasSource: false,
     ...over,
   }
@@ -35,6 +36,16 @@ describe('快捷键分派', () => {
     expect(kind({ mod: true, key: 'z', focusedBlock: true })).toBe(null)
     // 编辑器存在但尚未聚焦（可能的状态）同样让位
     expect(kind({ mod: true, key: 'z', editorMounted: true })).toBe(null)
+  })
+
+  test('块级撤销：焦点在文本框时 ⌘Z 归框内原生撤销', () => {
+    // 查找框 / 设置输入框里的 ⌘Z 撤销的是刚敲的文本；接管它就会拿
+    // 块级操作或切档快照去改整篇文档。
+    expect(kind({ mod: true, key: 'z', focusInTextField: true })).toBe(null)
+    // ⇧⌘Z 本来就不是 undo-block（重做路径不受影响）
+    expect(kind({ mod: true, shift: true, key: 'Z', focusInTextField: true })).toBe(null)
+    // 文本框守卫不波及保存等其它快捷键
+    expect(kind({ mod: true, key: 's', focusInTextField: true })).toBe('save')
   })
 
   test('Esc 只在有聚焦块时退出编辑', () => {

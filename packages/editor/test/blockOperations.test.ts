@@ -327,6 +327,74 @@ describe('mergeBlock', () => {
   })
 })
 
+describe('撤销栈清理', () => {
+  /** 带上 replaceWholeDocument 的 ops：切档快照要靠它才真正压栈。 */
+  function makeOpsWithMode(session: DocumentSession) {
+    const restored: string[] = []
+    const ops = createBlockOperations({
+      session,
+      markDirty: () => {
+        session.dirty = sessionIsDirty(session.blocks, session.structuralDirty)
+      },
+      render: () => Promise.resolve(),
+      focusBlock: (id) => {
+        session.focusedId = id
+      },
+      forgetBlockViews: () => {},
+      focusAfterStructuralEdit: (id) => {
+        session.focusedId = id
+      },
+      insertImageMarkdownAtCaret: () => {},
+      onUndo: () => {},
+      replaceWholeDocument: (raw) => restored.push(raw),
+    })
+    return { ops, restored }
+  }
+
+  test('clearUndo：两条栈全清（换文档后旧文件的历史绝不能漏进新文档）', () => {
+    const s = makeSession(DOC)
+    const { ops, restored } = makeOpsWithMode(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    ops.pushModeSwitchUndo('上一篇的正文')
+    ops.clearUndo()
+    expect(ops.undoBlockOp()).toBe(false)
+    expect(ops.undoModeSwitch()).toBe(false)
+    expect(restored).toEqual([])
+  })
+
+  test('超大快照不压栈，并清掉已有快照（防止旧正文盖掉没留下快照的新编辑）', () => {
+    const s = makeSession(DOC)
+    const { ops, restored } = makeOpsWithMode(s)
+    ops.pushModeSwitchUndo('正常快照')
+    // 超过 1MB 的整篇快照不记——但不能只跳过：留着旧快照，⌘Z 会拿它盖新编辑
+    ops.pushModeSwitchUndo('x'.repeat(1_000_001))
+    expect(ops.undoModeSwitch()).toBe(false)
+    expect(restored).toEqual([])
+  })
+
+  test('正常大小的切档快照仍然可撤', () => {
+    const s = makeSession(DOC)
+    const { ops, restored } = makeOpsWithMode(s)
+    ops.pushModeSwitchUndo('切档前的正文')
+    expect(ops.undoModeSwitch()).toBe(true)
+    expect(restored).toEqual(['切档前的正文'])
+  })
+
+  test('discardBlockOps：只清块级栈，切档快照保留', () => {
+    const s = makeSession(DOC)
+    const { ops, restored } = makeOpsWithMode(s)
+    const h1 = s.blocks.find((b) => b.kind === 'heading')!
+    ops.insertParagraphAfter(h1.id)
+    ops.pushModeSwitchUndo('切档前的正文')
+    // 块表重建后块级项失效，但切档快照（整篇正文）仍然有效
+    ops.discardBlockOps()
+    expect(ops.undoBlockOp()).toBe(false)
+    expect(ops.undoModeSwitch()).toBe(true)
+    expect(restored).toEqual(['切档前的正文'])
+  })
+})
+
 describe('实例隔离', () => {
   test('两个工厂各管各的 session / 撤销栈 / id 序列', () => {
     const s1 = makeSession('# 甲\n')

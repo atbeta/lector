@@ -60,7 +60,8 @@ export function createSourceEditor({
    * @param diskText 磁盘上的原文（判脏与写回的基准）
    */
   function mount(text: string, diskText: string): void {
-    destroy()
+    // 挂载前的卸载是「切档往返」语义：savedState 要留下来给本次挂载接回
+    destroy(true)
     loaded = text
     diskRaw = diskText
     disk = toCmText(diskText)
@@ -181,11 +182,19 @@ export function createSourceEditor({
     disk = toCmText(saved)
   }
 
-  function destroy(): void {
+  /**
+   * 卸载编辑器。
+   *
+   * @param keepHistory true = 切档：收下 EditorState，下次挂载接回撤销栈；
+   *                    false = 换文档 / 关文档：连同 savedState 一起丢掉，
+   *                    旧文档的撤销历史绝不能流进下一篇。
+   */
+  function destroy(keepHistory: boolean): void {
     // 先收下状态再拆：撤销栈只存在于这份 EditorState 里。
     // 记的是「卸载那一刻的正文」，下次挂载若还是同一份正文才接得回去
     // （正文被别人改过却接回旧历史，撤销会跳到不存在的文本上）。
-    if (cm) savedState = cm.view.state
+    if (keepHistory && cm) savedState = cm.view.state
+    else if (!keepHistory) savedState = null
     cm?.destroy()
     cm = null
     disk = null

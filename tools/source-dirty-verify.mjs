@@ -18,6 +18,11 @@ import { launchBrowser, exitSkipped } from './browser.mjs'
 
 const URL_ARG = process.argv[2] ?? 'http://localhost:5199/'
 const MARK = 'XYZZY'
+// 主修饰键与文档首尾导航按平台分：macOS 上 ⌘ 是 Meta，Ctrl+f / Ctrl+a
+// 是 CM defaultKeymap 里的 Emacs 光标键（会被吃掉），Control+End 也不走。
+const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
+const DOC_END = process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
+const DOC_HOME = process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home'
 
 const browser = await launchBrowser()
 if (!browser) exitSkipped('源码档存盘验证', process.argv.includes('--strict'))
@@ -40,7 +45,7 @@ const signals = () =>
 /** 按一次 ⌘S，读回真正写出去的正文字节。 */
 async function saveAndRead() {
   const pending = page.waitForEvent('download', { timeout: 8000 })
-  await page.keyboard.press('Control+s')
+  await page.keyboard.press(`${MOD}+s`)
   const download = await pending
   return readFile(await download.path(), 'utf8')
 }
@@ -79,7 +84,7 @@ assert.equal(inSource.active, 0, '源码档不该有高亮的大纲条目')
 // 这里挡的是「能力挂错闸门」：查找高亮曾挂在 largeDocument（性能闸门）上，
 // 源码档没有那个标记 → 计数照常、Enter 照翻，但正文不画标记也不滚过去，
 // 看起来像在查找，实际什么也没发生。
-await page.keyboard.press('Control+f')
+await page.keyboard.press(`${MOD}+f`)
 await page.waitForSelector('.find-input', { timeout: 5000 })
 await page.fill('.find-input', 'Markdown')
 await page.waitForTimeout(900)
@@ -103,7 +108,7 @@ assert.ok(!baseline.includes(MARK), '还没打字就已经有标记，样例文�
 
 // ── 3. 打字：脏标记、脏点、保存按钮、状态行四处必须同时翻 ──
 await page.click('.source-doc-host .cm-content')
-await page.keyboard.press('Control+End')
+await page.keyboard.press(DOC_END)
 await page.keyboard.type(MARK)
 await page.waitForTimeout(500)
 
@@ -158,7 +163,7 @@ await page.click('.mode-opt[data-mode="source"]')
 await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
 await page.waitForTimeout(600)
 await page.click('.source-doc-host .cm-content')
-await page.keyboard.press('Control+a')
+await page.keyboard.press(`${MOD}+a`)
 await page.keyboard.press('Backspace')
 await page.waitForTimeout(500)
 const emptied = await cmLen()
@@ -171,7 +176,7 @@ await page.click('.mode-opt[data-mode="source"]')
 await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
 await page.waitForTimeout(800)
 await page.click('.source-doc-host .cm-content')
-await page.keyboard.press('Control+z')
+await page.keyboard.press(`${MOD}+z`)
 await page.waitForTimeout(700)
 const restored = await cmLen()
 assert.ok(restored > 200, `切档后 ⌘Z 撤不回来（正文仍是 ${restored} 字）`)
@@ -195,12 +200,12 @@ await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
 await page.waitForTimeout(800)
 assert.ok(await cmHas('BLKMARK'), '块档的改动没带进源码档')
 await page.click('.source-doc-host .cm-content')
-await page.keyboard.press('Control+z')
+await page.keyboard.press(`${MOD}+z`)
 await page.waitForTimeout(900)
 assert.equal(await cmHas('BLKMARK'), false, '块档改的东西，切到源码档后 ⌘Z 撤不掉')
 
 // 8b. 源码档改 → 切块档 → ⌘Z
-await page.keyboard.press('Control+Home')
+await page.keyboard.press(DOC_HOME)
 await page.keyboard.type('SRCMARK ')
 await page.waitForTimeout(600)
 await page.click('.mode-opt[data-mode="edit"]')
@@ -212,13 +217,68 @@ assert.ok(
 // 焦点在正文外也要能撤（⌘Z 的守卫看的是「焦点在不在编辑器里」，不是「编辑器在不在」）
 await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
 await page.waitForTimeout(300)
-await page.keyboard.press('Control+z')
+await page.keyboard.press(`${MOD}+z`)
 await page.waitForTimeout(900)
 assert.equal(
   (await page.evaluate(() => document.getElementById('content').innerText)).includes('SRCMARK'),
   false,
   '源码档改的东西，切回块档后 ⌘Z 撤不掉',
 )
+
+// ── 9. 存盘后的跨档撤销：正文要回退，脏标记必须亮起来 ──
+// 挡的是 restoreWholeDocument 的一个洞：切档快照落回块档时把每个块都标成
+// 干净却没重算 structuralDirty——内容确实回去了，脏标记却灭着，⌘S 静默空转。
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(1100)
+await page.click('#content > .block[data-kind="paragraph"]')
+await page.waitForFunction(() => document.activeElement?.classList?.contains('cm-content'), null, { timeout: 5000 })
+await page.keyboard.press('End')
+await page.keyboard.type('AFTERMARK')
+await page.waitForTimeout(600)
+// 块档 → 源码档：边界上压下「回到改之前」的切档快照
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(800)
+// 源码档 → 块档（没改字，块表原样沿用）
+await page.click('.mode-opt[data-mode="edit"]')
+await page.waitForSelector('#content > .block', { timeout: 5000 })
+await page.waitForTimeout(1200)
+// 存盘：磁盘基线 = 带 AFTERMARK 的正文。之后撤销回到旧内容，必须显示为脏。
+const withMark = await saveAndRead()
+assert.ok(withMark.includes('AFTERMARK'), 'AFTERMARK 没存出去，前置条件不成立')
+await page.waitForTimeout(600)
+// 焦点放到正文外：聚焦块里 ⌘Z 是块内文字撤销，要测的是全局路径
+await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(900)
+const undoneText = await page.evaluate(() => document.getElementById('content').innerText)
+assert.equal(undoneText.includes('AFTERMARK'), false, '存盘后的跨档撤销没有回退正文')
+const undoneSignals = await signals()
+assert.equal(undoneSignals.dirty, true, '撤销后内容与磁盘已不一致，脏标记却没亮（⌘S 会空转）')
+assert.equal(undoneSignals.dot, 'block', '撤销后脏点没显示')
+
+// ── 10. 查找框里的 ⌘Z 归输入框，绝不能动正文 ──
+// 全局快捷键曾在「焦点不在编辑器里」时一律接管 ⌘Z：查找栏开着想撤销
+// 刚敲错的查询词，结果整篇文档被回滚。
+await page.click('.mode-opt[data-mode="source"]')
+await page.waitForSelector('.source-doc-host .cm-content', { timeout: 5000 })
+await page.waitForTimeout(800)
+await page.click('.source-doc-host .cm-content')
+await page.keyboard.press(DOC_END)
+await page.keyboard.type('FINDGUARD')
+await page.waitForTimeout(500)
+await page.keyboard.press(`${MOD}+f`)
+await page.waitForSelector('.find-input', { timeout: 5000 })
+await page.fill('.find-input', '查')
+await page.waitForTimeout(300)
+await page.keyboard.press(`${MOD}+z`)
+await page.waitForTimeout(700)
+// 正文读存盘字节（与前面同一口径），不读 .cm-line——CM 只渲染视口内的行
+const afterFindUndo = await saveAndRead()
+assert.ok(afterFindUndo.includes('FINDGUARD'), '查找框里的 ⌘Z 撤掉了正文')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
 
 assert.deepEqual(errors, [], `控制台有异常：${errors.join(' | ')}`)
 

@@ -21,7 +21,7 @@ import type { createReadingPositionController } from './readingPositionControlle
 interface AppBindingsDeps {
   editor: Pick<
     DocumentEditor,
-    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations'
+    'getSession' | 'getCmView' | 'focusBlock' | 'defocus' | 'openFind' | 'operations' | 'undo'
   >
   files: Pick<FileController, 'openFromShellOrDialog' | 'persistToDisk' | 'saveAsFlow' | 'newDocument' | 'closeFile' | 'reloadFromDisk' | 'openDefaultApp' | 'revealCurrent'>
   chrome: Pick<
@@ -194,6 +194,34 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpa
     return active instanceof HTMLElement && active.closest('.cm-editor') !== null
   }
 
+  /**
+   * 当前焦点是否在普通文本控件里（查找栏查询框、设置项输入框等）。
+   *
+   * 这些框有自己的原生 ⌘Z（撤销刚敲的查询词）：全局快捷键不能把它抢去
+   * 撤销文档——在查找框里改个字，结果整篇正文被回滚，是最典型的「抢键」。
+   * CM 的编辑面不算：它们走 editorMounted 那条路，撤销语义归编辑器。
+   */
+  function focusInTextField(): boolean {
+    const active = document.activeElement
+    if (!(active instanceof HTMLElement)) return false
+    if (active.closest('.cm-editor')) return false
+    if (active.isContentEditable) return true
+    switch (active.tagName) {
+      case 'TEXTAREA':
+      case 'SELECT':
+        return true
+      case 'INPUT': {
+        // 文本类输入框才有「撤销输入」可言；按钮 / 复选框没有可撤销的文本。
+        const type = (active as HTMLInputElement).type
+        return !['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'].includes(
+          type,
+        )
+      }
+      default:
+        return false
+    }
+  }
+
   window.addEventListener('keydown', (e) => {
     const action = resolveShortcut({
       mod: e.metaKey || e.ctrlKey,
@@ -205,14 +233,16 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, sourceSpa
       // 用 existence 会让焦点在别处（点过侧栏、点过空白）时 ⌘Z 变成死键：
       // CM 的 keymap 收不到键（没聚焦），全局又因为「编辑器存在」而让位。
       editorMounted: editor.getCmView() !== null && focusedInEditor(),
+      focusInTextField: focusInTextField(),
       hasSource: editor.getSession().source !== null,
     })
     if (!action) return
     // 块级撤销是唯一可能「什么都没撤销」的动作：只有真的撤销了才拦事件。
     if (action.kind === 'undo-block') {
-      // 先块级（删块 / 插段 / 勾任务），再切档（换过编辑面之后的那一整段输入）。
-      // 顺序不能反：块级操作是更近的那一步，用户按下 ⌘Z 想先退掉它。
-      if (editor.operations.undoBlockOp() || editor.operations.undoModeSwitch()) {
+      // editor.undo() 内部先走整篇 CM 自己的历史，再按不变量落到块级 / 切档：
+      // 块级项只在记录它的块表存活期间存在，所以剩下的块级项必然比所有
+      // 切档快照新，「先块级后快照」是时序而不是偏好。
+      if (editor.undo()) {
         e.preventDefault()
         e.stopPropagation()
       }

@@ -188,6 +188,11 @@ export function createBlockOperations({
    */
   const BLOCK_UNDO_MAX = 20
   const blockUndoStack = createUndoStack(BLOCK_UNDO_MAX)
+  /**
+   * 切档快照的体积上限：每条是一整篇正文，IR 档能开到 20MB，
+   * 20 条快照就是几百 MB 内存。超过就不记——这一步撤销宁可没有。
+   */
+  const MODE_SNAPSHOT_MAX_CHARS = 1_000_000
 
   /**
    * 切档撤销栈：一条记录 = 「把整篇还原成切档前的那段正文」。
@@ -240,6 +245,12 @@ export function createBlockOperations({
    */
   function pushModeSwitchUndo(before: string): void {
     if (!replaceWholeDocument) return
+    // 超上限不记这一条还不够，必须清栈：留着更早的快照，下一次 ⌘Z 会把
+    // 更早的正文盖到这段没有留下快照的新编辑上——等于用旧内容改写文件。
+    if (before.length > MODE_SNAPSHOT_MAX_CHARS) {
+      modeUndoStack.clear()
+      return
+    }
     modeUndoStack.push(t('menuUndoModeSwitch'), () => replaceWholeDocument(before))
   }
 
@@ -259,6 +270,25 @@ export function createBlockOperations({
     render()
     onUndo(label)
     return true
+  }
+
+  /**
+   * 换文档 / 关文档：两条撤销栈都属于上一篇。
+   * 留着的话，打开 B 之后按 ⌘Z 会把 A 的整篇正文 replaceWholeDocument 进 B，
+   * 脏标记一翻，⌘S 就把 A 写进了 B 的文件。
+   */
+  function clearUndo(): void {
+    blockUndoStack.clear()
+    modeUndoStack.clear()
+  }
+
+  /**
+   * 块级撤销项只对「记录时的那张块表」有效：闭包里记着旧块的对象与下标。
+   * 块表重建（整篇重解析 / 切档快照落回块档）之后它们指向不存在的块，
+   * 必须丢掉——撤错了比没的撤更糟（核心红线：磁盘字节不能被误写）。
+   */
+  function discardBlockOps(): void {
+    blockUndoStack.clear()
   }
 
   /**
@@ -627,6 +657,8 @@ export function createBlockOperations({
     undoBlockOp,
     pushModeSwitchUndo,
     undoModeSwitch,
+    clearUndo,
+    discardBlockOps,
     splitBlock,
     mergeBlock,
     appendImageParagraph,

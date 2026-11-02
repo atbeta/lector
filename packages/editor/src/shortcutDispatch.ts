@@ -5,7 +5,8 @@
 // 规则一旦纯了，就能在服务器上注入假输入直接测，不需要浏览器。
 //
 // 顺序（改这里之前先想清楚谁该让位给谁）：
-//   1. 块级撤销（仅当编辑器未聚焦——聚焦时 ⌘Z 是 CM 的文字撤销）
+//   1. 块级撤销（仅当编辑器未聚焦、且焦点不在普通文本框——聚焦时 ⌘Z 是
+//      CM 的文字撤销，文本框里它是框内内容的原生撤销）
 //   2. Esc 退出编辑 / ⌘S 保存 / ⇧⌘S 另存（不检查 defaultPrevented：
 //      这几个不是 CM 的键位，冒泡到这里时不应已被别处消费）
 //   3. 文档与视图快捷键（检查 defaultPrevented：聚焦块里的裸 CM 会接管
@@ -25,6 +26,11 @@ export interface ShortcutHints {
   focusedBlock: boolean
   /** 编辑器实例存在（可能存在但尚未聚焦） */
   editorMounted: boolean
+  /**
+   * 焦点在普通文本控件（查找框、设置输入框、contenteditable）。
+   * ⌘Z 归框内原生撤销：抢过来撤销文档，等于「改个查询词，整篇被回滚」。
+   */
+  focusInTextField: boolean
   /** 当前打开着一份文件 */
   hasSource: boolean
 }
@@ -53,8 +59,9 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
   const key = h.key
   const lower = key.toLowerCase()
 
-  // 1) 块级撤销：只有没聚焦编辑器时才接管 ⌘Z（编辑器里那是 CM 的文字撤销）
-  if (h.mod && !h.shift && lower === 'z' && !h.focusedBlock && !h.editorMounted) {
+  // 1) 块级撤销：只有没聚焦编辑器、也没落在文本框里时才接管 ⌘Z
+  //    （编辑器里那是 CM 的文字撤销；文本框里是框内内容的原生撤销）
+  if (h.mod && !h.shift && lower === 'z' && !h.focusedBlock && !h.editorMounted && !h.focusInTextField) {
     return { kind: 'undo-block' }
   }
 

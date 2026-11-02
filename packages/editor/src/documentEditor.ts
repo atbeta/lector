@@ -16,6 +16,7 @@ import {
   type DefinitionSet,
 } from '@lector/core'
 import type { EditorView } from '@codemirror/view'
+import { undo as cmUndo, undoDepth } from '@codemirror/commands'
 import { mountEditor, reusableHistory, type CmHandle } from './cm.ts'
 import type { EditorState } from '@codemirror/state'
 import { renderBlockHtml, preRenderMath, setLinkDefinitions, addLinkDefinitions, mdastHasLinkReference } from './mdastHtml.ts'
@@ -92,6 +93,8 @@ export interface DocumentEditor {
   insertImageMarkdownAtCaret(md: string): void
   replaceInDocument(find: string, replacement: string): boolean
   openFind(): void
+  /** 全局 ⌘Z：整篇 CM 有历史先走它，否则落到块级操作 / 切档快照。 */
+  undo(): boolean
   operations: BlockOperations
   /** 当前是否在源码档（整篇一个 CM）。大纲据此说明「这里不提供大纲」。 */
   isSourceMode(): boolean
@@ -231,10 +234,27 @@ export function createDocumentEditor({
    * CM 历史见底之后往外交的撤销。
    *
    * 先块级（删块 / 插段 / 勾任务），再切档（换过编辑面之后的那一整段输入）。
-   * 顺序不能反：块级操作是更近的那一步，用户按下 ⌘Z 想先退掉它。
+   * 这个顺序成立靠的是一条不变量，而不是「块级更近」的想当然：
+   * 块级撤销项只对记录时的那张块表有效，任何重建块表的路径（离开块档、
+   * commitSourceView 重解析、切档快照落回块档）都会把它们丢掉——
+   * 于是栈里剩下的块级项必然比所有切档快照新，先弹块级才是真正的时序。
    */
   function undoFallback(): boolean {
     return operations.undoBlockOp() || operations.undoModeSwitch()
+  }
+
+  /**
+   * 全局 ⌘Z 的唯一入口（焦点不在任何 CM 里时由快捷键走到这里）。
+   *
+   * 整篇 CM（源码档 / 大文件档）有自己的历史：焦点跑到侧栏等正文外的
+   * 地方时 CM 的 keymap 收不到按键，但历史还在——跳过它直接把更旧的切档快照
+   * 盖到更新的源码编辑上，等于用旧内容改写用户的文件。所以它还有可撤的
+   * 就先走它；见底了才轮到块级操作与切档快照（见 undoFallback 的不变量）。
+   */
+  function undo(): boolean {
+    const view = sourceEditor.getView() ?? large.getView()
+    if (view && undoDepth(view.state) > 0) return cmUndo(view)
+    return undoFallback()
   }
 
   /** 当前正文的滚动容器：普通档是 #content，大文件档是 CM 自己的滚动层。 */
@@ -531,7 +551,10 @@ export function createDocumentEditor({
     closeFindBar()
     destroyBlockEditor(false)
     blockHistory.clear()
-    sourceEditor.destroy()
+    // 两条撤销栈属于上一篇：不清掉的话，打开新文档后 ⌘Z 会把旧正文
+    // replaceWholeDocument 进来，⌘S 就把旧文档写进新文件。
+    operations.clearUndo()
+    sourceEditor.destroy(false)
     large.destroy()
     session.focusedId = null
     paintGeneration++
@@ -691,9 +714,15 @@ export function createDocumentEditor({
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
+    // 块表已整体换掉：块级撤销项记着的旧块身份全部失效，留在栈里会撤错对象。
+    operations.discardBlockOps()
     session.focusedId = null
     containStale = true
     invalidateBlockIndex()
+    // 块的 originals 被对齐成快照文本，逐块 dirty 全是 false——但快照与磁盘
+    // 原文未必一致（存盘后按 ⌘Z 正是要回到「与磁盘不同」的状态）。不重算
+    // structuralDirty 的话界面显示旧内容、脏标记却是灭的：⌘S 静默空转。
+    session.structuralDirty = raw !== (session.source?.text ?? '')
     markDirty()
     void render()
   }
@@ -735,6 +764,10 @@ export function createDocumentEditor({
     // 块档这一段到此为止：改过就先记一条，切过去后按 ⌘Z 能退回这里。
     // 结算必须在拆块之前——块表还在，整篇正文才取得准。
     settleModeSession()
+    // 离开块档：块级撤销项只对「记录时的那张块表」有效，源码档回来的路上
+    // 块表可能整篇重建（commitSourceView）。在这里丢掉，保证栈里的块级项
+    // 永远比所有切档快照新——undoFallback 先块级后快照的顺序才成其为时序。
+    operations.discardBlockOps()
     destroyBlockEditor(true)
     session.focusedId = null
     shells.reset()
@@ -757,7 +790,7 @@ export function createDocumentEditor({
     const dirty = sourceEditor.isDirty()
     // 源码档这一段到此为止：必须在 destroy 之前结算，承载还在才取得到正文。
     settleModeSession()
-    sourceEditor.destroy()
+    sourceEditor.destroy(true)
     if (!changed) {
       // 正文没变，块表沿用——但大纲还停在源码档那句「不提供」上，得重画回来。
       // 不能只靠 outline.refresh()：它按标题签名判断，签名没变就不会重建。
@@ -774,6 +807,8 @@ export function createDocumentEditor({
     lastPaint.clear()
     parsedRaw.clear()
     blockHistory.clear()
+    // 块表整篇重建：块级撤销项里的旧块身份失效（同 restoreWholeDocument）。
+    operations.discardBlockOps()
     session.blocks = blocks
     session.originals = new Map(blocks.map((b) => [b.id, b.raw] as const))
     for (const b of session.blocks) b.dirty = false
@@ -1504,6 +1539,9 @@ export function createDocumentEditor({
       session.source!.text = normalized
       sourceEditor.markSaved(normalized)
       session.blocks.forEach((b) => {
+        // originals 也要跟着磁盘基线走：只清 dirty 不换基线的话，之后把块
+        // 改回「保存前」的内容会被判成与磁盘一致——磁盘上其实是刚写的这版。
+        session.originals.set(b.id, b.raw)
         b.dirty = false
       })
       session.structuralDirty = false
@@ -1550,6 +1588,7 @@ export function createDocumentEditor({
     closeFindBar()
     destroyBlockEditor(false)
     blockHistory.clear()
+    operations.clearUndo()
     // 与 loadSession 对齐：旧时间片不能再往已经清空的会话里追加块。
     paintGeneration++
     parseGeneration++
@@ -1560,7 +1599,7 @@ export function createDocumentEditor({
     invalidateBlockIndex()
     large.destroy()
     large.deactivate()
-    sourceEditor.destroy()
+    sourceEditor.destroy(false)
     lastPaint.clear()
     parsedRaw.clear()
     session.source = null
@@ -1638,6 +1677,7 @@ export function createDocumentEditor({
     insertImageMarkdownAtCaret,
     replaceInDocument,
     openFind,
+    undo,
     operations,
     isSourceMode: () => sourceEditor.isActive(),
     sourcePlainText: () => (sourceEditor.isActive() ? sourceEditor.text() : null),
