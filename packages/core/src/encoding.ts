@@ -49,23 +49,49 @@ export function createSourceDocument(path: string, raw: string, mtimeMs: number)
  * 在装载时就没了。直接写回 CM 的正文，会让没动过的行也换掉行尾——撞产品红线
  * 「未改过的块保存时必须与原文字节级一致」。
  *
- * 行数一致时按行号还原；行数变了就还原不了（多出来的行不知道该配哪个行尾），
- * 这时用 CM 的形态（LF）交出去。
+ * 行数变了就整篇退回 LF 的代价太大：混合换行的文件插一行，全文的行尾都会被
+ * 改写。改成**首尾对齐**——公共前缀的行拿原文同一行的行尾，公共后缀的行映射回
+ * 原文对应行；中间段里还在原文范围内的行继承它那一行的行尾，多出来的新行用 LF。
+ * 除末行外每一行都必须有行尾（缺了会吃掉行边界）；末行永远不加行尾，
+ * 否则文末删行会凭空多出一条尾部换行（"a\n" 按行切是 ["a",""]，
+ * 那条换行属于「a」的行尾，不是末行的）。
  */
 export function restoreLineEndings(edited: string, original: string): string {
+  if (edited === original) return original
   const originalLines = original.split(/\r\n?|\n/)
   const editedLines = edited.split('\n')
-  if (originalLines.length !== editedLines.length) return edited
   // 原文每一行后面的行尾（最后一行没有行尾）。
   const ends: string[] = []
   const re = /\r\n?|\n/g
   let m: RegExpExecArray | null
   while ((m = re.exec(original)) !== null) ends.push(m[0])
+  const O = originalLines.length
+  const E = editedLines.length
+  // 公共前缀行数 p 与公共后缀行数 s：前缀、后缀互不重叠（p + s ≤ min(E, O)）。
+  let p = 0
+  while (p < O && p < E && editedLines[p] === originalLines[p]) p += 1
+  let s = 0
+  const sMax = Math.min(E, O) - p
+  while (s < sMax && editedLines[E - 1 - s] === originalLines[O - 1 - s]) s += 1
   let out = ''
-  for (let i = 0; i < editedLines.length; i++) {
+  for (let i = 0; i < E - 1; i++) {
     out += editedLines[i]
-    if (i < ends.length) out += ends[i]
+    let ending: string | null = null
+    if (i < p) {
+      // 前缀：与原文第 i 行逐字相同，行尾照搬。
+      ending = ends[i] ?? null
+    } else if (i >= E - s) {
+      // 后缀：编辑后第 i 行对应原文第 i + (O - E) 行；i < E - 1 保证 j < O - 1，行尾必在。
+      ending = ends[i + (O - E)] ?? null
+    } else if (i < O - s) {
+      // 中间段、但仍在原文中间段范围内：继承原文这一行的行尾。
+      ending = ends[i] ?? null
+    }
+    // 对不上原文边界的都是新边界（多出来的行、原文末行之后的位置）：用 LF。
+    out += ending ?? '\n'
   }
+  // 末行不给行尾：尾部换行属于前一行的行尾，由上一行承载。
+  out += editedLines[E - 1]
   return out
 }
 
