@@ -60,17 +60,21 @@ export function resolveShortcut(h: ShortcutHints): ShortcutAction | null {
   const key = h.key
   const lower = key.toLowerCase()
 
-  // 1) 块级撤销：只有没聚焦编辑器、也没落在文本框里时才接管 ⌘Z
-  //    （编辑器里那是 CM 的文字撤销；文本框里是框内内容的原生撤销）
-  if (h.mod && !h.shift && lower === 'z' && !h.focusedBlock && !h.editorMounted && !h.focusInTextField) {
+  // 1) 撤销：焦点不在编辑面、也不落在文本框里时才接管 ⌘Z
+  //    （编辑面里那是 CM 的文字撤销；文本框里是框内内容的原生撤销）
+  //
+  //    判据是 `editorMounted`（= 编辑面存在**且** DOM 焦点在它里面），不是
+  //    `focusedBlock`（= 会话里有一个聚焦块）。两者不是一回事：点一下状态行
+  //    或侧栏，块仍然是聚焦块，但按键已经落到 body 上——用 focusedBlock 当守卫
+  //    会把这种情况下的 ⌘Z / ⇧⌘Z 一起挡死，用户看到的就是「重做键完全没反应」。
+  if (h.mod && !h.shift && lower === 'z' && !h.editorMounted && !h.focusInTextField) {
     return { kind: 'undo-block' }
   }
-  // 重做同一组守卫：⇧⌘Z 是 mac / 各平台通用约定，Ctrl+Y 是 Windows / Linux 的惯例
-  // （CM 的 historyKeymap 也是这两条）。⇧⌘Y 不算重做键，不收。
+  // 重做同一组守卫：⇧⌘Z 是 mac / 各平台通用约定，Ctrl+Y 是 Windows / Linux 的惯例。
+  // ⇧⌘Y 不算重做键，不收。
   if (
     h.mod &&
     ((h.shift && lower === 'z') || (!h.shift && lower === 'y')) &&
-    !h.focusedBlock &&
     !h.editorMounted &&
     !h.focusInTextField
   ) {

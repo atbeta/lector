@@ -32,10 +32,15 @@ describe('快捷键分派', () => {
 
   test('块级撤销：编辑器未聚焦时才接管 ⌘Z', () => {
     expect(kind({ mod: true, key: 'z' })).toBe('undo-block')
-    // 聚焦块里的 ⌘Z 是 CM 的文字撤销，必须让位
-    expect(kind({ mod: true, key: 'z', focusedBlock: true })).toBe(null)
-    // 编辑器存在但尚未聚焦（可能的状态）同样让位
+    // 编辑面里的 ⌘Z 是 CM 的文字撤销，必须让位
     expect(kind({ mod: true, key: 'z', editorMounted: true })).toBe(null)
+  })
+
+  test('块级撤销：有聚焦块但焦点不在编辑面时仍要接管（真实 bug）', () => {
+    // 点一下状态行 / 侧栏：块还是聚焦块，但按键落到 body 上了。
+    // 这种时候 CM 的 keymap 收不到键，全局若也按「有聚焦块」让位，⌘Z 就是死键。
+    expect(kind({ mod: true, key: 'z', focusedBlock: true })).toBe('undo-block')
+    expect(kind({ mod: true, key: 'z', focusedBlock: true, editorMounted: true })).toBe(null)
   })
 
   test('块级撤销：焦点在文本框时 ⌘Z 归框内原生撤销', () => {
@@ -53,14 +58,17 @@ describe('快捷键分派', () => {
     expect(kind({ mod: true, shift: true, key: 'Y' })).toBe(null)
   })
 
-  test('块级重做：聚焦块 / 编辑器聚焦 / 文本框时让位', () => {
-    // 聚焦块里的重做归 CM 自己的 historyKeymap（见底再走块内兜底）
-    expect(kind({ mod: true, shift: true, key: 'Z', focusedBlock: true })).toBe(null)
-    expect(kind({ mod: true, key: 'y', focusedBlock: true })).toBe(null)
+  test('块级重做：编辑面聚焦 / 文本框时让位，但「有聚焦块而焦点在别处」要接管', () => {
+    // 编辑面里的重做归 CM 自己的 keymap（见底再走块内兜底）
     expect(kind({ mod: true, shift: true, key: 'Z', editorMounted: true })).toBe(null)
+    expect(kind({ mod: true, key: 'y', editorMounted: true })).toBe(null)
     // 文本框里的重做归框内原生（同 ⌘Z 的守卫）
     expect(kind({ mod: true, shift: true, key: 'Z', focusInTextField: true })).toBe(null)
     expect(kind({ mod: true, key: 'y', focusInTextField: true })).toBe(null)
+    // 焦点离开编辑面（点状态行 / 侧栏）时全局必须接管，否则重做是死键
+    expect(kind({ mod: true, shift: true, key: 'Z', focusedBlock: true })).toBe('redo-block')
+    expect(kind({ mod: true, key: 'y', focusedBlock: true })).toBe('redo-block')
+    expect(kind({ mod: true, shift: true, key: 'Z', focusedBlock: true, editorMounted: true })).toBe(null)
   })
 
   test('Esc 只在有聚焦块时退出编辑', () => {
