@@ -28,6 +28,7 @@ release notes up by that header.
 
 ### Fixed
 
+- fix(editor): make Ctrl+Shift+Z redo on Windows
 - fix(editor): stop undo stacks from leaking into the next opened document
 - fix(editor): keep the dirty flag on after undoing past a save point
 - fix(editor): undo in source mode applies the newest edit, not an older snapshot

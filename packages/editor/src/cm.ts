@@ -1,4 +1,4 @@
-import { defaultKeymap, history, historyField, historyKeymap, undoDepth, redoDepth } from '@codemirror/commands'
+import { defaultKeymap, history, historyField, historyKeymap, undoDepth, redoDepth, redo as cmRedo } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { keymap, lineNumbers, EditorView, highlightWhitespace } from '@codemirror/view'
@@ -9,6 +9,7 @@ import { EditorState, Prec, type Extension } from '@codemirror/state'
 import { htmlToMarkdown } from '@lector/core'
 import { expandFence, toggleWrap } from './wrap.ts'
 import { toCmText } from './sourceText.ts'
+import { isMacLike } from './keys.ts'
 import { applyFindHits, clearFindHits, findHitField } from './cmFind.ts'
 import type { FindMatch } from './findMatch.ts'
 
@@ -179,12 +180,17 @@ export function formatSelection(
 /**
  * 兜底重做的公共入口（Mod-Shift-z / Mod-y 共用）。
  *
- * CM 自己的重做栈还有东西就让位——返回 false，historyKeymap 的 redo 接走；
+ * CM 自己的重做栈还有东西就**自己放**——不要指望 historyKeymap 接走：
+ * 它的 ⇧⌘Z 只在 mac 注册（`{ key: "Mod-y", mac: "Mod-Shift-z" }`）、
+ * Ctrl+Shift+Z 只在 Linux 注册（`{ linux: "Ctrl-Shift-z" }`），
+ * **Windows 只有 Ctrl+Y**。让位的结果就是 Windows 上 Ctrl+Shift+Z 彻底没反应
+ * （用户实测：撤销之后按 ⇧ 组合键，一个字都不回来）。
+ *
  * 见底了才推迟到键盘事件走完后调 onRedoFallback。推迟的理由同 Mod-z：
  * 重放可能拆掉当前聚焦的块或重建块表，中途销毁 CM 会让它在已拆掉的 DOM 上继续跑。
  */
 function redoFallback(view: EditorView, config: EditorialConfig): boolean {
-  if (redoDepth(view.state) > 0) return false
+  if (redoDepth(view.state) > 0) return cmRedo(view)
   window.setTimeout(() => config.onRedoFallback?.(), 0)
   return true
 }
@@ -327,9 +333,9 @@ export function mountEditor(
           run: (view) => redoFallback(view, config),
         },
         {
-          // 非 mac 平台的重做多按 Ctrl+Y（historyKeymap 同款键位）；两条都要接管
+          // 非 mac 平台的重做多按 Ctrl+Y；mac 上它是「没有这个动作」，不接管。
           key: 'Mod-y',
-          run: (view) => redoFallback(view, config),
+          run: (view) => (isMacLike() ? false : redoFallback(view, config)),
         },
         {
           key: 'Enter',
