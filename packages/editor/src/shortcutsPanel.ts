@@ -18,6 +18,14 @@ import { mod, modShift } from './keys.ts'
 export interface ShortcutGroup {
   title: string
   rows: Array<{ keys: string; label: string }>
+  /**
+   * 组脚注：一句话说清这组键的**作用域或限制**。
+   *
+   * 键位表只说「按什么」，说不清「作用在哪」——撤销就是典型：
+   * 用户读完 ⌘Z 会合理预期它是整篇文档的撤销，实际按块记录。
+   * 面板与实际行为对不上，比没有面板更糟（用户照着按，然后以为坏了）。
+   */
+  note?: string
 }
 
 export function shortcutGroups(): ShortcutGroup[] {
@@ -64,6 +72,9 @@ export function shortcutGroups(): ShortcutGroup[] {
         { keys: mod('Z'), label: t('menuUndo') },
         { keys: modShift('Z'), label: t('menuRedo') },
       ],
+      // 撤销史按块保存：换块不回退、离开文档后不保留。不写这一句，
+      // ⌘Z 在「点了别处」之后仍有回退能力，用户会当成整篇撤销来用。
+      note: t('shortcutUndoScope'),
     },
   ]
 }
@@ -104,6 +115,12 @@ function buildCard(): HTMLElement {
       label.textContent = row.label
       line.append(keys, label)
       col.append(line)
+    }
+    if (group.note) {
+      const note = document.createElement('p')
+      note.className = 'shortcut-note'
+      note.textContent = group.note
+      col.append(note)
     }
     card.append(col)
   }

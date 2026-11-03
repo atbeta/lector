@@ -175,6 +175,15 @@ export const zh = {
   statParsing: '解析中…',
   menuUndo: '撤销',
   menuRedo: '重做',
+  // 撤销/重做落空时的回执。
+  // 静默的空操作是这一块最伤人的地方：用户按了键、界面毫无变化，
+  // 只会以为自己没按对或者软件坏了。宁可多一句「没有可撤销的操作」。
+  undoNothing: '没有可撤销的操作',
+  redoNothing: '没有可重做的操作',
+  // 撤销的作用域说明：撤销史按块保存，一次只退一块，不会跨块连退。
+  // 措辞不能说「换块后失效」——换块后 ⌘Z 仍会回到刚编辑过的那块（见
+  // documentEditor 的 lastEditedId），写成失效就是自相矛盾。
+  shortcutUndoScope: '撤销按块记录，一次退一块，不跨块连退',
   menuCut: '剪切',
   menuCopy: '复制',
   menuCopySelection: '复制选中的文字',
@@ -502,6 +511,9 @@ const en: Record<keyof typeof zh, string> = {
   statParsing: 'Parsing…',
   menuUndo: 'Undo',
   menuRedo: 'Redo',
+  undoNothing: 'Nothing to undo',
+  redoNothing: 'Nothing to redo',
+  shortcutUndoScope: 'Undo is per block — one block at a time, not across blocks',
   menuCut: 'Cut',
   menuCopy: 'Copy',
   menuCopySelection: 'Copy selection',

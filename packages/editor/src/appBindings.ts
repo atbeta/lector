@@ -1,5 +1,4 @@
 import { detectEnv, onMenu, closeWindow } from '@lector/shell-web'
-import { showToast } from './feedback.ts'
 import { t } from './i18n.ts'
 import { stepFontSize, stepUiZoom, resetFontSize, resetUiZoom, onUiZoomApplied } from './settings.ts'
 import { openSettingsModal } from './settingsModal.ts'
@@ -187,6 +186,8 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
         e.preventDefault()
         e.stopPropagation()
       }
+      // 一条都不撤时不拦事件（留给系统），回执由 editor.undo() 内部统一给：
+      // 放在这里只能覆盖「焦点在正文外」那一半，块内按键根本走不到这段。
       return
     }
     // 重做同一条规矩：没有可重放的就把按键还给系统（浏览器自己的 ⌘⇧Z 行为）。

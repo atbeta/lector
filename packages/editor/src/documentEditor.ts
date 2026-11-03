@@ -135,6 +135,71 @@ export function createDocumentEditor({
   let cm: CmHandle | null = null
   /** 每块上次失焦时的 CM 状态。切走再回来，撤销栈还在。 */
   const blockHistory = new Map<string, EditorState>()
+  /**
+   * 最近一个真的被编辑过的块。
+   *
+   * 为什么需要它：撤销史按块存在 blockHistory 里，块失焦时 CM 被销毁、状态留在表里。
+   * 但全局 ⌘Z 只看「当前有没有聚焦块」——点了别处之后 focusedId 已经换了人，
+   * 那份历史就再也没人能够到。用户看到的是按了 ⌘Z 什么也没发生。
+   * 记着最后编辑过的那块，全局撤销才有地方可回退。
+   */
+  let lastEditedId: string | null = null
+
+  /**
+   * 全局撤销 / 重做该路由到哪个块的历史。
+   *
+   * 两个判据：
+   * - 必须在块档：源码档 / 大文件档的正文在整篇 CM 里，没块可路由。
+   * - 该块不能是「当下正挂着 CM 的那块」：那种情况下按键已经归它自己的历史，
+   *   再把同一个 state 驱动一遍，会和已挂载的视图网关。
+   */
+  function historyRoutingTarget(): string | null {
+    if (!blocksMounted()) return null
+    const id = lastEditedId
+    if (!id) return null
+    if (id === session.focusedId && cm) return null
+    if (!session.blocks.some((b) => b.id === id)) return null
+    return blockHistory.has(id) ? id : null
+  }
+
+  /**
+   * 在**没挂 CM** 的块上走一步历史。
+   *
+   * 不把焦点搬过去：用户可能在读别人，只是想撤一下刚才的误操作。
+   * 撤销史住在 EditorState 里，命令本身只需要 state + dispatch（见 CM 的
+   * StateCommand 签名），所以直接把暂存的那份状态推进一步，再把正文写回块，
+   * 重绘一次就能看到。焦点不动，但改动是看得见的（必要的话滚过去）。
+   */
+  function applyHistoryStep(id: string, side: 'undo' | 'redo'): boolean {
+    const block = session.blocks.find((b) => b.id === id)
+    const saved = blockHistory.get(id)
+    if (!block || !saved) return false
+    if ((side === 'undo' ? undoDepth(saved) : redoDepth(saved)) === 0) return false
+    let next: EditorState | null = null
+    const step = side === 'undo' ? cmUndo : cmRedo
+    const ok = step({ state: saved, dispatch: (tr) => { next = tr.state } })
+    if (!ok || !next) return false
+    const landed: EditorState = next
+    // 先把新状态收好，再写正文：写回后本次历史与块原文一致，下次聚焦才接得上。
+    blockHistory.set(id, landed)
+    operations.setBlockRaw(block, landed.doc.toString())
+    void render()
+    // 改的可能在屏幕外：滚过去，否则用户看不出撤销到底动了哪里。
+    blocksEl.get(id)?.scrollIntoView({ behavior: 'auto', block: 'center' })
+    return true
+  }
+
+  /** 焦点不在那块上时，把撤销路由回「刚编辑过的那块」。 */
+  function undoInLastEditedBlock(): boolean {
+    const id = historyRoutingTarget()
+    return id !== null && applyHistoryStep(id, 'undo')
+  }
+
+  /** 重做的镜像：同样落到「刚编辑过的那块」。 */
+  function redoInLastEditedBlock(): boolean {
+    const id = historyRoutingTarget()
+    return id !== null && applyHistoryStep(id, 'redo')
+  }
 
   function destroyBlockEditor(keepHistory: boolean): void {
     if (keepHistory && cm && session.focusedId) blockHistory.set(session.focusedId, cm.view.state)
@@ -392,7 +457,15 @@ export function createDocumentEditor({
    * 于是栈里剩下的块级项必然比所有切档快照新，先弹块级才是真正的时序。
    */
   function undoFallback(): boolean {
-    return operations.undoBlockOp() || operations.undoModeSwitch()
+    if (operations.undoBlockOp()) return true
+    if (operations.undoModeSwitch()) return true
+    // 最后才轮到「刚编辑过的那块」：块级操作与切档快照比它新（见上一条不变量）。
+    if (undoInLastEditedBlock()) return true
+    // 这里是撤销的「最底」：块内 CM 历史见底后也会落到这里（见 cm.ts 的 Mod-z）。
+    // 回执只能放在这一层——放上层（appBindings）覆盖不到块内按键，
+    // 因为那时按键已经被 CM 的 keymap 消费掉了，全局分支根本不执行。
+    showToast(t('undoNothing'))
+    return false
   }
 
   /**
@@ -404,7 +477,11 @@ export function createDocumentEditor({
    * 已经把兜底重做栈作废了（见 blockOperations 的 redoBaseline）。
    */
   function redoFallback(): boolean {
-    return operations.redoFallback()
+    if (operations.redoFallback()) return true
+    // 重做的镜像：兜底项放完，再把焦点带回刚编辑过的那块重放。
+    if (redoInLastEditedBlock()) return true
+    showToast(t('redoNothing'))
+    return false
   }
 
   /**
@@ -416,7 +493,9 @@ export function createDocumentEditor({
    * 就先走它；见底了才轮到块级操作与切档快照（见 undoFallback 的不变量）。
    */
   function undo(): boolean {
-    return surface().undoHistory() || undoFallback()
+    if (surface().undoHistory()) return true
+    if (undoFallback()) return true
+    return undoInLastEditedBlock()
   }
 
   /**
@@ -426,7 +505,9 @@ export function createDocumentEditor({
    * 重做历史殿后——按「最后被撤掉的最先重做」排，这是同一条时序的返程。
    */
   function redo(): boolean {
-    return redoFallback() || surface().redoHistory()
+    if (redoFallback()) return true
+    if (surface().redoHistory()) return true
+    return redoInLastEditedBlock()
   }
 
   /** 当前正文的滚动容器：普通档是 #content，整篇 CM（源码档 / 大文件档）是自己的滚动层。 */
@@ -723,6 +804,8 @@ export function createDocumentEditor({
     closeFindBar()
     destroyBlockEditor(false)
     blockHistory.clear()
+    // 「刚编辑过的那块」也属于上一篇：留着会让 ⌘Z 去摸一张不存在的块。
+    lastEditedId = null
     // 两条撤销栈属于上一篇：不清掉的话，打开新文档后 ⌘Z 会把旧正文
     // replaceWholeDocument 进来，⌘S 就把旧文档写进新文件。
     operations.clearUndo()
@@ -1407,6 +1490,8 @@ export function createDocumentEditor({
         block.raw,
         (text) => {
           liveText.set(block.id, text)
+          // 记下「最后真正改过字的块」：全局撤销在块失焦后靠它找回历史。
+          lastEditedId = block.id
           syncBlockText(block, text)
           mermaidPanel?.update(text)
         },
@@ -1672,6 +1757,8 @@ export function createDocumentEditor({
     closeFindBar()
     destroyBlockEditor(false)
     blockHistory.clear()
+    // 同上（loadSession）：上一份文档的编辑目标不能跨文档活下去。
+    lastEditedId = null
     operations.clearUndo()
     // 与 loadSession 对齐：旧时间片不能再往已经清空的会话里追加块。
     paintGeneration++

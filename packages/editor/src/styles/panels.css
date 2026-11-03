@@ -388,6 +388,15 @@
   color: rgb(var(--foreground));
 }
 .shortcut-label { font-size: var(--text-base); color: rgb(var(--foreground)); white-space: nowrap; }
+/* 组脚注：说明这组键的作用域/限制（见 ShortcutGroup.note）。
+   与键位行同一列宽，字号降一级、颜色用次级信息色——它是注解，不是条目。 */
+.shortcut-note {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: rgb(var(--muted-foreground));
+  white-space: normal;
+}
 .settings-shortcut-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

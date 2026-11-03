@@ -28,6 +28,8 @@ release notes up by that header.
 
 ### Fixed
 
+- fix(editor): keep undo and redo reachable after a block loses focus
+- fix(editor): tell the user when there is nothing to undo or redo
 - fix(editor): make Ctrl+Shift+Z redo on Windows
 - fix(editor): stop undo stacks from leaking into the next opened document
 - fix(editor): keep the dirty flag on after undoing past a save point
