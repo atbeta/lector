@@ -20,6 +20,12 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.39.5 (2026-11-05)
+
+### Fixed
+
+- fix(shell): open local links without freezing the UI thread
+
 ## v0.39.4 (2026-11-03)
 
 ### Added
