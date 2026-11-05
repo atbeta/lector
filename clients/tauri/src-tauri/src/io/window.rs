@@ -1,5 +1,5 @@
 use std::{
-  collections::HashMap,
+  collections::{HashMap, HashSet},
   fs,
   path::PathBuf,
   sync::{
@@ -56,12 +56,59 @@ pub fn forget_window(app: &AppHandle, label: &str) {
   rebuild_allowed_dirs(app);
 }
 
+/// 正在建窗中的路径。
+///
+/// `open_link` 为了不卡 UI 线程，把建窗挪到了 spawn 出去的线程（见 io/commands.rs
+/// 的注释）。同步命令时代这件事天然串行：调用方就在那一个线程上，前一次建完才轮到
+/// 下一次。改成 spawn 之后，同一路径的两次点击（双击链接）会真的并行进来，两个线程
+/// 都查不到已有窗口、各建一扇——一次双击得到两扇同文件窗口。
+///
+/// 用「先登记后建窗」而不是拿一把锁包住整个建窗过程：后者会引入新的死锁——主线程
+/// 也会走 `open_path`（菜单「最近打开」），一旦主线程正卡在等锁、而持锁的线程又
+/// 在等主线程把窗口建完，就又是本次修的那种卡死。登记表只在插入/移除时短暂取锁，
+/// 从不跨越建窗，所以没有这个风险。
+static BUILDING: Mutex<Option<HashSet<PathBuf>>> = Mutex::new(None);
+
+/// 退出作用域时把路径从 BUILDING 里移除（建窗失败、panic 都一样）。
+struct BuildingGuard(PathBuf);
+
+impl Drop for BuildingGuard {
+  fn drop(&mut self) {
+    if let Some(set) = crate::lock(&BUILDING).as_mut() {
+      set.remove(&self.0);
+    }
+  }
+}
+
+/// 占住一个路径，返回 None 表示别人正在建这扇窗。
+///
+/// 撞上就放弃，而不是等待：菜单「最近打开」是在主线程上调 `open_path` 的，
+/// 一旦主线程撞上「另一个线程正在建同一个文件」，在那儿睡到对方建完就是把死锁
+/// 换成了冻屏，同样不能接受。而双击链接的第二次点击本来就冗余——第一扇窗马上
+/// 就会出现，「放弃」又永远不会阻住任何线程。
+fn claim_building(key: &PathBuf) -> Option<BuildingGuard> {
+  let mut slot = crate::lock(&BUILDING);
+  let set = slot.get_or_insert_with(HashSet::new);
+  if set.insert(key.clone()) {
+    Some(BuildingGuard(key.clone()))
+  } else {
+    None
+  }
+}
+
 /// 打开一篇文档：去重（已开则聚焦），否则新建窗口并记下 pending path。
 pub fn open_path(app: &AppHandle, path: &str) {
   let canon = canonical(path).unwrap_or_else(|| PathBuf::from(path));
   protocol::allow_dir(&app.state::<protocol::AllowedDirs>(), path);
   let registry = app.state::<WindowRegistry>();
   let key = canon.clone();
+
+  // 同一路径正在另一个线程里建窗：放弃这次调用。绝不等待——主线程（菜单
+  // 「最近打开」）也会走到这里，任何形式的等待都是又一种冻屏。
+  let Some(claim) = claim_building(&key) else {
+    log::info!("[win] 同一文档正在建窗，跳过：{}", key.display());
+    return;
+  };
 
   let existing = {
     let map = crate::lock(&registry.0);
@@ -101,7 +148,8 @@ pub fn open_path(app: &AppHandle, path: &str) {
     .file_name()
     .and_then(|s| s.to_str())
     .unwrap_or("Lector");
-  match build_doc_window(app, &label, title) {
+  let built = build_doc_window(app, &label, title);
+  match built {
     Ok(_w) => {
       log::info!("[win] 文档窗口已就绪 {label}");
       let _ = crate::lock(&registry.0).insert(key, label);
@@ -111,6 +159,9 @@ pub fn open_path(app: &AppHandle, path: &str) {
       log::error!("failed to open window {label}: {e}");
     }
   }
+  // 占位留到注册表写完才释放：否则等在外面的线程会看到一个「既没在建、也没
+  // 登记」的空档，又建一扇同样的窗。
+  drop(claim);
 }
 
 /// 窗口边框的平台差异，单独成函数以便单测（无 GUI 也能验配置对不对）。

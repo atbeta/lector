@@ -36,6 +36,19 @@ pub struct WriteResult {
 ///
 /// 路径解析与校验都在这里（web 层只传「当前文档 + 链接原文」）——`paths.ts` 顶上
 /// 那句「真正的路径权威在壳侧」就是这条。
+///
+/// **建窗必须跳出本次调用**（`std::thread::spawn`），不能在这个函数体里直接调
+/// `open_path`。理由与 lib.rs 的 single-instance 回调、snap.rs 的窗口过程同源：
+/// 同步命令是在 IPC 回调所在线程上跑完的（Windows 是 WebView2 的
+/// `WebMessageReceived`、macOS 是 `WKScriptMessageHandler`），那里正处在 UI 线程
+/// 的 COM / 消息派发内部。此时 `WebviewWindowBuilder::build()` 会内联进
+/// `handle_user_message`，wry 再嵌套 pump 一条新 WebView 控制器的创建流程——
+/// 外层等内层、内层等外层，UI 线程再也回不来。
+///
+/// 实测症状（v0.39.4，点文档里的 `[MANUAL.md](./MANUAL.md)`）：点击没有任何反应
+/// （invoke 永不 resolve，连失败 toast 都出不来），随后整个应用卡死、关不掉。
+/// 窗口在另一个线程里建，`open_path` 经事件循环投递回主线程，与菜单「最近打开」
+/// 走同一条安全路径。
 #[tauri::command]
 pub fn open_link(app: AppHandle, doc_path: String, href: String) -> Result<(), String> {
   let target = resolve_link_target(&doc_path, &href)?;
@@ -45,7 +58,9 @@ pub fn open_link(app: AppHandle, doc_path: String, href: String) -> Result<(), S
   if !is_text_doc(&target) {
     return Err("not_text".into());
   }
-  open_path(&app, &target.to_string_lossy());
+  // 校验仍是同步的（快、且失败码要回给 web 层），只有建窗这一步离开 IPC 线程。
+  let path = target.to_string_lossy().into_owned();
+  std::thread::spawn(move || open_path(&app, &path));
   Ok(())
 }
 
