@@ -397,6 +397,32 @@ function measuredColumn(columnWidth?: number): number {
   return columnWidth || document.querySelector('.reading-prose')?.clientWidth || 800
 }
 
+/**
+ * mermaid 测量容器必须跟「图实际显示的地方」同一套字体度量。
+ *
+ * 这是裁字 bug 的第二层根因（第一层是 CSS 断行规则泄漏，见 reader.css 里
+ * foreignObject 那条）。mermaid 按**自己量到的**行数给 foreignObject 定高，
+ * 而它挂在 body 下量的时候拿的是 body 的字号（14px）；图真正上屏却在
+ * `.reading-prose` 里，那里是 17px。17px 下同一段字更宽、折行更多，多出来的行
+ * 落在 foreignObject 高度之外，被 SVG 裁掉——**字没丢，是画到框外了**。
+ *
+ * 实测（`B{切片}` 的两条出边标签「内容」/「缝隙」）：只补够 overflow-wrap 时
+ * 仍然被裁；补上字号后才不裁。而且**字号和字距缺一不可**——只补字号、
+ * letter-spacing 留在 0 时，量出来的宽度仍差一点点，照样多折一行。
+ *
+ * 取值得去读真实容器，不能写死：阅读字号是用户可调的设置，字距也随主题变。
+ * 找不到容器（例如导出到没有正文的页面）时什么都不设，退回原来按 body 量的行为。
+ */
+function applyReadingMetrics(tmp: HTMLElement): void {
+  const prose = document.querySelector('.reading-prose')
+  if (!prose) return
+  const cs = getComputedStyle(prose)
+  for (const prop of ['font-size', 'font-family', 'letter-spacing', 'line-height'] as const) {
+    const value = cs.getPropertyValue(prop)
+    if (value) tmp.style.setProperty(prop, value)
+  }
+}
+
 async function renderIntoHost(mermaid: Mermaid, code: string, measured: number, id: string): Promise<string> {
   // 甘特等「按容器宽度定画」的图：mermaid 读临时节点父级的 offsetWidth 当画布
   // （ganttDiagram：elem.parentElement.offsetWidth）。不传容器时挂在 body 下，
@@ -409,6 +435,8 @@ async function renderIntoHost(mermaid: Mermaid, code: string, measured: number, 
   // 被压过的时长会让它的包围盒算飞（详见 base.css 里的注释）。
   tmp.className = 'mermaid-render-host'
   tmp.style.cssText = `position:absolute;visibility:hidden;left:-99999px;top:0;width:${measured}px`
+  // 字体度量先在 cssText 之后设：cssText 会把 style 整体覆盖，顺序反了就白设。
+  applyReadingMetrics(tmp)
   document.body.appendChild(tmp)
   try {
     const { svg } = await mermaid.render(id, code.trim(), tmp)

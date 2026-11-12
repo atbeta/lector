@@ -630,6 +630,23 @@ html[data-mode='read'] .mermaid-diagram {
   font-variant: normal;
   font-variant-numeric: normal;
 }
+/* 同样堵住断行规则泄漏（上面那条的同族问题，后果更严重：会吃掉整行文字）。
+   阅读区对长 token 开了 `overflow-wrap: anywhere`（见本文件顶部 .reading-prose 那条），
+   它会级联进 foreignObject 里的 HTML 标签。mermaid 是**按自己量到的换行结果**
+   给 foreignObject 定高定宽的——而它测量时挂在一个不在 .reading-prose 里的临时容器
+   上（mermaid.ts 的 renderIntoHost），那里仍是 normal。于是两边算出来的行数不一样：
+   量的时候 3 行，真上屏被 anywhere 切成 4 行，第 4 行落在 foreignObject 之外，
+   被 SVG 的裁切直接吃掉。实测 `光阑: {pixelSize}_Full_Open` 的最后一个下划线
+   和 `Full_Open` 整段消失，正是因为这个——**字没丢，是画到框外了**。
+   修法就是让图里的文字按 normal 断行，与 mermaid 测量时一致。
+   这也是「灯箱 / 编辑态实时预览里同一张图正常」的原因：那两处都不在
+   .reading-prose 底下，本来就没有这条规则。 */
+.mermaid-diagram .mermaid-svg svg foreignObject div,
+.mermaid-diagram .mermaid-svg svg foreignObject span,
+.mermaid-diagram .mermaid-svg svg foreignObject p {
+  overflow-wrap: normal;
+  word-break: normal;
+}
 
 /* 聚焦块的实时预览面板：源码在上、图在下，与代码卡同一张卡的语言。 */
 .mermaid-live {

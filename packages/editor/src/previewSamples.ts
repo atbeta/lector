@@ -65,6 +65,15 @@ flowchart LR
 graph TD
   X[输入] --> Y[输出]
 \`\`\`
+
+长 token（无断行点的下划线标识符）必须完整可见：mermaid 按自己量到的行数给
+foreignObject 定高，断行规则一变就会多出一行、被 SVG 裁掉。
+
+\`\`\`mermaid
+flowchart TD
+  M1["切换光学模式<br/>光阑: {pixelSize}_Full_Open"]
+  M1 --> M2["下一步"]
+\`\`\`
 `
 
 /** 没有空格、连字符、斜杠，UAX 断行点为空。用来把「放不进栏宽」变成可见的样例。 */

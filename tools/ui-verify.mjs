@@ -1840,6 +1840,36 @@ const summary = {
         `宽图被压成 ${mmd.svgW}px（自然 ${mmd.natural}px > 栏宽 ${mmd.colW}px）：svg 的 width=100% 没有确定宽度可依`,
       )
     }
+
+    // 回归守卫：foreignObject 里的文字不得被裁。mermaid 按**自己量到的**行数给
+    // foreignObject 定高，而它测量时挂在 body 下（14px），图却上屏在 .reading-prose 里（17px）；
+    // 两个环境只要字体度量不一致，多出来的行就落在框外被 SVG 裁掉——
+    // 字没丢，是画到框外了。用户看到的是「`_Full_Open` 整段消失」。
+    // 两处漏都会触发：CSS 断行规则泄漏（reader.css 那条 overflow-wrap）和
+    // 测量容器的字体度量（mermaid.ts 的 applyReadingMetrics）。
+    // 判据用「label 的实际高度 > foreignObject 高度」——直接量，不猜是哪层坏了。
+    const clipped = await page.evaluate(() => {
+      const bad = []
+      for (const fo of document.querySelectorAll('.mermaid-diagram .mermaid-svg svg foreignObject')) {
+        const div = fo.querySelector('div')
+        if (!div) continue
+        const over = div.getBoundingClientRect().height - fo.getBoundingClientRect().height
+        if (over > 1) {
+          bad.push({ text: div.textContent.slice(0, 24), over: Math.round(over) })
+        }
+      }
+      return bad
+    })
+    if (clipped.length) {
+      note(
+        'error',
+        `mermaid 标签被裁（文字画到 foreignObject 框外）：${clipped
+          .map((c) => `「${c.text}」溢出 ${c.over}px`)
+          .join('，')}`,
+      )
+    } else {
+      note('info', 'mermaid 标签无裁字：所有 foreignObject 都装得下自己的文字')
+    }
     await page.click('.mermaid-diagram')
     await page.waitForTimeout(500)
     const lb = await page.evaluate(() => {
