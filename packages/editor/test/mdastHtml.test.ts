@@ -283,3 +283,40 @@ test('setLinkDefinitions 只在定义有变时报告变化', () => {
   expect(setLinkDefinitions(blocks)).toBe(false)
   expect(setLinkDefinitions(parseBlocks('[a][k]\n\n[k]: https://b.com\n'))).toBe(true)
 })
+
+// 软换行（源码单换行）在引用里保留、在段落里合并。
+// 引用是逐字摘录：「仓库 / 时间 / 环境」这种一条一行的片段，行结构属于内容；
+// 段落是散文，硬折行的长句（README / AGENTS / CHANGELOG 里成篇都是）必须合并，
+// 否则每一行都会变成半句断行。
+test('引用块里的软换行渲染成 <br />', () => {
+  const html = renderMd('> 仓库：abc\n> 时间：2026-11-11\n> 环境：npm run dev:debug')
+  expect(html).toContain('<blockquote>')
+  expect(html).toContain('仓库：abc<br />时间：2026-11-11<br />环境：npm run dev:debug')
+  expect(html).not.toMatch(/仓库：abc\n/)
+})
+
+test('普通段落里的软换行仍合并成空格（硬折行散文不能被拆开）', () => {
+  const html = renderMd('给 Windows 与 macOS 的 Markdown 编辑器。磁盘上的 .md 是唯一权威：打开即读，\n就地编辑，保存写回同一路径。')
+  expect(html).not.toContain('<br />')
+  expect(html).toContain('打开即读，\n就地编辑')
+})
+
+test('硬换行（行尾两空格）在段落里照旧换行，不受上面那条影响', () => {
+  const html = renderMd('第一行  \n第二行')
+  expect(html).toContain('第一行<br />第二行')
+})
+
+test('引用里嵌的列表同样保留软换行', () => {
+  const html = renderMd('> - 甲\n> - 乙')
+  expect(html).toContain('<blockquote>')
+  expect(html).toContain('<li>')
+  expect(html).toContain('甲')
+  expect(html).toContain('乙')
+})
+
+test('引用里的行内标记不因保留换行而破相', () => {
+  const html = renderMd('> **粗**：说明\n> `code`：示例')
+  expect(html).toContain('<strong>粗</strong>')
+  expect(html).toContain('<code>code</code>')
+  expect(html).toContain('<br />')
+})

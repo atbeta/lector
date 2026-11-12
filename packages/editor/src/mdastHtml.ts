@@ -333,7 +333,28 @@ function wrapInlineHtml(tag: string, inner: string): string {
   return `<${tag} class="html-${tag}">${inner}</${tag}>`
 }
 
-function inline(children: Node[] | undefined): string {
+/**
+ * 把 soft break（源码里的单个换行）保留成 `<br />`。
+ *
+ * 只在**引用块**里为 true。CommonMark 规定 soft break 两侧按空格处理，所以段落里
+ * 三行连续的正文要合并成一行——那是散文的折行，属于排版，不是内容。而引用是
+ * 逐字摘录：用户贴的反而是「仓库 / 时间 / 环境」这种一条一行的结构化片段，行结构
+ * 本身就是内容的一部分，合并掉就把三条信息糊成一句了。
+ *
+ * 这一条不做成全局开关：仓库自己的 README / AGENTS / CHANGELOG 全是硬折行的散文
+ * （实测 112 处），全局保留换行会把它们全变成参差不齐的半句断行。反过来只看
+ * 引用，CHANGELOG 顶部那个三行英文 note 也确实该分三行——它本来就是三行。
+ *
+ * 硬换行（行尾两个空格或反斜杠）不走这里：mdast 已经给成 `break` 节点，
+ * 在段落里也照常渲染 `<br />`。
+ */
+function textWithSoftBreaks(value: string, keepBreaks: boolean): string {
+  if (!keepBreaks) return presentEmojiShortcodes(esc(value))
+  // 逐行过一遍 emoji 短代码，免得 `:name:` 被换行切开后漏替换；再按行拼回。
+  return value.split('\n').map((line) => presentEmojiShortcodes(esc(line))).join('<br />')
+}
+
+function inline(children: Node[] | undefined, keepBreaks = false): string {
   if (!children) return ''
   // 白名单行内标签（kbd/sub/sup/u/mark）被 micromark 拆成「开标签/文本/闭标签」
   // 三个节点——这里跨节点配对包裹；br / 白名单 <img> 直接放行；其余转义降级。
@@ -374,7 +395,7 @@ function inline(children: Node[] | undefined): string {
       out.push(`<code>${esc(v)}</code>`)
       continue
     }
-    out.push(inlineNode(c))
+    out.push(inlineNode(c, keepBreaks))
   }
   // 未配对的开标签：占位还原为转义源码
   for (const p of pending) out[p.outIndex] = `<code>${esc(p.raw)}</code>`
@@ -392,22 +413,22 @@ export function safeHref(url: string): string | null {
   return null
 }
 
-function inlineNode(n: Node): string {
+function inlineNode(n: Node, keepBreaks = false): string {
   switch (n.type) {
     case 'text':
-      return presentEmojiShortcodes(esc(n.value ?? ''))
+      return textWithSoftBreaks(n.value ?? '', keepBreaks)
     case 'emphasis':
-      return `<em>${inline(n.children)}</em>`
+      return `<em>${inline(n.children, keepBreaks)}</em>`
     case 'strong':
-      return `<strong>${inline(n.children)}</strong>`
+      return `<strong>${inline(n.children, keepBreaks)}</strong>`
     case 'delete':
-      return `<del>${inline(n.children)}</del>`
+      return `<del>${inline(n.children, keepBreaks)}</del>`
     case 'inlineCode':
       return `<code>${esc(n.value ?? '')}</code>`
     case 'link': {
       const href = safeHref(n.url ?? '')
-      if (!href) return `<span>${inline(n.children)}</span>`
-      return `<a href="${esc(href)}"${n.title ? ` data-tip="${esc(n.title)}"` : ''}>${inline(n.children)}</a>`
+      if (!href) return `<span>${inline(n.children, keepBreaks)}</span>`
+      return `<a href="${esc(href)}"${n.title ? ` data-tip="${esc(n.title)}"` : ''}>${inline(n.children, keepBreaks)}</a>`
     }
     case 'image': {
       const rawUrl = n.url ?? ''
@@ -503,7 +524,7 @@ function renderInlineMarkdown(text: string): string {
   return (p.children ?? []).map((c) => inlineNode(c)).join('')
 }
 
-function listItems(list: Node): string {
+function listItems(list: Node, keepBreaks = false): string {
   const items = (list.children ?? []).map((item: Node) => {
     const task = item.checked !== undefined && item.checked !== null
     // 复选框不再是「只读装饰」：预览里点一下直接切换勾选（点击由 main.ts 拦下
@@ -513,7 +534,7 @@ function listItems(list: Node): string {
       ? `<input type="checkbox" tabindex="-1"${item.checked ? ' checked' : ''} /> `
       : ''
     // listItem 的 children 通常是 paragraph 或嵌套 list
-    const body = (item.children ?? []).map((c) => blockToHtml(c)).join('')
+    const body = (item.children ?? []).map((c) => blockToHtml(c, keepBreaks)).join('')
     // 任务项正文包一层 .task-label：已完成态给它加删除线即可，不必把整行压暗
     // （压暗会读成「禁用」，而未完成反而最亮，层级就反了）。
     // 这里必须是 div 不能是 span：body 里是 <p>，把块级塞进行内元素属于非法嵌套，
@@ -625,20 +646,27 @@ function inlineText(v: string): string {
     })
 }
 
-function blockToHtml(n: Node): string {
+/**
+ * `keepBreaks` 只由 blockquote 向下传：引用里的软换行要保留成 `<br />`
+ * （理由见 textWithSoftBreaks）。段落、列表、标题、表格一律维持 CommonMark
+ * 的「软换行当空格」——仓库里成篇硬折行的散文（README / AGENTS / CHANGELOG，
+ * 实测 112 处）靠的就是这条，全局保留会把它们拆成参差不齐的半句断行。
+ */
+function blockToHtml(n: Node, keepBreaks = false): string {
   switch (n.type) {
     case 'paragraph':
-      return `<p>${inline(n.children)}</p>`
+      return `<p>${inline(n.children, keepBreaks)}</p>`
     case 'heading': {
       const h = Math.min(6, Math.max(1, n.depth ?? 1))
-      return `<h${h}>${inline(n.children)}</h${h}>`
+      return `<h${h}>${inline(n.children, keepBreaks)}</h${h}>`
     }
     case 'list': {
       const tag = n.ordered ? 'ol' : 'ul'
-      return `<${tag}>${listItems(n)}</${tag}>`
+      return `<${tag}>${listItems(n, keepBreaks)}</${tag}>`
     }
     case 'blockquote': {
-      const body = (n.children ?? []).map((c) => blockToHtml(c)).join('')
+      // 往下传 true：引用内部（含引用里嵌的段落、列表）的软换行都保留。
+      const body = (n.children ?? []).map((c) => blockToHtml(c, true)).join('')
       return `<blockquote>${body}</blockquote>`
     }
     case 'code': {
