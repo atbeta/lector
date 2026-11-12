@@ -443,8 +443,11 @@ function inlineNode(n: Node, keepBreaks = false): string {
     case 'linkReference': {
       // 找不到定义（定义块被删/改名后尚未重解析）时还原成源码，不能把正文吞掉
       const def = linkDefinitions.get(n.identifier ?? '')
-      if (!def) return `[${inline(n.children)}]${referenceSuffix(n)}`
-      return inlineNode({ type: 'link', url: def.url, title: def.title, children: n.children ?? [] })
+      if (!def) return `[${inline(n.children, keepBreaks)}]${referenceSuffix(n)}`
+      return inlineNode(
+        { type: 'link', url: def.url, title: def.title, children: n.children ?? [] },
+        keepBreaks,
+      )
     }
     case 'imageReference': {
       const def = linkDefinitions.get(n.identifier ?? '')
@@ -481,8 +484,8 @@ function inlineNode(n: Node, keepBreaks = false): string {
     case 'mark':
       // ==高亮==（pandoc mark 扩展）。关掉时原样吐回定界符（见 setMarkHighlight）。
       return markHighlight
-        ? `<mark class="html-mark">${inline(n.children)}</mark>`
-        : `==${inline(n.children)}==`
+        ? `<mark class="html-mark">${inline(n.children, keepBreaks)}</mark>`
+        : `==${inline(n.children, keepBreaks)}==`
     case 'html': {
       // 行内 HTML：白名单内「无属性、无嵌套标签」的简单元素原样渲染，
       // 其余转义降级为原文（红线：预览不执行任意 HTML）
@@ -744,7 +747,7 @@ function blockToHtml(n: Node, keepBreaks = false): string {
       // 自动布局还会把它排到第二行第一列（0.27.2 截图里的丑态）。
       const fid = esc(n.identifier ?? n.label ?? '')
       const body = (n.children ?? [])
-        .map((c) => (c.type === 'paragraph' ? inline(c.children) : blockToHtml(c)))
+        .map((c) => (c.type === 'paragraph' ? inline(c.children, keepBreaks) : blockToHtml(c, keepBreaks)))
         .join('')
       return `<div class="footnote-definition" id="fn-${fid}"><span class="footnote-definition-anchor">${esc(n.label ?? n.identifier ?? '')}</span><div class="footnote-definition-body">${body}<a class="footnote-backref" href="#fnref-${fid}" aria-label="${esc(t('footnoteBack'))}">${iconSvg('backref', 12)}</a></div></div>`
     }
