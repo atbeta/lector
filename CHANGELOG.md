@@ -20,6 +20,14 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.39.6 (2026-11-12)
+
+### Fixed
+
+- fix(editor): keep soft line breaks inside quotes
+- fix(editor): carry quote line breaks through mark and footnotes
+- fix(mermaid): stop clipping labels that mermaid measured smaller
+
 ## v0.39.5 (2026-11-05)
 
 ### Fixed
