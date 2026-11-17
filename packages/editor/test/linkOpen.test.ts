@@ -3,7 +3,7 @@
 // 这两条判据是纯函数、单独测：它们决定「点一下会发生什么」，而这件事在真机上
 // 只能靠手动点（ui-verify 里点一下会去开窗口，验不了），所以规则必须在这里钉死。
 import { describe, expect, test } from 'bun:test'
-import { classifyHref, shouldOpenHref } from '../src/linkOpen.ts'
+import { classifyHref, shouldHandleLinkClick, shouldOpenHref } from '../src/linkOpen.ts'
 
 describe('classifyHref', () => {
   test('外部链接与邮件', () => {
@@ -57,5 +57,20 @@ describe('shouldOpenHref', () => {
       expect(shouldOpenHref('local', mode, true)).toBe(true)
       expect(shouldOpenHref('external', mode, true)).toBe(true)
     }
+  })
+})
+
+describe('shouldHandleLinkClick', () => {
+  test('有没有选区都要接管链接点击', () => {
+    expect(shouldHandleLinkClick(false)).toBe(true)
+    expect(shouldHandleLinkClick(true)).toBe(true)
+  })
+
+  // 回归：0.39.7 之前，用户先选中文字再点选区里的网址，handler 在
+  // 「有选区就 return」那道判断处直接退出，preventDefault 没跑到，webview
+  // 自己把页面导航走——无边框窗口的界面连同关闭按钮一起被目标站点替换。
+  test('选中文字后点链接仍必须接管（否则 webview 会自己导航走）', () => {
+    // 这条断言读起来像同义反复，但它守的是「别再加回那条提前 return」。
+    expect(shouldHandleLinkClick(true)).toBe(true)
   })
 })

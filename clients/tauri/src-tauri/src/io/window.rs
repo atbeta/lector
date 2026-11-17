@@ -12,10 +12,45 @@ use std::{
 use tauri::webview::PageLoadEvent;
 #[cfg(target_os = "windows")]
 use tauri::EventTarget;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 use super::{fs::canonical, watch::unwatch};
 use crate::protocol;
+
+/// 这个 URL 是不是本应用自己的页面（也就是「可以留在 webview 里」的）。
+///
+/// 认三种，别的一律拦：
+///   1. 应用页面：生产 macOS/Linux 是 `tauri://localhost`，**生产 Windows 是
+///      `http://tauri.localhost`**（Tauri 2 在 Windows 上把自定义协议走 http 隧道，
+///      见 lib.rs 里注册 lector-file 的那段注释）。
+///   2. 开发服务器 `http://localhost:5173`（devUrl）。
+///   3. `lector-file` 自定义协议：正文里的图片走它（见 protocol.rs）。
+///
+/// ⚠️ 第 1 条里 Windows 那个 `tauri.localhost` 是**绝不能漏**的：漏了就等于把自己
+/// 的应用页面拦在门外，一点链接（甚至正常导航）整块白屏。
+fn is_app_url(url: &Url) -> bool {
+  let host = url.host_str().unwrap_or("");
+  match url.scheme() {
+    // 生产 macOS / Linux
+    "tauri" => host == "localhost",
+    // `lector-file` 有两种拼法：原生协议，或 Windows 的 http 隧道
+    "lector-file" => true,
+    "http" | "https" => {
+      // 生产 Windows 的应用页面
+      if host == "tauri.localhost" {
+        return true;
+      }
+      // Windows 上 lector-file 的 http 隧道
+      if host == "lector-file.localhost" {
+        return true;
+      }
+      // 开发服务器。端口必须精确：localhost 上可能跑着别的本地服务，
+      // 放行任意端口等于给「点一下就进到别人页面」开了后门。
+      (host == "localhost" || host == "127.0.0.1") && url.port() == Some(5173)
+    }
+    _ => false,
+  }
+}
 
 /// path → window label，同一文件只开一个窗口。
 #[derive(Default)]
@@ -470,7 +505,37 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
     // 非文件（文本）拖放仍转发给 WebView2 默认处理。
     // 无边框窗口在 Windows 上需要显式要投影，否则窗口和桌面糊在一起
     .shadow(true)
-    .decorations(chrome.decorations);
+    .decorations(chrome.decorations)
+    // ── 导航守卫：webview 永远不许离开本应用 ──
+    //
+    // 这是 0.39.7 修的一个线上事故的**根本防线**。正文里的链接在 web 层
+    // （appBindings.ts）被拦下并交给系统浏览器；但 `preventDefault()` 不是
+    // 导航的最终否决权——它只对「网页自己处理」有效，真正决定 webview 走不走
+    // 的是原生 NavigationStarting / decidePolicyForNavigationAction。
+    // 前端那道 `click` 监听只要漏一次（实测：用户**先选中文字**再点链接，
+    // 旧代码在「有选区就 return」那道判断处直接返回，preventDefault 根本没跑），
+    // webview 就会真的导航到目标站点。
+    //
+    // 后果在本应用里格外严重：窗口是 `decorations: false` 的无边框窗口，
+    // 标题栏、关闭按钮全是网页里画的 DOM。webview 一被替换，整个界面连同
+    // 关闭按钮一起消失，系统层面又没有原生标题栏可点——用户只能强杀进程。
+    // 这不是「点链接跳错地方」，是**应用自毁**。
+    //
+    // 所以判据收在这里，且只放行自己的页面（见 is_app_url）：
+    //   - 自己的页面 / 开发服务器 / lector-file 图片协议 → 放行；
+    //   - 其余一律 cancel，并且顺手交给系统浏览器（点链接的意图不该被吞掉，
+    //     否则用户看到的就是「点了没反应」——那是另一个版本的坏体验）。
+    .on_navigation(|url| {
+      if is_app_url(url) {
+        return true;
+      }
+      let s = url.as_str();
+      if s.starts_with("http://") || s.starts_with("https://") || s.starts_with("mailto:") {
+        let _ = crate::menu::open_external(s);
+      }
+      log::info!("[nav] 拦下越界导航（已转交系统浏览器）：{s}");
+      false
+    });
   if let Some((x, y, sw, sh, maximized)) = saved {
     // 存档是物理像素（window-state 插件按 PhysicalPosition/PhysicalSize 存取），
     // 而 builder 的 position/inner_size 是逻辑像素（tauri 文档原文）。不换算的话
@@ -566,6 +631,48 @@ fn build_doc_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// 导航守卫的白名单。这组断言是「别把应用自己关在门外」的最后一道保险：
+  /// 三个平台的**应用页面**各有一条，任何一条写错都会让窗口一点就白屏。
+  #[test]
+  fn app_pages_are_always_allowed() {
+    let allow = |s: &str| is_app_url(&Url::parse(s).unwrap());
+
+    // 生产 macOS / Linux
+    assert!(allow("tauri://localhost/"), "macOS/Linux 的应用页面必须放行");
+    assert!(allow("tauri://localhost/index.html#/doc"), "带 hash/路径的同样放行");
+    // 生产 Windows：Tauri 2 把自定义协议走 http 隧道，这条漏了就是整窗白屏
+    assert!(allow("http://tauri.localhost/"), "Windows 的应用页面必须放行");
+    assert!(allow("http://tauri.localhost/index.html"), "Windows 带路径也必须放行");
+    // 开发服务器
+    assert!(allow("http://localhost:5173/"), "devUrl 必须放行");
+    assert!(allow("http://127.0.0.1:5173/"), "devUrl 的 127.0.0.1 写法同样放行");
+    // lector-file：正文图片，两种拼法
+    assert!(allow("lector-file://localhost/foo.png"), "原生协议放行");
+    assert!(allow("http://lector-file.localhost/foo.png"), "Windows 隧道写法放行");
+  }
+
+  /// 正文里的外部链接必须被拦下——这是「点链接把整个应用换掉」那个事故本身。
+  #[test]
+  fn foreign_urls_are_never_allowed() {
+    let allow = |s: &str| is_app_url(&Url::parse(s).unwrap());
+
+    for url in [
+      "https://example.com/",
+      "http://example.com/",
+      "https://github.com/atbeta/lector",
+      // 看着像本机，但端口不是 devUrl：localhost 上可能跑着别的服务，
+      // 放行任意端口等于允许「点一下进到别人页面」
+      "http://localhost:8080/",
+      "http://127.0.0.1:3000/",
+      // 同域名的其他 scheme 不能沾光
+      "https://tauri.localhost/",
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+    ] {
+      assert!(!allow(url), "必须拦下：{url}");
+    }
+  }
 
   /// 回归防线：tauri.conf.json 里的 window 配置会覆盖 builder，
   /// 一旦有人在 config 里写死 decorations:false，macOS 会连红绿灯一起丢掉，

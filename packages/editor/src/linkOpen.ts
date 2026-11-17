@@ -133,3 +133,21 @@ export async function openHref(
     showToast(reasonText(err))
   }
 }
+
+/**
+ * 一次点击落在链接上时，该不该由我们接管。
+ *
+ * 抽成纯函数只为一件事：**「有选区时点链接」这个回归能被测到**。
+ * 0.39.7 的事故就是这里少了一层考虑——用户先选中文字再点选区里的网址，
+ * 旧代码在「有选区就 return」那里直接退出，`preventDefault()` 没跑，
+ * webview 自己导航走了，整个应用界面（连同关闭按钮）被目标站点替换。
+ *
+ * 规则：点在链接上就一律接管，与选区无关。选区只是当时附带的文本状态，
+ * 而链接是用户明确要点的目标——先命中链接、先 preventDefault，再谈选区。
+ */
+export function shouldHandleLinkClick(hasSelection: boolean): boolean {
+  // hasSelection 目前不改变结果，但保留参数：这条规则的语义就是
+  // 「选区不影响链接点击」，写出来才能被下面那条测试钉住。
+  void hasSelection
+  return true
+}

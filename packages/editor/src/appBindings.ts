@@ -5,7 +5,7 @@ import { openSettingsModal } from './settingsModal.ts'
 import { openAppearancePop } from './appearancePop.ts'
 import { mountTitlebarInset } from './chrome.ts'
 import { openShortcutsPanel } from './shortcutsPanel.ts'
-import { classifyHref, openHref, shouldOpenHref } from './linkOpen.ts'
+import { classifyHref, openHref, shouldHandleLinkClick, shouldOpenHref } from './linkOpen.ts'
 import { VIEW_MODES } from './editorChrome.ts'
 import { resolveShortcut } from './shortcutDispatch.ts'
 import type { DocumentEditor } from './documentEditor.ts'
@@ -55,16 +55,22 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
       }
       return
     }
-    // 拖选之后松开鼠标：click 事件仍会触发，handler 会跑去 focusBlock()，
-    // 而 focusBlock 会 render()，把选中的节点清掉——视觉上就是「选中瞬间消失」。
-    // mouseup 不会清选区；到 click 触发时 sel 仍是非折叠的，拦下即可。
-    // 真点击（点空白、点链接、点进块）sel 是折叠的，行为不变。
-    const sel = window.getSelection()
-    if (sel && !sel.isCollapsed && sel.toString().length > 0) {
-      return
-    }
+    // 链接判断必须排在「有选区就 return」**之前**。
+    //
+    // 这条顺序是 0.39.7 修的一个线上事故：用户先选中一段文字（哪怕只是
+    // 双击选了个词），再去点选区里的网址，click 照样触发，但原来第一道判断
+    // 见选区非折叠就直接 return——`preventDefault()` 根本没跑，于是 webview
+    // 自己把 <a href> 导航走了。壳是无边框窗口，「界面」就是网页本身，导航
+    // 一走整页连同关闭按钮全被目标站点替换，用户在 Windows 上只能强杀进程。
+    //
+    // 链接是用户明确要点的目标，选区只是当时的附带状态：先命中链接、先
+    // preventDefault，再谈选区。
     const link = (e.target as HTMLElement).closest('a')
-    if (link && !link.closest('.cm-host')) {
+    const hasSelection = (() => {
+      const s = window.getSelection()
+      return Boolean(s && !s.isCollapsed && s.toString().length > 0)
+    })()
+    if (link && !link.closest('.cm-host') && shouldHandleLinkClick(hasSelection)) {
       const href = link.getAttribute('href') ?? ''
       const kind = classifyHref(href)
       // 一律 preventDefault：链接绝不能交给 webview 自己导航——本地点一下会整页跳走
@@ -83,6 +89,14 @@ export function bindAppEvents({ editor, files, chrome, outline, menus, insertIma
         )
         return
       }
+    }
+    // 拖选之后松开鼠标：click 事件仍会触发，handler 会跑去 focusBlock()，
+    // 而 focusBlock 会 render()，把选中的节点清掉——视觉上就是「选中瞬间消失」。
+    // mouseup 不会清选区；到 click 触发时 sel 仍是非折叠的，拦下即可。
+    // 真点击（点空白、点进块）sel 是折叠的，行为不变。
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed && sel.toString().length > 0) {
+      return
     }
     // 任务复选框：点一下直接改写源码里的 [ ]/[x]，而不是进源码编辑。
     // 只读模式同样可用——勾选是「顺手改」，不该被要求先切编辑档。
