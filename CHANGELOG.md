@@ -20,6 +20,12 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.39.8 (2026-11-17)
+
+### Fixed
+
+- fix(shell): only allow http, not https, for the app's own origins
+
 ## v0.39.7 (2026-11-17)
 
 ### Fixed
