@@ -12,7 +12,11 @@ use std::{
 use tauri::webview::PageLoadEvent;
 #[cfg(target_os = "windows")]
 use tauri::EventTarget;
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+// Emitter 只在 Windows 的 snap 悬停转发里用到（见 apply_platform_window_tweaks），
+// 无条件导入会在 macOS 上留下 unused warning，而 CI 的 shell 单元测试会把它当噪音。
+#[cfg(target_os = "windows")]
+use tauri::Emitter;
 
 use super::{fs::canonical, watch::unwatch};
 use crate::protocol;
@@ -35,7 +39,12 @@ fn is_app_url(url: &Url) -> bool {
     "tauri" => host == "localhost",
     // `lector-file` 有两种拼法：原生协议，或 Windows 的 http 隧道
     "lector-file" => true,
-    "http" | "https" => {
+    // **只认 http，不认 https。** Tauri 的应用页面用哪个 scheme 由
+    // `useHttpsScheme` 决定，本项目没配（且没有理由配），所以永远是
+    // `http://tauri.localhost` / `http://lector-file.localhost`。
+    // 把 https 也放行等于多开一扇门：WebView2 的 http 隧道是应用自己伪造的
+    // 本地源，真正的 https 站点不该被当成「自己人」。
+    "http" => {
       // 生产 Windows 的应用页面
       if host == "tauri.localhost" {
         return true;
@@ -48,6 +57,8 @@ fn is_app_url(url: &Url) -> bool {
       // 放行任意端口等于给「点一下就进到别人页面」开了后门。
       (host == "localhost" || host == "127.0.0.1") && url.port() == Some(5173)
     }
+    // 开发服务器的 https 写法（vite 配了证书时），同样要求精确端口
+    "https" => (host == "localhost" || host == "127.0.0.1") && url.port() == Some(5173),
     _ => false,
   }
 }
