@@ -20,6 +20,12 @@ Entries for the next release are collected under `## Unreleased`; when cutting a
 version, rename it to `## vX.Y.Z (YYYY-MM-DD)` — `tools/release.mjs` looks the
 release notes up by that header.
 
+## v0.39.7 (2026-11-17)
+
+### Fixed
+
+- fix(editor,shell): stop a click on a link from navigating the webview
+
 ## v0.39.6 (2026-11-12)
 
 ### Fixed
